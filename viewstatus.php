@@ -1,6 +1,6 @@
 <?php
 // USE WITH BOOTSTRAP3 + BOOTSTRAP-TABLE
-
+echo '
 <div id="breadcrumb">
 <ul class="breadcrumb">
 <li><i class="fa fa-home"></i><a href="/home"> EXTRANET</a></li>
@@ -9,8 +9,8 @@
 </div><!-- /breadcrumb-->
 
 
-<div class="col-md-12">
-<?php
+<div class="col-md-12">';
+
 
 require_once "/var/www/extranet/static/core_db.php";
 
