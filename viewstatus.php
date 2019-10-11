@@ -16,7 +16,7 @@ require_once "/var/www/extranet/static/core_db.php";
 
 function GetSizeName($octet)
 {
-    // Array contenant les differents unités
+    // Array containing the different units
     $unite = array(' octets',' Ko',' Mo',' Go',' To');
 
     if ($octet < 1000) {
