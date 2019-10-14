@@ -58,23 +58,9 @@ function fsql_object($reqsql, $db)
 }
 
 /**
- * @param $reqsql
- * @param $db
- * @return array|null
- */
-function fsql_row($reqsql, $db)
-{
-    mysqli_ping($db);
-    $sql = mysqli_query($db, $reqsql) or die('MySQL error: <br>' . $reqsql . '<br>' . mysqli_error($db));
-    $result = mysqli_fetch_row($sql);
-
-    return $result;
-}
-
-/**
  * @param $path
  */
-function makestat($path, $cli)
+function makeStat($path, $cli)
 {
     $db = db_connect('extranet');
     $tmp = NULL;
@@ -127,7 +113,7 @@ if ($param == "prune") {
 if ($param == "archiveinfo") {
     $path = "/data0/backup/*";
     if ($argv[2]) $path = "/data0/backup/$argv[2]";
-    makestat($path, $cli);
+    makeStat($path, $cli);
 }
 
 
