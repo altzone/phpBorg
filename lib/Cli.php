@@ -2,12 +2,15 @@
 
 namespace phpBorg;
 
-
+/**
+ * Class Cli
+ * @package phpBorg
+ */
 class Cli
 {
 
     /**
-     * @param $inputSeconds
+     * @param int $inputSeconds
      * @return string
      */
     function secondsToTime($inputSeconds)
@@ -47,19 +50,6 @@ class Cli
         }
 
         return implode('', $timeParts);
-    }
-
-    /**
-     * @param $signal
-     */
-    function signal_handler($signal)
-    {
-        switch ($signal) {
-            case SIGTERM:
-            case SIGINT:
-                fwrite($flog, "\nControlC detected => Script terminating\n");
-                exit;
-        }
     }
 
     /**
@@ -118,7 +108,7 @@ class Cli
     {
         $deleted = NULL;
         $keepday = $keepday - 1;
-        $e = my_exec("/usr/bin/borg prune --save-space --force --list --keep-daily $keepday /data0/backup/$srv/backup");
+        $e = $this->my_exec("/usr/bin/borg prune --save-space --force --list --keep-daily $keepday /data0/backup/$srv/backup");
         return ['return' => $e['return'], 'stdout' => $e['stdout'], 'stderr' => $e['stderr']];
     }
 
@@ -128,7 +118,7 @@ class Cli
      */
     function parselog($file)
     {
-        $e = my_exec("/usr/bin/borg info $file --json");
+        $e = $this->my_exec("/usr/bin/borg info $file --json");
         $json = $e['stdout'];
         if ($e['return'] == 0) {
             $var = json_decode($json, true);
