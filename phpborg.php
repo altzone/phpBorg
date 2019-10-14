@@ -2,6 +2,7 @@
 <?php
 
 use phpBorg\Cli;
+use phpBorg\Db;
 
 $flog = fopen('/var/log/backup.log', 'a+');
 declare(ticks=1);
@@ -12,57 +13,17 @@ pcntl_signal(SIGINT, "signal_handler");
 require 'lib/Cli.php';
 $cli = new Cli();
 
-
-
-
-
-/**
- * @param $server
- * @return false|mysqli
- */
-function db_connect($server)
-{
-    switch ($server) {
-        case "extranet":
-            $link = mysqli_connect('mysql_host', 'backup', 'mysql_password', 'backup');
-            return $link;
-            break;
-    }
-	return false;
-}
+require 'lib/Db.php';
+$db = new Db();
 
 /**
- * @param $reqsql
- * @param $db
- * @return bool|mysqli_result
+ * @param string $path
+ * @param Cli $cli
+ * @param Db $db
  */
-function fsql($reqsql, $db)
+function makeStat($path, $cli, $db)
 {
-    mysqli_ping($db);
-    $rez = mysqli_query($db, $reqsql) or die('MySQL error: <br>' . $reqsql . '<br>' . mysqli_error($db));
-    return $rez;
-}
-
-/**
- * @param $reqsql
- * @param $db
- * @return object|null
- */
-function fsql_object($reqsql, $db)
-{
-    mysqli_ping($db);
-    $sql = mysqli_query($db, $reqsql) or die('MySQL error: <br>' . $reqsql . '<br>' . mysqli_error($db));
-    $result = mysqli_fetch_object($sql);
-
-    return $result;
-}
-
-/**
- * @param $path
- */
-function makeStat($path, $cli)
-{
-    $db = db_connect('extranet');
+    $dbConnection = $db->db_connect('extranet');
     $tmp = NULL;
     foreach (glob($path, GLOB_ONLYDIR) as $dir) {
         $json = shell_exec("/usr/bin/borg list $dir/backup --json");
@@ -74,13 +35,12 @@ function makeStat($path, $cli)
             $info = $cli->parselog("$file");
             $insert = "INSERT IGNORE INTO archives VALUE (NULL,'$repo','$value[archive]','$info[archive_id]','$info[dur]','$info[start]','$info[end]','$info[csize]','$info[dsize]','$info[osize]','$info[nfiles]')";
             $update = "UPDATE repository set `size` = '$info[ttsize]', `dsize` = '$info[ucsize]',`csize`= '$info[ttcsize]', `ttuchunks` = '$info[ttuchunks]', `ttchunks` = '$info[ttchunks]' where nom = '$repo'";
-            mysqli_query($db, $insert) or $tmp .= mysqli_error($db);
-            mysqli_query($db, $update) or $tmp .= mysqli_error($db);
+            mysqli_query($dbConnection, $insert) or $tmp .= mysqli_error($dbConnection);
+            mysqli_query($dbConnection, $update) or $tmp .= mysqli_error($dbConnection);
             echo $tmp;
         }
     }
 }
-
 
 if (!empty($argv[1])) {
     $param = $argv[1];
@@ -113,7 +73,7 @@ if ($param == "prune") {
 if ($param == "archiveinfo") {
     $path = "/data0/backup/*";
     if ($argv[2]) $path = "/data0/backup/$argv[2]";
-    makeStat($path, $cli);
+    makeStat($path, $cli, $db);
 }
 
 
@@ -125,13 +85,13 @@ if ($param == "backup") {
         exit(1);
     }
 
-    $db = db_connect('extranet');
+    $dbConnection = $db->db_connect('extranet');
     $config = $cli->parse("/data0/backup/$srv");
 
     if (!$config) die("Error, the server does not exist or the conf is not good\n");
-    fsql("INSERT INTO `report` (`start`) VALUES (Now())", $db, "0");
+    $db->fsql("INSERT INTO `report` (`start`) VALUES (Now())", $db, "0");
     $nb_archive = 1;
-    $idlog = mysqli_insert_id($db);
+    $idlog = mysqli_insert_id($dbConnection);
     $error = 0;
     $date = date("Y-m-d_H:i:s");
     //$e=my_exec("ssh -p $config[port] -tt $config[host] \"/usr/bin/borg create  --compression $config[compression] $config[exclude] ssh://$config[host]@10.10.69.15$config[repo]::backup_$date $config[backup]\"");
@@ -140,7 +100,7 @@ if ($param == "backup") {
 }
 
 if ($param == "prune") {
-    $db = db_connect('extranet');
+    $dbConnection = $db->db_connect('extranet');
     $error = $nb_archive = $tmplog = $dur = $osize = $csize = $dsize = $nfiles = NULL;
 
     foreach (glob('/data0/backup/*', GLOB_ONLYDIR) as $dir) {
@@ -151,7 +111,7 @@ if ($param == "prune") {
             fwrite($flog, "PARSECONFIG => Error, the directory $dir does not exist\n");
         } else {
             fwrite($flog, "Verification of the rules of conservation\n");
-            $result = prune($config['retention'], $config['host']);
+            $result = $cli->prune($config['retention'], $config['host']);
             if ($result['return'] == 0) {
                 fwrite($flog, "$result[stderr]\n");
                 $separator = "\r\n";
@@ -160,7 +120,7 @@ if ($param == "prune") {
                     if (preg_match('/Pruning archive/', $line)) {
                         $id = substr(stristr($line, '['), 1, strpos($line, ']') - strlen($line));
                         fwrite($flog, "suppressing the $id\n");
-                        mysqli_query($db, "DELETE from archives WHERE archive_id='$id'") or $log = $config['host'] . "=>\nPRUNE ERROR=>SQL:\n." . mysqli_error($db);
+                        mysqli_query($dbConnection, "DELETE from archives WHERE archive_id='$id'") or $log = $config['host'] . "=>\nPRUNE ERROR=>SQL:\n." . mysqli_error($dbConnection);
                         fwrite($flog, "$log");
                     }
                     $line = strtok($separator);
@@ -175,21 +135,21 @@ if ($param == "prune") {
 
 if ($param == "full") {
     fwrite($flog, "Starting backups\n");
-    $db = db_connect('extranet');
-    fsql("INSERT INTO `report` (`start`,`status`) VALUES (Now(),'1')", $db, "0");
-    $idlog = mysqli_insert_id($db);
+    $dbConnection = $db->db_connect('extranet');
+    $db->fsql("INSERT INTO `report` (`start`,`status`) VALUES (Now(),'1')", $db, "0");
+    $idlog = mysqli_insert_id($dbConnection);
     $error = $nb_archive = $tmplog = $dur = $osize = $csize = $dsize = $nfiles = NULL;
     foreach (glob('/data0/backup/*', GLOB_ONLYDIR) as $dir) {
-        $config = parse($dir);
+        $config = $cli->parse($dir);
         $nb_archive++;
         fwrite($flog, "Server $config[host]\n");
         if (!$config) {
             fwrite($flog, "PARSECONFIG => Error, the file $dir does not exist\n");
             $tmplog .= "PARSECONFIG => Error, the file $dir does not exist\n";
-            $_tmplog = mysqli_real_escape_string($db, $tmplog);
-            mysqli_query($db, "UPDATE IGNORE report  set `error`='1', `log` = '$_tmplog' WHERE id=$idlog");
+            $_tmplog = mysqli_real_escape_string($dbConnection, $tmplog);
+            mysqli_query($dbConnection, "UPDATE IGNORE report  set `error`='1', `log` = '$_tmplog' WHERE id=$idlog");
         } else {
-            mysqli_query($db, "UPDATE IGNORE report  set `curpos`= '$config[host]' WHERE id=$idlog");
+            mysqli_query($dbConnection, "UPDATE IGNORE report  set `curpos`= '$config[host]' WHERE id=$idlog");
             fwrite($flog, "Verification of the rules of conservation\n");
             $result = $cli->prune($config['retention'], $config['host']);
             if ($result['return'] == 0) {
@@ -199,15 +159,15 @@ if ($param == "full") {
                     if (preg_match('/Pruning archive/', $line)) {
                         $id = substr(stristr($line, '['), 1, strpos($line, ']') - strlen($line));
                         fwrite($flog, "suppression of $id\n");
-                        mysqli_query($db, "DELETE from archives WHERE archive_id='$id'") or $tmplog .= $config['host'] . "=>\nPRUNE ERROR=>SQL:\n" . mysqli_error($db);
+                        mysqli_query($dbConnection, "DELETE from archives WHERE archive_id='$id'") or $tmplog .= $config['host'] . "=>\nPRUNE ERROR=>SQL:\n" . mysqli_error($dbConnection);
                     }
                     $line = strtok($separator);
                 }
             } else {
                 fwrite($flog, "=>\nPRUNE ERROR=>\nSTDOUT:\n$result[stdout]\n\nSTDERR:\n$result[stderr]\n");
                 $tmplog .= $config['host'] . "=>\nPRUNE ERROR=>\nSTDOUT:\n" . $result['stdout'] . "\n\nSTDERR:\n" . $result['stderr'] . "\n";
-                $_tmplog = mysqli_real_escape_string($db, $tmplog);
-                mysqli_query($db, "UPDATE IGNORE report  set `error`='1', `log` = '$_tmplog' WHERE id=$idlog");
+                $_tmplog = mysqli_real_escape_string($dbConnection, $tmplog);
+                mysqli_query($dbConnection, "UPDATE IGNORE report  set `error`='1', `log` = '$_tmplog' WHERE id=$idlog");
             }
             $date = date("Y-m-d_H:i:s");
             system("/bin/chown -R $config[host]:$config[host] $config[repo]");
@@ -227,34 +187,34 @@ if ($param == "full") {
                     $nfiles += $info['nfiles'];
                     $insert = "INSERT IGNORE INTO archives (`id`, `repo`, `nom`, `archive_id`, `dur`, `start`, `end`, `csize`, `dsize`, `osize`, `nfiles`) VALUE (NULL,'$config[repo]','$archname','$info[archive_id]','$info[dur]','$info[start]','$info[end]','$info[csize]','$info[dsize]','$info[osize]','$info[nfiles]')";
                     $update = "UPDATE IGNORE repository set `size` = '$info[ttsize]', `dsize` = '$info[ucsize]',`csize`= '$info[ttcsize]', `ttuchunks` = '$info[ttuchunks]', `ttchunks` = '$info[ttchunks]' where nom = '$config[repo]'";
-                    mysqli_query($db, $insert) or $tmplog .= mysqli_error($db);
-                    mysqli_query($db, $update) or $tmplog .= mysqli_error($db);
-                    mysqli_query($db, "UPDATE IGNORE report  set `osize`='$osize', `csize`='$csize', `dsize`='$dsize', `dur`='$dur', `nb_archive` = $nb_archive, `nfiles`='$nfiles' WHERE id=$idlog") or $tmplog .= $config['host'] . "=> SQL UPDATE ERROR:\n" . mysqli_error($db);
+                    mysqli_query($dbConnection, $insert) or $tmplog .= mysqli_error($dbConnection);
+                    mysqli_query($dbConnection, $update) or $tmplog .= mysqli_error($dbConnection);
+                    mysqli_query($dbConnection, "UPDATE IGNORE report  set `osize`='$osize', `csize`='$csize', `dsize`='$dsize', `dur`='$dur', `nb_archive` = $nb_archive, `nfiles`='$nfiles' WHERE id=$idlog") or $tmplog .= $config['host'] . "=> SQL UPDATE ERROR:\n" . mysqli_error($dbConnection);
                 } else {
                     fwrite($flog, "\nPARSELOG ERROR\n STDERR:$info[stderr]\nSTDOUT:$info[stdout]\n");
                     $tmplog = "$config[host] =>";
                     $tmplog .= "\nPARSELOG ERROR\n STDERR:" . $info['stderr'] . "STDOUT:" . $info['stdout'] . "\n";
-                    $_tmplog = mysqli_real_escape_string($db, $tmplog);
-                    mysqli_query($db, "UPDATE IGNORE report  set `error`='1', `log` = $_tmplog WHERE id=$idlog");
+                    $_tmplog = mysqli_real_escape_string($dbConnection, $tmplog);
+                    mysqli_query($dbConnection, "UPDATE IGNORE report  set `error`='1', `log` = $_tmplog WHERE id=$idlog");
 
                 }
             } else {
                 fwrite($flog, "\n BACKUP ERROR STDOUT:$e[stdout]\nSTDERR:$e[stderr]\n\n");
                 $tmplog = "$config[host] =>";
                 $tmplog .= "\nSTDOUT:" . $e['stdout'] . "\nSTDERR:" . $e['stderr'] . "\n\n";
-                $_tmplog = mysqli_real_escape_string($db, $tmplog);
-                mysqli_query($db, "UPDATE IGNORE report  set `error`='1', `log` = '$_tmplog' WHERE id=$idlog");
+                $_tmplog = mysqli_real_escape_string($dbConnection, $tmplog);
+                mysqli_query($dbConnection, "UPDATE IGNORE report  set `error`='1', `log` = '$_tmplog' WHERE id=$idlog");
 
             }
         }
     }
-    $_tmplog = mysqli_real_escape_string($db, $tmplog);
+    $_tmplog = mysqli_real_escape_string($dbConnection, $tmplog);
     if ($error) {
         $status = 2;
     } else {
         $status = 0;
     }
-    mysqli_query($db, "UPDATE IGNORE report  set `status` = '$status',`end` = Now(), `log` = '$_tmplog', `nb_archive` = $nb_archive, `nfiles` = '$nfiles', `csize` = '$csize', `dsize` = '$dsize', `osize` = '$osize', `dur` = '$dur'   WHERE ID = '$idlog'");
+    mysqli_query($dbConnection, "UPDATE IGNORE report  set `status` = '$status',`end` = Now(), `log` = '$_tmplog', `nb_archive` = $nb_archive, `nfiles` = '$nfiles', `csize` = '$csize', `dsize` = '$dsize', `osize` = '$osize', `dur` = '$dur'   WHERE ID = '$idlog'");
 }
 
 
