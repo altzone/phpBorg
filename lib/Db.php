@@ -36,9 +36,6 @@ class Db
         if (($mem->getResultCode() == Memcached::RES_NOTFOUND) || $cache == 0) {
             $rez = mysqli_query($db, $reqsql) or die('MySQL error: <br>' . $reqsql . '<br>'. mysqli_error($db));
             $mem->set($querykey, $rez, $cache);
-
-            $test = $mem->get($querykey);
-            //print_r($test);
         } else {
             $rez = $result;
         }
