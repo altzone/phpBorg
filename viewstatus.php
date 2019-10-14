@@ -12,7 +12,7 @@ echo '
 <div class="col-md-12">';
 
 
-require_once "/var/www/extranet/static/core_db.php";
+require_once "core_db.php";
 
 function GetSizeName($octet)
 {
