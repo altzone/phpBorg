@@ -22,7 +22,7 @@ echo '
 <div id="breadcrumb">
 <ul class="breadcrumb">
 <li><i class="fa fa-home"></i><a href="/home"> EXTRANET</a></li>
-<li class="active">Repository de backup</li>
+<li class="active">Backup Repository</li>
 </ul>
 </div><!-- /breadcrumb-->
 
@@ -72,13 +72,13 @@ if (empty($_REQUEST["repo"])) {
         $percentd = ceil(100-($info['dtotal']*100/$info['total']));
 
         echo "
-        <h2>Liste des Repository</h2>
+        <h2>Backup Repository</h2>
 <div class='row'>
         <div class='col-sm-6 col-md-3'>
                 <div class='panel-stat3 bg-danger'>
                         <h2 class='m-top-none' id='userCount'>$info[nombre]</h2>
                         <h5>Repository</h5>
-                        <span class='m-left-xs'>contenant $info[archives] archives</span>
+                        <span class='m-left-xs'>Contain $info[archives] archives</span>
                         <div class='stat-icon'>
                                 <i class='fa fa-book fa-3x'></i>
                         </div>
@@ -93,7 +93,8 @@ if (empty($_REQUEST["repo"])) {
         <div class='col-sm-6 col-md-3'>
                 <div class='panel-stat3 bg-info'>
                         <h2 class='m-top-none'><span id='serverloadCount'>$size</span></h2>
-                        <h5>Taille total</h5>
+			<h5>Backups total size</h5>
+			<span class='m-left-xs'>&nbsp;</span>
                         <span class='m-left-xs'></span>
                         <div class='stat-icon'>
                                 <i class='fa fa-hdd-o fa-3x'></i>
@@ -109,8 +110,8 @@ if (empty($_REQUEST["repo"])) {
         <div class='col-sm-6 col-md-3'>
                 <div class='panel-stat3 bg-warning'>
                         <h2 class='m-top-none' id='orderCount'>$csize</h2>
-                        <h5>Taille compressé</h5>
-                        <span class='m-left-xs'>soit un gain de $percentc% d'espace</span>
+                        <h5>Compressed size</h5>
+                        <span class='m-left-xs'>$percentc% gain of size</span>
                         <div class='stat-icon'>
                                 <i class='fa fa-archive fa-3x'></i>
                         </div>
@@ -125,8 +126,8 @@ if (empty($_REQUEST["repo"])) {
         <div class='col-sm-6 col-md-3'>
                 <div class='panel-stat3 bg-success'>
                         <h2 class='m-top-none' id='visitorCount'>$dsize</h2>
-                        <h5>Taille dédupliqué</h5>
-                        </i><span class='m-left-xs'>soint un gain de $percentd% d'espace</span>
+                        <h5>Dedupliqued size</h5>
+                        </i><span class='m-left-xs'>$percentd% gain of size</span>
                         <div class='stat-icon'>
                                 <i class='fa fa-filter fa-3x'></i>
                         </div>
@@ -139,15 +140,15 @@ if (empty($_REQUEST["repo"])) {
                 </div>
         </div><!-- /.col -->
 </div>
-        <table class='table table-striped table-bordered responsive tabledata-striped' style='width: 100%;'>
+        <table class='table table-striped table-bordered responsive tabledata-striped datatable' style='width: 100%;'>
         <thead>
         <tr>
-                <th>Nom</th>
-                <th>Points de resto</th>
-                <th>Derniere archive</th>
-                <th>Taille Reel</th>
-                <th>Taille compressé</th>
-                <th>Taille Dedup</th>
+                <th>Server name</th>
+                <th>Point of backup</th>
+                <th>Latest archive</th>
+                <th>Reel Size</th>
+                <th>Compressed Size</th>
+                <th>Dedup Size</th>
         </tr>
         </thead>
         <tbody>";
@@ -271,7 +272,7 @@ if (empty($_REQUEST["repo"])) {
         <tbody>";
 
         $repo=$_REQUEST["repo"];
-        $SQL=$db->query("SELECT nfiles,nom, dur, DATE_FORMAT(archives.start,'%d/%m/%Y - %H:%i:%s') as datestart, DATE_FORMAT(archives.end,'%d/%m/%Y - %H:%i:%s') as dateend, osize,dsize,csize FROM `archives` WHERE repo = '$repo' ORDER BY start")->FetchAll();
+        $SQL=$db->query("SELECT nfiles,nom, dur, DATE_FORMAT(archives.start,'%Y/%m/%d - %H:%i:%s') as datestart, DATE_FORMAT(archives.end,'%Y/%m/%d - %H:%i:%s') as dateend, osize,dsize,csize FROM `archives` WHERE repo = '$repo' ORDER BY start")->FetchAll();
 
         $first= $db->fsql("$SQL", $dbCon, "0");
 	if(!empty($SQL)) {
@@ -388,6 +389,20 @@ echo "
 </div>
 ";
 }
+echo "
+<script>
+   $(function() {
+$(document).ready(function() {
+    $('.table').dataTable( {
+        rowReorder: true,
+        pageLength: 25,
+        order: [[ 1, 'asc' ]]
+        })
+});
+});
+
+</script>
+";
 
 
         ?>
