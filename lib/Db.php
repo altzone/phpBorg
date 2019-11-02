@@ -4,7 +4,7 @@ namespace phpBorg;
 
 use Memcached;
 use mysqli;
-class Db extends Core
+Class Db
 {
     protected $connection;
     protected $query;
