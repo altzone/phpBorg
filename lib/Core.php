@@ -101,46 +101,49 @@ class Core
         }
 
 
-	/**
-	 * parseConfig Method (Parse config file from repository)
-     * @param $srv
+    /**
+     * parseConfig Method (Parse config file from repository)
+     * @param string $srv
+     * @param logWriter $log
      * @return array|bool|int
      */
-        private function repoConfig($srv,$log) {
-                if (file_exists($this->params->borg_backup_path."/$srv/".$this->params->borg_config_path)) {
-			$this->configBackup = new \stdClass;
-                        $exclude=$backup="";
+    private function repoConfig($srv, $log)
+    {
+        if (file_exists($this->params->borg_backup_path . "/$srv/" . $this->params->borg_config_path)) {
+            $this->configBackup = new \stdClass;
+            $exclude = $backup = "";
 
-			$this->configBackup = (object) parse_ini_file($this->params->borg_backup_path."/$srv/".$this->params->borg_config_path);
-                        $ex=explode(',',$this->configBackup->exclude);
-                        foreach ($ex as $zz) {
-                                $exclude.= "--exclude " . trim($zz) . " ";
-                        }
-                        $this->configBackup->exclude=$exclude;
-                        $back=explode(',',$this->configBackup->backup);
-                        foreach ($back as $yy) {
-                                $backup.=trim($yy)." ";
-                        }
-			$this->configBackup->backup=$backup;
+            $this->configBackup = (object) parse_ini_file($this->params->borg_backup_path . "/$srv/" . $this->params->borg_config_path);
+            $ex = explode(',', $this->configBackup->exclude);
+            foreach ($ex as $zz) {
+                $exclude .= "--exclude " . trim($zz) . " ";
+            }
+            $this->configBackup->exclude = $exclude;
+            $back = explode(',', $this->configBackup->backup);
+            foreach ($back as $yy) {
+                $backup .= trim($yy) . " ";
+            }
+            $this->configBackup->backup = $backup;
 
-			if   (isset($this->configBackup->backuptype)) {
-				switch ($this->configBackup->backuptype) {
-					case "internal":
-						$this->configBackup->backuptype = $this->params->borg_srv_ip_priv;
-						break;
-					case "external":
-						$this->configBackup->backuptype = $this->params->borg_srv_ip_pub;
-						break;
-				}
-			} else {
-					$this->configBackup->backuptype = $this->params->borg_srv_ip_priv;
-			}
-			return 1;
-                } else {
-			$log->error("Error, server '$srv' does not exist or config file is incorect");
-			$this->configBackup=NULL;
+            if (isset($this->configBackup->backuptype)) {
+                switch ($this->configBackup->backuptype) {
+                    case "internal":
+                        $this->configBackup->backuptype = $this->params->borg_srv_ip_priv;
+                        break;
+                    case "external":
+                        $this->configBackup->backuptype = $this->params->borg_srv_ip_pub;
+                        break;
                 }
+            } else {
+                $this->configBackup->backuptype = $this->params->borg_srv_ip_priv;
+            }
+            return 1;
+        } else {
+            $log->error("Error, server '$srv' does not exist or config file is incorect");
+            $this->configBackup = null;
+            return false;
         }
+    }
 
 	/**
 	 * myExec Method (run program from shell with return management)
@@ -196,7 +199,7 @@ class Core
      * @param $file
      * @return array
      */
-        private function parseLog($file) {
+        public function parseLog($file) {
 		$e=$this->myExec($this->params->borg_binary_path." info $file --json");
                 $json=$e['stdout'];
                 if ($e['return'] == 0) {
