@@ -26,7 +26,7 @@ if (!empty($argv[1])) {
 }
 
 if ($param == "prune") {
-    $result = $run->prune(3, "yodaa");
+    $result = $run->pruneArchive(3, "yodaa", $db, $log);
     echo "RETURN = $result[return]\n";
     if ($result['return'] == 0) {
         $separator = "\r\n";
