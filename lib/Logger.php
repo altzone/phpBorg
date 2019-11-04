@@ -4,6 +4,8 @@
 */
 namespace phpBorg;
 
+use Exception;
+
 /**
  * Class logWriter
  * @package phpBorg
@@ -17,7 +19,7 @@ class logWriter extends Core
     protected $log_file;
     /**
     * $file - file
-    * @var string
+    * @var resource
     */
     protected $file;
     /**
@@ -27,11 +29,14 @@ class logWriter extends Core
     protected $options = array(
         'dateFormat' => 'd-M-Y H:i:s'
     );
+
+
     /**
-    * Class constructor
-    * @param string $log_file - path and filename of log
-    * @param array $paramsi
-    */
+     * logWriter constructor.
+     * @param string $log_file ath and filename of log
+     * @param array $params
+     * @throws Exception
+     */
     public function __construct($log_file = '/var/log/phpborg.log', $params = array()){
         parent::__construct($log_file, $params);
         $this->log_file = $log_file;
@@ -54,6 +59,7 @@ class logWriter extends Core
     public function info($message){
         $this->writeLog($message, 'INFO');
     }
+
     /**
     * Debug method (write debug message)
     * @param string $message
