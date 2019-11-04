@@ -6,10 +6,23 @@ require 'lib/Db.php';
 $db = new Db();
 
 echo '
+<!-- Latest compiled and minified CSS -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+	<!-- Optional theme -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+
+	<!-- Latest compiled and minified JavaScript -->
+	<script src="https://code.jquery.com/jquery-3.4.1.min.js" integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="  crossorigin="anonymous"></script>
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+	<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/bs/dt-1.10.20/datatables.min.css"/>
+ 
+<script type="text/javascript" src="https://cdn.datatables.net/v/bs/dt-1.10.20/datatables.min.js"></script>
+
 <div id="breadcrumb">
 <ul class="breadcrumb">
 <li><i class="fa fa-home"></i><a href="/home"> EXTRANET</a></li>
-<li class="active">Repository de backup</li>
+<li class="active">Backup Repository</li>
 </ul>
 </div><!-- /breadcrumb-->
 
@@ -49,24 +62,23 @@ function GetSizeName($octet)
 
 
 
-$dbCon= $db->db_connect("backup");
 
 if (empty($_REQUEST["repo"])) {
-        $info = $db->fsql_object("SELECT count(id) as nombre, sum(size) as total, sum(csize) as ctotal, sum(dsize) as dtotal, (SELECT count(id)  from archives) as archives from repository", $dbCon,"0");
-        $size = GetSizeName($info->total);
-        $csize = GetSizeName($info->ctotal);
-        $dsize = GetSizeName($info->dtotal);
-        $percentc = ceil(100-($info->ctotal*100/$info->total));
-        $percentd = ceil(100-($info->dtotal*100/$info->total));
+        $info = $db->query("SELECT count(id) as nombre, sum(size) as total, sum(csize) as ctotal, sum(dsize) as dtotal, (SELECT count(id)  from archives) as archives from repository")->fetchArray();
+        $size = GetSizeName($info['total']);
+        $csize = GetSizeName($info['ctotal']);
+        $dsize = GetSizeName($info['dtotal']);
+        $percentc = ceil(100-($info['ctotal']*100/$info['total']));
+        $percentd = ceil(100-($info['dtotal']*100/$info['total']));
 
         echo "
-        <h2>Liste des Repository</h2>
+        <h2>Backup Repository</h2>
 <div class='row'>
         <div class='col-sm-6 col-md-3'>
                 <div class='panel-stat3 bg-danger'>
-                        <h2 class='m-top-none' id='userCount'>$info->nombre</h2>
+                        <h2 class='m-top-none' id='userCount'>$info[nombre]</h2>
                         <h5>Repository</h5>
-                        <span class='m-left-xs'>contenant $info->archives archives</span>
+                        <span class='m-left-xs'>Contain $info[archives] archives</span>
                         <div class='stat-icon'>
                                 <i class='fa fa-book fa-3x'></i>
                         </div>
@@ -81,7 +93,8 @@ if (empty($_REQUEST["repo"])) {
         <div class='col-sm-6 col-md-3'>
                 <div class='panel-stat3 bg-info'>
                         <h2 class='m-top-none'><span id='serverloadCount'>$size</span></h2>
-                        <h5>Taille total</h5>
+			<h5>Backups total size</h5>
+			<span class='m-left-xs'>&nbsp;</span>
                         <span class='m-left-xs'></span>
                         <div class='stat-icon'>
                                 <i class='fa fa-hdd-o fa-3x'></i>
@@ -97,8 +110,8 @@ if (empty($_REQUEST["repo"])) {
         <div class='col-sm-6 col-md-3'>
                 <div class='panel-stat3 bg-warning'>
                         <h2 class='m-top-none' id='orderCount'>$csize</h2>
-                        <h5>Taille compressé</h5>
-                        <span class='m-left-xs'>soit un gain de $percentc% d'espace</span>
+                        <h5>Compressed size</h5>
+                        <span class='m-left-xs'>$percentc% gain of size</span>
                         <div class='stat-icon'>
                                 <i class='fa fa-archive fa-3x'></i>
                         </div>
@@ -113,8 +126,8 @@ if (empty($_REQUEST["repo"])) {
         <div class='col-sm-6 col-md-3'>
                 <div class='panel-stat3 bg-success'>
                         <h2 class='m-top-none' id='visitorCount'>$dsize</h2>
-                        <h5>Taille dédupliqué</h5>
-                        </i><span class='m-left-xs'>soint un gain de $percentd% d'espace</span>
+                        <h5>Dedupliqued size</h5>
+                        </i><span class='m-left-xs'>$percentd% gain of size</span>
                         <div class='stat-icon'>
                                 <i class='fa fa-filter fa-3x'></i>
                         </div>
@@ -127,35 +140,38 @@ if (empty($_REQUEST["repo"])) {
                 </div>
         </div><!-- /.col -->
 </div>
-        <table class='table table-striped table-bordered responsive tabledata-striped' style='width: 100%;'>
+        <table class='table table-striped table-bordered responsive tabledata-striped datatable' style='width: 100%;'>
         <thead>
         <tr>
-                <th>Nom</th>
-                <th>Points de resto</th>
-                <th>Derniere archive</th>
-                <th>Taille Reel</th>
-                <th>Taille compressé</th>
-                <th>Taille Dedup</th>
+                <th>Server name</th>
+                <th>Point of backup</th>
+                <th>Latest archive</th>
+                <th>Reel Size</th>
+                <th>Compressed Size</th>
+                <th>Dedup Size</th>
         </tr>
         </thead>
         <tbody>";
-        $SQL="SELECT * FROM `repository`";
-        $first = $db->fsql("$SQL", $dbCon, "0");
-        if(mysqli_num_rows($first)) { //@TODO move to db class
-                while($row = mysqli_fetch_object($first)) { //@TODO move to db class
-                        $count = $db->fsql_object("SELECT count(id) as nb FROM archives WHERE repo = '$row->nom'",$dbCon,"0");
-                        $lastest= $db->fsql_object("SELECT DATE_FORMAT(archives.end,'%d/%m/%Y - %H:%i:%s') as lastest FROM archives WHERE repo = '$row->nom' ORDER by end DESC LIMIT 1",$dbCon,"0");
-                        $nom = explode('/',$row->nom);
-                        $size = GetSizeName($row->size);
-                        $csize = GetSizeName($row->csize);
-                        $dsize = GetSizeName($row->dsize);
-                        $percentc = ceil(100-($row->csize*100/$row->size));
-                        $percentd = ceil(100-($row->dsize*100/$row->size));
+        $first=$db->query("SELECT * FROM `repository`")->fetchAll();
+	if(!empty($first)) {
+		foreach ($first as $row) {
+                        $count = $db->query("SELECT count(id) as nb FROM archives WHERE repo = '$row[nom]'")->fetchArray();
+                        $lastest= $db->query("SELECT DATE_FORMAT(archives.end,'%d/%m/%Y - %H:%i:%s') as lastest FROM archives WHERE repo = '$row[nom]' ORDER by end DESC LIMIT 1")->fetchArray();
+                        $nom = explode('/',$row['nom']);
+                        $size = GetSizeName($row['size']);
+                        $csize = GetSizeName($row['csize']);
+                        $dsize = GetSizeName($row['dsize']);
+			if ($row['size']) {
+				$percentc = ceil(100-($row['csize']*100/$row['size']));
+				$percentd = ceil(100-($row['dsize']*100/$row['size']));
+			} else {
+				$percentc=$percentd = 'N/A';
+			}
 
                         print " <tr>
-                        <td><a href=\"/backup?repo=$row->nom\">$nom[3]</a></td>
-                        <td>$count->nb</td>
-                        <td>$lastest->lastest</td>
+                        <td><a href=\"/backup?repo=$row[nom]\">$nom[3]</a></td>
+                        <td>$count[nb]</td>
+                        <td>$lastest[lastest]</td>
                         <td>$size</td>
                         <td>$csize ($percentc%)</td>
                         <td>$dsize ($percentd%)</td>
@@ -164,19 +180,19 @@ if (empty($_REQUEST["repo"])) {
                 echo "</tbody></table>";
         }
 } else {
-        $repoinfo = $db->fsql_object("SELECT * FROM `repository` WHERE nom='$_REQUEST[repo]'",$dbCon,"0");
-        $info = $db->fsql_object("SELECT count(id) as nombre FROM `archives` WHERE repo='$_REQUEST[repo]'",$dbCon,"0");
-        $size = GetSizeName($repoinfo->size);
-        $csize = GetSizeName($repoinfo->csize);
-        $dsize = GetSizeName($repoinfo->dsize);
-        $percentc = ceil(100-($repoinfo->csize*100/$repoinfo->size));
-        $percentd = ceil(100-($repoinfo->dsize*100/$repoinfo->size));
-        $nom = explode('/',$repoinfo->nom);
+        $repoinfo = $db->query("SELECT * FROM `repository` WHERE nom='$_REQUEST[repo]'")->fetchArray();
+        $info = $db->query("SELECT count(id) as nombre FROM `archives` WHERE repo='$_REQUEST[repo]'")->fetchArray();
+        $size = GetSizeName($repoinfo['size']);
+        $csize = GetSizeName($repoinfo['csize']);
+        $dsize = GetSizeName($repoinfo['dsize']);
+        $percentc = ceil(100-($repoinfo['csize']*100/$repoinfo['size']));
+        $percentd = ceil(100-($repoinfo['dsize']*100/$repoinfo['size']));
+        $nom = explode('/',$repoinfo['nom']);
         echo "
         <div class='row'>
         <div class='col-sm-6 col-md-3'>
                 <div class='panel-stat3 bg-danger'>
-                        <h2 class='m-top-none' id='userCount'>$info->nombre</h2>
+                        <h2 class='m-top-none' id='userCount'>$info[nombre]</h2>
                         <h5>Archives</h5>
                         <span class='m-left-xs'></span>
                         <div class='stat-icon'>
@@ -256,26 +272,26 @@ if (empty($_REQUEST["repo"])) {
         <tbody>";
 
         $repo=$_REQUEST["repo"];
-        $SQL="SELECT nfiles,nom, dur, DATE_FORMAT(archives.start,'%d/%m/%Y - %H:%i:%s') as datestart, DATE_FORMAT(archives.end,'%d/%m/%Y - %H:%i:%s') as dateend, osize,dsize,csize FROM `archives` WHERE repo = '$repo' ORDER BY start";
+        $SQL=$db->query("SELECT nfiles,nom, dur, DATE_FORMAT(archives.start,'%Y/%m/%d - %H:%i:%s') as datestart, DATE_FORMAT(archives.end,'%Y/%m/%d - %H:%i:%s') as dateend, osize,dsize,csize FROM `archives` WHERE repo = '$repo' ORDER BY start")->FetchAll();
 
         $first= $db->fsql("$SQL", $dbCon, "0");
-        if(mysqli_num_rows($first)) {
-                while($row = mysqli_fetch_object($first)) {
-                        $size = GetSizeName($row->osize);
-                        $csize = GetSizeName($row->csize);
-                        $dsize = GetSizeName($row->dsize);
-                        $dur = $cli->secondsToTime($row->dur);
-                        $pcsize = round(100-($row->csize * 100 / $row->osize),2);
-                        $pdsize = round(100-($row->dsize * 100 / $row->osize),2);
+	if(!empty($SQL)) {
+		foreach ($SQL as $row) {
+                        $size = GetSizeName($row['osize']);
+                        $csize = GetSizeName($row['csize']);
+                        $dsize = GetSizeName($row['dsize']);
+                        $dur = $cli->secondsToTime($row['dur']);
+                        $pcsize = round(100-($row['csize']* 100 / $row['osize']),2);
+                        $pdsize = round(100-($row['dsize'] * 100 / $row['osize']),2);
                         print " <tr>
-                        <td>$row->nom</td>
+                        <td>$row[nom]</td>
                         <td>$dur</td>
-                        <td>$row->datestart</td>
-                        <td>$row->dateend</td>
+                        <td>$row[datestart]</td>
+                        <td>$row[dateend]</td>
                         <td>$size</td>
                         <td>$csize ($pcsize%)</td>
                         <td>$dsize ($pdsize%)</td>
-                        <td>$row->nfiles</td>
+                        <td>$row[nfiles]</td>
                         </tr>";
                 }
                 echo "</tbody></table><br>
@@ -311,18 +327,17 @@ if ($_GET['report']) {
         <tbody>";
 
         $repo=$_REQUEST["repo"];
-        $SQL="SELECT status,DATE_FORMAT(report.start,'%d/%m/%Y - %H:%i:%s') as datestart, DATE_FORMAT(report.end,'%d/%m/%Y - %H:%i:%s') as dateend,dur, osize,dsize,csize,nfiles,nb_archive,curpos FROM `report`  ORDER BY datestart";
+        $SQL=$db->query("SELECT status,DATE_FORMAT(report.start,'%d/%m/%Y - %H:%i:%s') as datestart, DATE_FORMAT(report.end,'%d/%m/%Y - %H:%i:%s') as dateend,dur, osize,dsize,csize,nfiles,nb_archive,curpos FROM `report`  ORDER BY datestart")->fetchAll();
 
-        $first = $db->fsql("$SQL", $dbCon, "0");
-        if(mysqli_num_rows($first)) {
-                while($row = mysqli_fetch_object($first)) {
-                        $size = GetSizeName($row->osize);
-                        $csize = GetSizeName($row->csize);
-                        $dsize = GetSizeName($row->dsize);
-                        $dur = $cli->secondsToTime($row->dur);
-                        $pcsize=round(100-($row->csize*100/$row->osize),2);
-                        $pdsize=round(100-($row->dsize*100/$row->osize),2);
-                        if ($row->status == 0){
+	if(!empty($SQL)) {
+		foreach ($SQL as $row) {
+                        $size = GetSizeName($row['osize']);
+                        $csize = GetSizeName($row['csize']);
+                        $dsize = GetSizeName($row['dsize']);
+                        $dur = $cli->secondsToTime($row['dur']);
+                        $pcsize=round(100-($row[csize]*100/$row['osize']),2);
+                        $pdsize=round(100-($row[dsize]*100/$row['osize']),2);
+                        if ($row['status'] == 0){
                         	$status="<i class='fa fa-check fa-lg' style='color:green;'></i>";
                         }
                         else {
@@ -330,15 +345,15 @@ if ($_GET['report']) {
                         }
                         echo " <tr>
                         <td align=center>$status</td>
-                        <td>$row->nb_archive</td>
-                        <td>$row->datestart</td>
-                        <td>$row->dateend</td>
+                        <td>$row[nb_archive]</td>
+                        <td>$row[datestart]</td>
+                        <td>$row[dateend]</td>
                         <td>$dur</td>
-                        <td>$row->nfiles</td>
+                        <td>$row[nfiles]</td>
                         <td>$size</td>
                         <td>$csize ($pcsize%)</td>
                         <td>$dsize ($pdsize%)</td>
-                        <td>$row->curpos</td>
+                        <td>$row[curpos]</td>
                         <td><button type='button' class='btn btn-primary' data-toggle='modal' data-target='#exampleModalLong'>Log </button></td>
                         </tr>";
                 }
@@ -374,6 +389,20 @@ echo "
 </div>
 ";
 }
+echo "
+<script>
+   $(function() {
+$(document).ready(function() {
+    $('.table').dataTable( {
+        rowReorder: true,
+        pageLength: 25,
+        order: [[ 1, 'asc' ]]
+        })
+});
+});
+
+</script>
+";
 
 
         ?>
