@@ -65,18 +65,18 @@ if ($param == "backup") {
 }
 
 if ($param == "prune") {
-    $dbConnection = $db->db_connect('extranet');
+    $dbConnection = $db->db_connect('extranet', $db, $log);
     $error = $nb_archive = $tmplog = $dur = $osize = $csize = $dsize = $nfiles = NULL;
 
     foreach (glob('/data0/backup/*', GLOB_ONLYDIR) as $dir) {
-        $config = $run->parse($dir);
+        $config = $run->pruneArchive($dir);
         echo "Serveur $config[host]\n";
 
         if (!$config) {
             fwrite($flog, "PARSECONFIG => Error, the directory $dir does not exist\n");
         } else {
             fwrite($flog, "Verification of the rules of conservation\n");
-            $result = $run->prune($config['retention'], $config['host']);
+            $result = $run->pruneArchive($config['retention'], $config['host']);
             if ($result['return'] == 0) {
                 fwrite($flog, "$result[stderr]\n");
                 $separator = "\r\n";
