@@ -167,9 +167,11 @@ class Core
 
      /**
       * pruneArchive Method (archive retention management)
-      * @param $keepday
-      * @param $srv
-      * @return array
+      * @param int $keepday
+      * @param string $srv
+      * @param Db $db
+      * @param logWriter $log
+      * @return array|bool|void
      */
         public function pruneArchive($keepday, $srv,$db,$log) {
                 $deleted = NULL;
@@ -249,11 +251,10 @@ class Core
                 else return array('error' => 1, 'stderr' => $e['stderr'], 'stdout'=> $e['stdout']);
 	}
      /**
-      * startReport Method (Create line entrie for task backup and return sql logId)
-      * @param $db
+      * startReport Method (Create line entry for task backup and return sql logId)
+      * @param Db $db
       * @return int
      */
-
 	public function startReport($db) {
 		$db->query("INSERT INTO `report` (`start`) VALUES (Now())");
 		return $db->insertId();
@@ -264,7 +265,7 @@ class Core
       * @param object $log
       * @param object $db
       * @param $reportId
-      * @return array
+      * @return array|object
      */
 
 	public function backup($srv,$log,$db,$reportId) {
