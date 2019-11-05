@@ -4,6 +4,12 @@
 */
 namespace phpBorg;
 
+use Exception;
+
+/**
+ * Class logWriter
+ * @package phpBorg
+ */
 class logWriter extends Core
 {
     /**
@@ -13,7 +19,7 @@ class logWriter extends Core
     protected $log_file;
     /**
     * $file - file
-    * @var string
+    * @var resource
     */
     protected $file;
     /**
@@ -23,20 +29,24 @@ class logWriter extends Core
     protected $options = array(
         'dateFormat' => 'd-M-Y H:i:s'
     );
+
+
     /**
-    * Class constructor
-    * @param string $log_file - path and filename of log
-    * @param array $paramsi
-    */
+     * logWriter constructor.
+     * @param string $log_file ath and filename of log
+     * @param array $params
+     * @throws Exception
+     */
     public function __construct($log_file = '/var/log/phpborg.log', $params = array()){
+        parent::__construct($log_file, $params);
         $this->log_file = $log_file;
         $this->params = array_merge($this->options, $params);
         //Create log file if it doesn't exist.
-        if(!file_exists($log_file)){               
+        if(!file_exists($log_file)){
             fopen($log_file, 'w') or exit("Can't create $log_file!");
         }
         //Check permissions of file.
-        if(!is_writable($log_file)){   
+        if(!is_writable($log_file)){
             //throw exception if not writable
             throw new Exception("ERROR: Unable to write to file!", 1);
         }
@@ -49,6 +59,7 @@ class logWriter extends Core
     public function info($message){
         $this->writeLog($message, 'INFO');
     }
+
     /**
     * Debug method (write debug message)
     * @param string $message

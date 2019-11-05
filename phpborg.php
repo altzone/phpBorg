@@ -26,7 +26,7 @@ if (!empty($argv[1])) {
 }
 
 if ($param == "prune") {
-    $result = $run->prune(3, "yodaa");
+    $result = $run->pruneArchive(3, "yodaa", $db, $log);
     echo "RETURN = $result[return]\n";
     if ($result['return'] == 0) {
         $separator = "\r\n";
@@ -49,7 +49,7 @@ if ($param == "prune") {
 if ($param == "archiveinfo") {
     $path = "/data0/backup/*";
     if ($argv[2]) $path = "/data0/backup/$argv[2]";
-    makeStat($path, $run, $db);
+    makeStat($path, $run, $db); //@TODO undefined
 }
 
 
@@ -65,18 +65,18 @@ if ($param == "backup") {
 }
 
 if ($param == "prune") {
-    $dbConnection = $db->db_connect('extranet');
+    $dbConnection = $db->db_connect('extranet', $db, $log); //@TODO not defined in db class
     $error = $nb_archive = $tmplog = $dur = $osize = $csize = $dsize = $nfiles = NULL;
 
     foreach (glob('/data0/backup/*', GLOB_ONLYDIR) as $dir) {
-        $config = $run->parse($dir);
+        $config = $run->pruneArchive($dir);
         echo "Serveur $config[host]\n";
 
         if (!$config) {
             fwrite($flog, "PARSECONFIG => Error, the directory $dir does not exist\n");
         } else {
             fwrite($flog, "Verification of the rules of conservation\n");
-            $result = $run->prune($config['retention'], $config['host']);
+            $result = $run->pruneArchive($config['retention'], $config['host'], $db, $log);
             if ($result['return'] == 0) {
                 fwrite($flog, "$result[stderr]\n");
                 $separator = "\r\n";
@@ -85,7 +85,7 @@ if ($param == "prune") {
                     if (preg_match('/Pruning archive/', $line)) {
                         $id = substr(stristr($line, '['), 1, strpos($line, ']') - strlen($line));
                         fwrite($flog, "suppressing the $id\n");
-                        mysqli_query($dbConnection, "DELETE from archives WHERE archive_id='$id'") or $log = $config['host'] . "=>\nPRUNE ERROR=>SQL:\n." . mysqli_error($dbConnection);
+                        mysqli_query($dbConnection, "DELETE from archives WHERE archive_id='$id'") or $log = $config['host'] . "=>\nPRUNE ERROR=>SQL:\n." . mysqli_error($dbConnection); //@TODO move to db class
                         fwrite($flog, "$log");
                     }
                     $line = strtok($separator);

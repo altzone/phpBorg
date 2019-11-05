@@ -14,8 +14,16 @@ use DirectoryIterator;
  */
 class Core
 {
-        protected $params;
-        private $parse_err;
+    /**
+     * @var \stdClass
+     */
+    protected $params;
+
+    /**
+     * @var
+     */
+    private $parse_err;
+
     /**
     * Class constructor
     * @param string $borg_binary_path - path of borg executable binary
@@ -23,18 +31,16 @@ class Core
     * @param string $borg_config_path - relative path of repository config file
     * @param string $borg_archive_dir - name of backup repository archive
     * @param string $borg_srv_ip_pub  - Public IP of Backup server
-    * @param string $borg_srv_ip_priv - Private IP of backup server 
+    * @param string $borg_srv_ip_priv - Private IP of backup server
     */
-
-
-        public function __construct($borg_binary_path='/usr/bin/borg',$borg_config_path = 'conf/borg.conf',$borg_srv_ip_pub  = '91.200.204.28',$borg_srv_ip_priv = '10.10.69.15',$borg_backup_path = '/data0/backup',$borg_archive_dir = 'backup') {
-                $this->params = new \stdClass;
-                $this->params->borg_binary_path  = $borg_binary_path;
-                $this->params->borg_config_path  = $borg_config_path;
-                $this->params->borg_srv_ip_pub   = $borg_srv_ip_pub;
-                $this->params->borg_srv_ip_priv  = $borg_srv_ip_priv;
-                $this->params->borg_backup_path  = $borg_backup_path;
-                $this->params->borg_archive_dir  = $borg_archive_dir;
+    public function __construct($borg_binary_path='/usr/bin/borg',$borg_config_path = 'conf/borg.conf',$borg_srv_ip_pub  = '91.200.204.28',$borg_srv_ip_priv = '10.10.69.15',$borg_backup_path = '/data0/backup',$borg_archive_dir = 'backup') {
+            $this->params = new \stdClass;
+            $this->params->borg_binary_path  = $borg_binary_path;
+            $this->params->borg_config_path  = $borg_config_path;
+            $this->params->borg_srv_ip_pub   = $borg_srv_ip_pub;
+            $this->params->borg_srv_ip_priv  = $borg_srv_ip_priv;
+            $this->params->borg_backup_path  = $borg_backup_path;
+            $this->params->borg_archive_dir  = $borg_archive_dir;
 	}
 
     /**
@@ -80,7 +86,11 @@ class Core
 
         return implode('', $timeParts);
     }
-        public function getSrv() {
+
+    /**
+     * @return array
+     */
+    public function getSrv() {
                 $srv=[];
                 foreach (new DirectoryIterator($this->params->borg_backup_path) as $fileInfo) {
                         if($fileInfo->isDot()) continue;
@@ -91,45 +101,49 @@ class Core
         }
 
 
-	/**
-	 * parseConfig Method (Parse config file from repository)
-     * @param $srv
+    /**
+     * parseConfig Method (Parse config file from repository)
+     * @param string $srv
+     * @param logWriter $log
      * @return array|bool|int
      */
-        private function repoConfig($srv,$log) {
-                if (file_exists($this->params->borg_backup_path."/$srv/".$this->params->borg_config_path)) {
-			$this->configBackup = new \stdClass;
-                        $exclude=$backup="";
-			$this->configBackup= (object) parse_ini_file($this->params->borg_backup_path."/$srv/".$this->params->borg_config_path);
-                        $ex=explode(',',$this->configBackup->exclude);
-                        foreach ($ex as $zz) {
-                                $exclude.= "--exclude " . trim($zz) . " ";
-                        }
-                        $this->configBackup->exclude=$exclude;
-                        $back=explode(',',$this->configBackup->backup);
-                        foreach ($back as $yy) {
-                                $backup.=trim($yy)." ";
-                        }
-			$this->configBackup->backup=$backup;
+    private function repoConfig($srv, $log)
+    {
+        if (file_exists($this->params->borg_backup_path . "/$srv/" . $this->params->borg_config_path)) {
+            $this->configBackup = new \stdClass;
+            $exclude = $backup = "";
 
-			if   (isset($this->configBackup->backuptype)) {
-				switch ($this->configBackup->backuptype) {
-					case "internal":
-						$this->configBackup->backuptype = $this->params->borg_srv_ip_priv;
-						break;
-					case "external":
-						$this->configBackup->backuptype = $this->params->borg_srv_ip_pub;
-						break;
-				}
-			} else {
-					$this->configBackup->backuptype = $this->params->borg_srv_ip_priv;
-			}
-			return 1;
-                } else {
-			$log->error("Error, server '$srv' does not exist or config file is incorect");
-			$this->configBackup=NULL;
+            $this->configBackup = (object) parse_ini_file($this->params->borg_backup_path . "/$srv/" . $this->params->borg_config_path);
+            $ex = explode(',', $this->configBackup->exclude);
+            foreach ($ex as $zz) {
+                $exclude .= "--exclude " . trim($zz) . " ";
+            }
+            $this->configBackup->exclude = $exclude;
+            $back = explode(',', $this->configBackup->backup);
+            foreach ($back as $yy) {
+                $backup .= trim($yy) . " ";
+            }
+            $this->configBackup->backup = $backup;
+
+            if (isset($this->configBackup->backuptype)) {
+                switch ($this->configBackup->backuptype) {
+                    case "internal":
+                        $this->configBackup->backuptype = $this->params->borg_srv_ip_priv;
+                        break;
+                    case "external":
+                        $this->configBackup->backuptype = $this->params->borg_srv_ip_pub;
+                        break;
                 }
+            } else {
+                $this->configBackup->backuptype = $this->params->borg_srv_ip_priv;
+            }
+            return 1;
+        } else {
+            $log->error("Error, server '$srv' does not exist or config file is incorect");
+            $this->configBackup = null;
+            return false;
         }
+    }
 
 	/**
 	 * myExec Method (run program from shell with return management)
@@ -153,9 +167,11 @@ class Core
 
      /**
       * pruneArchive Method (archive retention management)
-      * @param $keepday
-      * @param $srv
-      * @return array
+      * @param int $keepday
+      * @param string $srv
+      * @param Db $db
+      * @param logWriter $log
+      * @return array|bool|void
      */
         public function pruneArchive($keepday, $srv,$db,$log) {
                 $deleted = NULL;
@@ -185,7 +201,7 @@ class Core
      * @param $file
      * @return array
      */
-        private function parseLog($file) {
+        public function parseLog($file) {
 		$e=$this->myExec($this->params->borg_binary_path." info $file --json");
                 $json=$e['stdout'];
                 if ($e['return'] == 0) {
@@ -235,11 +251,10 @@ class Core
                 else return array('error' => 1, 'stderr' => $e['stderr'], 'stdout'=> $e['stdout']);
 	}
      /**
-      * startReport Method (Create line entrie for task backup and return sql logId)
-      * @param $db
+      * startReport Method (Create line entry for task backup and return sql logId)
+      * @param Db $db
       * @return int
      */
-
 	public function startReport($db) {
 		$db->query("INSERT INTO `report` (`start`) VALUES (Now())");
 		return $db->insertId();
@@ -250,7 +265,7 @@ class Core
       * @param object $log
       * @param object $db
       * @param $reportId
-      * @return array
+      * @return array|object
      */
 
 	public function backup($srv,$log,$db,$reportId) {
