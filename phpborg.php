@@ -25,30 +25,7 @@ if (!empty($argv[1])) {
     exit(1);
 }
 
-if ($param == "prune") {
-    $result = $run->pruneArchive(3, "yodaa", $db, $log);
-    echo "RETURN = $result[return]\n";
-    if ($result['return'] == 0) {
-        $separator = "\r\n";
-        $line = strtok($result['stderr'], $separator);
-        while ($line !== false) {
-            if (preg_match('/Would prune/', $line)) {
-                $id = substr(stristr($line, '['), 1, -1);
-                $sql = "DELETE from archives WHERE archive_id='$id'";
-                echo "DELEDETED\n";
-            }
-            $line = strtok($separator);
-        }
-    } else {
-        echo "ERREUR!!\n";
-    }
-
-}
-
-
-if ($param == "archiveinfo") {
-    $path = "/data0/backup/*";
-    if ($argv[2]) $path = "/data0/backup/$argv[2]";
+if ($param == "info") {
     makeStat($path, $run, $db); //@TODO undefined
 }
 
@@ -57,7 +34,7 @@ if ($param == "backup") {
     if (!empty($argv[2])) {
         $srv = $argv[2];
     } else {
-        echo "Specify the server a backup example:\n$argv[0] $argv[1] sbc-orange1\n";
+        echo "Specify the server to backup, example:\n$argv[0] $argv[1] sbc-orange1\n";
         exit(1);
     }
     $run->backup($srv,$log,$db,$run->startReport($db));
@@ -65,36 +42,31 @@ if ($param == "backup") {
 }
 
 if ($param == "prune") {
-    $dbConnection = $db->db_connect('extranet', $db, $log); //@TODO not defined in db class
-    $error = $nb_archive = $tmplog = $dur = $osize = $csize = $dsize = $nfiles = NULL;
-
-    foreach (glob('/data0/backup/*', GLOB_ONLYDIR) as $dir) {
-        $config = $run->pruneArchive($dir);
-        echo "Serveur $config[host]\n";
-
-        if (!$config) {
-            fwrite($flog, "PARSECONFIG => Error, the directory $dir does not exist\n");
-        } else {
-            fwrite($flog, "Verification of the rules of conservation\n");
-            $result = $run->pruneArchive($config['retention'], $config['host'], $db, $log);
-            if ($result['return'] == 0) {
-                fwrite($flog, "$result[stderr]\n");
-                $separator = "\r\n";
-                $line = strtok($result['stderr'], $separator);
-                while ($line !== false) {
-                    if (preg_match('/Pruning archive/', $line)) {
-                        $id = substr(stristr($line, '['), 1, strpos($line, ']') - strlen($line));
-                        fwrite($flog, "suppressing the $id\n");
-                        mysqli_query($dbConnection, "DELETE from archives WHERE archive_id='$id'") or $log = $config['host'] . "=>\nPRUNE ERROR=>SQL:\n." . mysqli_error($dbConnection); //@TODO move to db class
-                        fwrite($flog, "$log");
-                    }
-                    $line = strtok($separator);
-                }
-            } else {
-                fwrite($flog, "=>\nPRUNE ERROR=>\nSTDOUT:\n$result[stdout]\n\nSTDERR:\n$result[stderr]\n");
-            }
-        }
+    if (!empty($argv[2])) {
+        $srv = $argv[2];
+    } else {
+        echo 'Specify server name to prune  or "all" to prune all server,  example:'."\n$argv[0] $argv[1] srvname\n";
+        exit(1);
     }
+    if ($srv == "all") {
+	    $log->info("Starting prune for ALL servers...");
+        foreach ($run->getSrv() as $srv) {
+		if ($config = $run->repoConfig($srv,$log)) {
+			$run->pruneArchive($config->retention,$srv,$db,$log);
+			$run->updateRepo($config,$db,$log);
+		}
+
+	}
+    } else {
+                if ($config = $run->repoConfig($srv,$log)) {
+                        $run->pruneArchive($config->retention,$srv,$db,$log);
+                        $run->updateRepo($config,$db,$log);
+                }
+	}
+
+
+	    
+
 }
 
 
@@ -119,14 +91,3 @@ if ($param == "full") {
 
 }
 
-if ($param == "info") {
-    if (!empty($argv[2])) {
-        $file = $argv[2];
-    } else {
-        echo "Specify the server you want to backup example:\n$argv[0] $argv[1] sbc-orange1\n";
-        exit(1);
-    }
-
-    $log = $run->parselog($file);
-    print_r($log);
-}

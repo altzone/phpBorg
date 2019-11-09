@@ -56,8 +56,8 @@ class logWriter extends Core
     * @param string $message
     * @return void
     */
-    public function info($message){
-        $this->writeLog($message, 'INFO');
+    public function info($message,$srv="CORE"){
+        $this->writeLog($message, 'INFO',$srv);
     }
 
     /**
@@ -65,24 +65,24 @@ class logWriter extends Core
     * @param string $message
     * @return void
     */
-    public function debug($message){
-        $this->writeLog($message, 'DEBUG');
+    public function debug($message,$srv="CORE"){
+        $this->writeLog($message, 'DEBUG',$srv);
     }
     /**
     * Warning method (write warning message)
     * @param string $message
     * @return void
     */
-    public function warning($message){
-        $this->writeLog($message, 'WARNING');
+    public function warning($message,$srv="CORE"){
+        $this->writeLog($message, 'WARNING',$srv);
     }
     /**
     * Error method (write error message)
     * @param string $message
     * @return void
     */
-    public function error($message){
-        $this->writeLog($message, 'ERROR');
+    public function error($message,$srv="CORE"){
+        $this->writeLog($message, 'ERROR',$srv);
     }
     /**
     * Write to log file
@@ -90,14 +90,15 @@ class logWriter extends Core
     * @param string $severity
     * @return void
     */
-    public function writeLog($message, $severity) {
+    public function writeLog($message, $severity,$srv) {
         // open log file
         if (!is_resource($this->file)) {
             $this->openLog();
 	}
-        $time = date($this->params['dateFormat']);
+	$time = date($this->params['dateFormat']);
+	$srv  = strtoupper($srv);
         // Write time, url, & message to end of file
-        fwrite($this->file, "[$time] : [$severity] - $message" . PHP_EOL);
+        fwrite($this->file, "[$time] : [$severity] [$srv] - $message" . PHP_EOL);
     }
     /**
     * Open log file
