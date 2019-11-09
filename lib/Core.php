@@ -96,8 +96,7 @@ class Core
                         if($fileInfo->isDot()) continue;
                         if ($fileInfo->isDir())  $srv[]=$fileInfo->getFilename();
                 }
-		//return $srv;
-		return ['sql-buzz','ns-cache2'];
+		return $srv;
         }
 
 
