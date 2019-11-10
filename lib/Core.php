@@ -353,7 +353,120 @@ class Core
 	return (object) ['error' => $backuperror, 'log' => $tmplog, 'osize'=>$info->archives->stats->original_size , 'csize' => $info->archives->stats->compressed_size , 'dsize'=> $info->archives->stats->deduplicated_size, 'dur'=> $info->archives->duration, 'nbarchive' => 1, 'nfiles' => $info->archives->stats->nfiles];
 }
 
+     /**
+      * getInput Method (Add a server to backup)
+      * @return int
+     */
+        public function getInput() {
+                $handle = fopen ("php://stdin","r");
+                $line = fgets($handle);
+		return trim($line);
+	}
 
+
+     /**
+      * addSrv Method (Add a server to backup)
+      * @return int
+     */
+	public function addSrv() {
+		echo "[ PARAMETERS ]\n";
+		echo "   - Enter the server name : ";
+		$srv  = $this->getInput();
+
+		echo "   - Enter number of retention point (default 8) : ";
+		$keep = $this->getInput();
+		if (!$keep) $keep=8;
+		
+		echo "   - Specify SSH port (default 22) : ";
+		$sshport = $this->getInput();
+		if (!$sshport) $sshport=22;
+		echo "\n\n[ REMOTE CONFIG ]\n";
+		echo "   - Connecting to $srv\n";
+		echo "   - Making SSH key ===================> ";
+		$exec=$this->myExec('ssh -tt -p '.$sshport." ".$srv." \"if [ ! -f /root/.ssh/id_rsa ]; then ssh-keygen -t rsa -b 1024 -f /root/.ssh/id_rsa -N '' &> /dev/null && echo '[OK]' || echo 'Failed to create key'; else  echo '[SKIP] key already exist'; fi\"");
+		if ($exec['return'] == 0) {
+			echo $exec['stdout'];
+		} else {
+			echo "Error: ".$exec['stdout']."\n".$exec['stderr']."\n";
+			die;
+		}
+		echo "   - Get SSH key ======================> ";
+			$exec=$this->myExec('ssh -tt -p '.$sshport." ".$srv." \"cat /root/.ssh/id_rsa.pub\"");
+		if ($exec['return'] == 0) {
+			$sshkey=$exec['stdout'];
+			echo "[OK]\n";
+		} else {
+			echo "Error: ".$exec['stdout']."\n".$exec['stderr']."\n";
+			die;
+		}
+		echo "   - Installation of BorgBackup =======> ";
+		$exec=$this->myExec('ssh -tt -p '.$sshport." ".$srv." \"if [ `uname -m` == 'i686' ]; then plateforme='32'; else plateforme='64'; fi; if [ ! -f /usr/bin/borg ]; then wget --no-check-certificate -q -O /usr/bin/borg https://github.com/borgbackup/borg/releases/download/1.1.7/borg-linux\$plateforme  ; chmod +x /usr/bin/borg && echo '[OK]' || echo '[FAIL] =>  Unable to install BorgBackup' ; else echo '[SKIP] BorgBackup already installed'; fi\"");
+                if ($exec['return'] == 0) {
+                        echo $exec['stdout'];
+                } else {
+                        echo "Error: ".$exec['stdout']."\n".$exec['stderr']."\n";
+                        die;
+		}
+		echo "\n\n[ LOCAL CONFIG ]\n";
+		echo "   - Creating User ====================> ";
+		if (!posix_getpwnam($srv)) {
+			$exec=$this->myExec('useradd -d '.$this->params->borg_backup_path.'/'.$srv.' -m '.$srv);
+			mkdir($this->params->borg_backup_path.'/'.$srv.'/.ssh');
+			file_put_contents($this->params->borg_backup_path.'/'.$srv.'/.ssh/authorized_keys', $sshkey);
+			// Check if create is ok
+			if (posix_getpwnam($srv) && file_exists($this->params->borg_backup_path.'/'.$srv.'/.ssh/authorized_keys')) echo "[OK]\n";
+		} else {
+			echo "[SKIP] User '$srv' already exist.\n";
+		}
+		echo "   - Creating repository ==============> ";
+		if (!file_exists($this->params->borg_backup_path.'/'.$srv.'/backup')) {
+			$exec=$this->myExec('cd '.$this->params->borg_backup_path.'/'.$srv.';borg init backup -e none && echo "[OK]" || echo "[FAIL]"');
+	                if ($exec['return'] == 0) {
+	                        echo $exec['stdout'];
+        	        } else {
+                	        echo "Error: ".$exec['stdout']."\n".$exec['stderr']."\n";
+                        	die;
+                	}
+
+		} else {
+			echo "[SKIP] Repository already exist\n";
+		}
+		echo "   - Creating restore directory =======> ";
+		if (!file_exists($this->params->borg_backup_path.'/'.$srv.'/restore')) {
+			mkdir($this->params->borg_backup_path.'/'.$srv.'/restore');
+			echo "[OK]\n";
+		} else {
+			echo "[SKIP] Restore directory already exist\n";
+		}
+		echo "   - Creating configuration directory => ";
+		if (!file_exists($this->params->borg_backup_path.'/'.$srv.'/conf')) {
+			mkdir($this->params->borg_backup_path.'/'.$srv.'/conf');
+			echo "[OK]\n";
+		} else {
+			echo "[SKIP] conf directory already exist\n";
+
+		}
+		echo "   - Making configuration file ========> ";
+		if (!file_exists($this->params->borg_backup_path.'/'.$srv.'/conf/borg.conf')) {
+			$fileconf="host=$srv\nport=$sshport\nrepo=".$this->params->borg_backup_path.'/'.$srv.'/backup'."\ncompression=lz4\nratelimit=0\nbackup=/\nexclude=/proc,/dev,/sys,/tmp,/run,/var/run,/lost+found,/var/cache/apt/archives,/var/lib/mysql,/var/lib/lxcfs\nretention=$keep";
+			file_put_contents($this->params->borg_backup_path.'/'.$srv.'/conf/borg.conf', $fileconf);
+			echo "[OK]\n";
+		} else {
+			echo "[SKIP] Configuration file already exist\n";
+		}
+		echo "   - Set the rights to repository =====> ";
+                $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($this->params->borg_backup_path.'/'.$srv));
+                foreach($iterator as $item) {
+			chmod($item, 0700);
+			chgrp($item, $srv);
+			chown($item, $srv);
+		}
+		echo "[OK]\n";
+
+
+		echo"\n[FINISH] Server '$srv' Succesfuly added\n";
+
+	}
 
 }
 

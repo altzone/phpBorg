@@ -29,6 +29,11 @@ if ($param == "info") {
     makeStat($path, $run, $db); //@TODO undefined
 }
 
+if ($param == "add") {
+	$run->addSrv();
+}
+
+
 
 if ($param == "backup") {
     if (!empty($argv[2])) {
