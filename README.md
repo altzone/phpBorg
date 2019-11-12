@@ -1,10 +1,10 @@
 # phpBorg
-PHP frontend using Borg Backup. (Manage, statistics, logs and config)  
+PHP frontend to using Borg Backup. (Manage, statistics, logs and config)  
 ## Info
 This PHP script use BorgBackup (documentation: https://borgbackup.readthedocs.io/)  
 BorgBackup project: https://github.com/borgbackup/borg  
   
-
+### Screenshot
 ![alt text](https://github.com/altzone/phpBorg/blob/master/phpBorg.png)
   
   
@@ -20,7 +20,7 @@ Clone repository:
 ```sh
 git clone https://github.com/altzone/phpBorg.git
 ```
-Usage:   
+#### :arrow_forward: Usage:   
 Add server
 ```sh
 ./phpborg.php add
