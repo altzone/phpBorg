@@ -20,7 +20,7 @@ Clone repository:
 ```sh
 git clone https://github.com/altzone/phpBorg.git
 ```
-#### :arrow_forward: Usage:   
+### :arrow_forward: Usage:   
 Add server
 ```sh
 ./phpborg.php add
