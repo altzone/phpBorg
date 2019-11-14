@@ -231,6 +231,22 @@ class Core
 		return $db->insertId();
 	}
      /**
+      * checkRemote Method (Create line entry for task backup and return sql logId)
+      * @param Db $db
+      * @return int
+     */
+        public function checkRemote($srv,$log) {
+		$log->info("Checking back ssh connexion",$srv);
+		$e=$this->MyExec("ssh -p " . $this->configBackup->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=5' " . $this->configBackup->host . " \"ssh -q -o 'BatchMode=yes' -o 'ConnectTimeout=3' " .$this->configBackup->host."@".$this->configBackup->backuptype." 'echo 2>&1'\"");
+		if ($e['return'] == 0) {
+			return 1;
+		} else {
+		$log->error("Back ssh connexion error Return code ($e[return])\n $e[stderr]\n $e[stdout]",$srv);
+			return;
+		}
+        }
+
+     /**
       * updateRepo Method (update MySQL repository statistic )
       * @param $repo
       * @param object $log
@@ -270,85 +286,92 @@ class Core
 	$log->info("Starting backup:  $srv");
 	if (!$this->repoConfig($srv,$log)) {
                 $log->error("PARSECONFIG => Error, config file does not exist",$srv);
-                $db->query("UPDATE IGNORE report  set `error`='1' WHERE id=$reportId");
+		$db->query("UPDATE IGNORE report  set `error`='1' WHERE id=$reportId");
+		return;
         } else {
-                $db->query("UPDATE IGNORE report  set `curpos`= '".$this->configBackup->host."' WHERE id=".$reportId);
-                $this->pruneArchive($this->configBackup->retention,$srv,$db,$log);
-		$archivename="backup_".date("Y-m-d_H:i:s");
-		$iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($this->configBackup->repo));
-
-		foreach($iterator as $item) {
-			chmod($item, 0700);
-			chgrp($item, $this->configBackup->host);
-			chown($item, $this->configBackup->host);
-		}
-		$log->info("Running Backup ...",$srv);
-		$tmplog = $backuperror= '';
-                $e    = $this->myExec("ssh -p " . $this->configBackup->port . " -tt " . $this->configBackup->host . " \"/usr/bin/borg create  --compression " . $this->configBackup->compression . " " . $this->configBackup->exclude . " ssh://" . $this->configBackup->host . "@" . $this->configBackup->backuptype.$this->configBackup->repo . "::$archivename " . $this->configBackup->backup ."\"");
-		if ($e['return'] == '0') {
-                        $info = $this->parseLog($srv,$this->configBackup->repo . "::$archivename",$log);
-			if (is_object($info)) {
-                                    $durx=$this->secondsToTime($info->archives->duration);
-				    $log->info("Backup completed in $durx",$srv);
-                                    $db->query("INSERT IGNORE INTO archives (`id`, `repo`, `nom`, `archive_id`, `dur`, `start`, `end`, `csize`, `dsize`, `osize`, `nfiles`) 
-					VALUE ( NULL,
-						'" . $this->configBackup->repo . "',
-						'$archivename',
-						'".$info->archives->id."',
-						'".$info->archives->duration."',
-						'".$info->archives->start."]',
-						'".$info->archives->end."',
-						'".$info->archives->stats->compressed_size."]',
-						'".$info->archives->stats->deduplicated_size."',
-						'".$info->archives->stats->original_size."',
-						'".$info->archives->stats->nfiles."'
-					)");
-				    if ($db->sql_error()) {
-					    $err=$config['host']."=>\nPARSELOG ERROR=>SQL:\n".$db->sql_error();
-					    $tmplog.=$err;
-					    $log->error($err,$srv);
-				    }
-                                    $db->query("UPDATE IGNORE repository set 
-						`size`      = '".$info->cache->stats->total_size."',
-						`dsize`     = '".$info->cache->stats->unique_csize."',
-						`csize`     = '".$info->cache->stats->total_csize."',
-						`ttuchunks` = '".$info->cache->stats->total_unique_chunks."',
-						`ttchunks`  = '".$info->cache->stats->total_chunks."',
-						 modified   = NOW() 
-						 WHERE nom  = '".$this->configBackup->repo ."'");
-				    if ($db->sql_error()) {
-					    $err=$config['host']."=>\nPARSELOG ERROR=>SQL:\n".$db->sql_error();
-				 	    $tmplog.=$err;
-					    $log->error($err,$srv);
-				    }
-
-                                    $db->query("UPDATE IGNORE report  set 
-						`osize`      = '".$info->archives->stats->original_size."',
-						`csize`      = '".$info->archives->stats->compressed_size."',
-						`dsize`      = '".$info->archives->stats->deduplicated_size."',
-						`dur`        = '".$info->archives->duration."',
-						`nb_archive` = 1,
-						`nfiles`     = '".$info->archives->stats->nfiles."'
-						 WHERE id    = $reportId");
-				    if ($db->sql_error()) {
-					    $err=$config['host']."=>\nSQL UPDATE ERROR:\n".$db->sql_error();
-					    $tmplog.=$err;
-					    $log->error($err,$srv);
-				    }
-                        } else {
-				$log->error("\nPARSELOG ERROR\n STDERR:$info[stderr]\nSTDOUT:$info[stdout]",$srv);
-				$backuperror=1;
-                                    $tmplog = "$config[host] =>\nPARSELOG ERROR\n STDERR:" . $info['stderr'] . "STDOUT:" . $info['stdout'] . "\n";
-                                    $db->query("UPDATE IGNORE report  set `error`='1', `log` = ? WHERE id= ?", "$tmplog" , "$reportId");
-
-                        }
-                } else {
+		if ($this->checkRemote($srv,$log)) {	
+	                $db->query("UPDATE IGNORE report  set `curpos`= '".$this->configBackup->host."' WHERE id=".$reportId);
+        	        $this->pruneArchive($this->configBackup->retention,$srv,$db,$log);
+			$archivename="backup_".date("Y-m-d_H:i:s");
+			$iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($this->configBackup->repo));
+	
+			foreach($iterator as $item) {
+				chmod($item, 0700);
+				chgrp($item, $this->configBackup->host);
+				chown($item, $this->configBackup->host);
+			}
+			$log->info("Running Backup ...",$srv);
+			$tmplog = $backuperror= '';
+	                $e    = $this->myExec("ssh -p " . $this->configBackup->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=5' " . $this->configBackup->host . " \"/usr/bin/borg create  --compression " . $this->configBackup->compression . " " . $this->configBackup->exclude . " ssh://" . $this->configBackup->host . "@" . $this->configBackup->backuptype.$this->configBackup->repo . "::$archivename " . $this->configBackup->backup ."\"");
+			if ($e['return'] == '0') {
+	                        $info = $this->parseLog($srv,$this->configBackup->repo . "::$archivename",$log);
+				if (is_object($info)) {
+	                                    $durx=$this->secondsToTime($info->archives->duration);
+					    $log->info("Backup completed in $durx",$srv);
+	                                    $db->query("INSERT IGNORE INTO archives (`id`, `repo`, `nom`, `archive_id`, `dur`, `start`, `end`, `csize`, `dsize`, `osize`, `nfiles`) 
+						VALUE ( NULL,
+							'" . $this->configBackup->repo . "',
+							'$archivename',
+							'".$info->archives->id."',
+							'".$info->archives->duration."',
+							'".$info->archives->start."]',
+							'".$info->archives->end."',
+							'".$info->archives->stats->compressed_size."]',
+							'".$info->archives->stats->deduplicated_size."',
+							'".$info->archives->stats->original_size."',
+							'".$info->archives->stats->nfiles."'
+						)");
+					    if ($db->sql_error()) {
+						    $err=$config['host']."=>\nPARSELOG ERROR=>SQL:\n".$db->sql_error();
+						    $tmplog.=$err;
+						    $log->error($err,$srv);
+					    }
+	                                    $db->query("UPDATE IGNORE repository set 
+							`size`      = '".$info->cache->stats->total_size."',
+							`dsize`     = '".$info->cache->stats->unique_csize."',
+							`csize`     = '".$info->cache->stats->total_csize."',
+							`ttuchunks` = '".$info->cache->stats->total_unique_chunks."',
+							`ttchunks`  = '".$info->cache->stats->total_chunks."',
+							 modified   = NOW() 
+							 WHERE nom  = '".$this->configBackup->repo ."'");
+					    if ($db->sql_error()) {
+						    $err=$config['host']."=>\nPARSELOG ERROR=>SQL:\n".$db->sql_error();
+					 	    $tmplog.=$err;
+						    $log->error($err,$srv);
+					    }
+	
+	                                    $db->query("UPDATE IGNORE report  set 
+							`osize`      = '".$info->archives->stats->original_size."',
+							`csize`      = '".$info->archives->stats->compressed_size."',
+							`dsize`      = '".$info->archives->stats->deduplicated_size."',
+							`dur`        = '".$info->archives->duration."',
+							`nb_archive` = 1,
+							`nfiles`     = '".$info->archives->stats->nfiles."'
+							 WHERE id    = $reportId");
+					    if ($db->sql_error()) {
+						    $err=$config['host']."=>\nSQL UPDATE ERROR:\n".$db->sql_error();
+						    $tmplog.=$err;
+						    $log->error($err,$srv);
+					    }
+	                        } else {
+					$log->error("\nPARSELOG ERROR\n STDERR:$info[stderr]\nSTDOUT:$info[stdout]",$srv);
+					$backuperror=1;
+	                                    $tmplog = "$config[host] =>\nPARSELOG ERROR\n STDERR:" . $info['stderr'] . "STDOUT:" . $info['stdout'] . "\n";
+	                                    $db->query("UPDATE IGNORE report  set `error`='1', `log` = ? WHERE id= ?", "$tmplog" , "$reportId");
+	
+        	                }
+                	} else {
 			$log->error("BACKUP ERROR STDOUT:$e[stdout]\nSTDERR:$e[stderr]",$srv);
 			$backuperror=1;
-                $tmplog = "$srv =>\nSTDOUT:" . $e['stdout'] . "\nSTDERR:" . $e['stderr'];
-                $db->query("UPDATE IGNORE report  set `error`='1', `log` = ? WHERE id= ?", "$tmplog" , "$reportId");
+                	$tmplog = "$srv =>\nSTDOUT:" . $e['stdout'] . "\nSTDERR:" . $e['stderr'];
+                	$db->query("UPDATE IGNORE report  set `error`='1', `log` = ? WHERE id= ?", "$tmplog" , "$reportId");
 
-                }
+			}
+		} else {
+			$log->error("Connexion error SKIP BACKUP !",$srv);
+			return;
+		}
+	
 	}
 	return (object) ['error' => $backuperror, 'log' => $tmplog, 'osize'=>$info->archives->stats->original_size , 'csize' => $info->archives->stats->compressed_size , 'dsize'=> $info->archives->stats->deduplicated_size, 'dur'=> $info->archives->duration, 'nbarchive' => 1, 'nfiles' => $info->archives->stats->nfiles];
 }
@@ -368,7 +391,7 @@ class Core
       * addSrv Method (Add a server to backup)
       * @return int
      */
-	public function addSrv() {
+	public function addSrv($db,$log) {
 		echo "[ PARAMETERS ]\n";
 		echo "   - Enter the server name : ";
 		$srv  = $this->getInput();
@@ -411,13 +434,16 @@ class Core
 		echo "   - Creating User ====================> ";
 		if (!posix_getpwnam($srv)) {
 			$exec=$this->myExec('useradd -d '.$this->params->borg_backup_path.'/'.$srv.' -m '.$srv);
-			mkdir($this->params->borg_backup_path.'/'.$srv.'/.ssh');
-			file_put_contents($this->params->borg_backup_path.'/'.$srv.'/.ssh/authorized_keys', $sshkey);
-			// Check if create is ok
-			if (posix_getpwnam($srv) && file_exists($this->params->borg_backup_path.'/'.$srv.'/.ssh/authorized_keys')) echo "[OK]\n";
+			if (posix_getpwnam($srv)) echo "[OK]\n";
+
 		} else {
 			echo "[SKIP] User '$srv' already exist.\n";
 		}
+		echo "   - Config SSH key ===================> ";
+
+		if (!file_exists($this->params->borg_backup_path.'/'.$srv.'/.ssh')) mkdir($this->params->borg_backup_path.'/'.$srv.'/.ssh');
+		file_put_contents($this->params->borg_backup_path.'/'.$srv.'/.ssh/authorized_keys', $sshkey);
+		if (file_exists($this->params->borg_backup_path.'/'.$srv.'/.ssh/authorized_keys')) echo "[OK]\n";
 		echo "   - Creating repository ==============> ";
 		if (!file_exists($this->params->borg_backup_path.'/'.$srv.'/backup')) {
 			$exec=$this->myExec('cd '.$this->params->borg_backup_path.'/'.$srv.';borg init backup -e none && echo "[OK]" || echo "[FAIL]"');
@@ -462,6 +488,21 @@ class Core
 			chown($item, $srv);
 		}
 		echo "[OK]\n";
+		echo "   - Add repository in MySQL ==========> ";
+		$info = $this->parseLog($srv,$this->params->borg_backup_path.'/'.$srv.'/backup',$log);
+		$encryption='none';
+		$check_repo_sql=$db->query("SELECT id from repository WHERE repo_id='".$info->repository->id."'")->fetchArray();
+		if (!$check_repo_sql) {
+			$db->query("INSERT IGNORE INTO repository (`repo_id`,`encryption`,`location`,`modified`) VALUES ('".$info->repository->id."','$encryption','".$this->params->borg_backup_path.'/'.$srv.'/backup'."',NOW())");
+			if ($db->sql_error()) {
+				$log->error("Unable to insert repository in DB: ".$db->sql_error(),$srv);
+				echo '[FAILED] SQL error';
+			} else {
+				echo "[OK]\n";
+			}
+		} else {
+			echo "[SKIP] Repository exist in DB.\n";
+		}
 
 
 		echo"\n[FINISH] Server '$srv' Succesfuly added\n";

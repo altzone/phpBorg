@@ -30,7 +30,7 @@ if ($param == "info") {
 }
 
 if ($param == "add") {
-	$run->addSrv();
+	$run->addSrv($db,$log);
 }
 
 
