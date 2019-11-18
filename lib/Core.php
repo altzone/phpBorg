@@ -86,18 +86,34 @@ class Core
 
         return implode('', $timeParts);
     }
+    /**
+     * generateRandomString Method (to make private passphrase)
+     * @param int $length
+     * @return string
+     */
+
+    private function generateRandomString($length = 64) {
+	    $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ/;#@&$%*:!]}[{';
+	    $charactersLength = strlen($characters);
+	    $randomString = '';
+	    for ($i = 0; $i < $length; $i++) {
+		    $randomString .= $characters[rand(0, $charactersLength - 1)];
+	    }
+	    return $randomString;
+    }
+
+
 
     /**
      * @return array
      */
-    public function getSrv() {
-                $srv=[];
-                foreach (new DirectoryIterator($this->params->borg_backup_path) as $fileInfo) {
-                        if($fileInfo->isDot()) continue;
-                        if ($fileInfo->isDir())  $srv[]=$fileInfo->getFilename();
-                }
-		return $srv;
-        }
+    public function getSrv($db) {
+	    foreach($db->query("SELECT name from servers WHERE active = 1")->fetchAll() as $listsrv) {
+		    $srv[]=$listsrv['name'];
+	    }
+	    return $srv;
+
+    }
 
 
     /**
@@ -106,23 +122,24 @@ class Core
      * @param logWriter $log
      * @return array|bool|int
      */
-    public function repoConfig($srv, $log)
+    public function repoConfig($srv,$db, $log)
     {
-        if (file_exists($this->params->borg_backup_path . "/$srv/" . $this->params->borg_config_path)) {
+	$checkrepo= $db->query("SELECT id from servers WHERE name='".$srv."'")->fetchArray();
+	if ($checkrepo) {
             $this->configBackup = new \stdClass;
-            $exclude = $backup = "";
-
-            $this->configBackup = (object) parse_ini_file($this->params->borg_backup_path . "/$srv/" . $this->params->borg_config_path);
+            $exclude = $backup_path = "";
+	    $this->configBackup =(object)$db->query("SELECT servers.*,repository.location AS repo from servers LEFT JOIN repository ON servers.repo_id = repository.repo_id WHERE servers.name='".$srv."'")->fetchArray();
+            $back = explode(',', $this->configBackup->backup_path);
+            foreach ($back as $yy) {
+                $backup_path .= trim($yy) . " ";
+            }
+	    $this->configBackup->backup_path = $backup_path;
+	    $this->configBackup->passphrase = base64_decode($this->configBackup->passphrase);
             $ex = explode(',', $this->configBackup->exclude);
             foreach ($ex as $zz) {
                 $exclude .= "--exclude " . trim($zz) . " ";
             }
-            $this->configBackup->exclude = $exclude;
-            $back = explode(',', $this->configBackup->backup);
-            foreach ($back as $yy) {
-                $backup .= trim($yy) . " ";
-            }
-            $this->configBackup->backup = $backup;
+	    $this->configBackup->exclude = $exclude;
 
             if (isset($this->configBackup->backuptype)) {
                 switch ($this->configBackup->backuptype) {
@@ -176,7 +193,7 @@ class Core
 	    	$log->info("Checking retention rules",$srv);
                 $deleted = NULL;
                 $keepday = $keepday-1;
-		$e       = $this->myExec($this->params->borg_binary_path." prune --save-space --force --list --keep-daily $keepday ".$this->params->borg_backup_path."/".$srv."/".$this->params->borg_archive_dir);
+		$e       = $this->myExec("export BORG_PASSPHRASE='".$this->configBackup->passphrase."';".$this->params->borg_binary_path." prune --save-space --force --list --keep-daily $keepday ".$this->params->borg_backup_path."/".$srv."/".$this->params->borg_archive_dir);
 		if ($e['return'] == 0 ) {
 			$separator = "\r\n";
 			$line = strtok($e['stderr'], $separator);
@@ -204,7 +221,7 @@ class Core
      */
     public function parseLog($srv,$file,$log) {
 	    $log->info("Parsing log to extract info",$srv);
-		$e=$this->myExec($this->params->borg_binary_path." info $file --json");
+		$e=$this->myExec("export BORG_PASSPHRASE='".$this->configBackup->passphrase."';".$this->params->borg_binary_path." info $file --json");
                 $json=$e['stdout'];
 		if ($e['return'] == 0) {
 			$this->logs = new \stdClass;
@@ -264,7 +281,7 @@ class Core
 			   `ttuchunks` = '".$info->cache->stats->total_unique_chunks."',
 			   `ttchunks`  = '".$info->cache->stats->total_chunks."',
 			    modified=NOW() 
-			WHERE nom = '".$config->repo."'");
+			WHERE repo_id = '".$config->repo_id."'");
 		if ($db->sql_error()) {
                 	$err="PARSELOG ERROR=>SQL:\n".$db->sql_error();
                         $log->error($err,$srv);
@@ -284,7 +301,7 @@ class Core
 
 	public function backup($srv,$log,$db,$reportId) {
 	$log->info("Starting backup:  $srv");
-	if (!$this->repoConfig($srv,$log)) {
+	if (!$this->repoConfig($srv,$db,$log)) {
                 $log->error("PARSECONFIG => Error, config file does not exist",$srv);
 		$db->query("UPDATE IGNORE report  set `error`='1' WHERE id=$reportId");
 		return;
@@ -302,7 +319,7 @@ class Core
 			}
 			$log->info("Running Backup ...",$srv);
 			$tmplog = $backuperror= '';
-	                $e    = $this->myExec("ssh -p " . $this->configBackup->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=5' " . $this->configBackup->host . " \"/usr/bin/borg create  --compression " . $this->configBackup->compression . " " . $this->configBackup->exclude . " ssh://" . $this->configBackup->host . "@" . $this->configBackup->backuptype.$this->configBackup->repo . "::$archivename " . $this->configBackup->backup ."\"");
+			$e    = $this->myExec("ssh -p " . $this->configBackup->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=5' " . $this->configBackup->host . " \"export BORG_PASSPHRASE='".$this->configBackup->passphrase."';/usr/bin/borg create  --compression " . $this->configBackup->compression . " " . $this->configBackup->exclude . " ssh://" . $this->configBackup->host . "@" . $this->configBackup->backuptype.$this->configBackup->repo . "::$archivename " . $this->configBackup->backup_path ."\"");
 			if ($e['return'] == '0') {
 	                        $info = $this->parseLog($srv,$this->configBackup->repo . "::$archivename",$log);
 				if (is_object($info)) {
@@ -406,7 +423,7 @@ class Core
 		echo "\n\n[ REMOTE CONFIG ]\n";
 		echo "   - Connecting to $srv\n";
 		echo "   - Making SSH key ===================> ";
-		$exec=$this->myExec('ssh -tt -p '.$sshport." ".$srv." \"if [ ! -f /root/.ssh/id_rsa ]; then ssh-keygen -t rsa -b 1024 -f /root/.ssh/id_rsa -N '' &> /dev/null && echo '[OK]' || echo 'Failed to create key'; else  echo '[SKIP] key already exist'; fi\"");
+		$exec=$this->myExec('ssh -tt -p '.$sshport." ".$srv." \"if [ ! -f /root/.ssh/id_rsa ]; then ssh-keygen -t rsa -b 2048 -f /root/.ssh/id_rsa -N '' &> /dev/null && echo '[OK]' || echo 'Failed to create key'; else  echo '[SKIP] key already exist'; fi\"");
 		if ($exec['return'] == 0) {
 			echo $exec['stdout'];
 		} else {
@@ -423,7 +440,7 @@ class Core
 			die;
 		}
 		echo "   - Installation of BorgBackup =======> ";
-		$exec=$this->myExec('ssh -tt -p '.$sshport." ".$srv." \"if [ `uname -m` == 'i686' ]; then plateforme='32'; else plateforme='64'; fi; if [ ! -f /usr/bin/borg ]; then wget --no-check-certificate -q -O /usr/bin/borg https://github.com/borgbackup/borg/releases/download/1.1.7/borg-linux\$plateforme  ; chmod +x /usr/bin/borg && echo '[OK]' || echo '[FAIL] =>  Unable to install BorgBackup' ; else echo '[SKIP] BorgBackup already installed'; fi\"");
+		$exec=$this->myExec('ssh -tt -p '.$sshport." ".$srv." \"if [ `uname -m` == 'i686' ]; then plateforme='32'; else plateforme='64'; fi; if [ ! -f /usr/bin/borg ]; then wget --no-check-certificate -q -O /usr/bin/borg https://github.com/borgbackup/borg/releases/download/1.1.7/borg-linux\\\$plateforme  ; chmod +x /usr/bin/borg && echo '[OK]' || echo '[FAIL] =>  Unable to install BorgBackup' ; else echo '[SKIP] BorgBackup already installed'; fi\"");
                 if ($exec['return'] == 0) {
                         echo $exec['stdout'];
                 } else {
@@ -446,7 +463,9 @@ class Core
 		if (file_exists($this->params->borg_backup_path.'/'.$srv.'/.ssh/authorized_keys')) echo "[OK]\n";
 		echo "   - Creating repository ==============> ";
 		if (!file_exists($this->params->borg_backup_path.'/'.$srv.'/backup')) {
-			$exec=$this->myExec('cd '.$this->params->borg_backup_path.'/'.$srv.';borg init backup -e none && echo "[OK]" || echo "[FAIL]"');
+			$passphrase=$this->generateRandomString();
+			$encryption="repokey";
+			$exec=$this->myExec('cd '.$this->params->borg_backup_path.'/'.$srv.';export BORG_PASSPHRASE="'.$passphrase.'";borg init backup -e '.$encryption.' && echo "[OK]" || echo "[FAIL]"');
 	                if ($exec['return'] == 0) {
 	                        echo $exec['stdout'];
         	        } else {
@@ -472,13 +491,24 @@ class Core
 			echo "[SKIP] conf directory already exist\n";
 
 		}
-		echo "   - Making configuration file ========> ";
-		if (!file_exists($this->params->borg_backup_path.'/'.$srv.'/conf/borg.conf')) {
-			$fileconf="host=$srv\nport=$sshport\nrepo=".$this->params->borg_backup_path.'/'.$srv.'/backup'."\ncompression=lz4\nratelimit=0\nbackup=/\nexclude=/proc,/dev,/sys,/tmp,/run,/var/run,/lost+found,/var/cache/apt/archives,/var/lib/mysql,/var/lib/lxcfs\nretention=$keep";
-			file_put_contents($this->params->borg_backup_path.'/'.$srv.'/conf/borg.conf', $fileconf);
-			echo "[OK]\n";
+		echo "   - Add server configuration to DB  ==> ";
+		$check = $db->query("SELECT repo_id from servers where name='".$srv."'")->fetchArray();
+		$repoconfig= new \StdClass;
+		if (!$check) {
+			$repoconfig=(object) parse_ini_file($this->params->borg_backup_path . "/$srv/backup/config");
+			$ratelimit=0;
+			$compression="lz4";
+			$db->query("INSERT INTO `servers` (`name`, `host`, `port`, `repo_id`, `compression`, `ratelimit`, `backup_path`, `exclude`, `retention`, `ssh_pub_key`,`passphrase`, `active`) VALUES
+				('".$srv."', '".$srv."',".$sshport.", '".$repoconfig->id."', '".$compression."', ".$ratelimit.", '/', ' /proc,/dev,/sys,/tmp,/run,/var/run,/lost+found,/var/cache/apt/archives,/var/lib/mysql,/var/lib/lxcfs ',".$keep.", '".$sshkey."',TO_BASE64('".$passphrase."'), 1)");
+                        if ($db->sql_error()) {
+                                $log->error("Unable to insert repository in DB: ".$db->sql_error(),$srv);
+                                echo '[FAILED] SQL error';
+                        } else {
+                                echo "[OK]\n";
+                        }
 		} else {
 			echo "[SKIP] Configuration file already exist\n";
+			$repoconfig->id=$check['repo_id'];
 		}
 		echo "   - Set the rights to repository =====> ";
                 $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($this->params->borg_backup_path.'/'.$srv));
@@ -489,11 +519,9 @@ class Core
 		}
 		echo "[OK]\n";
 		echo "   - Add repository in MySQL ==========> ";
-		$info = $this->parseLog($srv,$this->params->borg_backup_path.'/'.$srv.'/backup',$log);
-		$encryption='none';
-		$check_repo_sql=$db->query("SELECT id from repository WHERE repo_id='".$info->repository->id."'")->fetchArray();
+		$check_repo_sql=$db->query("SELECT id from repository WHERE repo_id='".$repoconfig->id."'")->fetchArray();
 		if (!$check_repo_sql) {
-			$db->query("INSERT IGNORE INTO repository (`repo_id`,`encryption`,`location`,`modified`) VALUES ('".$info->repository->id."','$encryption','".$this->params->borg_backup_path.'/'.$srv.'/backup'."',NOW())");
+			$db->query("INSERT IGNORE INTO repository (`repo_id`,`encryption`,`location`,`modified`) VALUES ('".$repoconfig->id."','$encryption','".$this->params->borg_backup_path.'/'.$srv.'/backup'."',NOW())");
 			if ($db->sql_error()) {
 				$log->error("Unable to insert repository in DB: ".$db->sql_error(),$srv);
 				echo '[FAILED] SQL error';
