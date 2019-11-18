@@ -51,6 +51,17 @@ Result:
  Server altzone.net Succesfuly added
  ```
  
- 
-
+ ### :wrench: CONFIGURATION
+ #### Config PATH  
+ For the moment, config path is store on PHP class:
+ /lib/Core.php: line 36:
+ ```
+ public function __construct($borg_binary_path='/usr/bin/borg',$borg_config_path = 'conf/borg.conf',$borg_srv_ip_pub  = '91.200.204.28',$borg_srv_ip_priv = '10.10.69.15',$borg_backup_path = '/data0/backup',$borg_archive_dir = 'backup')
+```
+#### DB config  
+For the moment, DB config is store on PHP class:
+/lib/Db.php: line 42:
+```
+public function __construct($dbhost = '10.10.30.60', $dbuser = 'backup', $dbpass = 'QSDJSQDKJSQDJK34434', $dbname = 'backup', $charset = 'utf8')
+```
 
