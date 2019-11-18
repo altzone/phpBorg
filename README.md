@@ -8,7 +8,7 @@ BorgBackup project: https://github.com/borgbackup/borg
 ![alt text](https://github.com/altzone/phpBorg/blob/master/phpBorg.png)
   
   
-### :package: INSTALLATION
+## :package: INSTALLATION
 #### :warning: Requirements
 * PHP 7 or later
   * php-cli
@@ -20,7 +20,7 @@ Clone repository:
 ```sh
 git clone https://github.com/altzone/phpBorg.git
 ```
-### :arrow_forward: Usage:   
+## :arrow_forward: Usage:   
 #### Add server
 ```sh
 ./phpborg.php add
@@ -66,7 +66,7 @@ Result:
  ```
  
  
- ### :wrench: CONFIGURATION
+ ## :wrench: CONFIGURATION
  #### Config PATH  
  For the moment, config path is store on PHP class:
  /lib/Core.php: line 36:
