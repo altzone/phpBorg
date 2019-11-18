@@ -21,7 +21,7 @@ Clone repository:
 git clone https://github.com/altzone/phpBorg.git
 ```
 ### :arrow_forward: Usage:   
-Add server
+#### Add server
 ```sh
 ./phpborg.php add
 ```
@@ -50,6 +50,21 @@ Result:
 
  Server altzone.net Succesfuly added
  ```
+ #### backup a server:
+ ``` sh
+ ./phpborg.php backup altzone.net
+ ```
+ Log Ouput:
+ ```
+[18-Nov-2019 22:39:15] : [INFO] [CORE] - Starting backup:  altzone.net
+[18-Nov-2019 22:39:15] : [INFO] [ALTZONE.NET] - Checking backlink ssh connexion
+[18-Nov-2019 22:39:16] : [INFO] [ALTZONE.NET] - Checking retention rules
+[18-Nov-2019 22:39:20] : [INFO] [ALTZONE.NET] - removing backup backup_2019-11-05_03:32:12
+[18-Nov-2019 22:39:20] : [INFO] [ALTZONE.NET] - Running Backup ...
+[18-Nov-2019 22:39:39] : [INFO] [ALTZONE.NET] - Parsing log to extract info
+[18-Nov-2019 22:39:41] : [INFO] [ALTZONE.NET] - Backup completed in 13s
+ ```
+ 
  
  ### :wrench: CONFIGURATION
  #### Config PATH  
