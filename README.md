@@ -15,6 +15,7 @@ BorgBackup project: https://github.com/borgbackup/borg
   * php-mysql
 * Web server with PHP to view status page
 * MariaDB or MySQL server
+* Borg Backup >= 1.1.7
 
 Clone repository:
 ```sh
