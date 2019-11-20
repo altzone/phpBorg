@@ -26,7 +26,7 @@ if (!empty($argv[1])) {
 }
 
 if ($param == "info") {
-    makeStat($path, $run, $db); //@TODO undefined
+    //makeStat($path, $run, $db); //@TODO undefined
 }
 
 if ($param == "add") {
@@ -55,22 +55,22 @@ if ($param == "prune") {
     }
     if ($srv == "all") {
 	    $log->info("Starting prune for ALL servers...");
-        foreach ($run->getSrv() as $srv) {
-		if ($config = $run->repoConfig($srv,$log)) {
+        foreach ($run->getSrv($db) as $srv) {
+		if ($config = $run->repoConfig($srv,$db, $log)) {
 			$run->pruneArchive($config->retention,$srv,$db,$log);
 			$run->updateRepo($config,$db,$log);
 		}
 
 	}
     } else {
-                if ($config = $run->repoConfig($srv,$log)) {
+                if ($config = $run->repoConfig($srv,$db, $log)) {
                         $run->pruneArchive($config->retention,$srv,$db,$log);
                         $run->updateRepo($config,$db,$log);
                 }
 	}
 
 
-	    
+
 
 }
 
@@ -79,7 +79,7 @@ if ($param == "full") {
 	$reportId=$run->startReport($db);
 	$dur=$osize=$csize=$dsize=$nfiles=$nbarchive=$logs=NULL;
 
-	foreach ($run->getSrv() as $srv) {
+	foreach ($run->getSrv($db) as $srv) {
 		$full  	    =  NULL;
 		$db->query("UPDATE IGNORE report  set `curpos`='$srv' WHERE id=$reportId");
 		$full       =  $run->backup($srv,$log,$db,$run->startReport($db));
