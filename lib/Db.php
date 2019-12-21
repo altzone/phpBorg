@@ -39,7 +39,7 @@ Class Db
      * @param string $dbname
      * @param string $charset
      */
-    public function __construct($dbhost = '10.10.30.60', $dbuser = 'backup', $dbpass = 'QSDJSQDKJSQDJK34434', $dbname = 'backup', $charset = 'utf8') {
+    public function __construct($dbhost = '127.0.0.1', $dbuser = 'phpborg', $dbpass = 'DwEyqr1c73dLS9Br', $dbname = 'phpborg', $charset = 'utf8') {
         $this->connection = new mysqli($dbhost, $dbuser, $dbpass, $dbname);
         if ($this->connection->connect_error) {
                 die('Echec de la connexion - ' . $this->connection->connect_error);
@@ -79,7 +79,7 @@ Class Db
                 }
                 $this->query_count++;
         } else {
-                printf("erreur dans la requete: %s\n", $this->connection->error);
+		printf("erreur dans la requete: %s\n", $this->connection->error);
                 if ($this->sql_err) die();
         }
         return $this;
