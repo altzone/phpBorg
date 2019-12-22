@@ -33,14 +33,21 @@ class Core
     * @param string $borg_srv_ip_pub  - Public IP of Backup server
     * @param string $borg_srv_ip_priv - Private IP of backup server
     */
-    public function __construct($borg_binary_path='/usr/bin/borg',$borg_config_path = 'conf/borg.conf',$borg_srv_ip_pub  = '91.200.205.105',$borg_srv_ip_priv = '10.10.70.70',$borg_backup_path = '/data/backups',$borg_archive_dir = 'backup') {
+    public function __construct($borg_binary_path  = '/usr/bin/borg',
+	    			$borg_config_path  = 'conf/borg.conf',
+				$borg_srv_ip_pub   = '91.200.205.105',
+				$borg_srv_ip_priv  = '10.10.70.70',
+				$borg_backup_path  = '/data/backups',
+				$borg_archive_dir  = 'backup',
+    				$borg_lvmsnap_name = 'phpborg') {
             $this->params = new \stdClass;
             $this->params->borg_binary_path  = $borg_binary_path;
             $this->params->borg_config_path  = $borg_config_path;
             $this->params->borg_srv_ip_pub   = $borg_srv_ip_pub;
             $this->params->borg_srv_ip_priv  = $borg_srv_ip_priv;
             $this->params->borg_backup_path  = $borg_backup_path;
-            $this->params->borg_archive_dir  = $borg_archive_dir;
+	    $this->params->borg_archive_dir  = $borg_archive_dir;
+	    $this->params->borg_lvmsnap_name = $borg_lvmsnap_name;
 	}
 
     /**
@@ -320,12 +327,12 @@ class Core
 		$log->info("Starting DB Backup",$srv);
 		$log->info("Sync MySQL database and create LVM snapshot",$srv);
 		$e    = $this->myExec("ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=5' " . $this->serverParams->host . " \"
-			a=( \`mount\` );[[ \\\${a[*]} =~ phpborg ]] && umount -fl /phpborg 1>&2
-			b=( \`lvs\` );[[ \\\${b[*]} =~ phpborg ]] && lvremove -f /dev/".$this->dbParams->vg_name."/phpborg 1>&2
+			a=( \`mount\` );[[ \\\${a[*]} =~ ".$this->params->borg_lvmsnap_name." ]] && umount -fl /".$this->params->borg_lvmsnap_name." 1>&2
+			b=( \`lvs\` );[[ \\\${b[*]} =~ ".$this->params->borg_lvmsnap_name." ]] && lvremove -f /dev/".$this->dbParams->vg_name."/".$this->params->borg_lvmsnap_name." 1>&2
 			mysql -u".$this->dbParams->db_user." -p".$this->dbParams->db_pass." -h ".$this->dbParams->db_host." -e 'flush tables with read lock;
-				system lvcreate -s /dev/".$this->dbParams->vg_name."/".$this->dbParams->lvm_part." -n phpborg -L".$this->dbParams->lvsize." 1>&2;
+				system lvcreate -s /dev/".$this->dbParams->vg_name."/".$this->dbParams->lvm_part." -n ".$this->params->borg_lvmsnap_name." -L".$this->dbParams->lvsize." 1>&2;
 				unlock tables;'
-			[[ ! -d /phpborg ]] && mkdir -p /phpborg 1>&2;mount /dev/".$this->dbParams->vg_name."/phpborg /phpborg 1>&2\"");
+			[[ ! -d /".$this->params->borg_lvmsnap_name." ]] && mkdir -p /".$this->params->borg_lvmsnap_name." 1>&2;mount /dev/".$this->dbParams->vg_name."/".$this->params->borg_lvmsnap_name." /".$this->params->borg_lvmsnap_name." 1>&2\"");
                 if ($e['return'] == '0') {
                         $log->info("LVM snapshot created",$srv);
                         return 1;
@@ -347,8 +354,8 @@ class Core
         public function removeLvmSnap($srv,$log) {
                 $log->info("Removing LVM snapshot",$srv);
                 $e    = $this->myExec("ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=5' " . $this->serverParams->host . " \"
-                        a=( \`mount\` );[[ \\\${a[*]} =~ phpborg ]] && umount -fl /phpborg 1>&2
-			b=( \`lvs\` );[[ \\\${b[*]} =~ phpborg ]] && lvremove -f /dev/".$this->dbParams->vg_name."/phpborg 1>&2\"");
+                        a=( \`mount\` );[[ \\\${a[*]} =~ ".$this->params->borg_lvmsnap_name." ]] && umount -fl /".$this->params->borg_lvmsnap_name." 1>&2
+			b=( \`lvs\` );[[ \\\${b[*]} =~ ".$this->params->borg_lvmsnap_name." ]] && lvremove -f /dev/".$this->dbParams->vg_name."/".$this->params->borg_lvmsnap_name." 1>&2\"");
 		
 		if ($e['return'] == '0') {
 			$log->info("LVM snapshot removed",$srv);
@@ -426,11 +433,15 @@ class Core
 				chgrp($item, $this->serverParams->host);
 				chown($item, $this->serverParams->host);
 			}
-			if ($type == "mysql")  if (!$this->snapMysql($srv,$log)) return ;
-			$log->info("Running Backup ...",$srv);
+			if ($type == "mysql") {
+			      if (!$this->snapMysql($srv,$log)) return ;
+			      $snap_path="/".$this->params->borg_lvmsnap_name;
+			}
+			if ($type != "backup") $_type=$type;
+			$log->info("Running $_type Backup ...",$srv);
 			$tmplog = $backuperror= '';
 			$e    = $this->myExec("ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=5' " . $this->serverParams->host . " \"export BORG_PASSPHRASE='".$this->repoParams->passphrase."'
-						/usr/bin/borg create  --compression " . $this->repoParams->compression . " " . $this->repoParams->exclude . " ssh://" . $this->serverParams->host . "@" . $this->serverParams->backuptype.$this->repoParams->repo_path . "::$archivename " . $this->repoParams->backup_path ."\"");
+						/usr/bin/borg create  --compression " . $this->repoParams->compression . " " . $this->repoParams->exclude . " ssh://" . $this->serverParams->host . "@" . $this->serverParams->backuptype.$this->repoParams->repo_path . "::$archivename " .$snap_path.$this->repoParams->backup_path ."\"");
 			if ($e['return'] == '0') {
 				if ($type == "mysql")  $this->removeLvmSnap($srv,$log);	
 	                        $info = $this->parseLog($srv,$this->repoParams->repo_path . "::$archivename",$log);
