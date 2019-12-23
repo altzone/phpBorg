@@ -102,17 +102,3 @@ if ($param == "full") {
 	$db->query("UPDATE IGNORE report  set `end`=NOW(), `log` = ? , `curpos` = NULL WHERE id=$reportId",$logs);
 
 }
-
-if ($param == "testfull") {
-        $reportId=$run->startReport($db);
-        $dur=$osize=$csize=$dsize=$nfiles=$nbarchive=$logs=NULL;
-        foreach ($run->getSrv($db) as $value) {
-                echo "$value[name] type => $value[type]\n";
-        }
-
-}
-
-
-
-
-

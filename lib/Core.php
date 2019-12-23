@@ -119,7 +119,6 @@ class Core
 		    $srv[]=['name'=>$listsrv['name'], 'type'=> 'data', 'id' => $listsrv['id']];
 		    if (!empty ($db->query("SELECT id from db_info WHERE server_id=$listsrv[id]")->fetchArray()['id'])) $srv[]=['name'=>$listsrv['name'], 'type'=> 'mysql', 'id' => $listsrv['id']];
 	    }
-	    $srv=[['name'=>'sql-buzz', 'type'=> 'backup','id' => 99],['name'=>'sql-buzz', 'type'=> 'mysql','id' => 99]];
 	    return $srv;
 
     }
