@@ -83,25 +83,35 @@ if ($param == "prune") {
 
 
 if ($param == "full") {
-	$reportId=$run->startReport($db);
+	$reportId=$run->startReport($db,"0",'full');
 	$dur=$osize=$csize=$dsize=$nfiles=$nbarchive=$logs=NULL;
 
 	foreach ($run->getSrv($db) as $srv) {
 		$full  	    =  NULL;
-		$db->query("UPDATE IGNORE report  set `curpos`='$srv' WHERE id=$reportId");
-		$full       =  $run->backup($srv,$log,$db,$run->startReport($db));
-                $dur        += $full->dur;
-                $osize      += $full->osize;
-                $csize      += $full->csize;
-                $dsize      += $full->dsize;
-		$nfiles     += $full->nfiles;
-		$nbarchive  += $full->nbarchive;
-		$logs       .= $full->log;
+		$db->query("UPDATE IGNORE report  set `curpos`='$srv[name]' WHERE id=$reportId");
+		$full       =  $run->backup($srv['name'],$log,$db,$run->startReport($db,$srv['id'],$srv['type']),$srv['type']);
+		$dur        += @$full->dur;
+		$osize      += @$full->osize;
+		$csize      += @$full->csize;
+		$dsize      += @$full->dsize;
+		$nfiles     += @$full->nfiles;
+		$nbarchive  += @$full->nbarchive;
+		$logs       .= @$full->log;
 		$db->query("UPDATE IGNORE report  set `osize`='$osize', `csize`='$csize', `dsize`='$dsize', `dur`='$dur', `nb_archive` = '$nbarchive', `nfiles`='$nfiles', `error`= '$full->error' WHERE id=$reportId");
 	}
 	$db->query("UPDATE IGNORE report  set `end`=NOW(), `log` = ? , `curpos` = NULL WHERE id=$reportId",$logs);
 
 }
+
+if ($param == "testfull") {
+        $reportId=$run->startReport($db);
+        $dur=$osize=$csize=$dsize=$nfiles=$nbarchive=$logs=NULL;
+        foreach ($run->getSrv($db) as $value) {
+                echo "$value[name] type => $value[type]\n";
+        }
+
+}
+
 
 
 

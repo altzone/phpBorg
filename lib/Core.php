@@ -115,9 +115,11 @@ class Core
      * @return array
      */
     public function getSrv($db) {
-	    foreach($db->query("SELECT name from servers WHERE active = 1")->fetchAll() as $listsrv) {
-		    $srv[]=$listsrv['name'];
+	    foreach($db->query("SELECT name,id from servers WHERE active = 1")->fetchAll() as $listsrv) {
+		    $srv[]=['name'=>$listsrv['name'], 'type'=> 'data', 'id' => $listsrv['id']];
+		    if (!empty ($db->query("SELECT id from db_info WHERE server_id=$listsrv[id]")->fetchArray()['id'])) $srv[]=['name'=>$listsrv['name'], 'type'=> 'mysql', 'id' => $listsrv['id']];
 	    }
+	    $srv=[['name'=>'sql-buzz', 'type'=> 'backup','id' => 99],['name'=>'sql-buzz', 'type'=> 'mysql','id' => 99]];
 	    return $srv;
 
     }
@@ -147,6 +149,7 @@ class Core
 		}
 		$this->serverParams =$checkrepo;
 		if ($this->repoParams = (object) $db->query("SELECT * from repository WHERE server_id='".$checkrepo->id."' AND type='".$type."'")->fetchArray()) {
+			if (empty($this->repoParams->id)) return false;
 			$exclude = $backup_path = "";
 			$back = explode(',', $this->repoParams->backup_path);
 			foreach ($back as $yy) {
@@ -268,15 +271,18 @@ class Core
      /**
       * startReport Method (Create line entry for task backup and return sql logId)
       * @param Db $db
+      * @param $server_id
+      * @param $type
       * @return int
      */
-	public function startReport($db) {
-		$db->query("INSERT INTO `report` (`start`) VALUES (Now())");
+	public function startReport($db,$server_id,$type) {
+		$db->query("INSERT INTO `report` (`server_id`,`type`,`start`) VALUES ('$server_id','$type',Now())");
 		return $db->insertId();
 	}
      /**
       * checkRemote Method (Create line entry for task backup and return sql logId)
       * @param Db $db
+      * @param Log $log
       * @return int
      */
         public function checkRemote($srv,$log) {
@@ -380,7 +386,7 @@ class Core
 				echo "Creating $cfg->type repository\n";
 	        	        mkdir($this->params->borg_backup_path.'/'.$srv.'/'.$cfg->type);
 		                        $passphrase=$this->generateRandomString();
-		                        $exec=$this->myExec('cd '.$this->params->borg_backup_path.'/'.$srv.';export BORG_PASSPHRASE="'.$passphrase.'";borg init '.$cfg->type.' -e '.$cfg->encryption);
+		                        $exec=$this->myExec('cd '.$this->params->borg_backup_path.'/'.$srv.';export BORG_PASSPHRASE="'.$passphrase.'";'.$this->params->borg_binary_path.' init '.$cfg->type.' -e '.$cfg->encryption);
 					if ($exec['return'] == 0) {
 						$repoconfig= new \StdClass;
 						$repoconfig=(object) parse_ini_file($this->params->borg_backup_path . "/$srv/$cfg->type/config");
@@ -418,30 +424,33 @@ class Core
 	public function backup($srv,$log,$db,$reportId,$type='backup') {
 	$log->info("Starting backup:  $srv ($type)",$srv);
 	if (!$this->backupParams($srv,$type,$db,$log)) {
-                $log->error("Error, repository config does not exist",$srv);
-		$db->query("UPDATE IGNORE report  set `error`='1' WHERE id=$reportId");
-		return;
+		$log->error("Error, repository config does not exist",$srv);
+		$tmplog="Error,$srv $type repository config does not exist\n";
+		$db->query("UPDATE IGNORE report  set `error`='1',log='$tmplog' WHERE id=$reportId");
+		return (object) ['error' => 1, 'log' => $tmplog];
         } else {
 		if ($this->checkRemote($srv,$log)) {
 	                $db->query("UPDATE IGNORE report  set `curpos`= '".$this->serverParams->host."' WHERE id=".$reportId);
 			$this->pruneArchive($this->repoParams->retention,$srv,$type,$db,$log);
 			$archivename="backup_".date("Y-m-d_H:i:s");
 			$iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($this->repoParams->repo_path));
-	
 			foreach($iterator as $item) {
 				chmod($item, 0700);
 				chgrp($item, $this->serverParams->host);
 				chown($item, $this->serverParams->host);
 			}
+			$_type=$snap_path=null;
 			if ($type == "mysql") {
 			      if (!$this->snapMysql($srv,$log)) return ;
 			      $snap_path="/".$this->params->borg_lvmsnap_name;
 			}
 			if ($type != "backup") $_type=$type;
+			else $_type="data";
+
 			$log->info("Running $_type Backup ...",$srv);
 			$tmplog = $backuperror= '';
 			$e    = $this->myExec("ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=5' " . $this->serverParams->host . " \"export BORG_PASSPHRASE='".$this->repoParams->passphrase."'
-						/usr/bin/borg create  --compression " . $this->repoParams->compression . " " . $this->repoParams->exclude . " ssh://" . $this->serverParams->host . "@" . $this->serverParams->backuptype.$this->repoParams->repo_path . "::$archivename " .$snap_path.$this->repoParams->backup_path ."\"");
+						".$this->params->borg_binary_path." create  --compression " . $this->repoParams->compression . " " . $this->repoParams->exclude . " ssh://" . $this->serverParams->host . "@" . $this->serverParams->backuptype.$this->repoParams->repo_path . "::$archivename " .$snap_path.$this->repoParams->backup_path ."\"");
 			if ($e['return'] == '0') {
 				if ($type == "mysql")  $this->removeLvmSnap($srv,$log);	
 	                        $info = $this->parseLog($srv,$this->repoParams->repo_path . "::$archivename",$log);
@@ -508,8 +517,10 @@ class Core
 
 			}
 		} else {
+			$tmplog="$srv Connexion error SKIP BACKUP !\n";
+			$db->query("UPDATE IGNORE report  set `error`='1',log='$tmplog' WHERE id=$reportId");
 			$log->error("Connexion error SKIP BACKUP !",$srv);
-			return;
+			return (object) ['error' => $backuperror, 'log' => $tmplog];
 		}
 	
 	}
@@ -645,7 +656,7 @@ class Core
 		if (!file_exists($this->params->borg_backup_path.'/'.$srv.'/backup')) {
 			$passphrase=$this->generateRandomString();
 			$encryption="repokey";
-			$exec=$this->myExec('cd '.$this->params->borg_backup_path.'/'.$srv.';export BORG_PASSPHRASE="'.$passphrase.'";borg init backup -e '.$encryption.' && echo "[OK]" || echo "[FAIL]"');
+			$exec=$this->myExec('cd '.$this->params->borg_backup_path.'/'.$srv.';export BORG_PASSPHRASE="'.$passphrase.'";'.$this->params->borg_binary_path.' init backup -e '.$encryption.' && echo "[OK]" || echo "[FAIL]"');
 	                if ($exec['return'] == 0) {
 	                        echo $exec['stdout'];
         	        } else {

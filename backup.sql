@@ -32,6 +32,8 @@ CREATE TABLE `db_info` (
 
 CREATE TABLE `report` (
 	  `id` int(11) NOT NULL,
+	  `server_id` int(11) NOT NULL,
+	  `type` varchar(10) COLLATE utf8_unicode_ci NOT NULL,
 	  `start` datetime DEFAULT NULL,
 	  `end` datetime DEFAULT NULL,
 	  `dur` int(11) DEFAULT NULL,
