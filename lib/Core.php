@@ -123,6 +123,15 @@ class Core
 
     }
 
+    /**
+     * @return array
+     */
+    public function getIdSrv($srv,$db) {
+            return $db->query("SELECT name,id from servers WHERE active = 1 AND name='".$srv."'")->fetchArray()['id'];
+
+    }
+
+
 
     /**
      * parseConfig Method (Parse config file from repository)

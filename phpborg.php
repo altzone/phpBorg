@@ -43,13 +43,14 @@ if ($param == "dbadd") {
 if ($param == "backup") {
     if (!empty($argv[2])) {
 	    $srv = $argv[2];
-	    if ($argv[3] == "mysql") $type="mysql";
-	    else $type=NULL;
+	    if (@$argv[3] == "mysql") $type="mysql";
+	    else $type='backup';
     } else {
         echo "Specify the server to backup, example:\n$argv[0] $argv[1] sbc-orange1\n";
         exit(1);
     }
-    $run->backup($srv,$log,$db,$run->startReport($db),$type);
+
+    $run->backup($srv,$log,$db,$run->startReport($db,$run->getIdSrv($srv,$db),$type),$type);
 
 }
 
