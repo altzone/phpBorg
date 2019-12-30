@@ -116,7 +116,7 @@ class Core
      */
     public function getSrv($db) {
 	    foreach($db->query("SELECT name,id from servers WHERE active = 1")->fetchAll() as $listsrv) {
-		    $srv[]=['name'=>$listsrv['name'], 'type'=> 'data', 'id' => $listsrv['id']];
+		    $srv[]=['name'=>$listsrv['name'], 'type'=> 'backup', 'id' => $listsrv['id']];
 		    if (!empty ($db->query("SELECT id from db_info WHERE server_id=$listsrv[id]")->fetchArray()['id'])) $srv[]=['name'=>$listsrv['name'], 'type'=> 'mysql', 'id' => $listsrv['id']];
 	    }
 	    return $srv;
@@ -216,7 +216,27 @@ class Core
                 return array('stdout'=>$stdout,
                              'stderr'=>$stderr,
                              'return'=>$rtn);
-                 }
+	}
+     /**
+      * borgExec Method (execute borg with arguments)
+      * @param int $keepday
+      * @param string $srv
+      * @param Db $db
+      * @param logWriter $log
+      * @return array|bool|void
+     */
+    public function borgExec($verb,$srv,$type,$db,$log) {
+	    if (!$this->backupParams($srv,$type,$db,$log)) {
+		    $log->error("Error, repository config does not exist",$srv);
+		    return;
+	    }
+	    $e       = $this->myExec("export BORG_PASSPHRASE='".$this->repoParams->passphrase."';".$this->params->borg_binary_path." $verb ".$this->repoParams->repo_path);
+	    print $e['stdout'];
+	    
+    }
+
+
+
 
      /**
       * pruneArchive Method (archive retention management)

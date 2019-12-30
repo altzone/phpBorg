@@ -26,8 +26,30 @@ if (!empty($argv[1])) {
 }
 
 if ($param == "info") {
-    //makeStat($path, $run, $db); //@TODO undefined
+	if (empty($argv[2])) {
+		echo "Usage: $argv[0] info repository (ex $argv[0] info sbc-orange1\n";
+		exit(1);
+	}
+        $srv = $argv[2];
+        if (@$argv[3] == "mysql") $type="mysql";
+        else $type='backup';
+
+	$run->borgExec('info',$srv,$type,$db,$log);
 }
+
+if ($param == "list") {
+        if (empty($argv[2])) {
+                echo "Usage: $argv[0] list repository (ex $argv[0] list sbc-orange1\n";
+                exit(1);
+        }
+        $srv = $argv[2];
+        if (@$argv[3] == "mysql") $type="mysql";
+        else $type='backup';
+
+        $run->borgExec('list',$srv,$type,$db,$log);
+}
+
+
 
 if ($param == "add") {
 	$run->addSrv($db,$log);
