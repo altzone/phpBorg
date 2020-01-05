@@ -111,16 +111,18 @@ if ($param == "full") {
 
 	foreach ($run->getSrv($db) as $srv) {
 		$full  	    =  NULL;
+		$start_time = microtime(true);
 		$db->query("UPDATE IGNORE report  set `curpos`='$srv[name]' WHERE id=$reportId");
 		$full       =  $run->backup($srv['name'],$log,$db,$run->startReport($db,$srv['id'],$srv['type']),$srv['type']);
-		$dur        += @$full->dur;
 		$osize      += @$full->osize;
 		$csize      += @$full->csize;
 		$dsize      += @$full->dsize;
 		$nfiles     += @$full->nfiles;
 		$nbarchive  += @$full->nbarchive;
 		$logs       .= @$full->log;
-		$db->query("UPDATE IGNORE report  set `osize`='$osize', `csize`='$csize', `dsize`='$dsize', `dur`='$dur', `nb_archive` = '$nbarchive', `nfiles`='$nfiles', `error`= '$full->error' WHERE id=$reportId");
+		$end_time    = microtime(true);
+		$dur	     = round($end_time - $start_time);
+		$db->query("UPDATE IGNORE report  set `osize`='$osize', `csize`='$csize', `dsize`='$dsize', `dur`='$dur',`end`='NOW()', `nb_archive` = '$nbarchive', `nfiles`='$nfiles', `error`= '$full->error' WHERE id=$reportId");
 	}
 	$db->query("UPDATE IGNORE report  set `end`=NOW(), `log` = ? , `curpos` = NULL WHERE id=$reportId",$logs);
 
