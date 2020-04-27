@@ -858,7 +858,7 @@ class Core {
                                     VALUES
                                         ( '" . $server_id . "',
                                           '" . $repoconfig->id . "',
-                                          'data',
+                                          'backup',
                                           '" . $keep . "',
                                           '" . $encryption . "',TO_BASE64('" . $passphrase . "'),
                                           '" . $this->params->borg_backup_path . '/' . $srv . '/backup' . "',
