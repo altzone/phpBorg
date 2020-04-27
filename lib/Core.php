@@ -124,6 +124,33 @@ class Core {
         return $randomString;
     }
 
+    public function generateCertificate($srv) {
+	    $certificateData = array(
+		    "countryName" => "US",
+		    "countryName" => "US",
+		    "localityName" => "Houston",
+		    "organizationName" => "DevDungeon.com",
+		    "organizationalUnitName" => "Development",
+		    "commonName" => "DevDungeon",
+		    "emailAddress" => "nanodano@devdungeon.com"
+	    );
+	    // Generate certificate
+	    $privateKey = openssl_pkey_new();
+	    $certificate = openssl_csr_new($certificateData, $privateKey);
+	    $certificate = openssl_csr_sign($certificate, null, $privateKey, 999 );
+	    
+	    // Generate PEM file
+	    $pem_passphrase = 'abracadabra'; // empty for no passphrase
+	    $pem = array();
+	    openssl_x509_export($certificate, $pem[0]);
+	    openssl_pkey_export($privateKey, $pem[1], $pem_passphrase);
+	    $pem = implode($pem);
+	    
+	    // Save PEM file
+	    $pemfile = './server.pem';
+	    file_put_contents($pemfile, $pem);
+    }
+
     /**
      * getSrv Method (Get all servers name in db)
      * @param Db $db
@@ -831,7 +858,7 @@ class Core {
                                     VALUES
                                         ( '" . $server_id . "',
                                           '" . $repoconfig->id . "',
-                                          'data',
+                                          'backup',
                                           '" . $keep . "',
                                           '" . $encryption . "',TO_BASE64('" . $passphrase . "'),
                                           '" . $this->params->borg_backup_path . '/' . $srv . '/backup' . "',
