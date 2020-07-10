@@ -55,8 +55,8 @@ if ($param == "mount") {
 		exit(1);
 	}
 	$srv = $argv[2];
-	if (@$argv[3] == "last") $type="DESC";
-	if (@$argv[3] == "old") $type="ASC";
+	if (@$argv[3] == "mysql") $type="mysql";
+	else $type="backup";
 	$run->mountMenu($srv,$type,$db,$log);
 }
 

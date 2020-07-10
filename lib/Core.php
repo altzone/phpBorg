@@ -308,7 +308,7 @@ class Core {
         $deleted = NULL;
         $keepday = $keepday - 1;
         $log->info("Retention policy : keep $keepday  per days, ", $srv);
-        $e = $this->myExec("export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "';" . $this->params->borg_binary_path . " prune --save-space --force --list --keep-daily=$keepday --keep-weekly=4 --keep-monthly=1 " . $this->repoParams->repo_path);
+        $e = $this->myExec("export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "';" . $this->params->borg_binary_path . " prune --save-space --force --list --keep-daily=$keepday --keep-weekly=4 --keep-monthly=6 " . $this->repoParams->repo_path);
         if ($e['return'] == 0) {
             $separator = "\r\n";
             $line = strtok($e['stderr'], $separator);
@@ -672,19 +672,19 @@ class Core {
     public function mountMenu($srv,$type,$db,$log) {
 	$continue = "Y";
 	while ($continue == "Y" ) {
-		$list= (object)$db->query("SELECT * from archives where repo_id IN (SELECT repository.repo_id from servers LEFT JOIN repository ON servers.id=repository.server_id WHERE servers.name='" . $srv . "') ORDER BY end $type")->fetchAll();
+		$list= (object)$db->query("SELECT * from archives where repo_id IN (SELECT repository.repo_id from servers LEFT JOIN repository ON servers.id=repository.server_id WHERE servers.name='" . $srv . "' AND type='" . $type . "') ORDER BY end")->fetchAll();
+		
 		echo "[ Backup Choice ]\n";
 			foreach( $list as $key=>$value) {
 			echo " $key - $value[end]\n";
 		}
 		echo "-------------------------\n Enter Backup number to mount : ";
 		$mount_choice=$this->getInput();
-		$continue=$this->mountBackup($list->{$mount_choice}['nom'],$srv,$db,$log);
+		$continue=$this->mountBackup($list->{$mount_choice}['nom'],$srv,$type,$db,$log);
 	}	
     }
 
-    private function mountBackup($backup,$srv,$db,$log) {
-	$type='backup';
+    private function mountBackup($backup,$srv,$type,$db,$log) {
 	$restore=$this->params->borg_backup_path . "/" . $srv . "/restore";
 	echo "Mounting $srv's $backup in ". $restore ." Please Wait ...\n";
 	$arg=$this->params->borg_backup_path . "/" . $srv . "/".$type."::$backup $restore";
