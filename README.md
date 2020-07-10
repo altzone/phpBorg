@@ -100,7 +100,37 @@ backup_2020-01-04_01:19:16           Sat, 2020-01-04 01:19:19 [96547b09b517b5d78
 backup_2020-01-06_01:18:20           Mon, 2020-01-06 01:18:23 [c6b5c101327962f0efbe7729911c82b8c8498dcd23d40732b1cf5be7f4fed574]
 
  ```
+ #### Mount repository backup point:
+ THis option mount the archive and drop a shell, type exit to quit restore shell.
+ ``` sh
+ ./phpborg.php mount fax
+ ```
+ Ouput:
+ ```
+ [ Backup Choice ]
+ 0 - 2019-12-21 17:02:59
+ 1 - 2020-06-07 23:01:36
+ 2 - 2020-06-07 23:01:50
+ 3 - 2020-06-14 01:19:17
+
+-------------------------
+ Enter Backup number to mount : 3
+
+Mounting fax's backup_2020-06-14_01:17:39 in /data/backups/fax/restore Please Wait ...
+=> Backup was succesfuly mounted, type exit to umount
+
+
+[/data/backups/fax/restore]
+fax BACKUP->
+```
+if you want to mount other backup then type exit :
+```
+Unmounting fax Backup --> [OK]
+=> Backup session finished
+ Do you want to mount another backup? [Y / N] Default No :
+ ```
  
+
  
  ## :wrench: CONFIGURATION
  #### Config PATH  
