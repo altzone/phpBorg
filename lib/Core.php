@@ -44,7 +44,7 @@ class Core {
     /**
      * @var \stdClass
      */
-    protected $params;
+    public $params;
 
     /**
      * @var
@@ -283,13 +283,13 @@ class Core {
      * @param logWriter $log
      * @return array|bool|void
      */
-    public function borgExec($verb, $srv, $type, $db, $log) {
+    public function borgExec($verb, $arg, $srv, $type, $db, $log) {
         if (!$this->backupParams($srv, $type, $db, $log)) {
             echo "Error, repository config for '$srv' does not exist";
             $log->error("Error, repository config does not exist", $srv);
             return;
         }
-        $e = $this->myExec("export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "';" . $this->params->borg_binary_path . " $verb " . $this->repoParams->repo_path);
+        $e = $this->myExec("export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "';" . $this->params->borg_binary_path . " $verb " .$arg);
         print $e['stdout'];
 
     }
@@ -660,6 +660,45 @@ class Core {
         $line = fgets($handle);
         return trim($line);
     }
+
+    /**
+     * mountMenu Method (print menu to mount backup)
+     * @param string $srv
+     * @param string $type
+     * @param Db $db
+     * @param logWriter $log
+     * @return bool
+     */
+    public function mountMenu($srv,$type,$db,$log) {
+	$continue = "Y";
+	while ($continue == "Y" ) {
+		$list= (object)$db->query("SELECT * from archives where repo_id IN (SELECT repository.repo_id from servers LEFT JOIN repository ON servers.id=repository.server_id WHERE servers.name='" . $srv . "') ORDER BY end $type")->fetchAll();
+		echo "[ Backup Choice ]\n";
+			foreach( $list as $key=>$value) {
+			echo " $key - $value[end]\n";
+		}
+		echo "-------------------------\n Enter Backup number to mount : ";
+		$mount_choice=$this->getInput();
+		$continue=$this->mountBackup($list->{$mount_choice}['nom'],$srv,$db,$log);
+	}	
+    }
+
+    private function mountBackup($backup,$srv,$db,$log) {
+	$type='backup';
+	$restore=$this->params->borg_backup_path . "/" . $srv . "/restore";
+	echo "Mounting $srv's $backup in ". $restore ." Please Wait ...\n";
+	$arg=$this->params->borg_backup_path . "/" . $srv . "/".$type."::$backup $restore";
+	$this->borgExec('mount',$arg,$srv,$type,$db,$log);
+	echo "=> Backup was succesfuly mounted, type exit to umount\n\n\n";
+	passthru('cd '.$restore.' ; PS1="[\[\033[32m\]\w]\[\033[0m\]\n\[\033[1;36m\]'.$srv.' BACKUP\[\033[1;33m\]-> \[\033[0m\]" bash --noprofile --norc -i');
+	echo "Unmounting $srv Backup --> ";
+	$this->borgExec('umount',$restore,$srv,$type,$db,$log);
+	echo "[OK]";
+	echo "\n=> Backup session finished\n Do you want to mount another backup? [Y / N] Default No :";
+	return $this->getInput();
+    }
+
+
 
     /**
      * addDb Method (Add Mysql config from existing server to backup database)

@@ -45,8 +45,19 @@ if ($param == "list") {
         $srv = $argv[2];
         if (@$argv[3] == "mysql") $type="mysql";
         else $type='backup';
+	$arg=$run->params->borg_backup_path . "/" . $srv . "/".$type;
+        $run->borgExec('list',$arg,$srv,$type,$db,$log);
+}
 
-        $run->borgExec('list',$srv,$type,$db,$log);
+if ($param == "mount") {
+	if (empty($argv[2])) {
+		echo "Usage: $argv[0] mount repository (ex $argv[0] mount sbc-orange1\n";
+		exit(1);
+	}
+	$srv = $argv[2];
+	if (@$argv[3] == "last") $type="DESC";
+	if (@$argv[3] == "old") $type="ASC";
+	$run->mountMenu($srv,$type,$db,$log);
 }
 
 
