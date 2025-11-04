@@ -24,6 +24,7 @@ use PhpBorg\Service\Database\PostgresBackupStrategy;
 use PhpBorg\Service\Repository\EncryptionService;
 use PhpBorg\Service\Server\ServerManager;
 use PhpBorg\Service\Server\SshExecutor;
+use PhpBorg\Service\Setup\SetupService;
 use Symfony\Component\Dotenv\Dotenv;
 
 /**
@@ -256,6 +257,13 @@ final class Application
                 $this->getEncryptionService(),
                 $this->logger
             )
+        );
+    }
+
+    public function getSetupService(): SetupService
+    {
+        return $this->getService(SetupService::class, fn() =>
+            new SetupService($this->config, $this->logger)
         );
     }
 
