@@ -33,8 +33,13 @@ if (!$autoloaded) {
 use PhpBorg\Application;
 use PhpBorg\Command\AddServerCommand;
 use PhpBorg\Command\BackupCommand;
+use PhpBorg\Command\DatabaseAddCommand;
 use PhpBorg\Command\FullBackupCommand;
+use PhpBorg\Command\InfoCommand;
+use PhpBorg\Command\ListCommand;
 use PhpBorg\Command\ListServersCommand;
+use PhpBorg\Command\MountCommand;
+use PhpBorg\Command\PruneCommand;
 use Symfony\Component\Console\Application as ConsoleApplication;
 
 // Check PHP version
@@ -55,10 +60,22 @@ try {
     $console->setCatchExceptions(true);
 
     // Register commands
+    // Backup commands
     $console->add(new BackupCommand($app));
     $console->add(new FullBackupCommand($app));
+    $console->add(new PruneCommand($app));
+
+    // Server commands
     $console->add(new AddServerCommand($app));
     $console->add(new ListServersCommand($app));
+
+    // Archive commands
+    $console->add(new ListCommand($app));
+    $console->add(new MountCommand($app));
+    $console->add(new InfoCommand($app));
+
+    // Database commands
+    $console->add(new DatabaseAddCommand($app));
 
     // Run console application
     $exitCode = $console->run();

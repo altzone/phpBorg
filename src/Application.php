@@ -15,6 +15,7 @@ use PhpBorg\Repository\ReportRepository;
 use PhpBorg\Repository\ServerRepository;
 use PhpBorg\Service\Backup\BackupService;
 use PhpBorg\Service\Backup\BorgExecutor;
+use PhpBorg\Service\Backup\MountService;
 use PhpBorg\Service\Database\ElasticsearchBackupStrategy;
 use PhpBorg\Service\Database\LvmSnapshotManager;
 use PhpBorg\Service\Database\MongoDbBackupStrategy;
@@ -230,6 +231,17 @@ final class Application
 
             return $service;
         });
+    }
+
+    public function getMountService(): MountService
+    {
+        return $this->getService(MountService::class, fn() =>
+            new MountService(
+                $this->config,
+                $this->getBorgExecutor(),
+                $this->logger
+            )
+        );
     }
 
     public function getServerManager(): ServerManager
