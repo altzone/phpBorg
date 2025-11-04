@@ -1,0 +1,84 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * phpBorg - Professional PHP 8.3+ frontend for BorgBackup
+ *
+ * @license GPL-3.0-or-later
+ */
+
+// Load Composer autoloader
+$autoloadPaths = [
+    __DIR__ . '/../vendor/autoload.php',
+    __DIR__ . '/../../../autoload.php',
+];
+
+$autoloaded = false;
+foreach ($autoloadPaths as $autoloadPath) {
+    if (file_exists($autoloadPath)) {
+        require $autoloadPath;
+        $autoloaded = true;
+        break;
+    }
+}
+
+if (!$autoloaded) {
+    fwrite(STDERR, "Error: Composer autoloader not found.\n");
+    fwrite(STDERR, "Please run: composer install\n");
+    exit(1);
+}
+
+use PhpBorg\Application;
+use PhpBorg\Command\AddServerCommand;
+use PhpBorg\Command\BackupCommand;
+use PhpBorg\Command\FullBackupCommand;
+use PhpBorg\Command\ListServersCommand;
+use Symfony\Component\Console\Application as ConsoleApplication;
+
+// Check PHP version
+if (PHP_VERSION_ID < 80300) {
+    fwrite(STDERR, sprintf(
+        "Error: phpBorg requires PHP 8.3 or higher. You are running PHP %s.\n",
+        PHP_VERSION
+    ));
+    exit(1);
+}
+
+try {
+    // Create application
+    $app = new Application();
+
+    // Create console application
+    $console = new ConsoleApplication('phpBorg', '2.0.0');
+    $console->setCatchExceptions(true);
+
+    // Register commands
+    $console->add(new BackupCommand($app));
+    $console->add(new FullBackupCommand($app));
+    $console->add(new AddServerCommand($app));
+    $console->add(new ListServersCommand($app));
+
+    // Run console application
+    $exitCode = $console->run();
+
+    // Cleanup
+    $app->shutdown();
+
+    exit($exitCode);
+} catch (\PhpBorg\Exception\ConfigurationException $e) {
+    fwrite(STDERR, "Configuration Error: {$e->getMessage()}\n");
+    fwrite(STDERR, "Please check your .env file.\n");
+    exit(1);
+} catch (\PhpBorg\Exception\DatabaseException $e) {
+    fwrite(STDERR, "Database Error: {$e->getMessage()}\n");
+    fwrite(STDERR, "Please check your database configuration.\n");
+    exit(1);
+} catch (\Throwable $e) {
+    fwrite(STDERR, "Fatal Error: {$e->getMessage()}\n");
+    if (isset($app) && $app->getConfig()->isDebug()) {
+        fwrite(STDERR, $e->getTraceAsString() . "\n");
+    }
+    exit(1);
+}

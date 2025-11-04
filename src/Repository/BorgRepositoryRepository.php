@@ -1,0 +1,147 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PhpBorg\Repository;
+
+use PhpBorg\Database\Connection;
+use PhpBorg\Entity\BorgRepository;
+use PhpBorg\Exception\DatabaseException;
+
+/**
+ * Repository for BorgRepository entities
+ */
+final class BorgRepositoryRepository
+{
+    public function __construct(
+        private readonly Connection $connection
+    ) {
+    }
+
+    /**
+     * Find repository by ID
+     *
+     * @throws DatabaseException
+     */
+    public function findById(int $id): ?BorgRepository
+    {
+        $row = $this->connection->fetchOne(
+            'SELECT * FROM repository WHERE id = ?',
+            [$id]
+        );
+
+        return $row ? BorgRepository::fromDatabase($row) : null;
+    }
+
+    /**
+     * Find repository by server ID and type
+     *
+     * @throws DatabaseException
+     */
+    public function findByServerAndType(int $serverId, string $type): ?BorgRepository
+    {
+        $row = $this->connection->fetchOne(
+            'SELECT * FROM repository WHERE server_id = ? AND type = ?',
+            [$serverId, $type]
+        );
+
+        return $row ? BorgRepository::fromDatabase($row) : null;
+    }
+
+    /**
+     * Find all repositories for a server
+     *
+     * @return array<int, BorgRepository>
+     * @throws DatabaseException
+     */
+    public function findByServerId(int $serverId): array
+    {
+        $rows = $this->connection->fetchAll(
+            'SELECT * FROM repository WHERE server_id = ? ORDER BY type',
+            [$serverId]
+        );
+
+        return array_map(fn(array $row) => BorgRepository::fromDatabase($row), $rows);
+    }
+
+    /**
+     * Find all repositories
+     *
+     * @return array<int, BorgRepository>
+     * @throws DatabaseException
+     */
+    public function findAll(): array
+    {
+        $rows = $this->connection->fetchAll(
+            'SELECT * FROM repository ORDER BY server_id, type'
+        );
+
+        return array_map(fn(array $row) => BorgRepository::fromDatabase($row), $rows);
+    }
+
+    /**
+     * Create new repository
+     *
+     * @throws DatabaseException
+     */
+    public function create(
+        int $serverId,
+        string $repoId,
+        string $type,
+        int $retention,
+        string $encryption,
+        string $passphrase,
+        string $repoPath,
+        string $compression,
+        int $rateLimit,
+        string $backupPath,
+        ?string $exclude = null
+    ): int {
+        $this->connection->executeUpdate(
+            'INSERT INTO repository
+             (server_id, repo_id, type, retention, encryption, passphrase, repo_path,
+              compression, ratelimit, backup_path, exclude, modified)
+             VALUES (?, ?, ?, ?, ?, TO_BASE64(?), ?, ?, ?, ?, ?, NOW())',
+            [
+                $serverId, $repoId, $type, $retention, $encryption, $passphrase,
+                $repoPath, $compression, $rateLimit, $backupPath, $exclude
+            ]
+        );
+
+        return $this->connection->getLastInsertId();
+    }
+
+    /**
+     * Update repository statistics
+     *
+     * @throws DatabaseException
+     */
+    public function updateStatistics(
+        string $repoId,
+        int $size,
+        int $compressedSize,
+        int $deduplicatedSize,
+        int $totalUniqueChunks,
+        int $totalChunks
+    ): void {
+        $this->connection->executeUpdate(
+            'UPDATE repository
+             SET size = ?, csize = ?, dsize = ?, ttuchunks = ?, ttchunks = ?, modified = NOW()
+             WHERE repo_id = ?',
+            [$size, $compressedSize, $deduplicatedSize, $totalUniqueChunks, $totalChunks, $repoId]
+        );
+    }
+
+    /**
+     * Delete repository
+     *
+     * @throws DatabaseException
+     */
+    public function delete(int $id): void
+    {
+        $this->connection->executeUpdate(
+            'DELETE FROM repository WHERE id = ?',
+            [$id]
+        );
+    }
+}

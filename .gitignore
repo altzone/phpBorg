@@ -1,0 +1,33 @@
+# Environment
+.env
+.env.local
+
+# Composer
+/vendor/
+composer.lock
+
+# Logs
+/var/log/*.log
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup directories
+/data/backups/*/
+
+# Testing
+/var/cache/
+/var/tmp/
+.phpunit.result.cache
+
+# Build artifacts
+/build/

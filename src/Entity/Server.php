@@ -1,0 +1,58 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PhpBorg\Entity;
+
+/**
+ * Server entity representing a backup server configuration
+ */
+final readonly class Server
+{
+    public function __construct(
+        public int $id,
+        public string $name,
+        public string $host,
+        public int $port,
+        public string $backupType,
+        public string $sshPublicKey,
+        public bool $active,
+    ) {
+    }
+
+    /**
+     * Create Server from database row
+     *
+     * @param array<string, mixed> $row
+     */
+    public static function fromDatabase(array $row): self
+    {
+        return new self(
+            id: (int)$row['id'],
+            name: (string)$row['name'],
+            host: (string)$row['host'],
+            port: (int)$row['port'],
+            backupType: (string)($row['backuptype'] ?? 'internal'),
+            sshPublicKey: (string)$row['ssh_pub_key'],
+            active: (bool)$row['active'],
+        );
+    }
+
+    /**
+     * Convert to array for database storage
+     *
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'host' => $this->host,
+            'port' => $this->port,
+            'backuptype' => $this->backupType,
+            'ssh_pub_key' => $this->sshPublicKey,
+            'active' => $this->active ? 1 : 0,
+        ];
+    }
+}

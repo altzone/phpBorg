@@ -1,0 +1,54 @@
+{
+    "name": "phpborg/phpborg",
+    "description": "Professional PHP 8.3+ frontend for BorgBackup - Secure and efficient backup management system",
+    "type": "project",
+    "license": "GPL-3.0-or-later",
+    "keywords": ["backup", "borg", "borgbackup", "mysql", "lvm", "snapshot"],
+    "authors": [
+        {
+            "name": "phpBorg Contributors"
+        }
+    ],
+    "require": {
+        "php": ">=8.3",
+        "ext-mysqli": "*",
+        "ext-openssl": "*",
+        "ext-posix": "*",
+        "ext-json": "*",
+        "symfony/console": "^7.0",
+        "symfony/dotenv": "^7.0",
+        "monolog/monolog": "^3.5",
+        "symfony/process": "^7.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0",
+        "phpstan/phpstan": "^1.10",
+        "squizlabs/php_codesniffer": "^3.8"
+    },
+    "autoload": {
+        "psr-4": {
+            "PhpBorg\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "PhpBorg\\Tests\\": "tests/"
+        }
+    },
+    "bin": ["bin/phpborg"],
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "phpstan": "phpstan analyse src --level=8",
+        "cs-check": "phpcs src --standard=PSR12",
+        "cs-fix": "phpcbf src --standard=PSR12"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
