@@ -25,8 +25,29 @@ foreach ($autoloadPaths as $autoloadPath) {
 }
 
 if (!$autoloaded) {
-    fwrite(STDERR, "Error: Composer autoloader not found.\n");
-    fwrite(STDERR, "Please run: composer install\n");
+    fwrite(STDERR, "\n");
+    fwrite(STDERR, "╔════════════════════════════════════════════════════════════════════════╗\n");
+    fwrite(STDERR, "║  phpBorg 2.0 - Installation Required                                  ║\n");
+    fwrite(STDERR, "╚════════════════════════════════════════════════════════════════════════╝\n");
+    fwrite(STDERR, "\n");
+    fwrite(STDERR, "Composer dependencies are not installed yet.\n");
+    fwrite(STDERR, "\n");
+    fwrite(STDERR, "Please follow these steps:\n");
+    fwrite(STDERR, "\n");
+    fwrite(STDERR, "  1. Install Composer dependencies:\n");
+    fwrite(STDERR, "     \033[1;32mcomposer install --no-dev --optimize-autoloader\033[0m\n");
+    fwrite(STDERR, "\n");
+    fwrite(STDERR, "  2. Run automated setup:\n");
+    fwrite(STDERR, "     \033[1;32mphp bin/phpborg setup --fix --install-borg\033[0m\n");
+    fwrite(STDERR, "\n");
+    fwrite(STDERR, "  3. Configure database in .env file:\n");
+    fwrite(STDERR, "     \033[1;32mnano .env\033[0m\n");
+    fwrite(STDERR, "\n");
+    fwrite(STDERR, "  4. Import database schema:\n");
+    fwrite(STDERR, "     \033[1;32mmysql -u root -p < backup.sql\033[0m\n");
+    fwrite(STDERR, "\n");
+    fwrite(STDERR, "For more information, see README.md\n");
+    fwrite(STDERR, "\n");
     exit(1);
 }
 

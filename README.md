@@ -41,24 +41,34 @@
 
 ## 📦 Installation
 
-### 1. Clone Repository
+### Quick Start (3 Steps)
 
 ```bash
+# 1. Clone and enter directory
 git clone https://github.com/altzone/phpBorg.git
 cd phpBorg
-```
 
-### 2. Install Dependencies
-
-```bash
+# 2. Install Composer dependencies
 composer install --no-dev --optimize-autoloader
+
+# 3. Run automated setup
+php bin/phpborg setup --fix --install-borg
 ```
 
-### 3. Configure Environment
+That's it! The setup command will:
+- ✅ Check PHP version and extensions
+- ✅ Create `.env` file from template
+- ✅ Install BorgBackup if missing
+- ✅ Verify database connectivity
+- ✅ Create required directories
+- ✅ Check permissions and SSH
+
+### Manual Configuration (Optional)
+
+After setup, edit `.env` to configure your database:
 
 ```bash
-cp .env.example .env
-nano .env  # Edit configuration
+nano .env
 ```
 
 Required environment variables:
@@ -74,67 +84,111 @@ BORG_BACKUP_PATH=/data/backups
 APP_SECRET=your_secret_key_here
 ```
 
-### 4. Setup Database
+Then import the database schema:
 
 ```bash
 mysql -u root -p < backup.sql
 ```
 
-### 5. Create Log Directory
+### Setup Command Options
 
 ```bash
-sudo mkdir -p /var/log
-sudo touch /var/log/phpborg.log
-sudo chmod 644 /var/log/phpborg.log
+# Check system without making changes
+php bin/phpborg setup
+
+# Automatically fix common issues
+php bin/phpborg setup --fix
+
+# Install BorgBackup automatically
+php bin/phpborg setup --install-borg
+
+# Fix everything and install BorgBackup
+php bin/phpborg setup --fix --install-borg
 ```
 
 ## 🚀 Usage
 
-### Add a Server
+### Available Commands
+
+Run `./bin/phpborg list` to see all available commands.
+
+#### Setup & Installation
 
 ```bash
-./bin/phpborg server:add my-server --port=22 --retention=8
+# Verify installation and auto-fix issues
+./bin/phpborg setup --fix --install-borg
 ```
 
-This will:
+#### Server Management
+
+```bash
+# Add a new server (interactive wizard)
+./bin/phpborg server:add my-server --port=22 --retention=8
+
+# List all configured servers
+./bin/phpborg server:list
+```
+
+The `server:add` command will:
 - Test SSH connectivity
-- Generate SSH keys
+- Generate SSH keys if needed
 - Install BorgBackup on remote server
 - Create local backup repository
 - Configure encryption
 
-### List Servers
+#### Database Configuration
 
 ```bash
-./bin/phpborg server:list
+# Add database backup configuration (interactive wizard)
+./bin/phpborg database:add my-server
+
+# Choose from: MySQL, PostgreSQL, Elasticsearch, MongoDB
 ```
 
-### Backup Single Server
+#### Backup Operations
 
 ```bash
 # Filesystem backup
 ./bin/phpborg backup my-server
 
-# MySQL backup
+# Database backup (MySQL/PostgreSQL/Elasticsearch/MongoDB)
 ./bin/phpborg backup my-server --type=mysql
 
-# PostgreSQL backup
-./bin/phpborg backup my-server --type=postgres
-
-# Elasticsearch backup
-./bin/phpborg backup my-server --type=elasticsearch
-
-# MongoDB backup
-./bin/phpborg backup my-server --type=mongodb
-```
-
-### Full Backup (All Servers)
-
-```bash
+# Full backup of all servers
 ./bin/phpborg backup:full
 ```
 
-### Schedule Automated Backups
+#### Archive Management
+
+```bash
+# List all backup archives with stats
+./bin/phpborg list
+
+# Show repository information
+./bin/phpborg info
+
+# Mount an archive for file restore (interactive)
+./bin/phpborg mount
+
+# Prune old archives based on retention policy
+./bin/phpborg prune
+./bin/phpborg prune my-server           # Prune specific server
+./bin/phpborg prune --type=mysql        # Prune specific backup type
+```
+
+#### Mounting Archives for Restore
+
+The `mount` command provides an interactive shell to browse and restore files:
+
+```bash
+./bin/phpborg mount
+# Select archive from list
+# Explore files in interactive bash shell
+# Copy files you need
+# Type 'exit' to unmount
+```
+
+### Automated Backups (Cron)
 
 Add to crontab:
 
@@ -144,6 +198,9 @@ Add to crontab:
 
 # MySQL backup every 6 hours
 0 */6 * * * /usr/bin/php /path/to/phpBorg/bin/phpborg backup my-server --type=mysql
+
+# Prune old archives weekly
+0 3 * * 0 /usr/bin/php /path/to/phpBorg/bin/phpborg prune
 ```
 
 ## 🏗️ Architecture
@@ -158,6 +215,13 @@ phpBorg/
 ├── src/
 │   ├── Application.php      # DI Container
 │   ├── Command/             # CLI Commands
+│   │   ├── SetupCommand.php       # Installation verification
+│   │   ├── BackupCommand.php      # Backup operations
+│   │   ├── MountCommand.php       # Archive mounting
+│   │   ├── ListCommand.php        # List archives
+│   │   ├── InfoCommand.php        # Repository info
+│   │   ├── PruneCommand.php       # Archive pruning
+│   │   └── DatabaseAddCommand.php # Database configuration
 │   ├── Config/              # Configuration classes
 │   ├── Database/            # Database layer
 │   ├── Entity/              # Domain entities
@@ -165,15 +229,17 @@ phpBorg/
 │   ├── Logger/              # Logging implementation
 │   ├── Repository/          # Data repositories
 │   └── Service/
-│       ├── Backup/          # Backup services
+│       ├── Backup/          # Backup services & mounting
 │       ├── Database/        # Database backup strategies
 │       ├── Repository/      # Repository management
-│       └── Server/          # Server management
+│       ├── Server/          # Server management
+│       └── Setup/           # Installation verification
 ├── var/
 │   └── log/                 # Application logs
 ├── vendor/                  # Composer dependencies
 ├── .env                     # Environment configuration
 ├── .env.example             # Example configuration
+├── backup.sql               # Database schema
 ├── composer.json            # Dependencies
 └── README.md                # This file
 ```
