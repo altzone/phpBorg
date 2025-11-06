@@ -48,4 +48,12 @@ export const serverService = {
     const response = await api.get(`/servers/${id}/repositories`)
     return response.data.data
   },
+
+  /**
+   * Queue full server setup in background
+   */
+  async setupServer(id, setupData = {}) {
+    const response = await api.post(`/servers/${id}/setup`, setupData)
+    return response.data.data
+  },
 }
