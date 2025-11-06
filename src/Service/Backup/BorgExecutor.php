@@ -147,6 +147,33 @@ final class BorgExecutor
     }
 
     /**
+     * List archives in a repository
+     *
+     * @return array<int, array{name: string, id: string, start: string, time: string}>
+     * @throws BackupException
+     */
+    public function listArchives(string $repository, string $passphrase): array
+    {
+        $result = $this->execute(
+            ['list', '--json', $repository],
+            $passphrase,
+            60
+        );
+
+        if ($result['exitCode'] !== 0) {
+            throw new BackupException("Failed to list archives: {$result['stderr']}");
+        }
+
+        $data = json_decode($result['stdout'], true);
+        if (!is_array($data)) {
+            throw new BackupException('Invalid JSON response from Borg');
+        }
+
+        // borg list --json returns {archives: [...]}
+        return $data['archives'] ?? [];
+    }
+
+    /**
      * Get archive info as JSON
      *
      * @return array<string, mixed>

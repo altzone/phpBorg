@@ -497,9 +497,8 @@ final class BackupService
             $this->logger->info("Syncing repository: {$repository->repoId}", 'SYNC');
 
             try {
-                // Get all archives from Borg
-                $repoInfo = $this->borgExecutor->getRepositoryInfo($repository->repoPath, $repository->passphrase);
-                $borgArchives = $repoInfo['archives'] ?? [];
+                // Get all archives from Borg using borg list --json
+                $borgArchives = $this->borgExecutor->listArchives($repository->repoPath, $repository->passphrase);
 
                 $this->logger->info(
                     "Found " . count($borgArchives) . " archives in Borg repository {$repository->repoId}",
