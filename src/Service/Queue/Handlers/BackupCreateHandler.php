@@ -4,26 +4,37 @@ declare(strict_types=1);
 
 namespace PhpBorg\Service\Queue\Handlers;
 
+use PhpBorg\Config\Configuration;
 use PhpBorg\Entity\Job;
 use PhpBorg\Logger\LoggerInterface;
+use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Service\Backup\BackupService;
 use PhpBorg\Service\Queue\JobQueue;
+use PhpBorg\Service\Repository\EncryptionService;
 use PhpBorg\Service\Server\ServerManager;
 
 /**
  * Handler for backup creation jobs
+ * Responsibilities:
+ * - Check if repository exists for the server and backup type
+ * - Create repository if it doesn't exist
+ * - Execute the backup
  */
 final class BackupCreateHandler implements JobHandlerInterface
 {
     public function __construct(
         private readonly BackupService $backupService,
         private readonly ServerManager $serverManager,
+        private readonly BorgRepositoryRepository $repoRepo,
+        private readonly EncryptionService $encryption,
+        private readonly Configuration $config,
         private readonly LoggerInterface $logger
     ) {
     }
 
     /**
      * Handle backup creation job
+     * Creates repository if needed, then executes backup
      */
     public function handle(Job $job, JobQueue $queue): string
     {
@@ -47,8 +58,14 @@ final class BackupCreateHandler implements JobHandlerInterface
                 throw new \Exception("Server #{$serverId} not found");
             }
 
-            // Execute backup
-            $queue->updateProgress($job->id, 30, "Executing backup: {$server->name}...");
+            // Step 1: Ensure repository exists for this server and type (idempotent)
+            $queue->updateProgress($job->id, 20, "Checking repository configuration for {$type}...");
+            $repository = $this->ensureRepositoryExists($serverId, $server->name, $type);
+
+            $this->logger->info("Using repository ID: {$repository->repoId} for {$type} backup", 'JOB');
+
+            // Step 2: Execute backup
+            $queue->updateProgress($job->id, 50, "Executing {$type} backup: {$server->name}...");
 
             $result = $this->backupService->executeBackup($server, $type);
 
@@ -64,6 +81,100 @@ final class BackupCreateHandler implements JobHandlerInterface
         } catch (\Exception $e) {
             $this->logger->error("Backup failed: {$e->getMessage()}", 'JOB');
             throw new \Exception("Backup failed: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Ensure a repository exists for the given server and type
+     * If it doesn't exist, create it (idempotent)
+     *
+     * @return \PhpBorg\Entity\BorgRepository
+     */
+    private function ensureRepositoryExists(int $serverId, string $serverName, string $type): \PhpBorg\Entity\BorgRepository
+    {
+        // Check if repository already exists
+        $existing = $this->repoRepo->findByServerAndType($serverId, $type);
+        if ($existing !== null) {
+            $this->logger->info("Repository already exists for server {$serverName} ({$type})", 'JOB');
+            return $existing;
+        }
+
+        // Create new repository
+        $this->logger->info("Creating new repository for server {$serverName} ({$type})", 'JOB');
+
+        // Determine repository configuration based on backup type
+        $config = $this->getRepositoryConfig($type, $serverName);
+
+        // Generate secure passphrase
+        $passphrase = $this->encryption->generatePassphrase();
+
+        // Create repository path
+        $repoPath = $this->config->borgBackupPath . '/' . $serverName . '/' . $type;
+
+        // Create repository entry in database
+        $repoId = $this->repoRepo->create(
+            serverId: $serverId,
+            repoId: $type . '-repo-' . $serverId . '-' . time(),
+            type: $type,
+            retention: $config['retention'],
+            encryption: $config['encryption'],
+            passphrase: $passphrase,
+            repoPath: $repoPath,
+            compression: $config['compression'],
+            rateLimit: $config['rate_limit'],
+            backupPath: $config['backup_path'],
+            exclude: $config['exclude']
+        );
+
+        $this->logger->info("Repository created with ID: {$repoId}", 'JOB');
+
+        // Fetch and return the created repository
+        $repository = $this->repoRepo->findById($repoId);
+        if (!$repository) {
+            throw new \Exception("Failed to retrieve created repository");
+        }
+
+        return $repository;
+    }
+
+    /**
+     * Get repository configuration based on backup type
+     */
+    private function getRepositoryConfig(string $type): array
+    {
+        switch ($type) {
+            case 'backup':
+                // Full system backup
+                return [
+                    'retention' => 8,
+                    'encryption' => 'repokey',
+                    'compression' => 'lz4',
+                    'rate_limit' => 0,
+                    'backup_path' => '/',
+                    'exclude' => '/proc,/dev,/sys,/tmp,/run,/var/run,/lost+found,/mnt,/media',
+                ];
+
+            case 'database':
+                // Database backup
+                return [
+                    'retention' => 14, // Keep more database backups
+                    'encryption' => 'repokey',
+                    'compression' => 'zstd', // Better compression for databases
+                    'rate_limit' => 0,
+                    'backup_path' => '/var/backups/databases',
+                    'exclude' => '',
+                ];
+
+            default:
+                // Default configuration
+                return [
+                    'retention' => 7,
+                    'encryption' => 'repokey',
+                    'compression' => 'lz4',
+                    'rate_limit' => 0,
+                    'backup_path' => '/',
+                    'exclude' => '',
+                ];
         }
     }
 }

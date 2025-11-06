@@ -59,15 +59,15 @@ final class WorkerStartCommand extends Command
 
         $worker->registerHandler('server_setup', new ServerSetupHandler(
             $this->app->getServerManager(),
-            $this->app->getBorgRepositoryRepository(),
-            $this->app->getEncryptionService(),
-            $this->app->config,
             $logger
         ));
 
         $worker->registerHandler('backup_create', new BackupCreateHandler(
             $this->app->getBackupService(),
             $this->app->getServerManager(),
+            $this->app->getBorgRepositoryRepository(),
+            $this->app->getEncryptionService(),
+            $this->app->config,
             $logger
         ));
 
