@@ -190,7 +190,8 @@ final class BackupService
             $this->updateRepositoryStats($repository);
 
             // Update report
-            $archiveData = $archiveInfo['archives'] ?? [];
+            // Note: Borg returns 'archive' (singular) not 'archives'
+            $archiveData = $archiveInfo['archive'] ?? [];
             $stats = $archiveData['stats'] ?? [];
 
             $this->reportRepo->updateStatus(
@@ -367,11 +368,13 @@ final class BackupService
      */
     private function saveArchive(BorgRepository $repository, array $archiveInfo): void
     {
-        $archiveData = $archiveInfo['archives'] ?? [];
+        // Note: Borg returns 'archive' (singular) not 'archives'
+        $archiveData = $archiveInfo['archive'] ?? [];
         $stats = $archiveData['stats'] ?? [];
 
         $this->archiveRepo->create(
             repoId: $repository->repoId,
+            serverId: $repository->serverId,
             name: $archiveData['name'] ?? '',
             archiveId: $archiveData['id'] ?? '',
             duration: (float)($archiveData['duration'] ?? 0),

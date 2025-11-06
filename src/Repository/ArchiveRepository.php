@@ -72,6 +72,7 @@ final class ArchiveRepository
      */
     public function create(
         string $repoId,
+        int $serverId,
         string $name,
         string $archiveId,
         float $duration,
@@ -84,10 +85,10 @@ final class ArchiveRepository
     ): int {
         $this->connection->executeUpdate(
             'INSERT INTO archives
-             (repo_id, nom, archive_id, dur, start, end, csize, dsize, osize, nfiles)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+             (repo_id, server_id, nom, archive_id, dur, start, end, csize, dsize, osize, nfiles)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
-                $repoId, $name, $archiveId, $duration,
+                $repoId, $serverId, $name, $archiveId, $duration,
                 $start->format('Y-m-d H:i:s'),
                 $end->format('Y-m-d H:i:s'),
                 $compressedSize, $deduplicatedSize, $originalSize, $filesCount
