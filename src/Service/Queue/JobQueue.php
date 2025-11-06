@@ -96,12 +96,12 @@ final class JobQueue
             ? $this->redis->blPop([$queueKey], $timeout)
             : $this->redis->lPop($queueKey);
 
-        if ($result === false || $result === null) {
+        if ($result === false || $result === null || $result === []) {
             return null;
         }
 
         // Extract job ID
-        $jobId = is_array($result) ? (int) $result[1] : (int) $result;
+        $jobId = is_array($result) && isset($result[1]) ? (int) $result[1] : (int) $result;
 
         // Get job from database
         $job = $this->jobRepository->findById($jobId);
