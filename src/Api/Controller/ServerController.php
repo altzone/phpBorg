@@ -39,6 +39,7 @@ class ServerController extends BaseController
                     'hostname' => $server->host,  // Database field is 'host'
                     'port' => $server->port,
                     'username' => 'root',  // Not stored in DB yet
+                    'backupType' => $server->backupType,
                     'description' => null,  // Not stored in DB yet
                     'active' => $server->active,
                     'created_at' => $server->createdAt?->format('Y-m-d H:i:s'),
@@ -82,6 +83,7 @@ class ServerController extends BaseController
                     'hostname' => $server->host,  // Database field is 'host'
                     'port' => $server->port,
                     'username' => 'root',  // Not stored in DB yet
+                    'backupType' => $server->backupType,
                     'description' => null,  // Not stored in DB yet
                     'active' => $server->active,
                     'created_at' => $server->createdAt?->format('Y-m-d H:i:s'),
@@ -117,12 +119,19 @@ class ServerController extends BaseController
             $data = $this->getJsonBody();
 
             // Validate required fields
-            $this->validateRequired($data, ['name', 'hostname', 'username']);
+            $this->validateRequired($data, ['name', 'hostname', 'username', 'backupType']);
 
             // Validate port
             $port = (int) ($data['port'] ?? 22);
             if ($port <= 0 || $port > 65535) {
                 $this->error('Invalid port number', 'INVALID_PORT', 400);
+                return;
+            }
+
+            // Validate backupType
+            $backupType = $data['backupType'] ?? 'internal';
+            if (!in_array($backupType, ['internal', 'external'])) {
+                $this->error('Invalid backup type. Must be internal or external', 'INVALID_BACKUP_TYPE', 400);
                 return;
             }
 
@@ -132,7 +141,8 @@ class ServerController extends BaseController
                 hostname: $data['hostname'],
                 port: $port,
                 username: $data['username'],
-                description: $data['description'] ?? null
+                description: $data['description'] ?? null,
+                backupType: $backupType
             );
 
             // Get created server
@@ -168,6 +178,7 @@ class ServerController extends BaseController
                         'hostname' => $server->host,  // Database field is 'host'
                         'port' => $server->port,
                         'username' => 'root',
+                        'backupType' => $server->backupType,
                         'description' => null,
                         'active' => $server->active,
                         'created_at' => $server->createdAt?->format('Y-m-d H:i:s'),
@@ -243,6 +254,7 @@ class ServerController extends BaseController
                     'hostname' => $server->host,  // Database field is 'host'
                     'port' => $server->port,
                     'username' => 'root',
+                    'backupType' => $server->backupType,
                     'description' => null,
                     'active' => $server->active,
                     'created_at' => $server->createdAt?->format('Y-m-d H:i:s'),

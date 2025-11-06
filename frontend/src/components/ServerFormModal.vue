@@ -80,6 +80,24 @@
           </div>
 
           <div>
+            <label for="backupType" class="block text-sm font-medium text-gray-700 mb-1">
+              Backup Type <span class="text-red-500">*</span>
+            </label>
+            <select
+              id="backupType"
+              v-model="form.backupType"
+              required
+              class="input"
+            >
+              <option value="internal">Internal (Private Network - 10.10.70.70)</option>
+              <option value="external">External (Public Internet - 91.200.205.105)</option>
+            </select>
+            <p class="mt-1 text-xs text-gray-500">
+              Internal: Server on same LAN. External: Server on internet.
+            </p>
+          </div>
+
+          <div>
             <label for="description" class="block text-sm font-medium text-gray-700 mb-1">
               Description
             </label>
@@ -151,6 +169,7 @@ const form = ref({
   hostname: '',
   port: 22,
   username: 'root',
+  backupType: 'internal',
   description: '',
   active: true,
 })
@@ -162,6 +181,7 @@ onMounted(() => {
       hostname: props.server.hostname,
       port: props.server.port,
       username: props.server.username || 'root',
+      backupType: props.server.backupType || 'internal',
       description: props.server.description || '',
       active: props.server.active,
     }

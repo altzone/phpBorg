@@ -55,20 +55,26 @@ final class ServerManager
         string $hostname,
         int $port,
         string $username,
-        ?string $description = null
+        ?string $description = null,
+        string $backupType = 'internal'
     ): int {
-        $this->logger->info("Creating server: {$name}", 'SYSTEM');
+        $this->logger->info("Creating server: {$name} (type: {$backupType})", 'SYSTEM');
 
         // Check if server already exists
         if ($this->serverRepo->findByName($name) !== null) {
             throw new PhpBorgException("Server {$name} already exists");
         }
 
+        // Validate backupType
+        if (!in_array($backupType, ['internal', 'external'])) {
+            throw new PhpBorgException("Invalid backup type: {$backupType}");
+        }
+
         return $this->serverRepo->create(
             name: $name,
             host: $hostname,
             port: $port,
-            backupType: 'internal',
+            backupType: $backupType,
             sshPublicKey: '',
             active: true
         );
