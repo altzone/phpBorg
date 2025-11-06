@@ -99,6 +99,19 @@ final class ArchiveRepository
     }
 
     /**
+     * Delete archive by ID
+     *
+     * @throws DatabaseException
+     */
+    public function deleteById(int $id): void
+    {
+        $this->connection->executeUpdate(
+            'DELETE FROM archives WHERE id = ?',
+            [$id]
+        );
+    }
+
+    /**
      * Delete archive by archive ID
      *
      * @throws DatabaseException

@@ -12,6 +12,7 @@ require __DIR__ . '/../../vendor/autoload.php';
 use PhpBorg\Application;
 use PhpBorg\Api\Router;
 use PhpBorg\Api\Controller\AuthController;
+use PhpBorg\Api\Controller\BackupController;
 use PhpBorg\Api\Controller\JobController;
 use PhpBorg\Api\Controller\ServerController;
 
@@ -57,18 +58,17 @@ try {
     $router->post('/jobs/:id/retry', JobController::class, 'retry', requireAuth: true);
 
     // ===========================================
+    // Backup Routes (Protected)
+    // ===========================================
+    $router->get('/backups', BackupController::class, 'list', requireAuth: true);
+    $router->get('/backups/stats', BackupController::class, 'stats', requireAuth: true);
+    $router->post('/backups', BackupController::class, 'create', requireAuth: true);
+    $router->get('/backups/:id', BackupController::class, 'show', requireAuth: true);
+    $router->delete('/backups/:id', BackupController::class, 'delete', requireAuth: true);
+
+    // ===========================================
     // Future Routes (To be implemented)
     // ===========================================
-
-    // Backups (Protected)
-    // $router->get('/backups', BackupController::class, 'list', true);
-    // $router->get('/backups/:id', BackupController::class, 'show', true);
-    // $router->post('/backups', BackupController::class, 'create', true, ['ROLE_ADMIN', 'ROLE_OPERATOR']);
-
-    // Jobs (Protected)
-    // $router->get('/jobs', JobController::class, 'list', true);
-    // $router->get('/jobs/:id', JobController::class, 'show', true);
-    // $router->delete('/jobs/:id', JobController::class, 'cancel', true, ['ROLE_ADMIN', 'ROLE_OPERATOR']);
 
     // Logs (Protected)
     // $router->get('/logs', LogController::class, 'list', true);
