@@ -91,59 +91,122 @@ final class ServerSetupHandler implements JobHandlerInterface
 
     /**
      * Test SSH connection to remote server
-     * For now, this is simulated. In production, use real SSH connection.
      */
     private function testSSHConnection(string $hostname, int $port, string $user): void
     {
-        // Simulate SSH connection test
-        // In production: exec ssh command or use phpseclib
-        sleep(1);
+        $command = sprintf(
+            'ssh -o BatchMode=yes -o ConnectTimeout=10 -p %d %s@%s "echo SSH_OK" 2>&1',
+            $port,
+            escapeshellarg($user),
+            escapeshellarg($hostname)
+        );
 
-        // TODO: Implement real SSH connection test
-        // Example: ssh -p $port $user@$hostname 'echo "test"'
+        $this->logger->info("Testing SSH: {$command}", 'JOB');
+
+        $output = [];
+        $returnCode = 0;
+        exec($command, $output, $returnCode);
+
+        $outputStr = implode("\n", $output);
+        $this->logger->info("SSH test output: {$outputStr}", 'JOB');
+
+        if ($returnCode !== 0 || !str_contains($outputStr, 'SSH_OK')) {
+            throw new \Exception("SSH connection failed to {$user}@{$hostname}:{$port} - Output: {$outputStr}");
+        }
+
+        $this->logger->info("SSH connection successful to {$hostname}", 'JOB');
     }
 
     /**
      * Check if BorgBackup is installed on remote server
-     * For now, this is simulated. In production, check via SSH.
      */
     private function checkBorgInstallation(string $hostname): bool
     {
-        // Simulate check
-        sleep(1);
+        $command = sprintf(
+            'ssh %s "which borg" 2>&1',
+            escapeshellarg($hostname)
+        );
 
-        // TODO: Implement real check via SSH
-        // Example: ssh $hostname 'which borg'
-        // Return false if not installed
+        $this->logger->info("Checking Borg installation: {$command}", 'JOB');
 
-        return false; // For now, always return false to simulate installation
+        $output = [];
+        $returnCode = 0;
+        exec($command, $output, $returnCode);
+
+        $outputStr = implode("\n", $output);
+        $this->logger->info("Borg check output: {$outputStr}", 'JOB');
+
+        // Return code 0 means borg is found
+        return $returnCode === 0 && !empty($outputStr);
     }
 
     /**
      * Install BorgBackup on remote server
-     * For now, this is simulated. In production, install via SSH.
      */
     private function installBorgBackup(string $hostname): void
     {
-        // Simulate installation
-        sleep(2);
+        // Try to detect OS and install accordingly
+        // First, try apt-get (Debian/Ubuntu)
+        $command = sprintf(
+            'ssh %s "sudo apt-get update && sudo apt-get install -y borgbackup" 2>&1',
+            escapeshellarg($hostname)
+        );
 
-        // TODO: Implement real installation via SSH
-        // Example commands:
-        // - apt-get update && apt-get install -y borgbackup (Debian/Ubuntu)
-        // - yum install -y borgbackup (CentOS/RHEL)
+        $this->logger->info("Installing Borg: {$command}", 'JOB');
+
+        $output = [];
+        $returnCode = 0;
+        exec($command, $output, $returnCode);
+
+        $outputStr = implode("\n", $output);
+        $this->logger->info("Borg installation output: {$outputStr}", 'JOB');
+
+        if ($returnCode !== 0) {
+            // Try yum (CentOS/RHEL) as fallback
+            $command = sprintf(
+                'ssh %s "sudo yum install -y borgbackup" 2>&1',
+                escapeshellarg($hostname)
+            );
+
+            $this->logger->info("Trying yum installation: {$command}", 'JOB');
+
+            $output = [];
+            exec($command, $output, $returnCode);
+
+            $outputStr = implode("\n", $output);
+            $this->logger->info("Yum installation output: {$outputStr}", 'JOB');
+
+            if ($returnCode !== 0) {
+                throw new \Exception("Failed to install BorgBackup. Output: {$outputStr}");
+            }
+        }
+
+        $this->logger->info("BorgBackup installed successfully", 'JOB');
     }
 
     /**
      * Verify BorgBackup installation
-     * For now, this is simulated. In production, verify via SSH.
      */
     private function verifyBorgInstallation(string $hostname): void
     {
-        // Simulate verification
-        sleep(1);
+        $command = sprintf(
+            'ssh %s "borg --version" 2>&1',
+            escapeshellarg($hostname)
+        );
 
-        // TODO: Implement real verification via SSH
-        // Example: ssh $hostname 'borg --version'
+        $this->logger->info("Verifying Borg: {$command}", 'JOB');
+
+        $output = [];
+        $returnCode = 0;
+        exec($command, $output, $returnCode);
+
+        $outputStr = implode("\n", $output);
+        $this->logger->info("Borg version output: {$outputStr}", 'JOB');
+
+        if ($returnCode !== 0 || !str_contains($outputStr, 'borg')) {
+            throw new \Exception("BorgBackup verification failed. Output: {$outputStr}");
+        }
+
+        $this->logger->info("BorgBackup verified: {$outputStr}", 'JOB');
     }
 }

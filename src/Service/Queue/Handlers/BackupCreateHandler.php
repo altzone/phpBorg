@@ -92,7 +92,7 @@ final class BackupCreateHandler implements JobHandlerInterface
      */
     private function ensureRepositoryExists(int $serverId, string $serverName, string $type): \PhpBorg\Entity\BorgRepository
     {
-        // Check if repository already exists
+        // Check if repository already exists in database
         $existing = $this->repoRepo->findByServerAndType($serverId, $type);
         if ($existing !== null) {
             $this->logger->info("Repository already exists for server {$serverName} ({$type})", 'JOB');
@@ -103,15 +103,27 @@ final class BackupCreateHandler implements JobHandlerInterface
         $this->logger->info("Creating new repository for server {$serverName} ({$type})", 'JOB');
 
         // Determine repository configuration based on backup type
-        $config = $this->getRepositoryConfig($type, $serverName);
+        $config = $this->getRepositoryConfig($type);
 
         // Generate secure passphrase
         $passphrase = $this->encryption->generatePassphrase();
 
-        // Create repository path
+        // Create repository path on local backup server
         $repoPath = $this->config->borgBackupPath . '/' . $serverName . '/' . $type;
 
-        // Create repository entry in database
+        // Step 1: Create directory on local backup server
+        $this->logger->info("Creating repository directory: {$repoPath}", 'JOB');
+        if (!is_dir($repoPath)) {
+            if (!mkdir($repoPath, 0700, true)) {
+                throw new \Exception("Failed to create repository directory: {$repoPath}");
+            }
+        }
+
+        // Step 2: Initialize Borg repository locally
+        $this->logger->info("Initializing Borg repository with encryption: {$config['encryption']}", 'JOB');
+        $this->initializeBorgRepository($repoPath, $passphrase, $config['encryption']);
+
+        // Step 3: Create repository entry in database
         $repoId = $this->repoRepo->create(
             serverId: $serverId,
             repoId: $type . '-repo-' . $serverId . '-' . time(),
@@ -126,7 +138,7 @@ final class BackupCreateHandler implements JobHandlerInterface
             exclude: $config['exclude']
         );
 
-        $this->logger->info("Repository created with ID: {$repoId}", 'JOB');
+        $this->logger->info("Repository created successfully with ID: {$repoId}", 'JOB');
 
         // Fetch and return the created repository
         $repository = $this->repoRepo->findById($repoId);
@@ -135,6 +147,42 @@ final class BackupCreateHandler implements JobHandlerInterface
         }
 
         return $repository;
+    }
+
+    /**
+     * Initialize a Borg repository on the local backup server
+     */
+    private function initializeBorgRepository(string $repoPath, string $passphrase, string $encryption): void
+    {
+        $command = sprintf(
+            'BORG_PASSPHRASE=%s %s init --encryption=%s %s 2>&1',
+            escapeshellarg($passphrase),
+            escapeshellarg($this->config->borgBinaryPath),
+            escapeshellarg($encryption),
+            escapeshellarg($repoPath)
+        );
+
+        $this->logger->info("Executing: borg init --encryption={$encryption} {$repoPath}", 'JOB');
+
+        $output = [];
+        $returnCode = 0;
+        exec($command, $output, $returnCode);
+
+        $outputStr = implode("\n", $output);
+
+        // Borg init returns 0 on success, but also check for "already exists" which means it's already initialized
+        if ($returnCode !== 0) {
+            // Check if error is "already exists" - this is OK (idempotent)
+            if (str_contains($outputStr, 'already exists') || str_contains($outputStr, 'is already initialized')) {
+                $this->logger->info("Repository already initialized (idempotent): {$repoPath}", 'JOB');
+                return;
+            }
+
+            $this->logger->error("Borg init failed: {$outputStr}", 'JOB');
+            throw new \Exception("Failed to initialize Borg repository: {$outputStr}");
+        }
+
+        $this->logger->info("Borg repository initialized successfully: {$outputStr}", 'JOB');
     }
 
     /**
