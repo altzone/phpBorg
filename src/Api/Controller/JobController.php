@@ -133,4 +133,31 @@ class JobController extends BaseController
             $this->error($e->getMessage(), 500, 'STATS_ERROR');
         }
     }
+
+    /**
+     * POST /api/jobs/test
+     * Create a test job for demonstration
+     */
+    public function createTest(): void
+    {
+        try {
+            $jobId = $this->jobQueue->push(
+                'test_job',
+                [
+                    'message' => 'This is a test job',
+                    'timestamp' => time(),
+                ],
+                'default',
+                3,
+                1 // Admin user ID
+            );
+
+            $this->success([
+                'job_id' => $jobId,
+                'message' => 'Test job created successfully'
+            ]);
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'TEST_JOB_ERROR');
+        }
+    }
 }

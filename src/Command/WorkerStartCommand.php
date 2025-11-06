@@ -7,6 +7,7 @@ namespace PhpBorg\Command;
 use PhpBorg\Application;
 use PhpBorg\Service\Queue\Handlers\BackupCreateHandler;
 use PhpBorg\Service\Queue\Handlers\ServerSetupHandler;
+use PhpBorg\Service\Queue\Handlers\TestJobHandler;
 use PhpBorg\Service\Queue\Worker;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -54,6 +55,8 @@ final class WorkerStartCommand extends Command
         $worker = new Worker($jobQueue, $logger);
 
         // Register job handlers
+        $worker->registerHandler('test_job', new TestJobHandler());
+
         $worker->registerHandler('server_setup', new ServerSetupHandler(
             $this->app->getServerManager(),
             $logger

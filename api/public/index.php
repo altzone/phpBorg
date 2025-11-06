@@ -50,6 +50,7 @@ try {
     // ===========================================
     $router->get('/jobs', JobController::class, 'list', requireAuth: true);
     $router->get('/jobs/stats', JobController::class, 'stats', requireAuth: true);
+    $router->post('/jobs/test', JobController::class, 'createTest', requireAuth: true);
     $router->get('/jobs/:id', JobController::class, 'show', requireAuth: true);
     $router->post('/jobs/:id/cancel', JobController::class, 'cancel', requireAuth: true);
     $router->post('/jobs/:id/retry', JobController::class, 'retry', requireAuth: true);
