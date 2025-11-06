@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace PhpBorg\Service\Queue\Handlers;
 
+use PhpBorg\Config\Configuration;
 use PhpBorg\Entity\Job;
 use PhpBorg\Logger\LoggerInterface;
+use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Service\Queue\JobQueue;
+use PhpBorg\Service\Repository\EncryptionService;
 use PhpBorg\Service\Server\ServerManager;
 
 /**
@@ -16,6 +19,9 @@ final class ServerSetupHandler implements JobHandlerInterface
 {
     public function __construct(
         private readonly ServerManager $serverManager,
+        private readonly BorgRepositoryRepository $repoRepo,
+        private readonly EncryptionService $encryption,
+        private readonly Configuration $config,
         private readonly LoggerInterface $logger
     ) {
     }
@@ -43,20 +49,43 @@ final class ServerSetupHandler implements JobHandlerInterface
             if ($serverId) {
                 $queue->updateProgress($job->id, 20, "Configuring existing server (ID: {$serverId})...");
 
-                // TODO: Add actual SSH configuration, Borg installation, repo creation
-                // For now, just simulate the process
-                $queue->updateProgress($job->id, 40, "Testing SSH connection...");
-                sleep(2); // Simulate SSH test
+                // Check if repository already exists
+                $existing = $this->repoRepo->findByServerAndType($serverId, 'backup');
+                if ($existing !== null) {
+                    $queue->updateProgress($job->id, 100, "Server already configured with repositories.");
+                    return "Server '{$serverName}' (ID: {$serverId}) already has backup repository";
+                }
 
-                $queue->updateProgress($job->id, 60, "Installing BorgBackup...");
-                sleep(2); // Simulate Borg installation
+                // Create repository directory path
+                $repoPath = $this->config->borgBackupPath . '/' . $serverName . '/backup';
 
-                $queue->updateProgress($job->id, 80, "Creating backup repositories...");
-                sleep(2); // Simulate repo creation
+                // Generate passphrase for repository
+                $passphrase = $this->encryption->generatePassphrase();
 
-                $queue->updateProgress($job->id, 100, "Server configuration completed successfully.");
+                $queue->updateProgress($job->id, 50, "Creating backup repository configuration...");
 
-                return "Server '{$serverName}' (ID: {$serverId}) configured successfully";
+                // Create repository entry in database
+                // Note: This creates a DB entry but doesn't initialize the actual Borg repo
+                // For full setup, SSH connection and borg init would be needed
+                $this->repoRepo->create(
+                    serverId: $serverId,
+                    repoId: 'test-repo-' . $serverId . '-' . time(), // Temporary ID
+                    type: 'backup',
+                    retention: 8,
+                    encryption: 'repokey',
+                    passphrase: $passphrase,
+                    repoPath: $repoPath,
+                    compression: 'lz4',
+                    rateLimit: 0,
+                    backupPath: '/',
+                    exclude: '/proc,/dev,/sys,/tmp,/run,/var/run,/lost+found'
+                );
+
+                $queue->updateProgress($job->id, 100, "Repository configuration created successfully.");
+
+                $this->logger->info("Repository created for server {$serverName}", 'JOB');
+
+                return "Server '{$serverName}' (ID: {$serverId}) repository configured successfully";
             } else {
                 // Legacy path: create new server
                 $sshPort = $payload['ssh_port'] ?? 22;
