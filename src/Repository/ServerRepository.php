@@ -147,4 +147,33 @@ final class ServerRepository
             [$active ? 1 : 0, $id]
         );
     }
+
+    /**
+     * Update SSH keys configuration for server
+     *
+     * @throws DatabaseException
+     */
+    public function updateSSHKeys(
+        int $id,
+        string $sshPublicKey,
+        string $sshPrivateKeyPath,
+        bool $keysDeployed,
+        string $backupServerUser
+    ): void {
+        $this->connection->executeUpdate(
+            'UPDATE servers SET
+             ssh_pub_key = ?,
+             ssh_private_key_path = ?,
+             ssh_keys_deployed = ?,
+             backup_server_user = ?
+             WHERE id = ?',
+            [
+                $sshPublicKey,
+                $sshPrivateKeyPath,
+                $keysDeployed ? 1 : 0,
+                $backupServerUser,
+                $id
+            ]
+        );
+    }
 }

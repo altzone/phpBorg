@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace PhpBorg\Service\Queue\Handlers;
 
+use PhpBorg\Config\Configuration;
 use PhpBorg\Entity\Job;
 use PhpBorg\Logger\LoggerInterface;
+use PhpBorg\Repository\ServerRepository;
 use PhpBorg\Service\Queue\JobQueue;
 use PhpBorg\Service\Server\ServerManager;
 
@@ -14,7 +16,8 @@ use PhpBorg\Service\Server\ServerManager;
  * Responsibilities:
  * - Test SSH connection to the server
  * - Install BorgBackup on the remote server
- * - Basic tool configuration
+ * - Generate and deploy SSH keys for secure borg serve architecture
+ * - Configure authorized_keys with borg serve restrictions
  *
  * Note: Repository creation is handled by BackupCreateHandler when creating backups
  */
@@ -22,6 +25,8 @@ final class ServerSetupHandler implements JobHandlerInterface
 {
     public function __construct(
         private readonly ServerManager $serverManager,
+        private readonly ServerRepository $serverRepo,
+        private readonly Configuration $config,
         private readonly LoggerInterface $logger
     ) {
     }
@@ -75,13 +80,39 @@ final class ServerSetupHandler implements JobHandlerInterface
             }
 
             // Step 4: Verify installation
-            $queue->updateProgress($job->id, 90, "Verifying BorgBackup installation...");
+            $queue->updateProgress($job->id, 70, "Verifying BorgBackup installation...");
             $this->verifyBorgInstallation($hostname);
+
+            // Step 5: Generate SSH keys for this server (idempotent)
+            $queue->updateProgress($job->id, 75, "Generating SSH keys for secure backup...");
+            $keyPair = $this->generateSSHKeys($serverName, $serverId);
+            $this->logger->info("SSH keys generated for {$serverName}", 'JOB');
+
+            // Step 6: Deploy private key to remote server
+            $queue->updateProgress($job->id, 80, "Deploying SSH keys to remote server...");
+            $privateKeyPath = $this->deployPrivateKeyToRemote($hostname, $sshUser, $keyPair['private'], $serverName);
+            $this->logger->info("Private key deployed to {$hostname}:{$privateKeyPath}", 'JOB');
+
+            // Step 7: Configure authorized_keys on backup server with borg serve restriction
+            $queue->updateProgress($job->id, 90, "Configuring secure borg serve access...");
+            $this->configureAuthorizedKeys($serverName, $keyPair['public']);
+            $this->logger->info("Authorized keys configured with borg serve restriction", 'JOB');
+
+            // Step 8: Update server record in database
+            $queue->updateProgress($job->id, 95, "Updating server configuration...");
+            $this->serverRepo->updateSSHKeys(
+                $serverId,
+                $keyPair['public'],
+                $privateKeyPath,
+                true,
+                'phpborg'
+            );
+            $this->logger->info("Server record updated with SSH configuration", 'JOB');
 
             $queue->updateProgress($job->id, 100, "Server setup completed successfully.");
             $this->logger->info("Server setup completed for {$serverName}", 'JOB');
 
-            return "Server '{$serverName}' configured successfully. SSH connection verified and BorgBackup installed.";
+            return "Server '{$serverName}' configured successfully. SSH keys deployed and borg serve access secured.";
 
         } catch (\Exception $e) {
             $this->logger->error("Server setup failed: {$e->getMessage()}", 'JOB');
@@ -208,5 +239,181 @@ final class ServerSetupHandler implements JobHandlerInterface
         }
 
         $this->logger->info("BorgBackup verified: {$outputStr}", 'JOB');
+    }
+
+    /**
+     * Generate SSH key pair for this server
+     * Keys are stored in /home/phpborg/.ssh/keys/{serverName}/
+     *
+     * @return array{public: string, private: string, path: string}
+     */
+    private function generateSSHKeys(string $serverName, int $serverId): array
+    {
+        // Keys directory for phpborg user
+        $keysDir = '/home/phpborg/.ssh/keys/' . $serverName;
+        $privateKeyPath = $keysDir . '/id_ed25519';
+        $publicKeyPath = $privateKeyPath . '.pub';
+
+        // Check if keys already exist (idempotent)
+        if (file_exists($privateKeyPath) && file_exists($publicKeyPath)) {
+            $this->logger->info("SSH keys already exist for {$serverName}, reusing", 'JOB');
+            return [
+                'public' => file_get_contents($publicKeyPath),
+                'private' => file_get_contents($privateKeyPath),
+                'path' => $privateKeyPath,
+            ];
+        }
+
+        // Create keys directory
+        if (!is_dir($keysDir)) {
+            if (!mkdir($keysDir, 0700, true)) {
+                throw new \Exception("Failed to create keys directory: {$keysDir}");
+            }
+        }
+
+        // Generate SSH key pair (Ed25519 for security and performance)
+        $command = sprintf(
+            'ssh-keygen -t ed25519 -f %s -N "" -C "phpborg-server-%s-%d" 2>&1',
+            escapeshellarg($privateKeyPath),
+            escapeshellarg($serverName),
+            $serverId
+        );
+
+        $this->logger->info("Generating SSH keys: {$command}", 'JOB');
+
+        $output = [];
+        $returnCode = 0;
+        exec($command, $output, $returnCode);
+
+        $outputStr = implode("\n", $output);
+
+        if ($returnCode !== 0) {
+            $this->logger->error("SSH key generation failed: {$outputStr}", 'JOB');
+            throw new \Exception("Failed to generate SSH keys: {$outputStr}");
+        }
+
+        // Set proper permissions
+        chmod($privateKeyPath, 0600);
+        chmod($publicKeyPath, 0644);
+
+        $publicKey = file_get_contents($publicKeyPath);
+        $privateKey = file_get_contents($privateKeyPath);
+
+        $this->logger->info("SSH keys generated successfully at {$privateKeyPath}", 'JOB');
+
+        return [
+            'public' => $publicKey,
+            'private' => $privateKey,
+            'path' => $privateKeyPath,
+        ];
+    }
+
+    /**
+     * Deploy private key to remote server
+     * Copies the private key to the remote server so it can connect back to backup server
+     */
+    private function deployPrivateKeyToRemote(
+        string $hostname,
+        string $sshUser,
+        string $privateKey,
+        string $serverName
+    ): string {
+        $remoteKeyPath = '/root/.ssh/phpborg_backup';
+
+        // Create .ssh directory on remote server if needed
+        $command = sprintf(
+            'ssh %s@%s "mkdir -p /root/.ssh && chmod 700 /root/.ssh" 2>&1',
+            escapeshellarg($sshUser),
+            escapeshellarg($hostname)
+        );
+
+        $this->logger->info("Creating .ssh directory on remote: {$command}", 'JOB');
+
+        $output = [];
+        $returnCode = 0;
+        exec($command, $output, $returnCode);
+
+        if ($returnCode !== 0) {
+            $outputStr = implode("\n", $output);
+            throw new \Exception("Failed to create .ssh directory on remote: {$outputStr}");
+        }
+
+        // Copy private key to remote server using heredoc
+        $escapedKey = str_replace("'", "'\\''", $privateKey);
+        $command = sprintf(
+            "ssh %s@%s 'cat > %s && chmod 600 %s' <<'EOF'\n%s\nEOF",
+            escapeshellarg($sshUser),
+            escapeshellarg($hostname),
+            escapeshellarg($remoteKeyPath),
+            escapeshellarg($remoteKeyPath),
+            $privateKey
+        );
+
+        $this->logger->info("Deploying private key to {$hostname}:{$remoteKeyPath}", 'JOB');
+
+        $output = [];
+        $returnCode = 0;
+        exec($command, $output, $returnCode);
+
+        if ($returnCode !== 0) {
+            $outputStr = implode("\n", $output);
+            throw new \Exception("Failed to deploy private key to remote: {$outputStr}");
+        }
+
+        $this->logger->info("Private key deployed successfully to remote server", 'JOB');
+
+        return $remoteKeyPath;
+    }
+
+    /**
+     * Configure authorized_keys on backup server with borg serve restriction
+     * This ensures the remote server can ONLY run "borg serve" and nothing else
+     */
+    private function configureAuthorizedKeys(string $serverName, string $publicKey): void
+    {
+        $authorizedKeysPath = '/home/phpborg/.ssh/authorized_keys';
+        $repoPath = $this->config->borgBackupPath . '/' . $serverName;
+
+        // Create .ssh directory for phpborg user if needed
+        $sshDir = '/home/phpborg/.ssh';
+        if (!is_dir($sshDir)) {
+            if (!mkdir($sshDir, 0700, true)) {
+                throw new \Exception("Failed to create {$sshDir}");
+            }
+        }
+
+        // Clean public key (remove comments and newlines)
+        $publicKey = trim($publicKey);
+
+        // Build restricted authorized_keys entry
+        // This forces the connection to only run "borg serve" for this specific repository
+        $restrictions = [
+            'command="borg serve --restrict-to-path ' . $repoPath . '"',
+            'no-port-forwarding',
+            'no-X11-forwarding',
+            'no-agent-forwarding',
+            'no-pty',
+        ];
+
+        $authorizedKeyEntry = implode(',', $restrictions) . ' ' . $publicKey . ' phpborg-' . $serverName . "\n";
+
+        // Check if entry already exists (idempotent)
+        if (file_exists($authorizedKeysPath)) {
+            $currentContent = file_get_contents($authorizedKeysPath);
+            if (str_contains($currentContent, 'phpborg-' . $serverName)) {
+                $this->logger->info("Authorized key already configured for {$serverName}, skipping", 'JOB');
+                return;
+            }
+        }
+
+        // Append to authorized_keys
+        if (file_put_contents($authorizedKeysPath, $authorizedKeyEntry, FILE_APPEND | LOCK_EX) === false) {
+            throw new \Exception("Failed to write to {$authorizedKeysPath}");
+        }
+
+        // Set proper permissions
+        chmod($authorizedKeysPath, 0600);
+
+        $this->logger->info("Authorized key configured with borg serve restriction for {$serverName}", 'JOB');
     }
 }

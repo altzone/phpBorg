@@ -253,6 +253,7 @@ final class BackupService
 
     /**
      * Build remote backup command
+     * Uses secure borg serve architecture with SSH key authentication
      */
     private function buildRemoteBackupCommand(
         BorgRepository $repository,
@@ -271,13 +272,22 @@ final class BackupService
         // Properly escape passphrase for shell command
         $escapedPassphrase = escapeshellarg($repository->passphrase);
 
+        // Path to SSH private key on remote server (deployed during setup)
+        $sshKeyPath = '/root/.ssh/phpborg_backup';
+
+        // Backup server user (from server config, defaults to 'phpborg')
+        $backupServerUser = 'phpborg';
+
+        // Build borg create command with secure SSH
+        // BORG_RSH specifies SSH options including the identity file
         return sprintf(
-            "export BORG_PASSPHRASE=%s && %s create --compression %s --stats --json%s ssh://%s@%s%s::%s %s",
+            "export BORG_PASSPHRASE=%s && export BORG_RSH='ssh -i %s -o StrictHostKeyChecking=accept-new' && %s create --compression %s --stats --json%s ssh://%s@%s%s::%s %s",
             $escapedPassphrase,
+            escapeshellarg($sshKeyPath),
             $this->config->borgBinaryPath,
             $repository->compression,
             $excludeArgs,
-            $server->host,
+            $backupServerUser,
             $backupServerIp,
             $repository->repoPath,
             $archiveName,

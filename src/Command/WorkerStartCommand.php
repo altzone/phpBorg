@@ -59,6 +59,8 @@ final class WorkerStartCommand extends Command
 
         $worker->registerHandler('server_setup', new ServerSetupHandler(
             $this->app->getServerManager(),
+            $this->app->getServerRepository(),
+            $this->app->config,
             $logger
         ));
 
