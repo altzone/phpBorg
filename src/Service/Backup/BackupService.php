@@ -201,8 +201,14 @@ final class BackupService
             $this->updateRepositoryStats($repository);
 
             // Update report
-            // Note: Borg returns 'archive' (singular) not 'archives'
-            $archiveData = $archiveInfo['archive'] ?? [];
+            // Extract archive data (handle both singular and plural formats)
+            if (isset($archiveInfo['archive'])) {
+                $archiveData = $archiveInfo['archive'];
+            } elseif (isset($archiveInfo['archives'][0])) {
+                $archiveData = $archiveInfo['archives'][0];
+            } else {
+                $archiveData = [];
+            }
             $stats = $archiveData['stats'] ?? [];
 
             $this->reportRepo->updateStatus(
@@ -389,8 +395,19 @@ final class BackupService
      */
     private function saveArchive(BorgRepository $repository, array $archiveInfo): void
     {
-        // Note: Borg returns 'archive' (singular) not 'archives'
-        $archiveData = $archiveInfo['archive'] ?? [];
+        // Borg can return archive info in two formats:
+        // 1. After backup: {archive: {...}} - singular
+        // 2. From borg info: {archives: [{...}]} - plural array
+        if (isset($archiveInfo['archive'])) {
+            $archiveData = $archiveInfo['archive'];
+        } elseif (isset($archiveInfo['archives']) && is_array($archiveInfo['archives']) && count($archiveInfo['archives']) > 0) {
+            $archiveData = $archiveInfo['archives'][0];
+        } else {
+            throw new BackupException(
+                "Invalid archive info structure. Borg response: " . json_encode($archiveInfo, JSON_PRETTY_PRINT)
+            );
+        }
+
         $stats = $archiveData['stats'] ?? [];
 
         // Validate that we have the required fields
