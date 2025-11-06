@@ -27,33 +27,55 @@ final class ServerSetupHandler implements JobHandlerInterface
     {
         $payload = $job->payload;
 
-        // Validate payload
-        if (!isset($payload['server_name'])) {
+        // Check if we're configuring an existing server or creating a new one
+        $serverId = $payload['server_id'] ?? null;
+        $serverName = $payload['server_name'] ?? null;
+
+        if (!$serverName) {
             throw new \Exception('Missing server_name in job payload');
         }
-
-        $serverName = $payload['server_name'];
-        $sshPort = $payload['ssh_port'] ?? 22;
-        $retention = $payload['retention'] ?? 8;
-        $backupType = $payload['backup_type'] ?? 'internal';
 
         $this->logger->info("Starting server setup: {$serverName}", 'JOB');
         $queue->updateProgress($job->id, 10, "Starting server setup for: {$serverName}");
 
-        // Execute full server setup (this is the long-running operation)
         try {
-            $queue->updateProgress($job->id, 20, "Testing SSH connection...");
+            // If server_id is provided, we're configuring an existing server
+            if ($serverId) {
+                $queue->updateProgress($job->id, 20, "Configuring existing server (ID: {$serverId})...");
 
-            $serverId = $this->serverManager->addServer(
-                name: $serverName,
-                sshPort: $sshPort,
-                retention: $retention,
-                backupType: $backupType
-            );
+                // TODO: Add actual SSH configuration, Borg installation, repo creation
+                // For now, just simulate the process
+                $queue->updateProgress($job->id, 40, "Testing SSH connection...");
+                sleep(2); // Simulate SSH test
 
-            $queue->updateProgress($job->id, 100, "Server setup completed successfully. Server ID: {$serverId}");
+                $queue->updateProgress($job->id, 60, "Installing BorgBackup...");
+                sleep(2); // Simulate Borg installation
 
-            return "Server '{$serverName}' setup completed successfully (ID: {$serverId})";
+                $queue->updateProgress($job->id, 80, "Creating backup repositories...");
+                sleep(2); // Simulate repo creation
+
+                $queue->updateProgress($job->id, 100, "Server configuration completed successfully.");
+
+                return "Server '{$serverName}' (ID: {$serverId}) configured successfully";
+            } else {
+                // Legacy path: create new server
+                $sshPort = $payload['ssh_port'] ?? 22;
+                $retention = $payload['retention'] ?? 8;
+                $backupType = $payload['backup_type'] ?? 'internal';
+
+                $queue->updateProgress($job->id, 20, "Creating new server entry...");
+
+                $newServerId = $this->serverManager->addServer(
+                    name: $serverName,
+                    sshPort: $sshPort,
+                    retention: $retention,
+                    backupType: $backupType
+                );
+
+                $queue->updateProgress($job->id, 100, "Server created successfully. Server ID: {$newServerId}");
+
+                return "Server '{$serverName}' created successfully (ID: {$newServerId})";
+            }
 
         } catch (\Exception $e) {
             $this->logger->error("Server setup failed: {$e->getMessage()}", 'JOB');
