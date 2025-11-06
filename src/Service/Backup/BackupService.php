@@ -77,9 +77,11 @@ final class BackupService
                 ? $this->config->borgServerIpPublic
                 : $this->config->borgServerIpPrivate;
 
-            // Test reverse SSH connection
+            // Test reverse SSH connection (non-blocking - just a warning)
+            // Note: With borg serve restriction, we can't test with 'echo' command
+            // The real test happens when borg actually connects
             if (!$this->sshExecutor->testReverseConnection($server, $backupServerIp)) {
-                throw new BackupException("Reverse SSH connection failed");
+                $this->logger->warning("Reverse SSH test failed (expected with borg serve restriction)", $server->name);
             }
 
             // Prune old archives first
