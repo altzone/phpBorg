@@ -31,7 +31,7 @@ final class WorkerStartCommand extends Command
             ->setDescription('Start background worker to process jobs')
             ->addOption(
                 'queue',
-                'q',
+                null,
                 InputOption::VALUE_OPTIONAL,
                 'Queue name to process',
                 'default'
