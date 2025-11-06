@@ -8,7 +8,8 @@ export const jobService = {
    */
   async list(params = {}) {
     const response = await api.get('/jobs', { params })
-    return response.data.jobs
+    // API returns { success: true, data: { jobs: [...] } }
+    return response.data.data?.jobs || response.data.jobs || []
   },
 
   /**
@@ -17,7 +18,15 @@ export const jobService = {
    */
   async stats() {
     const response = await api.get('/jobs/stats')
-    return response.data.stats
+    // API returns { success: true, data: { stats: {...} } }
+    return response.data.data?.stats || response.data.stats || {
+      total: 0,
+      pending: 0,
+      running: 0,
+      completed: 0,
+      failed: 0,
+      cancelled: 0
+    }
   },
 
   /**
@@ -27,7 +36,7 @@ export const jobService = {
    */
   async get(id) {
     const response = await api.get(`/jobs/${id}`)
-    return response.data.job
+    return response.data.data?.job || response.data.job
   },
 
   /**
@@ -47,6 +56,6 @@ export const jobService = {
    */
   async retry(id) {
     const response = await api.post(`/jobs/${id}/retry`)
-    return response.data.new_job_id
+    return response.data.data?.new_job_id || response.data.new_job_id
   },
 }

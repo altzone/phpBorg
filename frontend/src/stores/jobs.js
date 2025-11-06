@@ -27,10 +27,12 @@ export const useJobStore = defineStore('jobs', () => {
     try {
       loading.value = true
       error.value = null
-      jobs.value = await jobService.list(params)
+      const result = await jobService.list(params)
+      jobs.value = result || []
     } catch (err) {
       error.value = err.response?.data?.error?.message || 'Failed to load jobs'
       console.error('Fetch jobs error:', err)
+      jobs.value = []
     } finally {
       loading.value = false
     }
@@ -38,9 +40,18 @@ export const useJobStore = defineStore('jobs', () => {
 
   async function fetchStats() {
     try {
-      stats.value = await jobService.stats()
+      const result = await jobService.stats()
+      stats.value = result || {
+        total: 0,
+        pending: 0,
+        running: 0,
+        completed: 0,
+        failed: 0,
+        cancelled: 0
+      }
     } catch (err) {
       console.error('Fetch stats error:', err)
+      // Keep default stats values on error
     }
   }
 
