@@ -1,0 +1,23 @@
+[Unit]
+Description=phpBorg Background Worker
+After=network.target mysql.service redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/newphpborg/phpBorg
+ExecStart=/usr/bin/php /opt/newphpborg/phpBorg/bin/phpborg worker:start
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+
+# Limits
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

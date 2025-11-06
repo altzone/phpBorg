@@ -11,6 +11,7 @@ use PhpBorg\Logger\LoggerInterface;
 use PhpBorg\Repository\ArchiveRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\DatabaseInfoRepository;
+use PhpBorg\Repository\JobRepository;
 use PhpBorg\Repository\RefreshTokenRepository;
 use PhpBorg\Repository\ReportRepository;
 use PhpBorg\Repository\ServerRepository;
@@ -20,6 +21,7 @@ use PhpBorg\Service\Auth\JWTService;
 use PhpBorg\Service\Backup\BackupService;
 use PhpBorg\Service\Backup\BorgExecutor;
 use PhpBorg\Service\Backup\MountService;
+use PhpBorg\Service\Queue\JobQueue;
 use PhpBorg\Service\Database\ElasticsearchBackupStrategy;
 use PhpBorg\Service\Database\LvmSnapshotManager;
 use PhpBorg\Service\Database\MongoDbBackupStrategy;
@@ -171,6 +173,13 @@ final class Application
         );
     }
 
+    public function getJobRepository(): JobRepository
+    {
+        return $this->getService(JobRepository::class, fn() =>
+            new JobRepository($this->connection)
+        );
+    }
+
     // Services
 
     public function getSshExecutor(): SshExecutor
@@ -299,6 +308,17 @@ final class Application
                 $this->getUserRepository(),
                 $this->getRefreshTokenRepository(),
                 $this->getJWTService(),
+                $this->logger
+            )
+        );
+    }
+
+    public function getJobQueue(): JobQueue
+    {
+        return $this->getService(JobQueue::class, fn() =>
+            new JobQueue(
+                $this->config,
+                $this->getJobRepository(),
                 $this->logger
             )
         );

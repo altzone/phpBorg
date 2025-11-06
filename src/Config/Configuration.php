@@ -32,6 +32,10 @@ final readonly class Configuration
         public bool $appDebug,
         public string $appTimezone,
         public string $appSecret,
+        public string $redisHost,
+        public int $redisPort,
+        public ?string $redisPassword,
+        public int $redisDatabase,
     ) {
     }
 
@@ -73,6 +77,10 @@ final readonly class Configuration
             appDebug: filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN),
             appTimezone: $_ENV['APP_TIMEZONE'] ?? 'UTC',
             appSecret: $_ENV['APP_SECRET'],
+            redisHost: $_ENV['REDIS_HOST'] ?? '127.0.0.1',
+            redisPort: (int)($_ENV['REDIS_PORT'] ?? 6379),
+            redisPassword: $_ENV['REDIS_PASSWORD'] ?? null,
+            redisDatabase: (int)($_ENV['REDIS_DATABASE'] ?? 0),
         );
     }
 

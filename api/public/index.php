@@ -12,6 +12,7 @@ require __DIR__ . '/../../vendor/autoload.php';
 use PhpBorg\Application;
 use PhpBorg\Api\Router;
 use PhpBorg\Api\Controller\AuthController;
+use PhpBorg\Api\Controller\JobController;
 use PhpBorg\Api\Controller\ServerController;
 
 try {
@@ -43,6 +44,15 @@ try {
     $router->put('/servers/:id', ServerController::class, 'update', requireAuth: true);
     $router->delete('/servers/:id', ServerController::class, 'delete', requireAuth: true);
     $router->get('/servers/:id/repositories', ServerController::class, 'repositories', requireAuth: true);
+
+    // ===========================================
+    // Job Queue Routes (Protected)
+    // ===========================================
+    $router->get('/jobs', JobController::class, 'list', requireAuth: true);
+    $router->get('/jobs/stats', JobController::class, 'stats', requireAuth: true);
+    $router->get('/jobs/:id', JobController::class, 'show', requireAuth: true);
+    $router->post('/jobs/:id/cancel', JobController::class, 'cancel', requireAuth: true);
+    $router->post('/jobs/:id/retry', JobController::class, 'retry', requireAuth: true);
 
     // ===========================================
     // Future Routes (To be implemented)

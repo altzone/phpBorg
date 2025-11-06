@@ -62,6 +62,7 @@ use PhpBorg\Command\ListServersCommand;
 use PhpBorg\Command\MountCommand;
 use PhpBorg\Command\PruneCommand;
 use PhpBorg\Command\SetupCommand;
+use PhpBorg\Command\WorkerStartCommand;
 use Symfony\Component\Console\Application as ConsoleApplication;
 
 // Check PHP version
@@ -116,6 +117,9 @@ try {
 
         // Database commands
         $console->add(new DatabaseAddCommand($app));
+
+        // Worker commands
+        $console->add(new WorkerStartCommand($app));
     }
 
     // Run console application
