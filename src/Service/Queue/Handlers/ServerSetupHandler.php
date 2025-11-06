@@ -68,12 +68,12 @@ final class ServerSetupHandler implements JobHandlerInterface
 
             // Step 2: Check if BorgBackup is installed (idempotent)
             $queue->updateProgress($job->id, 60, "Checking BorgBackup installation...");
-            $borgInstalled = $this->checkBorgInstallation($hostname);
+            $borgInstalled = $this->checkBorgInstallation($hostname, $sshUser);
 
             if (!$borgInstalled) {
                 // Step 3: Install BorgBackup if not present
                 $queue->updateProgress($job->id, 70, "Installing BorgBackup on remote server...");
-                $this->installBorgBackup($hostname);
+                $this->installBorgBackup($hostname, $sshUser);
                 $this->logger->info("BorgBackup installed on {$serverName}", 'JOB');
             } else {
                 $this->logger->info("BorgBackup already installed on {$serverName}", 'JOB');
@@ -81,7 +81,7 @@ final class ServerSetupHandler implements JobHandlerInterface
 
             // Step 4: Verify installation
             $queue->updateProgress($job->id, 70, "Verifying BorgBackup installation...");
-            $this->verifyBorgInstallation($hostname);
+            $this->verifyBorgInstallation($hostname, $sshUser);
 
             // Step 5: Generate SSH keys for this server (idempotent)
             $queue->updateProgress($job->id, 75, "Generating SSH keys for secure backup...");
@@ -151,10 +151,11 @@ final class ServerSetupHandler implements JobHandlerInterface
     /**
      * Check if BorgBackup is installed on remote server
      */
-    private function checkBorgInstallation(string $hostname): bool
+    private function checkBorgInstallation(string $hostname, string $sshUser): bool
     {
         $command = sprintf(
-            'ssh -o StrictHostKeyChecking=accept-new %s "which borg" 2>&1',
+            'ssh -o StrictHostKeyChecking=accept-new %s@%s "which borg" 2>&1',
+            escapeshellarg($sshUser),
             escapeshellarg($hostname)
         );
 
@@ -174,13 +175,14 @@ final class ServerSetupHandler implements JobHandlerInterface
     /**
      * Install BorgBackup on remote server
      */
-    private function installBorgBackup(string $hostname): void
+    private function installBorgBackup(string $hostname, string $sshUser): void
     {
         // Try to detect OS and install accordingly
         // First, try apt-get (Debian/Ubuntu)
         // Note: No sudo needed as we connect as root
         $command = sprintf(
-            'ssh -o StrictHostKeyChecking=accept-new %s "apt-get update && apt-get install -y borgbackup" 2>&1',
+            'ssh -o StrictHostKeyChecking=accept-new %s@%s "apt-get update && apt-get install -y borgbackup" 2>&1',
+            escapeshellarg($sshUser),
             escapeshellarg($hostname)
         );
 
@@ -196,7 +198,8 @@ final class ServerSetupHandler implements JobHandlerInterface
         if ($returnCode !== 0) {
             // Try yum (CentOS/RHEL) as fallback
             $command = sprintf(
-                'ssh -o StrictHostKeyChecking=accept-new %s "yum install -y borgbackup" 2>&1',
+                'ssh -o StrictHostKeyChecking=accept-new %s@%s "yum install -y borgbackup" 2>&1',
+                escapeshellarg($sshUser),
                 escapeshellarg($hostname)
             );
 
@@ -219,10 +222,11 @@ final class ServerSetupHandler implements JobHandlerInterface
     /**
      * Verify BorgBackup installation
      */
-    private function verifyBorgInstallation(string $hostname): void
+    private function verifyBorgInstallation(string $hostname, string $sshUser): void
     {
         $command = sprintf(
-            'ssh -o StrictHostKeyChecking=accept-new %s "borg --version" 2>&1',
+            'ssh -o StrictHostKeyChecking=accept-new %s@%s "borg --version" 2>&1',
+            escapeshellarg($sshUser),
             escapeshellarg($hostname)
         );
 
