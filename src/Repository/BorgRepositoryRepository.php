@@ -26,7 +26,7 @@ final class BorgRepositoryRepository
     public function findById(int $id): ?BorgRepository
     {
         $row = $this->connection->fetchOne(
-            'SELECT * FROM repository WHERE id = ?',
+            'SELECT *, FROM_BASE64(passphrase) as passphrase FROM repository WHERE id = ?',
             [$id]
         );
 
@@ -41,7 +41,7 @@ final class BorgRepositoryRepository
     public function findByServerAndType(int $serverId, string $type): ?BorgRepository
     {
         $row = $this->connection->fetchOne(
-            'SELECT * FROM repository WHERE server_id = ? AND type = ?',
+            'SELECT *, FROM_BASE64(passphrase) as passphrase FROM repository WHERE server_id = ? AND type = ?',
             [$serverId, $type]
         );
 
@@ -57,7 +57,7 @@ final class BorgRepositoryRepository
     public function findByServerId(int $serverId): array
     {
         $rows = $this->connection->fetchAll(
-            'SELECT * FROM repository WHERE server_id = ? ORDER BY type',
+            'SELECT *, FROM_BASE64(passphrase) as passphrase FROM repository WHERE server_id = ? ORDER BY type',
             [$serverId]
         );
 
@@ -73,7 +73,7 @@ final class BorgRepositoryRepository
     public function findAll(): array
     {
         $rows = $this->connection->fetchAll(
-            'SELECT * FROM repository ORDER BY server_id, type'
+            'SELECT *, FROM_BASE64(passphrase) as passphrase FROM repository ORDER BY server_id, type'
         );
 
         return array_map(fn(array $row) => BorgRepository::fromDatabase($row), $rows);
