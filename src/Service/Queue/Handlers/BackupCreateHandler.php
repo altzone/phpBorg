@@ -8,6 +8,7 @@ use PhpBorg\Entity\Job;
 use PhpBorg\Logger\LoggerInterface;
 use PhpBorg\Service\Backup\BackupService;
 use PhpBorg\Service\Queue\JobQueue;
+use PhpBorg\Service\Server\ServerManager;
 
 /**
  * Handler for backup creation jobs
@@ -16,6 +17,7 @@ final class BackupCreateHandler implements JobHandlerInterface
 {
     public function __construct(
         private readonly BackupService $backupService,
+        private readonly ServerManager $serverManager,
         private readonly LoggerInterface $logger
     ) {
     }
@@ -33,19 +35,31 @@ final class BackupCreateHandler implements JobHandlerInterface
         }
 
         $serverId = (int) $payload['server_id'];
+        $type = $payload['type'] ?? 'backup';
 
-        $this->logger->info("Starting backup for server ID: {$serverId}", 'JOB');
-        $queue->updateProgress($job->id, 10, "Preparing backup for server #{$serverId}...");
+        $this->logger->info("Starting {$type} backup for server ID: {$serverId}", 'JOB');
+        $queue->updateProgress($job->id, 10, "Preparing {$type} backup for server #{$serverId}...");
 
         try {
+            // Get server object
+            $server = $this->serverManager->getServerById($serverId);
+            if (!$server) {
+                throw new \Exception("Server #{$serverId} not found");
+            }
+
             // Execute backup
-            $queue->updateProgress($job->id, 30, "Creating backup...");
+            $queue->updateProgress($job->id, 30, "Executing backup: {$server->name}...");
 
-            $this->backupService->createBackup($serverId);
+            $result = $this->backupService->executeBackup($server, $type);
 
-            $queue->updateProgress($job->id, 100, "Backup completed successfully");
+            if (!$result['success']) {
+                throw new \Exception($result['error'] ?? 'Backup execution failed');
+            }
 
-            return "Backup for server #{$serverId} completed successfully";
+            $archiveName = $result['archiveName'] ?? 'unknown';
+            $queue->updateProgress($job->id, 100, "Backup completed: {$archiveName}");
+
+            return "Backup '{$archiveName}' for server '{$server->name}' completed successfully";
 
         } catch (\Exception $e) {
             $this->logger->error("Backup failed: {$e->getMessage()}", 'JOB');

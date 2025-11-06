@@ -64,6 +64,7 @@ final class WorkerStartCommand extends Command
 
         $worker->registerHandler('backup_create', new BackupCreateHandler(
             $this->app->getBackupService(),
+            $this->app->getServerManager(),
             $logger
         ));
 
