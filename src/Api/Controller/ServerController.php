@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PhpBorg\Api\Controller;
 
+use PhpBorg\Application;
 use PhpBorg\Exception\PhpBorgException;
 use PhpBorg\Service\Server\ServerManager;
 
@@ -12,9 +13,11 @@ use PhpBorg\Service\Server\ServerManager;
  */
 class ServerController extends BaseController
 {
-    public function __construct(
-        private readonly ServerManager $serverManager
-    ) {
+    private readonly ServerManager $serverManager;
+
+    public function __construct(Application $app)
+    {
+        $this->serverManager = $app->getServerManager();
     }
 
     /**
