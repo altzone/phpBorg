@@ -55,7 +55,7 @@ class ServerController extends BaseController
     public function show(): void
     {
         try {
-            $serverId = (int) ($_GET['id'] ?? 0);
+            $serverId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
 
             if ($serverId <= 0) {
                 $this->error('Invalid server ID', 400, 'INVALID_SERVER_ID');
@@ -170,7 +170,7 @@ class ServerController extends BaseController
                 return;
             }
 
-            $serverId = (int) ($_GET['id'] ?? 0);
+            $serverId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
 
             if ($serverId <= 0) {
                 $this->error('Invalid server ID', 400, 'INVALID_SERVER_ID');
@@ -241,7 +241,7 @@ class ServerController extends BaseController
                 return;
             }
 
-            $serverId = (int) ($_GET['id'] ?? 0);
+            $serverId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
 
             if ($serverId <= 0) {
                 $this->error('Invalid server ID', 400, 'INVALID_SERVER_ID');
@@ -274,7 +274,7 @@ class ServerController extends BaseController
     public function repositories(): void
     {
         try {
-            $serverId = (int) ($_GET['id'] ?? 0);
+            $serverId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
 
             if ($serverId <= 0) {
                 $this->error('Invalid server ID', 400, 'INVALID_SERVER_ID');
