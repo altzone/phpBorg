@@ -129,6 +129,22 @@ final class BackupService
 
             $result = $this->sshExecutor->execute($server, $borgCommand, 7200);
 
+            // Log borg command output (includes stats and progress info)
+            if (!empty($result['stdout'])) {
+                foreach (explode("\n", trim($result['stdout'])) as $line) {
+                    if (!empty($line)) {
+                        $this->logger->info("[BORG] {$line}", $server->name);
+                    }
+                }
+            }
+            if (!empty($result['stderr'])) {
+                foreach (explode("\n", trim($result['stderr'])) as $line) {
+                    if (!empty($line)) {
+                        $this->logger->info("[BORG] {$line}", $server->name);
+                    }
+                }
+            }
+
             // Cleanup database backup if needed
             if ($cleanupNeeded && $dbInfo !== null) {
                 $strategy = $this->databaseStrategies[$type];

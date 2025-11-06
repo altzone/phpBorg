@@ -30,12 +30,13 @@ final class SshExecutor
     /**
      * Execute command on remote server via SSH
      *
+     * @param bool $tty Allocate pseudo-terminal (use false for non-interactive commands like borg backup)
      * @return array{stdout: string, stderr: string, exitCode: int}
      * @throws SshException
      */
-    public function execute(Server $server, string $command, int $timeout = 300): array
+    public function execute(Server $server, string $command, int $timeout = 300, bool $tty = false): array
     {
-        $sshCommand = $this->buildSshCommand($server, $command);
+        $sshCommand = $this->buildSshCommand($server, $command, $tty);
 
         $process = new Process($sshCommand, null, null, null, $timeout);
 
@@ -144,15 +145,22 @@ final class SshExecutor
     /**
      * Build SSH command array
      *
+     * @param bool $tty Allocate pseudo-terminal (use -tt flag)
      * @return array<int, string>
      */
-    private function buildSshCommand(Server $server, string $command): array
+    private function buildSshCommand(Server $server, string $command, bool $tty = false): array
     {
         $sshCommand = [
             'ssh',
             '-p', (string)$server->port,
-            '-tt',
         ];
+
+        // Only allocate TTY for interactive commands
+        if ($tty) {
+            $sshCommand[] = '-tt';
+        } else {
+            $sshCommand[] = '-T'; // Disable pseudo-terminal allocation
+        }
 
         foreach (self::SSH_OPTIONS as $option) {
             $sshCommand[] = '-o';
