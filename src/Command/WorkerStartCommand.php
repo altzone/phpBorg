@@ -60,7 +60,7 @@ final class WorkerStartCommand extends Command
         $worker->registerHandler('server_setup', new ServerSetupHandler(
             $this->app->getServerManager(),
             $this->app->getServerRepository(),
-            $this->app->config,
+            $this->app->getConfig(),
             $logger
         ));
 
@@ -69,7 +69,7 @@ final class WorkerStartCommand extends Command
             $this->app->getServerManager(),
             $this->app->getBorgRepositoryRepository(),
             $this->app->getEncryptionService(),
-            $this->app->config,
+            $this->app->getConfig(),
             $logger
         ));
 
