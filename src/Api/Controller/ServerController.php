@@ -33,10 +33,10 @@ class ServerController extends BaseController
                 'servers' => array_map(fn($server) => [
                     'id' => $server->id,
                     'name' => $server->name,
-                    'hostname' => $server->hostname,
+                    'hostname' => $server->host,  // Database field is 'host'
                     'port' => $server->port,
-                    'username' => $server->username,
-                    'description' => $server->description,
+                    'username' => 'root',  // Not stored in DB yet
+                    'description' => null,  // Not stored in DB yet
                     'active' => $server->active,
                     'created_at' => $server->createdAt?->format('Y-m-d H:i:s'),
                     'updated_at' => $server->updatedAt?->format('Y-m-d H:i:s'),
@@ -44,7 +44,7 @@ class ServerController extends BaseController
                 'total' => count($servers),
             ]);
         } catch (PhpBorgException $e) {
-            $this->error($e->getMessage(), 'SERVER_LIST_ERROR', 500);
+            $this->error($e->getMessage(), 500, 'SERVER_LIST_ERROR');
         }
     }
 
@@ -58,14 +58,14 @@ class ServerController extends BaseController
             $serverId = (int) ($_GET['id'] ?? 0);
 
             if ($serverId <= 0) {
-                $this->error('Invalid server ID', 'INVALID_SERVER_ID', 400);
+                $this->error('Invalid server ID', 400, 'INVALID_SERVER_ID');
                 return;
             }
 
             $server = $this->serverManager->getServerById($serverId);
 
             if (!$server) {
-                $this->error('Server not found', 'SERVER_NOT_FOUND', 404);
+                $this->error('Server not found', 404, 'SERVER_NOT_FOUND');
                 return;
             }
 
@@ -76,10 +76,10 @@ class ServerController extends BaseController
                 'server' => [
                     'id' => $server->id,
                     'name' => $server->name,
-                    'hostname' => $server->hostname,
+                    'hostname' => $server->host,  // Database field is 'host'
                     'port' => $server->port,
-                    'username' => $server->username,
-                    'description' => $server->description,
+                    'username' => 'root',  // Not stored in DB yet
+                    'description' => null,  // Not stored in DB yet
                     'active' => $server->active,
                     'created_at' => $server->createdAt?->format('Y-m-d H:i:s'),
                     'updated_at' => $server->updatedAt?->format('Y-m-d H:i:s'),
@@ -93,7 +93,7 @@ class ServerController extends BaseController
                 ], $repositories),
             ]);
         } catch (PhpBorgException $e) {
-            $this->error($e->getMessage(), 'SERVER_DETAIL_ERROR', 500);
+            $this->error($e->getMessage(), 500, 'SERVER_DETAIL_ERROR');
         }
     }
 
@@ -107,7 +107,7 @@ class ServerController extends BaseController
             // Check admin role
             $user = $_SERVER['USER'] ?? null;
             if (!$user || !in_array('ROLE_ADMIN', $user->roles)) {
-                $this->error('Admin role required', 'FORBIDDEN', 403);
+                $this->error('Admin role required', 403, 'FORBIDDEN');
                 return;
             }
 
@@ -140,10 +140,10 @@ class ServerController extends BaseController
                     'server' => [
                         'id' => $server->id,
                         'name' => $server->name,
-                        'hostname' => $server->hostname,
+                        'hostname' => $server->host,  // Database field is 'host'
                         'port' => $server->port,
-                        'username' => $server->username,
-                        'description' => $server->description,
+                        'username' => 'root',
+                        'description' => null,
                         'active' => $server->active,
                         'created_at' => $server->createdAt?->format('Y-m-d H:i:s'),
                     ],
@@ -152,7 +152,7 @@ class ServerController extends BaseController
                 201
             );
         } catch (PhpBorgException $e) {
-            $this->error($e->getMessage(), 'SERVER_CREATE_ERROR', 500);
+            $this->error($e->getMessage(), 500, 'SERVER_CREATE_ERROR');
         }
     }
 
@@ -166,21 +166,21 @@ class ServerController extends BaseController
             // Check admin role
             $user = $_SERVER['USER'] ?? null;
             if (!$user || !in_array('ROLE_ADMIN', $user->roles)) {
-                $this->error('Admin role required', 'FORBIDDEN', 403);
+                $this->error('Admin role required', 403, 'FORBIDDEN');
                 return;
             }
 
             $serverId = (int) ($_GET['id'] ?? 0);
 
             if ($serverId <= 0) {
-                $this->error('Invalid server ID', 'INVALID_SERVER_ID', 400);
+                $this->error('Invalid server ID', 400, 'INVALID_SERVER_ID');
                 return;
             }
 
             // Check server exists
             $server = $this->serverManager->getServerById($serverId);
             if (!$server) {
-                $this->error('Server not found', 'SERVER_NOT_FOUND', 404);
+                $this->error('Server not found', 404, 'SERVER_NOT_FOUND');
                 return;
             }
 
@@ -190,7 +190,7 @@ class ServerController extends BaseController
             if (isset($data['port'])) {
                 $port = (int) $data['port'];
                 if ($port <= 0 || $port > 65535) {
-                    $this->error('Invalid port number', 'INVALID_PORT', 400);
+                    $this->error('Invalid port number', 400, 'INVALID_PORT');
                     return;
                 }
             }
@@ -213,17 +213,17 @@ class ServerController extends BaseController
                 'server' => [
                     'id' => $server->id,
                     'name' => $server->name,
-                    'hostname' => $server->hostname,
+                    'hostname' => $server->host,  // Database field is 'host'
                     'port' => $server->port,
-                    'username' => $server->username,
-                    'description' => $server->description,
+                    'username' => 'root',
+                    'description' => null,
                     'active' => $server->active,
                     'created_at' => $server->createdAt?->format('Y-m-d H:i:s'),
                     'updated_at' => $server->updatedAt?->format('Y-m-d H:i:s'),
                 ],
             ], 'Server updated successfully');
         } catch (PhpBorgException $e) {
-            $this->error($e->getMessage(), 'SERVER_UPDATE_ERROR', 500);
+            $this->error($e->getMessage(), 500, 'SERVER_UPDATE_ERROR');
         }
     }
 
@@ -237,21 +237,21 @@ class ServerController extends BaseController
             // Check admin role
             $user = $_SERVER['USER'] ?? null;
             if (!$user || !in_array('ROLE_ADMIN', $user->roles)) {
-                $this->error('Admin role required', 'FORBIDDEN', 403);
+                $this->error('Admin role required', 403, 'FORBIDDEN');
                 return;
             }
 
             $serverId = (int) ($_GET['id'] ?? 0);
 
             if ($serverId <= 0) {
-                $this->error('Invalid server ID', 'INVALID_SERVER_ID', 400);
+                $this->error('Invalid server ID', 400, 'INVALID_SERVER_ID');
                 return;
             }
 
             // Check server exists
             $server = $this->serverManager->getServerById($serverId);
             if (!$server) {
-                $this->error('Server not found', 'SERVER_NOT_FOUND', 404);
+                $this->error('Server not found', 404, 'SERVER_NOT_FOUND');
                 return;
             }
 
@@ -263,7 +263,7 @@ class ServerController extends BaseController
                 'Server deleted successfully'
             );
         } catch (PhpBorgException $e) {
-            $this->error($e->getMessage(), 'SERVER_DELETE_ERROR', 500);
+            $this->error($e->getMessage(), 500, 'SERVER_DELETE_ERROR');
         }
     }
 
@@ -277,7 +277,7 @@ class ServerController extends BaseController
             $serverId = (int) ($_GET['id'] ?? 0);
 
             if ($serverId <= 0) {
-                $this->error('Invalid server ID', 'INVALID_SERVER_ID', 400);
+                $this->error('Invalid server ID', 400, 'INVALID_SERVER_ID');
                 return;
             }
 
@@ -295,7 +295,7 @@ class ServerController extends BaseController
                 'total' => count($repositories),
             ]);
         } catch (PhpBorgException $e) {
-            $this->error($e->getMessage(), 'REPOSITORIES_ERROR', 500);
+            $this->error($e->getMessage(), 500, 'REPOSITORIES_ERROR');
         }
     }
 }
