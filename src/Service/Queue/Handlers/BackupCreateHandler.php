@@ -199,7 +199,7 @@ final class BackupCreateHandler implements JobHandlerInterface
                     'compression' => 'lz4',
                     'rate_limit' => 0,
                     'backup_path' => '/',
-                    'exclude' => '/proc,/dev,/sys,/tmp,/run,/var/run,/lost+found,/mnt,/media',
+                    'exclude' => '/proc,/dev,/sys,/tmp,/run,/var/run,/var/tmp,/var/cache,/var/lock,/lost+found,/mnt,/media,/swapfile,/swap.img,*.tmp,*.swp,*.lock',
                 ];
 
             case 'database':
