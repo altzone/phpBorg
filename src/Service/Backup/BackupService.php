@@ -267,9 +267,12 @@ final class BackupService
 
         $pathsString = implode(' ', array_map('escapeshellarg', $paths));
 
+        // Properly escape passphrase for shell command
+        $escapedPassphrase = escapeshellarg($repository->passphrase);
+
         return sprintf(
-            "export BORG_PASSPHRASE='%s' && %s create --compression %s --stats --json%s ssh://%s@%s%s::%s %s",
-            $repository->passphrase,
+            "export BORG_PASSPHRASE=%s && %s create --compression %s --stats --json%s ssh://%s@%s%s::%s %s",
+            $escapedPassphrase,
             $this->config->borgBinaryPath,
             $repository->compression,
             $excludeArgs,
