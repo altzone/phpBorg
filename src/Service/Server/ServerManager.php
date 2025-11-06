@@ -30,7 +30,103 @@ final class ServerManager
     }
 
     /**
-     * Add new server to backup system
+     * Get all servers
+     *
+     * @return Server[]
+     */
+    public function getAllServers(): array
+    {
+        return $this->serverRepo->findAll();
+    }
+
+    /**
+     * Get server by ID
+     */
+    public function getServerById(int $id): ?Server
+    {
+        return $this->serverRepo->find($id);
+    }
+
+    /**
+     * Create server (simple version for API)
+     */
+    public function createServer(
+        string $name,
+        string $hostname,
+        int $port,
+        string $username,
+        ?string $description = null
+    ): int {
+        $this->logger->info("Creating server: {$name}", 'SYSTEM');
+
+        // Check if server already exists
+        if ($this->serverRepo->findByName($name) !== null) {
+            throw new PhpBorgException("Server {$name} already exists");
+        }
+
+        return $this->serverRepo->create(
+            name: $name,
+            host: $hostname,
+            port: $port,
+            backupType: 'internal',
+            sshPublicKey: '',
+            active: true
+        );
+    }
+
+    /**
+     * Update server
+     */
+    public function updateServer(
+        int $serverId,
+        ?string $name = null,
+        ?string $hostname = null,
+        ?int $port = null,
+        ?string $username = null,
+        ?string $description = null,
+        ?bool $active = null
+    ): void {
+        $this->logger->info("Updating server ID: {$serverId}", 'SYSTEM');
+
+        $server = $this->serverRepo->find($serverId);
+        if (!$server) {
+            throw new PhpBorgException("Server not found");
+        }
+
+        $this->serverRepo->update(
+            id: $serverId,
+            name: $name,
+            host: $hostname,
+            port: $port,
+            active: $active
+        );
+    }
+
+    /**
+     * Delete server
+     */
+    public function deleteServer(int $serverId): void
+    {
+        $this->logger->info("Deleting server ID: {$serverId}", 'SYSTEM');
+
+        $server = $this->serverRepo->find($serverId);
+        if (!$server) {
+            throw new PhpBorgException("Server not found");
+        }
+
+        $this->serverRepo->delete($serverId);
+    }
+
+    /**
+     * Get repositories for a server
+     */
+    public function getRepositoriesForServer(int $serverId): array
+    {
+        return $this->repoRepo->findByServerId($serverId);
+    }
+
+    /**
+     * Add new server to backup system (full setup)
      *
      * @throws PhpBorgException
      */
