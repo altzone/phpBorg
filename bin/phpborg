@@ -62,6 +62,7 @@ use PhpBorg\Command\ListServersCommand;
 use PhpBorg\Command\MountCommand;
 use PhpBorg\Command\PruneCommand;
 use PhpBorg\Command\SetupCommand;
+use PhpBorg\Command\SyncArchivesCommand;
 use PhpBorg\Command\WorkerStartCommand;
 use Symfony\Component\Console\Application as ConsoleApplication;
 
@@ -114,6 +115,7 @@ try {
         $console->add(new ListCommand($app));
         $console->add(new MountCommand($app));
         $console->add(new InfoCommand($app));
+        $console->add(new SyncArchivesCommand($app));
 
         // Database commands
         $console->add(new DatabaseAddCommand($app));

@@ -180,13 +180,22 @@ final class BackupService
             }
 
             // Parse backup info
-            $archiveInfo = $this->borgExecutor->getArchiveInfo(
-                $repository->repoPath . "::{$archiveName}",
-                $repository->passphrase
-            );
+            try {
+                $archiveInfo = $this->borgExecutor->getArchiveInfo(
+                    $repository->repoPath . "::{$archiveName}",
+                    $repository->passphrase
+                );
 
-            // Save archive to database
-            $this->saveArchive($repository, $archiveInfo);
+                // Save archive to database
+                $this->saveArchive($repository, $archiveInfo);
+            } catch (\Exception $e) {
+                $this->logger->error(
+                    "Failed to save archive to database: {$e->getMessage()}. Backup exists in Borg but not in database!",
+                    $server->name
+                );
+                // Don't throw - backup succeeded in Borg, just database recording failed
+                // The sync function can recover this later
+            }
 
             // Update repository statistics
             $this->updateRepositoryStats($repository);
@@ -384,11 +393,37 @@ final class BackupService
         $archiveData = $archiveInfo['archive'] ?? [];
         $stats = $archiveData['stats'] ?? [];
 
+        // Validate that we have the required fields
+        $archiveId = $archiveData['id'] ?? '';
+        $archiveName = $archiveData['name'] ?? '';
+
+        if (empty($archiveId)) {
+            throw new BackupException(
+                "Archive ID is empty. Borg response: " . json_encode($archiveInfo, JSON_PRETTY_PRINT)
+            );
+        }
+
+        if (empty($archiveName)) {
+            throw new BackupException(
+                "Archive name is empty. Borg response: " . json_encode($archiveInfo, JSON_PRETTY_PRINT)
+            );
+        }
+
+        // Check if archive already exists (avoid duplicate key error)
+        $existingArchive = $this->findArchiveByArchiveId($archiveId);
+        if ($existingArchive !== null) {
+            $this->logger->warning(
+                "Archive {$archiveId} already exists in database, skipping insert",
+                'BACKUP'
+            );
+            return;
+        }
+
         $this->archiveRepo->create(
             repoId: $repository->repoId,
             serverId: $repository->serverId,
-            name: $archiveData['name'] ?? '',
-            archiveId: $archiveData['id'] ?? '',
+            name: $archiveName,
+            archiveId: $archiveId,
             duration: (float)($archiveData['duration'] ?? 0),
             start: new DateTimeImmutable($archiveData['start'] ?? 'now'),
             end: new DateTimeImmutable($archiveData['end'] ?? 'now'),
@@ -397,6 +432,19 @@ final class BackupService
             originalSize: (int)($stats['original_size'] ?? 0),
             filesCount: (int)($stats['nfiles'] ?? 0)
         );
+    }
+
+    /**
+     * Find archive by archive ID
+     */
+    private function findArchiveByArchiveId(string $archiveId): ?int
+    {
+        try {
+            $result = $this->archiveRepo->findByArchiveId($archiveId);
+            return $result ? $result->id : null;
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     /**
@@ -416,5 +464,126 @@ final class BackupService
             totalUniqueChunks: (int)($cacheStats['total_unique_chunks'] ?? 0),
             totalChunks: (int)($cacheStats['total_chunks'] ?? 0)
         );
+    }
+
+    /**
+     * Synchronize archives from Borg repository to database
+     * This recovers archives that exist in Borg but are missing from the database
+     *
+     * @return array{synced: int, errors: int, details: array}
+     */
+    public function syncArchivesFromBorg(?int $serverId = null, ?string $type = null): array
+    {
+        $this->logger->info("Starting archive synchronization from Borg repositories", 'SYNC');
+
+        $synced = 0;
+        $errors = 0;
+        $details = [];
+
+        // Get all repositories to sync
+        $repositories = [];
+        if ($serverId !== null && $type !== null) {
+            $repo = $this->repositoryRepo->findByServerAndType($serverId, $type);
+            if ($repo) {
+                $repositories[] = $repo;
+            }
+        } elseif ($serverId !== null) {
+            $repositories = $this->repositoryRepo->findByServerId($serverId);
+        } else {
+            $repositories = $this->repositoryRepo->findAll();
+        }
+
+        foreach ($repositories as $repository) {
+            $this->logger->info("Syncing repository: {$repository->repoId}", 'SYNC');
+
+            try {
+                // Get all archives from Borg
+                $repoInfo = $this->borgExecutor->getRepositoryInfo($repository->repoPath, $repository->passphrase);
+                $borgArchives = $repoInfo['archives'] ?? [];
+
+                $this->logger->info(
+                    "Found " . count($borgArchives) . " archives in Borg repository {$repository->repoId}",
+                    'SYNC'
+                );
+
+                // Get existing archives from database
+                $dbArchives = $this->archiveRepo->findByRepositoryId($repository->repoId);
+                $dbArchiveIds = array_map(fn($archive) => $archive->archiveId, $dbArchives);
+
+                // Import missing archives
+                foreach ($borgArchives as $borgArchive) {
+                    $archiveId = $borgArchive['id'] ?? '';
+                    $archiveName = $borgArchive['name'] ?? '';
+
+                    if (empty($archiveId)) {
+                        $this->logger->warning("Skipping archive with empty ID in repository {$repository->repoId}", 'SYNC');
+                        $errors++;
+                        continue;
+                    }
+
+                    // Check if archive already exists in database
+                    if (in_array($archiveId, $dbArchiveIds)) {
+                        $this->logger->debug("Archive {$archiveName} already exists in database", 'SYNC');
+                        continue;
+                    }
+
+                    // Archive is missing from database - fetch detailed info and import
+                    $this->logger->info("Importing missing archive: {$archiveName}", 'SYNC');
+
+                    try {
+                        $archiveInfo = $this->borgExecutor->getArchiveInfo(
+                            $repository->repoPath . "::{$archiveName}",
+                            $repository->passphrase
+                        );
+
+                        $this->saveArchive($repository, $archiveInfo);
+                        $synced++;
+
+                        $details[] = [
+                            'repository' => $repository->repoId,
+                            'archive' => $archiveName,
+                            'action' => 'imported',
+                        ];
+                    } catch (\Exception $e) {
+                        $this->logger->error(
+                            "Failed to import archive {$archiveName}: {$e->getMessage()}",
+                            'SYNC'
+                        );
+                        $errors++;
+
+                        $details[] = [
+                            'repository' => $repository->repoId,
+                            'archive' => $archiveName,
+                            'action' => 'error',
+                            'error' => $e->getMessage(),
+                        ];
+                    }
+                }
+
+                // Update repository statistics
+                $this->updateRepositoryStats($repository);
+
+            } catch (\Exception $e) {
+                $this->logger->error(
+                    "Failed to sync repository {$repository->repoId}: {$e->getMessage()}",
+                    'SYNC'
+                );
+                $errors++;
+
+                $details[] = [
+                    'repository' => $repository->repoId,
+                    'action' => 'repository_error',
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+
+        $this->logger->info("Sync completed: {$synced} imported, {$errors} errors", 'SYNC');
+
+        return [
+            'synced' => $synced,
+            'errors' => $errors,
+            'details' => $details,
+        ];
     }
 }

@@ -35,6 +35,21 @@ final class ArchiveRepository
     }
 
     /**
+     * Find archive by archive ID (borg archive ID)
+     *
+     * @throws DatabaseException
+     */
+    public function findByArchiveId(string $archiveId): ?Archive
+    {
+        $row = $this->connection->fetchOne(
+            'SELECT * FROM archives WHERE archive_id = ?',
+            [$archiveId]
+        );
+
+        return $row ? Archive::fromDatabase($row) : null;
+    }
+
+    /**
      * Find archives by repository ID
      *
      * @return array<int, Archive>
