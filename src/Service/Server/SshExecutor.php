@@ -76,14 +76,15 @@ final class SshExecutor
 
     /**
      * Test reverse SSH connectivity (from remote to backup server)
+     * Tests if remote server can connect back using deployed SSH key
      *
      * @throws SshException
      */
     public function testReverseConnection(Server $server, string $backupServerIp): bool
     {
+        // Use deployed SSH key and connect as phpborg user (with borg serve restriction)
         $command = sprintf(
-            'ssh -q -o BatchMode=yes -o ConnectTimeout=3 -o StrictHostKeyChecking=no %s@%s "echo 2>&1"',
-            $server->host,
+            'ssh -i /root/.ssh/phpborg_backup -q -o BatchMode=yes -o ConnectTimeout=3 -o StrictHostKeyChecking=accept-new phpborg@%s "echo 2>&1"',
             $backupServerIp
         );
 
@@ -91,14 +92,14 @@ final class SshExecutor
 
         if ($result['exitCode'] !== 0) {
             $this->logger->error(
-                "Reverse SSH connection failed from {$server->name} to {$backupServerIp}",
+                "Reverse SSH connection failed from {$server->name} to phpborg@{$backupServerIp}",
                 'SSH',
                 ['error' => $result['stderr']]
             );
             return false;
         }
 
-        $this->logger->info("Reverse SSH connection OK for {$server->name}", 'SSH');
+        $this->logger->info("Reverse SSH connection OK for {$server->name} (using borg serve)", 'SSH');
         return true;
     }
 
@@ -167,7 +168,8 @@ final class SshExecutor
             $sshCommand[] = $option;
         }
 
-        $sshCommand[] = $server->host;
+        // Connect as root to allow full system backup
+        $sshCommand[] = 'root@' . $server->host;
         $sshCommand[] = $command;
 
         return $sshCommand;
