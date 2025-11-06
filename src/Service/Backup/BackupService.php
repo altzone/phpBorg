@@ -152,7 +152,29 @@ final class BackupService
             }
 
             if ($result['exitCode'] !== 0) {
-                throw new BackupException("Borg backup failed: {$result['stderr']}");
+                $stderr = $result['stderr'];
+
+                // Detect permission errors and provide helpful message
+                if (strpos($stderr, 'Permission denied') !== false ||
+                    strpos($stderr, 'LockFailed') !== false ||
+                    strpos($stderr, 'lock.exclusive') !== false) {
+
+                    $username = $server->host;
+                    $errorMsg = "Borg repository permission error detected!\n\n";
+                    $errorMsg .= "The user '{$username}' cannot access the repository at: {$repository->repoPath}\n\n";
+                    $errorMsg .= "To fix this issue, run the following commands on the backup server:\n\n";
+                    $errorMsg .= "  1. Ensure the user exists:\n";
+                    $errorMsg .= "     sudo useradd -d " . dirname($repository->repoPath) . " -m {$username}\n\n";
+                    $errorMsg .= "  2. Fix repository ownership:\n";
+                    $errorMsg .= "     sudo chown -R {$username}:{$username} {$repository->repoPath}\n\n";
+                    $errorMsg .= "  3. Set correct permissions:\n";
+                    $errorMsg .= "     sudo chmod -R 700 {$repository->repoPath}\n\n";
+                    $errorMsg .= "Original error: " . trim(substr($stderr, 0, 500));
+
+                    throw new BackupException($errorMsg);
+                }
+
+                throw new BackupException("Borg backup failed: {$stderr}");
             }
 
             // Parse backup info
@@ -265,17 +287,75 @@ final class BackupService
     private function setRepositoryPermissions(Server $server, string $repoPath): void
     {
         if (!is_dir($repoPath)) {
+            $this->logger->warning("Repository path does not exist: {$repoPath}", $server->name);
             return;
         }
 
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($repoPath, \RecursiveDirectoryIterator::SKIP_DOTS)
-        );
+        // Check if user exists locally
+        $username = $server->host;
+        if (posix_getpwnam($username) === false) {
+            $errorMsg = "Local user '{$username}' does not exist. Repository permissions cannot be set.";
+            $this->logger->error($errorMsg, $server->name);
+            throw new BackupException(
+                "{$errorMsg}\n" .
+                "Please run: sudo useradd -d " . dirname($repoPath) . " -m {$username}"
+            );
+        }
 
-        foreach ($iterator as $item) {
-            @chmod($item->getPathname(), 0700);
-            @chgrp($item->getPathname(), $server->host);
-            @chown($item->getPathname(), $server->host);
+        // Check if we're running as root (needed for chown)
+        if (posix_geteuid() !== 0) {
+            $this->logger->warning(
+                "Not running as root - cannot change repository ownership. Permissions may be incorrect.",
+                $server->name
+            );
+            return;
+        }
+
+        $this->logger->info("Setting repository permissions for user: {$username}", $server->name);
+
+        try {
+            // Set permissions on repository directory itself
+            if (!chmod($repoPath, 0700)) {
+                $this->logger->error("Failed to chmod repository: {$repoPath}", $server->name);
+            }
+            if (!chown($repoPath, $username)) {
+                $this->logger->error("Failed to chown repository to {$username}: {$repoPath}", $server->name);
+            }
+            if (!chgrp($repoPath, $username)) {
+                $this->logger->error("Failed to chgrp repository to {$username}: {$repoPath}", $server->name);
+            }
+
+            // Set permissions recursively
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($repoPath, \RecursiveDirectoryIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::SELF_FIRST
+            );
+
+            $failed = 0;
+            foreach ($iterator as $item) {
+                $path = $item->getPathname();
+                if (!chmod($path, 0700)) {
+                    $failed++;
+                }
+                if (!chown($path, $username)) {
+                    $failed++;
+                }
+                if (!chgrp($path, $username)) {
+                    $failed++;
+                }
+            }
+
+            if ($failed > 0) {
+                $this->logger->warning(
+                    "Failed to set permissions on {$failed} files/directories in repository",
+                    $server->name
+                );
+            } else {
+                $this->logger->info("Repository permissions updated successfully", $server->name);
+            }
+        } catch (\Exception $e) {
+            $this->logger->error("Error setting permissions: {$e->getMessage()}", $server->name);
+            throw new BackupException("Failed to set repository permissions: {$e->getMessage()}");
         }
     }
 
