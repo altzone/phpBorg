@@ -44,7 +44,7 @@ final class ServerManager
      */
     public function getServerById(int $id): ?Server
     {
-        return $this->serverRepo->find($id);
+        return $this->serverRepo->findById($id);
     }
 
     /**
@@ -88,18 +88,58 @@ final class ServerManager
     ): void {
         $this->logger->info("Updating server ID: {$serverId}", 'SYSTEM');
 
-        $server = $this->serverRepo->find($serverId);
+        $server = $this->serverRepo->findById($serverId);
         if (!$server) {
             throw new PhpBorgException("Server not found");
         }
 
-        $this->serverRepo->update(
-            id: $serverId,
-            name: $name,
-            host: $hostname,
-            port: $port,
-            active: $active
-        );
+        // Update only provided fields
+        if ($name !== null) {
+            $server = new Server(
+                id: $server->id,
+                name: $name,
+                host: $server->host,
+                port: $server->port,
+                backupType: $server->backupType,
+                sshPublicKey: $server->sshPublicKey,
+                active: $server->active
+            );
+        }
+        if ($hostname !== null) {
+            $server = new Server(
+                id: $server->id,
+                name: $server->name,
+                host: $hostname,
+                port: $server->port,
+                backupType: $server->backupType,
+                sshPublicKey: $server->sshPublicKey,
+                active: $server->active
+            );
+        }
+        if ($port !== null) {
+            $server = new Server(
+                id: $server->id,
+                name: $server->name,
+                host: $server->host,
+                port: $port,
+                backupType: $server->backupType,
+                sshPublicKey: $server->sshPublicKey,
+                active: $server->active
+            );
+        }
+        if ($active !== null) {
+            $server = new Server(
+                id: $server->id,
+                name: $server->name,
+                host: $server->host,
+                port: $server->port,
+                backupType: $server->backupType,
+                sshPublicKey: $server->sshPublicKey,
+                active: $active
+            );
+        }
+
+        $this->serverRepo->update($server);
     }
 
     /**
@@ -109,7 +149,7 @@ final class ServerManager
     {
         $this->logger->info("Deleting server ID: {$serverId}", 'SYSTEM');
 
-        $server = $this->serverRepo->find($serverId);
+        $server = $this->serverRepo->findById($serverId);
         if (!$server) {
             throw new PhpBorgException("Server not found");
         }
