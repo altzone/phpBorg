@@ -178,8 +178,9 @@ final class ServerSetupHandler implements JobHandlerInterface
     {
         // Try to detect OS and install accordingly
         // First, try apt-get (Debian/Ubuntu)
+        // Note: No sudo needed as we connect as root
         $command = sprintf(
-            'ssh -o StrictHostKeyChecking=accept-new %s "sudo apt-get update && sudo apt-get install -y borgbackup" 2>&1',
+            'ssh -o StrictHostKeyChecking=accept-new %s "apt-get update && apt-get install -y borgbackup" 2>&1',
             escapeshellarg($hostname)
         );
 
@@ -195,7 +196,7 @@ final class ServerSetupHandler implements JobHandlerInterface
         if ($returnCode !== 0) {
             // Try yum (CentOS/RHEL) as fallback
             $command = sprintf(
-                'ssh -o StrictHostKeyChecking=accept-new %s "sudo yum install -y borgbackup" 2>&1',
+                'ssh -o StrictHostKeyChecking=accept-new %s "yum install -y borgbackup" 2>&1',
                 escapeshellarg($hostname)
             );
 
