@@ -138,6 +138,28 @@ class ServerController extends BaseController
             // Get created server
             $server = $this->serverManager->getServerById($serverId);
 
+            // Auto-create setup job for background configuration
+            $setupPayload = [
+                'server_id' => $serverId,
+                'server_name' => $server->name,
+                'hostname' => $server->host,
+                'port' => $server->port,
+                'ssh_user' => $data['username'] ?? 'root',
+                'ssh_password' => $data['ssh_password'] ?? null,
+                'ssh_key_path' => $data['ssh_key_path'] ?? null,
+                'borg_repo_path' => $data['borg_repo_path'] ?? '/backup/borg',
+                'compression' => $data['compression'] ?? 'lz4',
+                'create_repositories' => true,
+            ];
+
+            $jobId = $this->jobQueue->push(
+                'server_setup',
+                $setupPayload,
+                'default',
+                3,
+                $user->id
+            );
+
             $this->success(
                 [
                     'server' => [
@@ -150,8 +172,10 @@ class ServerController extends BaseController
                         'active' => $server->active,
                         'created_at' => $server->createdAt?->format('Y-m-d H:i:s'),
                     ],
+                    'setup_job_id' => $jobId,
+                    'message' => 'Server created and setup job queued'
                 ],
-                'Server created successfully',
+                'Server created successfully - setup in progress',
                 201
             );
         } catch (PhpBorgException $e) {
@@ -299,70 +323,6 @@ class ServerController extends BaseController
             ]);
         } catch (PhpBorgException $e) {
             $this->error($e->getMessage(), 500, 'REPOSITORIES_ERROR');
-        }
-    }
-
-    /**
-     * POST /api/servers/:id/setup
-     * Queue full server setup in background
-     */
-    public function setup(): void
-    {
-        try {
-            // Check admin or operator role
-            $user = $_SERVER['USER'] ?? null;
-            if (!$user || !in_array('ROLE_ADMIN', $user->roles) && !in_array('ROLE_OPERATOR', $user->roles)) {
-                $this->error('Admin or Operator role required', 403, 'FORBIDDEN');
-                return;
-            }
-
-            $serverId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
-
-            if ($serverId <= 0) {
-                $this->error('Invalid server ID', 400, 'INVALID_SERVER_ID');
-                return;
-            }
-
-            // Check server exists
-            $server = $this->serverManager->getServerById($serverId);
-            if (!$server) {
-                $this->error('Server not found', 404, 'SERVER_NOT_FOUND');
-                return;
-            }
-
-            // Get request body for setup parameters
-            $data = json_decode(file_get_contents('php://input'), true) ?? [];
-
-            // Create job payload
-            $payload = [
-                'server_id' => $serverId,
-                'server_name' => $server->name,
-                'hostname' => $server->host,
-                'port' => $server->port,
-                'ssh_user' => $data['ssh_user'] ?? 'root',
-                'ssh_password' => $data['ssh_password'] ?? null,
-                'ssh_key_path' => $data['ssh_key_path'] ?? null,
-                'borg_repo_path' => $data['borg_repo_path'] ?? '/backup/borg',
-                'compression' => $data['compression'] ?? 'lz4',
-                'create_repositories' => $data['create_repositories'] ?? true,
-            ];
-
-            // Create job in queue
-            $jobId = $this->jobQueue->push(
-                'server_setup',
-                $payload,
-                'default',
-                3,
-                $user->id
-            );
-
-            $this->success([
-                'job_id' => $jobId,
-                'server_id' => $serverId,
-                'message' => 'Server setup job queued successfully'
-            ], 'Setup job created');
-        } catch (PhpBorgException $e) {
-            $this->error($e->getMessage(), 500, 'SERVER_SETUP_ERROR');
         }
     }
 }

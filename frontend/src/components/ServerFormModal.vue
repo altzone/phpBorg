@@ -173,13 +173,15 @@ async function handleSubmit() {
     loading.value = true
     error.value = null
 
+    let result
     if (isEdit.value) {
-      await serverStore.updateServer(props.server.id, form.value)
+      result = await serverStore.updateServer(props.server.id, form.value)
     } else {
-      await serverStore.createServer(form.value)
+      result = await serverStore.createServer(form.value)
     }
 
-    emit('saved')
+    // Pass result to parent (includes setup_job_id for new servers)
+    emit('saved', result)
   } catch (err) {
     error.value = err.response?.data?.error?.message || 'Failed to save server'
   } finally {

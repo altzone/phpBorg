@@ -181,9 +181,16 @@ function closeModal() {
   editingServer.value = null
 }
 
-function handleSaved() {
+function handleSaved(result) {
   closeModal()
-  serverStore.fetchServers()
+
+  // If this was a server creation with auto-setup, redirect to jobs page
+  if (result?.setup_job_id) {
+    router.push('/jobs')
+  } else {
+    // Otherwise just refresh the server list
+    serverStore.fetchServers()
+  }
 }
 
 async function handleDelete() {

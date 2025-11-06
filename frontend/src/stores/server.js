@@ -46,7 +46,8 @@ export const useServerStore = defineStore('server', () => {
       error.value = null
       const data = await serverService.createServer(serverData)
       servers.value.push(data.server)
-      return data.server
+      // Return full data including setup_job_id for auto-setup
+      return data
     } catch (err) {
       error.value = err.response?.data?.error?.message || 'Failed to create server'
       throw err
