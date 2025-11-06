@@ -126,7 +126,7 @@ final class ServerSetupHandler implements JobHandlerInterface
     private function testSSHConnection(string $hostname, int $port, string $user): void
     {
         $command = sprintf(
-            'ssh -o BatchMode=yes -o ConnectTimeout=10 -p %d %s@%s "echo SSH_OK" 2>&1',
+            'ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p %d %s@%s "echo SSH_OK" 2>&1',
             $port,
             escapeshellarg($user),
             escapeshellarg($hostname)
@@ -154,7 +154,7 @@ final class ServerSetupHandler implements JobHandlerInterface
     private function checkBorgInstallation(string $hostname): bool
     {
         $command = sprintf(
-            'ssh %s "which borg" 2>&1',
+            'ssh -o StrictHostKeyChecking=accept-new %s "which borg" 2>&1',
             escapeshellarg($hostname)
         );
 
@@ -179,7 +179,7 @@ final class ServerSetupHandler implements JobHandlerInterface
         // Try to detect OS and install accordingly
         // First, try apt-get (Debian/Ubuntu)
         $command = sprintf(
-            'ssh %s "sudo apt-get update && sudo apt-get install -y borgbackup" 2>&1',
+            'ssh -o StrictHostKeyChecking=accept-new %s "sudo apt-get update && sudo apt-get install -y borgbackup" 2>&1',
             escapeshellarg($hostname)
         );
 
@@ -195,7 +195,7 @@ final class ServerSetupHandler implements JobHandlerInterface
         if ($returnCode !== 0) {
             // Try yum (CentOS/RHEL) as fallback
             $command = sprintf(
-                'ssh %s "sudo yum install -y borgbackup" 2>&1',
+                'ssh -o StrictHostKeyChecking=accept-new %s "sudo yum install -y borgbackup" 2>&1',
                 escapeshellarg($hostname)
             );
 
@@ -221,7 +221,7 @@ final class ServerSetupHandler implements JobHandlerInterface
     private function verifyBorgInstallation(string $hostname): void
     {
         $command = sprintf(
-            'ssh %s "borg --version" 2>&1',
+            'ssh -o StrictHostKeyChecking=accept-new %s "borg --version" 2>&1',
             escapeshellarg($hostname)
         );
 
@@ -322,7 +322,7 @@ final class ServerSetupHandler implements JobHandlerInterface
 
         // Create .ssh directory on remote server if needed
         $command = sprintf(
-            'ssh %s@%s "mkdir -p /root/.ssh && chmod 700 /root/.ssh" 2>&1',
+            'ssh -o StrictHostKeyChecking=accept-new %s@%s "mkdir -p /root/.ssh && chmod 700 /root/.ssh" 2>&1',
             escapeshellarg($sshUser),
             escapeshellarg($hostname)
         );
@@ -341,7 +341,7 @@ final class ServerSetupHandler implements JobHandlerInterface
         // Copy private key to remote server using heredoc
         $escapedKey = str_replace("'", "'\\''", $privateKey);
         $command = sprintf(
-            "ssh %s@%s 'cat > %s && chmod 600 %s' <<'EOF'\n%s\nEOF",
+            "ssh -o StrictHostKeyChecking=accept-new %s@%s 'cat > %s && chmod 600 %s' <<'EOF'\n%s\nEOF",
             escapeshellarg($sshUser),
             escapeshellarg($hostname),
             escapeshellarg($remoteKeyPath),
