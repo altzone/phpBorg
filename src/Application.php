@@ -11,8 +11,12 @@ use PhpBorg\Logger\LoggerInterface;
 use PhpBorg\Repository\ArchiveRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\DatabaseInfoRepository;
+use PhpBorg\Repository\RefreshTokenRepository;
 use PhpBorg\Repository\ReportRepository;
 use PhpBorg\Repository\ServerRepository;
+use PhpBorg\Repository\UserRepository;
+use PhpBorg\Service\Auth\AuthService;
+use PhpBorg\Service\Auth\JWTService;
 use PhpBorg\Service\Backup\BackupService;
 use PhpBorg\Service\Backup\BorgExecutor;
 use PhpBorg\Service\Backup\MountService;
@@ -153,6 +157,20 @@ final class Application
         );
     }
 
+    public function getUserRepository(): UserRepository
+    {
+        return $this->getService(UserRepository::class, fn() =>
+            new UserRepository($this->connection)
+        );
+    }
+
+    public function getRefreshTokenRepository(): RefreshTokenRepository
+    {
+        return $this->getService(RefreshTokenRepository::class, fn() =>
+            new RefreshTokenRepository($this->connection)
+        );
+    }
+
     // Services
 
     public function getSshExecutor(): SshExecutor
@@ -264,6 +282,25 @@ final class Application
     {
         return $this->getService(SetupService::class, fn() =>
             new SetupService($this->config, $this->logger)
+        );
+    }
+
+    public function getJWTService(): JWTService
+    {
+        return $this->getService(JWTService::class, fn() =>
+            new JWTService($this->config)
+        );
+    }
+
+    public function getAuthService(): AuthService
+    {
+        return $this->getService(AuthService::class, fn() =>
+            new AuthService(
+                $this->getUserRepository(),
+                $this->getRefreshTokenRepository(),
+                $this->getJWTService(),
+                $this->logger
+            )
         );
     }
 
