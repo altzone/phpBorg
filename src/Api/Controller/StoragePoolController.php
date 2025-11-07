@@ -269,4 +269,140 @@ class StoragePoolController extends BaseController
             $this->error($e->getMessage(), 500, 'STORAGE_POOL_DELETE_ERROR');
         }
     }
+
+    /**
+     * POST /api/storage-pools/analyze
+     * Analyze a filesystem path
+     */
+    public function analyzePath(): void
+    {
+        try {
+            $currentUser = $_SERVER['USER'] ?? null;
+            if (!$currentUser) {
+                $this->error('Authentication required', 401, 'UNAUTHORIZED');
+                return;
+            }
+
+            $data = $this->getJsonBody();
+
+            // Validate path
+            if (empty($data['path'])) {
+                $this->error('Path is required', 400, 'MISSING_PATH');
+                return;
+            }
+
+            $path = $data['path'];
+
+            // Check if path exists
+            if (!file_exists($path)) {
+                $this->error('Path does not exist', 400, 'PATH_NOT_FOUND');
+                return;
+            }
+
+            if (!is_dir($path)) {
+                $this->error('Path must be a directory', 400, 'NOT_A_DIRECTORY');
+                return;
+            }
+
+            // Analyze the filesystem
+            $analysisData = $this->analyzeFilesystem($path);
+
+            $this->success(['analysis' => $analysisData], 'Filesystem analyzed successfully');
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'ANALYSIS_ERROR');
+        } catch (\Exception $e) {
+            $this->error('Failed to analyze path: ' . $e->getMessage(), 500, 'ANALYSIS_ERROR');
+        }
+    }
+
+    /**
+     * Analyze filesystem using system commands
+     * Returns: type (nfs, local_disk, etc), filesystem, capacity, usage
+     */
+    private function analyzeFilesystem(string $path): array
+    {
+        $result = [
+            'path' => $path,
+            'type' => 'unknown',
+            'filesystem' => null,
+            'mount_point' => null,
+            'total' => null,
+            'used' => null,
+            'available' => null,
+            'usage_percent' => null,
+            'total_bytes' => null,
+            'used_bytes' => null,
+            'available_bytes' => null,
+        ];
+
+        try {
+            // Use df to get disk usage
+            $dfCommand = sprintf('df -P -B1 %s 2>&1', escapeshellarg($path));
+            exec($dfCommand, $dfOutput, $dfReturnCode);
+
+            if ($dfReturnCode === 0 && count($dfOutput) >= 2) {
+                // Parse df output (POSIX format with -P)
+                // Filesystem 1-blocks Used Available Capacity Mounted on
+                $parts = preg_split('/\s+/', $dfOutput[1]);
+
+                if (count($parts) >= 6) {
+                    $result['filesystem'] = $parts[0];
+                    $result['total_bytes'] = (int)$parts[1];
+                    $result['used_bytes'] = (int)$parts[2];
+                    $result['available_bytes'] = (int)$parts[3];
+                    $result['usage_percent'] = (int)rtrim($parts[4], '%');
+                    $result['mount_point'] = $parts[5];
+
+                    // Format human-readable sizes
+                    $result['total'] = $this->formatBytes($result['total_bytes']);
+                    $result['used'] = $this->formatBytes($result['used_bytes']);
+                    $result['available'] = $this->formatBytes($result['available_bytes']);
+                }
+            }
+
+            // Use findmnt to get filesystem type
+            $findmntCommand = sprintf('findmnt -n -o FSTYPE,SOURCE -T %s 2>&1', escapeshellarg($path));
+            exec($findmntCommand, $findmntOutput, $findmntReturnCode);
+
+            if ($findmntReturnCode === 0 && !empty($findmntOutput)) {
+                $parts = preg_split('/\s+/', $findmntOutput[0], 2);
+
+                if (count($parts) >= 1) {
+                    $fstype = $parts[0];
+                    $source = $parts[1] ?? '';
+
+                    // Determine storage type
+                    if (in_array($fstype, ['nfs', 'nfs4'])) {
+                        $result['type'] = 'nfs';
+                        $result['filesystem'] = $source; // NFS uses source as filesystem
+                    } elseif (in_array($fstype, ['ext4', 'ext3', 'xfs', 'btrfs', 'zfs'])) {
+                        $result['type'] = 'local_disk';
+                    } elseif (in_array($fstype, ['cifs', 'smb', 'smbfs'])) {
+                        $result['type'] = 'smb';
+                    } else {
+                        $result['type'] = $fstype;
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            // If commands fail, return what we have
+            error_log('Filesystem analysis failed: ' . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Format bytes to human-readable format
+     */
+    private function formatBytes(int $bytes, int $precision = 2): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+
+        for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
+            $bytes /= 1024;
+        }
+
+        return round($bytes, $precision) . ' ' . $units[$i];
+    }
 }
