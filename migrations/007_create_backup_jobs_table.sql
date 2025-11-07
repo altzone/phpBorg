@@ -39,7 +39,7 @@ SELECT
     1 as enabled,
     NOW() as created_at
 FROM `repository` r
-INNER JOIN `server` s ON r.server_id = s.id
+INNER JOIN `servers` s ON r.server_id = s.id
 WHERE NOT EXISTS (
     SELECT 1 FROM `backup_jobs` bj WHERE bj.repository_id = r.id
 );
