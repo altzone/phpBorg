@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS `backup_jobs` (
   CONSTRAINT `backup_jobs_repository_fk` FOREIGN KEY (`repository_id`) REFERENCES `repository` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci COMMENT='Scheduled backup jobs configuration';
 
--- Add index for finding jobs to execute
-CREATE INDEX `idx_jobs_to_run` ON `backup_jobs` (`enabled`, `next_run_at`);
+-- Add index for finding jobs to execute (only if not exists)
+CREATE INDEX IF NOT EXISTS `idx_jobs_to_run` ON `backup_jobs` (`enabled`, `next_run_at`);
 
 -- Add default manual job for existing repositories (optional)
 -- This ensures existing backups still work as "manual" jobs
