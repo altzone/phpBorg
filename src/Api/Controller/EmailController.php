@@ -2,19 +2,19 @@
 
 namespace PhpBorg\Api\Controller;
 
-use PhpBorg\Api\Core\Controller;
+use PhpBorg\Application;
 use PhpBorg\Repository\SettingRepository;
+use PhpBorg\Exception\PhpBorgException;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-class EmailController extends Controller
+class EmailController extends BaseController
 {
-    private SettingRepository $settingRepository;
+    private readonly SettingRepository $settingRepository;
 
-    public function __construct()
+    public function __construct(Application $app)
     {
-        parent::__construct();
-        $this->settingRepository = new SettingRepository($this->db);
+        $this->settingRepository = new SettingRepository($app->getConnection());
     }
 
     /**
@@ -25,18 +25,25 @@ class EmailController extends Controller
     public function sendTest(): void
     {
         try {
+            // Check authentication
+            $currentUser = $_SERVER['USER'] ?? null;
+            if (!$currentUser) {
+                $this->error('Authentication required', 401, 'UNAUTHORIZED');
+                return;
+            }
+
             // Get email address from request
-            $data = $this->getJsonInput();
+            $data = $this->getJsonBody();
             $toEmail = $data['to'] ?? null;
 
             if (!$toEmail) {
-                $this->jsonResponse(['error' => 'Email address is required'], 400);
+                $this->error('Email address is required', 400, 'MISSING_EMAIL');
                 return;
             }
 
             // Validate email
             if (!filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
-                $this->jsonResponse(['error' => 'Invalid email address'], 400);
+                $this->error('Invalid email address', 400, 'INVALID_EMAIL');
                 return;
             }
 
@@ -49,7 +56,7 @@ class EmailController extends Controller
 
             // Validate required settings
             if (empty($smtpSettings['smtp_host']) || empty($smtpSettings['smtp_port'])) {
-                $this->jsonResponse(['error' => 'SMTP configuration is incomplete. Please configure SMTP settings first.'], 400);
+                $this->error('SMTP configuration is incomplete. Please configure SMTP settings first.', 400, 'INCOMPLETE_SMTP_CONFIG');
                 return;
             }
 
@@ -98,21 +105,19 @@ class EmailController extends Controller
                 // Send email
                 $mail->send();
 
-                $this->jsonResponse([
-                    'success' => true,
-                    'message' => "Test email sent successfully to {$toEmail}"
-                ]);
+                $this->success(
+                    ['recipient' => $toEmail],
+                    "Test email sent successfully to {$toEmail}"
+                );
 
             } catch (Exception $e) {
-                $this->jsonResponse([
-                    'error' => 'Failed to send email: ' . $mail->ErrorInfo
-                ], 500);
+                $this->error('Failed to send email: ' . $mail->ErrorInfo, 500, 'EMAIL_SEND_FAILED');
             }
 
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'EMAIL_TEST_ERROR');
         } catch (\Exception $e) {
-            $this->jsonResponse([
-                'error' => 'An error occurred: ' . $e->getMessage()
-            ], 500);
+            $this->error('An error occurred: ' . $e->getMessage(), 500, 'EMAIL_TEST_ERROR');
         }
     }
 
