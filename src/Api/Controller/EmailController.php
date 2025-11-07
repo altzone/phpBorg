@@ -99,6 +99,7 @@ class EmailController extends BaseController
 
                 // Content
                 $mail->isHTML(true);
+                $mail->CharSet = 'UTF-8';
                 $mail->Subject = 'phpBorg - Test Email';
                 $mail->Body = $this->getTestEmailBody($fromEmail);
                 $mail->AltBody = $this->getTestEmailBodyPlain($fromEmail);
@@ -129,6 +130,8 @@ class EmailController extends BaseController
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
@@ -144,7 +147,7 @@ class EmailController extends BaseController
             <h1>phpBorg 2.0</h1>
         </div>
         <div class="content">
-            <h2 class="success">✓ Test Email Successful</h2>
+            <h2 class="success">&#x2713; Test Email Successful</h2>
             <p>This is a test email from your phpBorg backup system.</p>
             <p><strong>Configuration Details:</strong></p>
             <ul>
@@ -169,7 +172,7 @@ HTML;
         return <<<TEXT
 phpBorg 2.0 - Test Email
 
-✓ Test Email Successful
+[SUCCESS] Test Email Successful
 
 This is a test email from your phpBorg backup system.
 
