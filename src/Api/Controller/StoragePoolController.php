@@ -371,16 +371,19 @@ class StoragePoolController extends BaseController
                     $fstype = $parts[0];
                     $source = $parts[1] ?? '';
 
-                    // Determine storage type
+                    // Determine storage type and set filesystem info
                     if (in_array($fstype, ['nfs', 'nfs4'])) {
                         $result['type'] = 'nfs';
-                        $result['filesystem'] = $source; // NFS uses source as filesystem
+                        $result['filesystem'] = $source; // NFS: show network path (e.g., "192.168.1.10:/exports")
                     } elseif (in_array($fstype, ['ext4', 'ext3', 'xfs', 'btrfs', 'zfs'])) {
                         $result['type'] = 'local_disk';
+                        $result['filesystem'] = $fstype; // Local disk: show filesystem type (e.g., "ext4", "xfs")
                     } elseif (in_array($fstype, ['cifs', 'smb', 'smbfs'])) {
                         $result['type'] = 'smb';
+                        $result['filesystem'] = $source; // SMB: show network path (e.g., "//server/share")
                     } else {
                         $result['type'] = $fstype;
+                        $result['filesystem'] = $fstype; // Unknown: show filesystem type
                     }
                 }
             }
