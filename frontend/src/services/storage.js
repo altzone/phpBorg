@@ -11,6 +11,11 @@ export const storageService = {
     return response.data.data
   },
 
+  async analyzePath(path) {
+    const response = await api.post('/storage-pools/analyze', { path })
+    return response.data.data
+  },
+
   async createStoragePool(poolData) {
     const response = await api.post('/storage-pools', poolData)
     return response.data.data

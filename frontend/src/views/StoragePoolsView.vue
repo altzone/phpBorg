@@ -160,9 +160,66 @@
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Path *</label>
-              <input v-model="storageForm.path" type="text" class="input w-full" placeholder="/backup/pool2" required />
+              <div class="flex gap-2">
+                <input v-model="storageForm.path" type="text" class="input flex-1" placeholder="/backup/pool2" required />
+                <button
+                  type="button"
+                  @click="analyzePath"
+                  class="btn btn-secondary whitespace-nowrap"
+                  :disabled="!storageForm.path || analyzingPath"
+                >
+                  <span v-if="analyzingPath">Analyzing...</span>
+                  <span v-else>Analyze Path</span>
+                </button>
+              </div>
               <p class="text-xs text-gray-500 mt-1">Absolute path where repositories will be stored</p>
             </div>
+
+            <!-- Path Analysis Results -->
+            <div v-if="pathAnalysis" class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <h4 class="text-sm font-semibold text-blue-900 mb-2">📊 Path Analysis</h4>
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span class="text-blue-700 font-medium">Type:</span>
+                  <span class="ml-1 text-blue-900">{{ getStorageTypeLabel(pathAnalysis.type) }}</span>
+                </div>
+                <div>
+                  <span class="text-blue-700 font-medium">Filesystem:</span>
+                  <span class="ml-1 text-blue-900 font-mono">{{ pathAnalysis.filesystem || 'N/A' }}</span>
+                </div>
+                <div>
+                  <span class="text-blue-700 font-medium">Total:</span>
+                  <span class="ml-1 text-blue-900">{{ pathAnalysis.total || 'N/A' }}</span>
+                </div>
+                <div>
+                  <span class="text-blue-700 font-medium">Available:</span>
+                  <span class="ml-1 text-blue-900">{{ pathAnalysis.available || 'N/A' }}</span>
+                </div>
+                <div>
+                  <span class="text-blue-700 font-medium">Used:</span>
+                  <span class="ml-1 text-blue-900">{{ pathAnalysis.used || 'N/A' }}</span>
+                </div>
+                <div>
+                  <span class="text-blue-700 font-medium">Usage:</span>
+                  <span :class="[
+                    'ml-1 font-semibold',
+                    pathAnalysis.usage_percent >= 90 ? 'text-red-700' :
+                    pathAnalysis.usage_percent >= 75 ? 'text-yellow-700' : 'text-green-700'
+                  ]">
+                    {{ pathAnalysis.usage_percent }}%
+                  </span>
+                </div>
+              </div>
+              <button
+                v-if="pathAnalysis.total_bytes"
+                type="button"
+                @click="applyAnalysisCapacity"
+                class="mt-2 text-xs text-blue-700 hover:text-blue-900 font-medium"
+              >
+                → Apply detected capacity ({{ pathAnalysis.total }})
+              </button>
+            </div>
+
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
               <textarea v-model="storageForm.description" class="input w-full" rows="2" placeholder="Optional description"></textarea>
@@ -170,7 +227,7 @@
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Total Capacity (GB)</label>
               <input v-model.number="storageForm.capacity_gb" type="number" class="input w-full" placeholder="1000" />
-              <p class="text-xs text-gray-500 mt-1">Leave empty if capacity is unknown or unlimited</p>
+              <p class="text-xs text-gray-500 mt-1">Leave empty to auto-detect from filesystem, or enter manually</p>
             </div>
             <div class="flex items-center space-x-4">
               <div class="flex items-center">
@@ -201,11 +258,14 @@
 <script setup>
 import { ref, onMounted, reactive } from 'vue'
 import { useStorageStore } from '@/stores/storage'
+import { storageService } from '@/services/storage'
 
 const storageStore = useStorageStore()
 
 const showStorageModal = ref(false)
 const editingPool = ref(null)
+const analyzingPath = ref(false)
+const pathAnalysis = ref(null)
 
 const storageForm = reactive({
   name: '',
@@ -246,11 +306,51 @@ function openStorageModal(pool = null) {
     storageForm.default_pool = false
   }
   showStorageModal.value = true
+  pathAnalysis.value = null
 }
 
 function closeStorageModal() {
   showStorageModal.value = false
   editingPool.value = null
+  pathAnalysis.value = null
+}
+
+async function analyzePath() {
+  if (!storageForm.path) return
+
+  analyzingPath.value = true
+  try {
+    const result = await storageService.analyzePath(storageForm.path)
+    pathAnalysis.value = result
+
+    // Auto-suggest name based on path if creating new pool
+    if (!editingPool.value && !storageForm.name && result.mount_point) {
+      const pathParts = storageForm.path.split('/').filter(Boolean)
+      storageForm.name = pathParts[pathParts.length - 1] || 'Storage Pool'
+    }
+
+  } catch (error) {
+    alert(error.response?.data?.error || 'Failed to analyze path. Please check if the path exists and is accessible.')
+    pathAnalysis.value = null
+  } finally {
+    analyzingPath.value = false
+  }
+}
+
+function applyAnalysisCapacity() {
+  if (pathAnalysis.value?.total_bytes) {
+    storageForm.capacity_gb = Math.round(pathAnalysis.value.total_bytes / (1024 * 1024 * 1024))
+  }
+}
+
+function getStorageTypeLabel(type) {
+  const labels = {
+    nfs: '🌐 NFS Network Share',
+    smb: '🌐 SMB/CIFS Share',
+    local_disk: '💾 Local Disk',
+    unknown: '❓ Unknown'
+  }
+  return labels[type] || `📁 ${type}`
 }
 
 async function saveStoragePool() {

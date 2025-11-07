@@ -114,6 +114,7 @@ try {
     // Storage Pool Routes (Protected)
     // ===========================================
     $router->get('/storage-pools', StoragePoolController::class, 'list', requireAuth: true);
+    $router->post('/storage-pools/analyze', StoragePoolController::class, 'analyzePath', requireAuth: true);
     $router->get('/storage-pools/:id', StoragePoolController::class, 'show', requireAuth: true);
     $router->post('/storage-pools', StoragePoolController::class, 'create', requireAuth: true);
     $router->put('/storage-pools/:id', StoragePoolController::class, 'update', requireAuth: true);
