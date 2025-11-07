@@ -94,7 +94,16 @@ class ServerController extends BaseController
                     'type' => $repo->type,
                     'repo_path' => $repo->repoPath,
                     'compression' => $repo->compression,
-                    'created_at' => $repo->createdAt?->format('Y-m-d H:i:s'),
+                    'encryption' => $repo->encryption,
+                    // Retention policy
+                    'retention' => [
+                        'keep_daily' => $repo->keepDaily,
+                        'keep_weekly' => $repo->keepWeekly,
+                        'keep_monthly' => $repo->keepMonthly,
+                        'keep_yearly' => $repo->keepYearly,
+                    ],
+                    'modified' => $repo->modified->format('Y-m-d H:i:s'),
+                    'created_at' => $repo->modified->format('Y-m-d H:i:s'),
                 ], $repositories),
             ]);
         } catch (PhpBorgException $e) {
