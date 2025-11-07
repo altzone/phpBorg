@@ -200,7 +200,7 @@ final class BorgExecutor
     }
 
     /**
-     * Prune old archives
+     * Prune old archives according to retention policy
      *
      * @return array{stdout: string, stderr: string, exitCode: int}
      * @throws BackupException
@@ -210,22 +210,29 @@ final class BorgExecutor
         string $passphrase,
         int $keepDaily,
         int $keepWeekly = 4,
-        int $keepMonthly = 6
+        int $keepMonthly = 6,
+        int $keepYearly = 0
     ): array {
-        return $this->execute(
-            [
-                'prune',
-                '--list',
-                '--stats',
-                '--save-space',
-                '--keep-daily', (string)$keepDaily,
-                '--keep-weekly', (string)$keepWeekly,
-                '--keep-monthly', (string)$keepMonthly,
-                $repository,
-            ],
-            $passphrase,
-            1800
-        );
+        $arguments = [
+            'prune',
+            '--list',
+            '--stats',
+            '--save-space',
+            '--force', // Don't ask for confirmation
+            '--keep-daily', (string)$keepDaily,
+            '--keep-weekly', (string)$keepWeekly,
+            '--keep-monthly', (string)$keepMonthly,
+        ];
+
+        // Only add --keep-yearly if > 0
+        if ($keepYearly > 0) {
+            $arguments[] = '--keep-yearly';
+            $arguments[] = (string)$keepYearly;
+        }
+
+        $arguments[] = $repository;
+
+        return $this->execute($arguments, $passphrase, 1800);
     }
 
     /**

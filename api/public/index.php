@@ -14,6 +14,7 @@ use PhpBorg\Api\Router;
 use PhpBorg\Api\Controller\AuthController;
 use PhpBorg\Api\Controller\BackupController;
 use PhpBorg\Api\Controller\JobController;
+use PhpBorg\Api\Controller\RepositoryController;
 use PhpBorg\Api\Controller\ServerController;
 
 try {
@@ -64,6 +65,13 @@ try {
     $router->post('/backups', BackupController::class, 'create', requireAuth: true);
     $router->get('/backups/:id', BackupController::class, 'show', requireAuth: true);
     $router->delete('/backups/:id', BackupController::class, 'delete', requireAuth: true);
+
+    // ===========================================
+    // Repository Routes (Protected)
+    // ===========================================
+    $router->get('/repositories', RepositoryController::class, 'list', requireAuth: true);
+    $router->get('/repositories/:id', RepositoryController::class, 'show', requireAuth: true);
+    $router->put('/repositories/:id/retention', RepositoryController::class, 'updateRetention', requireAuth: true);
 
     // ===========================================
     // Future Routes (To be implemented)

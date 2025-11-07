@@ -247,24 +247,41 @@ final class BackupService
      */
     public function pruneArchives(BorgRepository $repository, string $serverName): void
     {
-        $this->logger->info("Pruning archives (retention: {$repository->retention} days)", $serverName);
+        $this->logger->info(
+            "Pruning archives (keep: {$repository->keepDaily}d, {$repository->keepWeekly}w, " .
+            "{$repository->keepMonthly}m, {$repository->keepYearly}y)",
+            $serverName
+        );
 
         $result = $this->borgExecutor->pruneArchives(
             $repository->repoPath,
             $repository->passphrase,
-            $repository->retention
+            $repository->keepDaily,
+            $repository->keepWeekly,
+            $repository->keepMonthly,
+            $repository->keepYearly
         );
 
         if ($result['exitCode'] === 0) {
             // Parse output to find deleted archives
             $lines = explode("\n", $result['stderr']);
+            $deletedCount = 0;
             foreach ($lines as $line) {
                 if (preg_match('/Pruning archive\s+.*\[(.*?)\]/', $line, $matches)) {
                     $archiveId = $matches[1];
                     $this->archiveRepo->deleteByArchiveId($archiveId);
                     $this->logger->info("Removed old archive: {$archiveId}", $serverName);
+                    $deletedCount++;
                 }
             }
+
+            if ($deletedCount > 0) {
+                $this->logger->info("Pruned {$deletedCount} archives", $serverName);
+            } else {
+                $this->logger->info("No archives to prune - all within retention policy", $serverName);
+            }
+        } else {
+            $this->logger->error("Prune failed: {$result['stderr']}", $serverName);
         }
     }
 
