@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import api from '../api/axios'
+import { repositoryService } from '@/services/repository'
 
 export const useRepositoryStore = defineStore('repository', () => {
   const repositories = ref([])
@@ -15,8 +15,8 @@ export const useRepositoryStore = defineStore('repository', () => {
     error.value = null
 
     try {
-      const response = await api.get('/repositories')
-      repositories.value = response.data.data || []
+      const data = await repositoryService.getRepositories()
+      repositories.value = data || []
       return repositories.value
     } catch (err) {
       error.value = err.response?.data?.error?.message || 'Failed to fetch repositories'
@@ -35,8 +35,8 @@ export const useRepositoryStore = defineStore('repository', () => {
     error.value = null
 
     try {
-      const response = await api.get(`/repositories/${id}`)
-      return response.data.data
+      const data = await repositoryService.getRepository(id)
+      return data
     } catch (err) {
       error.value = err.response?.data?.error?.message || 'Failed to fetch repository'
       console.error('Error fetching repository:', err)
@@ -54,15 +54,15 @@ export const useRepositoryStore = defineStore('repository', () => {
     error.value = null
 
     try {
-      const response = await api.put(`/repositories/${id}/retention`, retention)
+      const data = await repositoryService.updateRetention(id, retention)
 
       // Update local cache
       const index = repositories.value.findIndex(r => r.id === id)
       if (index !== -1) {
-        repositories.value[index].retention = response.data.data.retention
+        repositories.value[index].retention = data.retention
       }
 
-      return response.data.data
+      return data
     } catch (err) {
       error.value = err.response?.data?.error?.message || 'Failed to update retention policy'
       console.error('Error updating retention:', err)
