@@ -294,18 +294,22 @@ const totalPeriods = computed(() => {
          (form.value.keep_yearly > 0 ? 1 : 0)
 })
 
-// Watch for modal open and reset form
-watch(() => props.isOpen, (isOpen) => {
-  if (isOpen && props.repository.retention) {
-    form.value = {
-      keep_daily: props.repository.retention.keep_daily || 0,
-      keep_weekly: props.repository.retention.keep_weekly || 0,
-      keep_monthly: props.repository.retention.keep_monthly || 0,
-      keep_yearly: props.repository.retention.keep_yearly || 0
+// Watch for modal open and repository changes - populate form with current values
+watch(
+  [() => props.isOpen, () => props.repository],
+  ([isOpen, repository]) => {
+    if (isOpen && repository?.retention) {
+      form.value = {
+        keep_daily: repository.retention.keep_daily || 0,
+        keep_weekly: repository.retention.keep_weekly || 0,
+        keep_monthly: repository.retention.keep_monthly || 0,
+        keep_yearly: repository.retention.keep_yearly || 0
+      }
+      errorMessage.value = null
     }
-    errorMessage.value = null
-  }
-})
+  },
+  { immediate: true }
+)
 
 function closeModal() {
   emit('close')
