@@ -51,7 +51,7 @@ class EmailController extends BaseController
             $settings = $this->settingRepository->findByCategory('email');
             $smtpSettings = [];
             foreach ($settings as $setting) {
-                $smtpSettings[$setting->getKey()] = $setting->getTypedValue();
+                $smtpSettings[$setting->key] = $setting->getTypedValue();
             }
 
             // Validate required settings
