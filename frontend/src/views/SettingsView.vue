@@ -271,112 +271,6 @@
             </div>
           </form>
         </div>
-
-        <!-- Storage Pools -->
-        <div v-show="activeTab === 'storage'">
-          <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-semibold text-gray-900">Storage Pools</h3>
-            <button @click="openStorageModal()" class="btn btn-primary">
-              + Add Storage Pool
-            </button>
-          </div>
-
-          <div v-if="storageStore.storagePools.length === 0" class="text-center py-12 text-gray-500">
-            <p>No storage pools configured</p>
-          </div>
-
-          <div v-else class="space-y-3">
-            <div
-              v-for="pool in storageStore.storagePools"
-              :key="pool.id"
-              class="p-4 border rounded-lg hover:bg-gray-50"
-            >
-              <div class="flex justify-between items-start">
-                <div class="flex-1">
-                  <div class="flex items-center gap-2 mb-2">
-                    <h4 class="font-medium text-gray-900">{{ pool.name }}</h4>
-                    <span v-if="pool.default_pool" class="px-2 py-0.5 text-xs bg-primary-100 text-primary-700 rounded">Default</span>
-                    <span v-if="!pool.active" class="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded">Inactive</span>
-                  </div>
-                  <p class="text-sm text-gray-600 font-mono mb-2">{{ pool.path }}</p>
-                  <div class="flex items-center gap-4 text-sm">
-                    <span class="text-gray-600">
-                      <strong>{{ pool.repository_count }}</strong> repositories
-                    </span>
-                    <span v-if="pool.usage_percentage !== null" class="text-gray-600">
-                      Usage: <strong>{{ pool.usage_percentage }}%</strong>
-                    </span>
-                  </div>
-                </div>
-                <div class="flex gap-2">
-                  <button @click="openStorageModal(pool)" class="text-sm text-primary-600 hover:text-primary-700">
-                    Edit
-                  </button>
-                  <button @click="deleteStoragePool(pool)" class="text-sm text-red-600 hover:text-red-700" :disabled="pool.in_use">
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Storage Pool Modal -->
-    <div v-if="showStorageModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="closeStorageModal">
-      <div class="relative top-20 mx-auto p-5 border w-[600px] shadow-lg rounded-md bg-white">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-medium text-gray-900">
-            {{ editingPool ? 'Edit Storage Pool' : 'Add Storage Pool' }}
-          </h3>
-          <button @click="closeStorageModal" class="text-gray-400 hover:text-gray-500">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <form @submit.prevent="saveStoragePool">
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Name *</label>
-              <input v-model="storageForm.name" type="text" class="input w-full" required />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Path *</label>
-              <input v-model="storageForm.path" type="text" class="input w-full" placeholder="/backup/pool2" required />
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
-              <textarea v-model="storageForm.description" class="input w-full" rows="2"></textarea>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Total Capacity (GB)</label>
-              <input v-model.number="storageForm.capacity_gb" type="number" class="input w-full" placeholder="1000" />
-              <p class="text-xs text-gray-500 mt-1">Leave empty if unknown</p>
-            </div>
-            <div class="flex items-center space-x-4">
-              <div class="flex items-center">
-                <input v-model="storageForm.active" type="checkbox" class="mr-2" />
-                <label class="text-sm font-medium text-gray-700">Active</label>
-              </div>
-              <div class="flex items-center">
-                <input v-model="storageForm.default_pool" type="checkbox" class="mr-2" />
-                <label class="text-sm font-medium text-gray-700">Set as Default</label>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex gap-3 mt-6">
-            <button type="button" @click="closeStorageModal" class="btn btn-secondary flex-1">
-              Cancel
-            </button>
-            <button type="submit" class="btn btn-primary flex-1" :disabled="storageStore.loading">
-              {{ editingPool ? 'Update' : 'Create' }}
-            </button>
-          </div>
-        </form>
       </div>
     </div>
 
@@ -433,15 +327,11 @@
 <script setup>
 import { ref, onMounted, reactive } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
-import { useStorageStore } from '@/stores/storage'
 import { emailService } from '@/services/email'
 
 const settingsStore = useSettingsStore()
-const storageStore = useStorageStore()
 
 const activeTab = ref('general')
-const showStorageModal = ref(false)
-const editingPool = ref(null)
 
 // Test Email Modal
 const showTestEmailModal = ref(false)
@@ -459,7 +349,6 @@ const tabs = [
   { id: 'borg', label: 'Borg' },
   { id: 'security', label: 'Security' },
   { id: 'network', label: 'Network' },
-  { id: 'storage', label: 'Storage Pools' },
 ]
 
 const generalForm = reactive({})
@@ -468,20 +357,9 @@ const backupForm = reactive({})
 const borgForm = reactive({})
 const securityForm = reactive({})
 const networkForm = reactive({})
-const storageForm = reactive({
-  name: '',
-  path: '',
-  description: '',
-  capacity_gb: null,
-  active: true,
-  default_pool: false,
-})
 
 onMounted(async () => {
-  await Promise.all([
-    settingsStore.fetchSettings(),
-    storageStore.fetchStoragePools()
-  ])
+  await settingsStore.fetchSettings()
   loadForms()
 })
 
@@ -515,66 +393,6 @@ async function saveSettings(category) {
 
     await settingsStore.updateCategorySettings(category, formData)
     alert('Settings saved successfully!')
-  } catch (err) {
-    // Error handled by store
-  }
-}
-
-function openStorageModal(pool = null) {
-  editingPool.value = pool
-  if (pool) {
-    storageForm.name = pool.name
-    storageForm.path = pool.path
-    storageForm.description = pool.description
-    storageForm.capacity_gb = pool.capacity_total ? Math.round(pool.capacity_total / (1024 * 1024 * 1024)) : null
-    storageForm.active = pool.active
-    storageForm.default_pool = pool.default_pool
-  } else {
-    storageForm.name = ''
-    storageForm.path = ''
-    storageForm.description = ''
-    storageForm.capacity_gb = null
-    storageForm.active = true
-    storageForm.default_pool = false
-  }
-  showStorageModal.value = true
-}
-
-function closeStorageModal() {
-  showStorageModal.value = false
-  editingPool.value = null
-}
-
-async function saveStoragePool() {
-  try {
-    const data = {
-      name: storageForm.name,
-      path: storageForm.path,
-      description: storageForm.description,
-      capacity_total: storageForm.capacity_gb ? storageForm.capacity_gb * 1024 * 1024 * 1024 : null,
-      active: storageForm.active,
-      default_pool: storageForm.default_pool,
-    }
-
-    if (editingPool.value) {
-      await storageStore.updateStoragePool(editingPool.value.id, data)
-    } else {
-      await storageStore.createStoragePool(data)
-    }
-
-    closeStorageModal()
-  } catch (err) {
-    // Error handled by store
-  }
-}
-
-async function deleteStoragePool(pool) {
-  if (!confirm(`Delete storage pool "${pool.name}"?`)) {
-    return
-  }
-
-  try {
-    await storageStore.deleteStoragePool(pool.id)
   } catch (err) {
     // Error handled by store
   }

@@ -42,6 +42,13 @@
                 Jobs
               </RouterLink>
               <RouterLink
+                to="/storage-pools"
+                class="nav-link"
+                :class="{ 'nav-link-active': $route.name === 'storage-pools' }"
+              >
+                Storage Pools
+              </RouterLink>
+              <RouterLink
                 v-if="authStore.isAdmin"
                 to="/users"
                 class="nav-link"
