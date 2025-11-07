@@ -120,14 +120,22 @@ class StoragePoolController extends BaseController
                 return;
             }
 
-            // Create storage pool
+            // Analyze filesystem automatically
+            $analysis = $this->analyzeFilesystem($data['path']);
+
+            // Create storage pool with analysis data
             $poolId = $this->storagePoolRepository->create(
                 name: $data['name'],
                 path: $data['path'],
                 description: $data['description'] ?? null,
-                capacityTotal: isset($data['capacity_total']) ? (int)$data['capacity_total'] : null,
+                capacityTotal: isset($data['capacity_total']) ? (int)$data['capacity_total'] : ($analysis['total_bytes'] ?? null),
                 active: $data['active'] ?? true,
-                defaultPool: $data['default_pool'] ?? false
+                defaultPool: $data['default_pool'] ?? false,
+                filesystemType: $analysis['filesystem'] ?? null,
+                storageType: $analysis['type'] ?? null,
+                mountPoint: $analysis['mount_point'] ?? null,
+                availableBytes: $analysis['available_bytes'] ?? null,
+                usagePercent: $analysis['usage_percent'] ?? null
             );
 
             // Get created pool
@@ -192,15 +200,24 @@ class StoragePoolController extends BaseController
                 }
             }
 
-            // Update storage pool
+            // Analyze filesystem (for new path or to refresh data)
+            $pathToAnalyze = $data['path'] ?? $pool->path;
+            $analysis = $this->analyzeFilesystem($pathToAnalyze);
+
+            // Update storage pool with analysis data
             $this->storagePoolRepository->update(
                 id: $poolId,
                 name: $data['name'] ?? $pool->name,
                 path: $data['path'] ?? $pool->path,
                 description: $data['description'] ?? $pool->description,
-                capacityTotal: isset($data['capacity_total']) ? (int)$data['capacity_total'] : $pool->capacityTotal,
+                capacityTotal: isset($data['capacity_total']) ? (int)$data['capacity_total'] : ($analysis['total_bytes'] ?? $pool->capacityTotal),
                 active: isset($data['active']) ? (bool)$data['active'] : $pool->active,
-                defaultPool: isset($data['default_pool']) ? (bool)$data['default_pool'] : $pool->defaultPool
+                defaultPool: isset($data['default_pool']) ? (bool)$data['default_pool'] : $pool->defaultPool,
+                filesystemType: $analysis['filesystem'] ?? $pool->filesystemType,
+                storageType: $analysis['type'] ?? $pool->storageType,
+                mountPoint: $analysis['mount_point'] ?? $pool->mountPoint,
+                availableBytes: $analysis['available_bytes'] ?? $pool->availableBytes,
+                usagePercent: $analysis['usage_percent'] ?? $pool->usagePercent
             );
 
             // Get updated pool

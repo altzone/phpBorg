@@ -80,13 +80,58 @@
         <p v-if="pool.description" class="text-sm text-gray-600 mb-3">{{ pool.description }}</p>
         <p class="text-sm text-gray-600 font-mono mb-3 bg-gray-50 p-2 rounded">{{ pool.path }}</p>
 
+        <!-- Filesystem Info -->
+        <div v-if="pool.storage_type || pool.filesystem_type" class="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+          <div class="flex items-center gap-2 text-blue-800">
+            <span v-if="pool.storage_type">{{ getStorageTypeLabel(pool.storage_type) }}</span>
+            <span v-if="pool.filesystem_type" class="text-blue-600">• {{ pool.filesystem_type }}</span>
+            <span v-if="pool.mount_point" class="text-blue-600">• {{ pool.mount_point }}</span>
+          </div>
+          <div v-if="pool.last_analyzed_at" class="text-blue-600 mt-1">
+            Last analyzed: {{ formatDate(pool.last_analyzed_at) }}
+          </div>
+        </div>
+
         <div class="space-y-2 mb-4">
           <div class="flex justify-between text-sm">
             <span class="text-gray-600">Repositories:</span>
             <span class="font-semibold text-gray-900">{{ pool.repository_count || 0 }}</span>
           </div>
 
-          <div v-if="pool.capacity_total" class="space-y-1">
+          <!-- Live Storage Usage -->
+          <div v-if="pool.usage_percent !== null && pool.usage_percent !== undefined" class="space-y-1">
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-600">Storage:</span>
+              <span class="font-semibold text-gray-900">
+                <span v-if="pool.available_bytes">{{ formatBytes(pool.capacity_total - pool.available_bytes) }} / {{ formatBytes(pool.capacity_total) }}</span>
+                <span v-else>{{ pool.usage_percent }}% used</span>
+              </span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+              <div
+                :class="[
+                  'h-2.5 rounded-full transition-all',
+                  pool.usage_percent >= 90 ? 'bg-red-600' :
+                  pool.usage_percent >= 75 ? 'bg-yellow-600' : 'bg-green-600'
+                ]"
+                :style="{ width: `${Math.min(pool.usage_percent || 0, 100)}%` }"
+              ></div>
+            </div>
+            <div class="flex justify-between text-xs">
+              <span :class="[
+                'font-medium',
+                pool.usage_percent >= 90 ? 'text-red-700' :
+                pool.usage_percent >= 75 ? 'text-yellow-700' : 'text-green-700'
+              ]">
+                {{ pool.usage_percent }}% used
+              </span>
+              <span v-if="pool.available_bytes" class="text-gray-600">
+                {{ formatBytes(pool.available_bytes) }} free
+              </span>
+            </div>
+          </div>
+          <!-- Fallback to old capacity display if no usage_percent -->
+          <div v-else-if="pool.capacity_total" class="space-y-1">
             <div class="flex justify-between text-sm">
               <span class="text-gray-600">Storage Used:</span>
               <span class="font-semibold text-gray-900">
@@ -352,6 +397,23 @@ function getStorageTypeLabel(type) {
     unknown: '❓ Unknown'
   }
   return labels[type] || `📁 ${type}`
+}
+
+function formatDate(dateString) {
+  if (!dateString) return 'Never'
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMins < 1) return 'Just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays < 7) return `${diffDays}d ago`
+
+  return date.toLocaleDateString()
 }
 
 async function saveStoragePool() {

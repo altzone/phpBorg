@@ -88,7 +88,12 @@ final class StoragePoolRepository
         ?string $description = null,
         ?int $capacityTotal = null,
         bool $active = true,
-        bool $defaultPool = false
+        bool $defaultPool = false,
+        ?string $filesystemType = null,
+        ?string $storageType = null,
+        ?string $mountPoint = null,
+        ?int $availableBytes = null,
+        ?int $usagePercent = null
     ): int {
         // If setting as default, unset other default pools
         if ($defaultPool) {
@@ -97,10 +102,19 @@ final class StoragePoolRepository
             );
         }
 
+        $lastAnalyzedAt = ($filesystemType || $storageType) ? 'NOW()' : 'NULL';
+
         $this->connection->executeUpdate(
-            'INSERT INTO storage_pools (name, path, description, capacity_total, capacity_used, active, default_pool, created_at)
-             VALUES (?, ?, ?, ?, 0, ?, ?, NOW())',
-            [$name, $path, $description, $capacityTotal, $active ? 1 : 0, $defaultPool ? 1 : 0]
+            "INSERT INTO storage_pools (
+                name, path, description, capacity_total, capacity_used,
+                filesystem_type, storage_type, mount_point, available_bytes, usage_percent, last_analyzed_at,
+                active, default_pool, created_at
+            ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, $lastAnalyzedAt, ?, ?, NOW())",
+            [
+                $name, $path, $description, $capacityTotal,
+                $filesystemType, $storageType, $mountPoint, $availableBytes, $usagePercent,
+                $active ? 1 : 0, $defaultPool ? 1 : 0
+            ]
         );
 
         return $this->connection->getLastInsertId();
@@ -118,7 +132,12 @@ final class StoragePoolRepository
         ?string $description,
         ?int $capacityTotal,
         bool $active,
-        bool $defaultPool
+        bool $defaultPool,
+        ?string $filesystemType = null,
+        ?string $storageType = null,
+        ?string $mountPoint = null,
+        ?int $availableBytes = null,
+        ?int $usagePercent = null
     ): void {
         // If setting as default, unset other default pools
         if ($defaultPool) {
@@ -128,11 +147,19 @@ final class StoragePoolRepository
             );
         }
 
+        $lastAnalyzedAt = ($filesystemType || $storageType) ? ', last_analyzed_at = NOW()' : '';
+
         $this->connection->executeUpdate(
-            'UPDATE storage_pools
-             SET name = ?, path = ?, description = ?, capacity_total = ?, active = ?, default_pool = ?, updated_at = NOW()
-             WHERE id = ?',
-            [$name, $path, $description, $capacityTotal, $active ? 1 : 0, $defaultPool ? 1 : 0, $id]
+            "UPDATE storage_pools
+             SET name = ?, path = ?, description = ?, capacity_total = ?,
+                 filesystem_type = ?, storage_type = ?, mount_point = ?, available_bytes = ?, usage_percent = ?$lastAnalyzedAt,
+                 active = ?, default_pool = ?, updated_at = NOW()
+             WHERE id = ?",
+            [
+                $name, $path, $description, $capacityTotal,
+                $filesystemType, $storageType, $mountPoint, $availableBytes, $usagePercent,
+                $active ? 1 : 0, $defaultPool ? 1 : 0, $id
+            ]
         );
     }
 
