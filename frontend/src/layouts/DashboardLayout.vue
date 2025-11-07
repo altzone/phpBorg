@@ -43,6 +43,22 @@
               </RouterLink>
               <RouterLink
                 v-if="authStore.isAdmin"
+                to="/users"
+                class="nav-link"
+                :class="{ 'nav-link-active': $route.name === 'users' }"
+              >
+                Users
+              </RouterLink>
+              <RouterLink
+                v-if="authStore.isAdmin"
+                to="/roles"
+                class="nav-link"
+                :class="{ 'nav-link-active': $route.name === 'roles' }"
+              >
+                Roles
+              </RouterLink>
+              <RouterLink
+                v-if="authStore.isAdmin"
                 to="/settings"
                 class="nav-link"
                 :class="{ 'nav-link-active': $route.name === 'settings' }"
