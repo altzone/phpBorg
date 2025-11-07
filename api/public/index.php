@@ -14,6 +14,7 @@ use PhpBorg\Api\Router;
 use PhpBorg\Api\Controller\AuthController;
 use PhpBorg\Api\Controller\BackupController;
 use PhpBorg\Api\Controller\DashboardController;
+use PhpBorg\Api\Controller\EmailController;
 use PhpBorg\Api\Controller\JobController;
 use PhpBorg\Api\Controller\RepositoryController;
 use PhpBorg\Api\Controller\RoleController;
@@ -117,6 +118,11 @@ try {
     $router->post('/storage-pools', StoragePoolController::class, 'create', requireAuth: true);
     $router->put('/storage-pools/:id', StoragePoolController::class, 'update', requireAuth: true);
     $router->delete('/storage-pools/:id', StoragePoolController::class, 'delete', requireAuth: true);
+
+    // ===========================================
+    // Email Routes (Protected)
+    // ===========================================
+    $router->post('/email/test', EmailController::class, 'sendTest', requireAuth: true);
 
     // ===========================================
     // Future Routes (To be implemented)

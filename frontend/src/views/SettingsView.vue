@@ -119,7 +119,13 @@
                 <input v-model="emailForm['smtp.from_name']" type="text" class="input w-full" />
               </div>
             </div>
-            <div class="flex justify-end">
+            <div class="flex justify-end space-x-3">
+              <button type="button" @click="openTestEmailModal" class="btn btn-secondary" :disabled="settingsStore.loading">
+                <svg class="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Test Email
+              </button>
               <button type="submit" class="btn btn-primary" :disabled="settingsStore.loading">
                 Save Email Settings
               </button>
@@ -373,6 +379,54 @@
         </form>
       </div>
     </div>
+
+    <!-- Test Email Modal -->
+    <div v-if="showTestEmailModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="closeTestEmailModal">
+      <div class="relative top-20 mx-auto p-5 border w-[500px] shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-medium text-gray-900">Send Test Email</h3>
+          <button @click="closeTestEmailModal" class="text-gray-400 hover:text-gray-500">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Success/Error Message -->
+        <div v-if="testEmailMessage" :class="[
+          'mb-4 p-3 rounded-lg',
+          testEmailSuccess ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+        ]">
+          <p class="text-sm">{{ testEmailMessage }}</p>
+        </div>
+
+        <form @submit.prevent="sendTestEmail">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Recipient Email *</label>
+              <input
+                v-model="testEmailForm.to"
+                type="email"
+                class="input w-full"
+                placeholder="your.email@example.com"
+                required
+              />
+              <p class="text-xs text-gray-500 mt-1">Enter the email address where you want to receive the test message</p>
+            </div>
+          </div>
+
+          <div class="flex gap-3 mt-6">
+            <button type="button" @click="closeTestEmailModal" class="btn btn-secondary flex-1">
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary flex-1" :disabled="testEmailLoading">
+              <span v-if="testEmailLoading">Sending...</span>
+              <span v-else>Send Test Email</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -380,6 +434,7 @@
 import { ref, onMounted, reactive } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useStorageStore } from '@/stores/storage'
+import { emailService } from '@/services/email'
 
 const settingsStore = useSettingsStore()
 const storageStore = useStorageStore()
@@ -387,6 +442,15 @@ const storageStore = useStorageStore()
 const activeTab = ref('general')
 const showStorageModal = ref(false)
 const editingPool = ref(null)
+
+// Test Email Modal
+const showTestEmailModal = ref(false)
+const testEmailLoading = ref(false)
+const testEmailMessage = ref('')
+const testEmailSuccess = ref(false)
+const testEmailForm = reactive({
+  to: '',
+})
 
 const tabs = [
   { id: 'general', label: 'General' },
@@ -513,6 +577,42 @@ async function deleteStoragePool(pool) {
     await storageStore.deleteStoragePool(pool.id)
   } catch (err) {
     // Error handled by store
+  }
+}
+
+function openTestEmailModal() {
+  testEmailMessage.value = ''
+  testEmailSuccess.value = false
+  testEmailForm.to = ''
+  showTestEmailModal.value = true
+}
+
+function closeTestEmailModal() {
+  showTestEmailModal.value = false
+  testEmailMessage.value = ''
+  testEmailSuccess.value = false
+  testEmailForm.to = ''
+}
+
+async function sendTestEmail() {
+  testEmailLoading.value = true
+  testEmailMessage.value = ''
+  testEmailSuccess.value = false
+
+  try {
+    const result = await emailService.sendTestEmail(testEmailForm.to)
+    testEmailSuccess.value = true
+    testEmailMessage.value = result.message || 'Test email sent successfully!'
+
+    // Auto-close modal after 3 seconds on success
+    setTimeout(() => {
+      closeTestEmailModal()
+    }, 3000)
+  } catch (error) {
+    testEmailSuccess.value = false
+    testEmailMessage.value = error.response?.data?.error || 'Failed to send test email. Please check your SMTP settings.'
+  } finally {
+    testEmailLoading.value = false
   }
 }
 </script>
