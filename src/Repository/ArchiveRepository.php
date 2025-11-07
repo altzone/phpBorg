@@ -166,4 +166,60 @@ final class ArchiveRepository
 
         return (int)($row['count'] ?? 0);
     }
+
+    /**
+     * Find recent archives by server ID
+     *
+     * @return array<int, Archive>
+     * @throws DatabaseException
+     */
+    public function findRecentByServerId(int $serverId, int $limit = 10): array
+    {
+        $rows = $this->connection->fetchAll(
+            'SELECT * FROM archives WHERE server_id = ? ORDER BY end DESC LIMIT ?',
+            [$serverId, $limit]
+        );
+
+        return array_map(fn(array $row) => Archive::fromDatabase($row), $rows);
+    }
+
+    /**
+     * Count total archives for a server
+     *
+     * @throws DatabaseException
+     */
+    public function countByServerId(int $serverId): int
+    {
+        $row = $this->connection->fetchOne(
+            'SELECT COUNT(*) as count FROM archives WHERE server_id = ?',
+            [$serverId]
+        );
+
+        return (int)($row['count'] ?? 0);
+    }
+
+    /**
+     * Get storage statistics for a server
+     *
+     * @return array{total_original_size: int, total_compressed_size: int, total_deduplicated_size: int}
+     * @throws DatabaseException
+     */
+    public function getStorageStatsByServerId(int $serverId): array
+    {
+        $row = $this->connection->fetchOne(
+            'SELECT
+                COALESCE(SUM(osize), 0) as total_original_size,
+                COALESCE(SUM(csize), 0) as total_compressed_size,
+                COALESCE(SUM(dsize), 0) as total_deduplicated_size
+             FROM archives
+             WHERE server_id = ?',
+            [$serverId]
+        );
+
+        return [
+            'total_original_size' => (int)($row['total_original_size'] ?? 0),
+            'total_compressed_size' => (int)($row['total_compressed_size'] ?? 0),
+            'total_deduplicated_size' => (int)($row['total_deduplicated_size'] ?? 0),
+        ];
+    }
 }

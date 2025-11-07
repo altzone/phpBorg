@@ -92,15 +92,15 @@
           <div class="space-y-2">
             <div class="flex justify-between">
               <span class="text-gray-600">Repositories</span>
-              <span class="font-semibold text-gray-900">{{ repositories.length }}</span>
+              <span class="font-semibold text-gray-900">{{ statistics.total_repositories }}</span>
             </div>
             <div class="flex justify-between">
               <span class="text-gray-600">Total Backups</span>
-              <span class="font-semibold text-gray-900">-</span>
+              <span class="font-semibold text-gray-900">{{ statistics.total_backups }}</span>
             </div>
             <div class="flex justify-between">
               <span class="text-gray-600">Storage Used</span>
-              <span class="font-semibold text-gray-900">-</span>
+              <span class="font-semibold text-gray-900">{{ formatBytes(statistics.storage_used) }}</span>
             </div>
           </div>
         </div>
@@ -199,9 +199,54 @@
       <!-- Recent Backups -->
       <div class="card mt-6">
         <h2 class="text-xl font-semibold text-gray-900 mb-4">Recent Backups</h2>
-        <div class="text-center py-8 text-gray-500">
-          <p>No recent backups</p>
-          <p class="text-sm mt-2">Backup management coming in Phase 5</p>
+
+        <!-- Empty State -->
+        <div v-if="recentBackups.length === 0" class="text-center py-8 text-gray-500">
+          <svg class="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+          </svg>
+          <p class="text-sm">No backups yet for this server</p>
+        </div>
+
+        <!-- Backups Table -->
+        <div v-else class="overflow-x-auto">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Archive Name</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Size</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Files</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Compression</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              <tr v-for="backup in recentBackups" :key="backup.id" class="hover:bg-gray-50">
+                <td class="px-4 py-3">
+                  <div class="text-sm font-medium text-gray-900">{{ backup.name }}</div>
+                  <div class="text-xs text-gray-500">{{ backup.archive_id.substring(0, 16) }}...</div>
+                </td>
+                <td class="px-4 py-3">
+                  <div class="text-sm text-gray-900">{{ formatDate(backup.end) }}</div>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-900">
+                  {{ backup.duration_formatted }}
+                </td>
+                <td class="px-4 py-3">
+                  <div class="text-sm text-gray-900">{{ formatBytes(backup.original_size) }}</div>
+                  <div class="text-xs text-gray-500">→ {{ formatBytes(backup.deduplicated_size) }}</div>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-900">
+                  {{ backup.files_count.toLocaleString() }}
+                </td>
+                <td class="px-4 py-3">
+                  <div class="text-sm text-gray-900">{{ backup.compression_ratio }}%</div>
+                  <div class="text-xs text-gray-500">Dedup: {{ backup.deduplication_ratio }}%</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -256,6 +301,14 @@ const selectedRepository = ref(null)
 
 const server = computed(() => serverStore.currentServer?.server)
 const repositories = computed(() => serverStore.currentServer?.repositories || [])
+const statistics = computed(() => serverStore.currentServer?.statistics || {
+  total_backups: 0,
+  total_repositories: 0,
+  storage_used: 0,
+  original_size: 0,
+  compressed_size: 0
+})
+const recentBackups = computed(() => serverStore.currentServer?.recent_backups || [])
 
 onMounted(async () => {
   const serverId = parseInt(route.params.id)
@@ -313,5 +366,13 @@ function formatDate(dateString) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
 }
 </script>

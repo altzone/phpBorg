@@ -8,6 +8,7 @@ use PhpBorg\Application;
 use PhpBorg\Exception\PhpBorgException;
 use PhpBorg\Service\Server\ServerManager;
 use PhpBorg\Service\Queue\JobQueue;
+use PhpBorg\Repository\ArchiveRepository;
 
 /**
  * Server management API controller
@@ -16,11 +17,13 @@ class ServerController extends BaseController
 {
     private readonly ServerManager $serverManager;
     private readonly JobQueue $jobQueue;
+    private readonly ArchiveRepository $archiveRepository;
 
     public function __construct(Application $app)
     {
         $this->serverManager = $app->getServerManager();
         $this->jobQueue = $app->getJobQueue();
+        $this->archiveRepository = new ArchiveRepository($app->getConnection());
     }
 
     /**
@@ -76,6 +79,13 @@ class ServerController extends BaseController
             // Get repositories for this server
             $repositories = $this->serverManager->getRepositoriesForServer($serverId);
 
+            // Get backup statistics for this server
+            $totalBackups = $this->archiveRepository->countByServerId($serverId);
+            $storageStats = $this->archiveRepository->getStorageStatsByServerId($serverId);
+
+            // Get recent backups for this server
+            $recentBackups = $this->archiveRepository->findRecentByServerId($serverId, 5);
+
             $this->success([
                 'server' => [
                     'id' => $server->id,
@@ -105,6 +115,28 @@ class ServerController extends BaseController
                     'modified' => $repo->modified->format('Y-m-d H:i:s'),
                     'created_at' => $repo->modified->format('Y-m-d H:i:s'),
                 ], $repositories),
+                'statistics' => [
+                    'total_backups' => $totalBackups,
+                    'total_repositories' => count($repositories),
+                    'storage_used' => $storageStats['total_deduplicated_size'],
+                    'original_size' => $storageStats['total_original_size'],
+                    'compressed_size' => $storageStats['total_compressed_size'],
+                ],
+                'recent_backups' => array_map(fn($archive) => [
+                    'id' => $archive->id,
+                    'name' => $archive->name,
+                    'archive_id' => $archive->archiveId,
+                    'start' => $archive->start->format('Y-m-d H:i:s'),
+                    'end' => $archive->end->format('Y-m-d H:i:s'),
+                    'duration' => $archive->duration,
+                    'duration_formatted' => $archive->getFormattedDuration(),
+                    'original_size' => $archive->originalSize,
+                    'compressed_size' => $archive->compressedSize,
+                    'deduplicated_size' => $archive->deduplicatedSize,
+                    'files_count' => $archive->filesCount,
+                    'compression_ratio' => $archive->getCompressionRatio(),
+                    'deduplication_ratio' => $archive->getDeduplicationRatio(),
+                ], $recentBackups),
             ]);
         } catch (PhpBorgException $e) {
             $this->error($e->getMessage(), 500, 'SERVER_DETAIL_ERROR');
