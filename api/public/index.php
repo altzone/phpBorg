@@ -13,6 +13,7 @@ use PhpBorg\Application;
 use PhpBorg\Api\Router;
 use PhpBorg\Api\Controller\AuthController;
 use PhpBorg\Api\Controller\BackupController;
+use PhpBorg\Api\Controller\DashboardController;
 use PhpBorg\Api\Controller\JobController;
 use PhpBorg\Api\Controller\RepositoryController;
 use PhpBorg\Api\Controller\ServerController;
@@ -74,15 +75,17 @@ try {
     $router->put('/repositories/:id/retention', RepositoryController::class, 'updateRetention', requireAuth: true);
 
     // ===========================================
+    // Dashboard Routes (Protected)
+    // ===========================================
+    $router->get('/dashboard/stats', DashboardController::class, 'stats', requireAuth: true);
+
+    // ===========================================
     // Future Routes (To be implemented)
     // ===========================================
 
     // Logs (Protected)
     // $router->get('/logs', LogController::class, 'list', true);
     // $router->get('/logs/tail', LogController::class, 'tail', true); // SSE
-
-    // Statistics (Protected)
-    // $router->get('/stats/dashboard', StatsController::class, 'dashboard', true);
 
     // Dispatch request
     $router->dispatch();
