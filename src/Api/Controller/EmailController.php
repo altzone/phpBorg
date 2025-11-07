@@ -55,8 +55,8 @@ class EmailController extends BaseController
             }
 
             // Validate required settings
-            if (empty($smtpSettings['smtp_host']) || empty($smtpSettings['smtp_port'])) {
-                $this->error('SMTP configuration is incomplete. Please configure SMTP settings first.', 400, 'INCOMPLETE_SMTP_CONFIG');
+            if (empty($smtpSettings['smtp.host']) || empty($smtpSettings['smtp.port'])) {
+                $this->error('SMTP configuration is incomplete. Please configure SMTP host and port first.', 400, 'INCOMPLETE_SMTP_CONFIG');
                 return;
             }
 
@@ -66,32 +66,33 @@ class EmailController extends BaseController
             try {
                 // Server settings
                 $mail->isSMTP();
-                $mail->Host = $smtpSettings['smtp_host'];
-                $mail->Port = (int)$smtpSettings['smtp_port'];
+                $mail->Host = $smtpSettings['smtp.host'];
+                $mail->Port = (int)$smtpSettings['smtp.port'];
 
-                // Authentication
-                if (!empty($smtpSettings['smtp_username']) && !empty($smtpSettings['smtp_password'])) {
+                // Authentication (only if username and password provided)
+                if (!empty($smtpSettings['smtp.username']) && !empty($smtpSettings['smtp.password'])) {
                     $mail->SMTPAuth = true;
-                    $mail->Username = $smtpSettings['smtp_username'];
-                    $mail->Password = $smtpSettings['smtp_password'];
+                    $mail->Username = $smtpSettings['smtp.username'];
+                    $mail->Password = $smtpSettings['smtp.password'];
                 } else {
                     $mail->SMTPAuth = false;
                 }
 
                 // Encryption
-                $encryption = $smtpSettings['smtp_encryption'] ?? 'tls';
+                $encryption = strtolower($smtpSettings['smtp.encryption'] ?? 'none');
                 if ($encryption === 'ssl') {
                     $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
                 } elseif ($encryption === 'tls') {
                     $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
                 }
+                // If encryption is 'none', we don't set SMTPSecure
 
                 // Enable verbose debug output (for logging)
                 $mail->SMTPDebug = 0; // Set to 2 for detailed debug
 
                 // Recipients
-                $fromEmail = $smtpSettings['smtp_from_email'] ?? $smtpSettings['smtp_username'] ?? 'noreply@phpborg.local';
-                $fromName = $smtpSettings['smtp_from_name'] ?? 'phpBorg';
+                $fromEmail = $smtpSettings['smtp.from_email'] ?? $smtpSettings['smtp.username'] ?? 'noreply@phpborg.local';
+                $fromName = $smtpSettings['smtp.from_name'] ?? 'phpBorg';
 
                 $mail->setFrom($fromEmail, $fromName);
                 $mail->addAddress($toEmail);
