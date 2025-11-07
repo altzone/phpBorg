@@ -321,10 +321,11 @@ async function analyzePath() {
   analyzingPath.value = true
   try {
     const result = await storageService.analyzePath(storageForm.path)
-    pathAnalysis.value = result
+    // Extract the analysis object from the nested structure
+    pathAnalysis.value = result.analysis
 
     // Auto-suggest name based on path if creating new pool
-    if (!editingPool.value && !storageForm.name && result.mount_point) {
+    if (!editingPool.value && !storageForm.name && result.analysis?.mount_point) {
       const pathParts = storageForm.path.split('/').filter(Boolean)
       storageForm.name = pathParts[pathParts.length - 1] || 'Storage Pool'
     }
