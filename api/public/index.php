@@ -16,7 +16,11 @@ use PhpBorg\Api\Controller\BackupController;
 use PhpBorg\Api\Controller\DashboardController;
 use PhpBorg\Api\Controller\JobController;
 use PhpBorg\Api\Controller\RepositoryController;
+use PhpBorg\Api\Controller\RoleController;
 use PhpBorg\Api\Controller\ServerController;
+use PhpBorg\Api\Controller\SettingsController;
+use PhpBorg\Api\Controller\StoragePoolController;
+use PhpBorg\Api\Controller\UserController;
 
 try {
     // Initialize application
@@ -78,6 +82,41 @@ try {
     // Dashboard Routes (Protected)
     // ===========================================
     $router->get('/dashboard/stats', DashboardController::class, 'stats', requireAuth: true);
+
+    // ===========================================
+    // User Management Routes (Protected - Admin only)
+    // ===========================================
+    $router->get('/users', UserController::class, 'list', requireAuth: true);
+    $router->get('/users/:id', UserController::class, 'show', requireAuth: true);
+    $router->post('/users', UserController::class, 'create', requireAuth: true);
+    $router->put('/users/:id', UserController::class, 'update', requireAuth: true);
+    $router->put('/users/:id/password', UserController::class, 'resetPassword', requireAuth: true);
+    $router->delete('/users/:id', UserController::class, 'delete', requireAuth: true);
+
+    // ===========================================
+    // Role & Permission Routes (Protected - Admin only)
+    // ===========================================
+    $router->get('/roles', RoleController::class, 'list', requireAuth: true);
+    $router->get('/roles/:role', RoleController::class, 'show', requireAuth: true);
+    $router->put('/roles/:role/permissions', RoleController::class, 'updatePermissions', requireAuth: true);
+    $router->get('/permissions', RoleController::class, 'listPermissions', requireAuth: true);
+
+    // ===========================================
+    // Settings Routes (Protected)
+    // ===========================================
+    $router->get('/settings', SettingsController::class, 'list', requireAuth: true);
+    $router->get('/settings/:category', SettingsController::class, 'getByCategory', requireAuth: true);
+    $router->put('/settings', SettingsController::class, 'update', requireAuth: true);
+    $router->put('/settings/:category', SettingsController::class, 'updateCategory', requireAuth: true);
+
+    // ===========================================
+    // Storage Pool Routes (Protected)
+    // ===========================================
+    $router->get('/storage-pools', StoragePoolController::class, 'list', requireAuth: true);
+    $router->get('/storage-pools/:id', StoragePoolController::class, 'show', requireAuth: true);
+    $router->post('/storage-pools', StoragePoolController::class, 'create', requireAuth: true);
+    $router->put('/storage-pools/:id', StoragePoolController::class, 'update', requireAuth: true);
+    $router->delete('/storage-pools/:id', StoragePoolController::class, 'delete', requireAuth: true);
 
     // ===========================================
     // Future Routes (To be implemented)
