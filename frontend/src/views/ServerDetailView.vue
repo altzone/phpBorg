@@ -137,7 +137,7 @@
           <div
             v-for="repo in repositories"
             :key="repo.id"
-            class="p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+            class="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
           >
             <div class="flex justify-between items-start">
               <div class="flex-1">
@@ -146,12 +146,51 @@
                   <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded">
                     {{ repo.compression }}
                   </span>
+                  <span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">
+                    {{ repo.encryption }}
+                  </span>
                 </div>
                 <p class="text-sm text-gray-600 font-mono">{{ repo.repo_path }}</p>
-                <p class="text-xs text-gray-500 mt-1">
-                  Created {{ formatDate(repo.created_at) }}
+
+                <!-- Retention Policy Display -->
+                <div v-if="repo.retention" class="mt-3 flex items-center gap-4 text-sm">
+                  <div class="flex items-center text-gray-600">
+                    <svg class="w-4 h-4 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span class="font-medium mr-2">Retention:</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <span v-if="repo.retention.keep_daily > 0" class="text-gray-700">
+                      <strong>{{ repo.retention.keep_daily }}</strong> daily
+                    </span>
+                    <span v-if="repo.retention.keep_weekly > 0" class="text-gray-700">
+                      <strong>{{ repo.retention.keep_weekly }}</strong> weekly
+                    </span>
+                    <span v-if="repo.retention.keep_monthly > 0" class="text-gray-700">
+                      <strong>{{ repo.retention.keep_monthly }}</strong> monthly
+                    </span>
+                    <span v-if="repo.retention.keep_yearly > 0" class="text-gray-700">
+                      <strong>{{ repo.retention.keep_yearly }}</strong> yearly
+                    </span>
+                  </div>
+                </div>
+
+                <p class="text-xs text-gray-500 mt-2">
+                  Last modified {{ formatDate(repo.modified) }}
                 </p>
               </div>
+
+              <!-- Manage Retention Button -->
+              <button
+                @click="openRetentionModal(repo)"
+                class="ml-4 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition flex items-center gap-2"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+                Manage Retention
+              </button>
             </div>
           </div>
         </div>
@@ -182,6 +221,16 @@
       @close="showDeleteModal = false"
       @confirm="handleDelete"
     />
+
+    <!-- Retention Management Modal -->
+    <RetentionModal
+      v-if="selectedRepository"
+      :is-open="showRetentionModal"
+      :repository="selectedRepository"
+      :server-name="server?.name || 'Unknown Server'"
+      @close="closeRetentionModal"
+      @updated="handleRetentionUpdated"
+    />
   </div>
 </template>
 
@@ -193,6 +242,7 @@ import { useServerStore } from '@/stores/server'
 import { serverService } from '@/services/server'
 import ServerFormModal from '@/components/ServerFormModal.vue'
 import DeleteConfirmModal from '@/components/DeleteConfirmModal.vue'
+import RetentionModal from '@/components/RetentionModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -201,6 +251,8 @@ const serverStore = useServerStore()
 
 const showEditModal = ref(false)
 const showDeleteModal = ref(false)
+const showRetentionModal = ref(false)
+const selectedRepository = ref(null)
 
 const server = computed(() => serverStore.currentServer?.server)
 const repositories = computed(() => serverStore.currentServer?.repositories || [])
@@ -232,6 +284,24 @@ async function handleDelete() {
     // Error handled by store
     showDeleteModal.value = false
   }
+}
+
+function openRetentionModal(repository) {
+  selectedRepository.value = repository
+  showRetentionModal.value = true
+}
+
+function closeRetentionModal() {
+  showRetentionModal.value = false
+  setTimeout(() => {
+    selectedRepository.value = null
+  }, 300)
+}
+
+async function handleRetentionUpdated() {
+  // Refresh server data to get updated retention values
+  const serverId = parseInt(route.params.id)
+  await serverStore.fetchServer(serverId)
 }
 
 function formatDate(dateString) {
