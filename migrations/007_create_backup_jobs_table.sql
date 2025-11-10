@@ -33,7 +33,7 @@ CREATE INDEX IF NOT EXISTS `idx_jobs_to_run` ON `backup_jobs` (`enabled`, `next_
 -- This ensures existing backups still work as "manual" jobs
 INSERT INTO `backup_jobs` (`name`, `repository_id`, `schedule_type`, `enabled`, `created_at`)
 SELECT
-    CONCAT(s.hostname, ' - ', r.name, ' (Manual)') as name,
+    CONCAT(s.host, ' - ', r.name, ' (Manual)') as name,
     r.id as repository_id,
     'manual' as schedule_type,
     1 as enabled,
