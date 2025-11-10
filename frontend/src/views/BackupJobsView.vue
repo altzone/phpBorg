@@ -90,7 +90,20 @@
         <div class="space-y-2 mb-4">
           <div class="flex justify-between text-sm">
             <span class="text-gray-600">Schedule:</span>
-            <span class="font-semibold text-gray-900">{{ job.schedule_description }}</span>
+            <span class="font-semibold text-gray-900">
+              {{ job.schedule_description }}
+              <!-- Show indicator if multi-selection -->
+              <span v-if="job.selected_weekdays && job.selected_weekdays.length > 1" 
+                    class="ml-1 text-xs text-blue-600" 
+                    :title="`Selected days: ${job.selected_weekdays.map(d => weekDays[d-1].full).join(', ')}`">
+                ({{ job.selected_weekdays.length }} days)
+              </span>
+              <span v-else-if="job.selected_monthdays && job.selected_monthdays.length > 1" 
+                    class="ml-1 text-xs text-blue-600"
+                    :title="`Selected days: ${job.selected_monthdays.join(', ')}`">
+                ({{ job.selected_monthdays.length }} days)
+              </span>
+            </span>
           </div>
 
           <div v-if="job.next_run_at" class="flex justify-between text-sm">

@@ -53,12 +53,29 @@ class BackupJobController extends BaseController
                     // Convert bitmaps to arrays of day numbers
                     if ($schedule->weekdays !== null) {
                         $selectedWeekdays = [];
+                        $weekDayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                        $selectedDayNames = [];
                         for ($i = 0; $i < 7; $i++) {
                             if ($schedule->weekdays & (1 << $i)) {
                                 $selectedWeekdays[] = $i + 1; // 1-based day numbers
+                                $selectedDayNames[] = $weekDayNames[$i];
                             }
                         }
                         $jobArray['selected_weekdays'] = $selectedWeekdays;
+                        
+                        // Override schedule_description for multi-day weekly
+                        if (count($selectedWeekdays) > 1) {
+                            $jobArray['schedule_description'] = sprintf(
+                                'Weekly on %s at %s',
+                                implode(', ', $selectedDayNames),
+                                $job->scheduleTime ?? '00:00:00'
+                            );
+                        } elseif (count($selectedWeekdays) == 7) {
+                            $jobArray['schedule_description'] = sprintf(
+                                'Every day at %s',
+                                $job->scheduleTime ?? '00:00:00'
+                            );
+                        }
                     }
                     
                     if ($schedule->monthdays !== null) {
@@ -69,6 +86,23 @@ class BackupJobController extends BaseController
                             }
                         }
                         $jobArray['selected_monthdays'] = $selectedMonthdays;
+                        
+                        // Override schedule_description for multi-day monthly
+                        if (count($selectedMonthdays) > 1) {
+                            if (count($selectedMonthdays) <= 5) {
+                                $jobArray['schedule_description'] = sprintf(
+                                    'Monthly on days %s at %s',
+                                    implode(', ', $selectedMonthdays),
+                                    $job->scheduleTime ?? '00:00:00'
+                                );
+                            } else {
+                                $jobArray['schedule_description'] = sprintf(
+                                    'Monthly on %d selected days at %s',
+                                    count($selectedMonthdays),
+                                    $job->scheduleTime ?? '00:00:00'
+                                );
+                            }
+                        }
                     }
                 }
                 
@@ -121,12 +155,29 @@ class BackupJobController extends BaseController
                 // Convert bitmaps to arrays of day numbers
                 if ($schedule->weekdays !== null) {
                     $selectedWeekdays = [];
+                    $weekDayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                    $selectedDayNames = [];
                     for ($i = 0; $i < 7; $i++) {
                         if ($schedule->weekdays & (1 << $i)) {
                             $selectedWeekdays[] = $i + 1; // 1-based day numbers
+                            $selectedDayNames[] = $weekDayNames[$i];
                         }
                     }
                     $jobArray['selected_weekdays'] = $selectedWeekdays;
+                    
+                    // Override schedule_description for multi-day weekly
+                    if (count($selectedWeekdays) > 1) {
+                        $jobArray['schedule_description'] = sprintf(
+                            'Weekly on %s at %s',
+                            implode(', ', $selectedDayNames),
+                            $job->scheduleTime ?? '00:00:00'
+                        );
+                    } elseif (count($selectedWeekdays) == 7) {
+                        $jobArray['schedule_description'] = sprintf(
+                            'Every day at %s',
+                            $job->scheduleTime ?? '00:00:00'
+                        );
+                    }
                 }
                 
                 if ($schedule->monthdays !== null) {
@@ -137,6 +188,23 @@ class BackupJobController extends BaseController
                         }
                     }
                     $jobArray['selected_monthdays'] = $selectedMonthdays;
+                    
+                    // Override schedule_description for multi-day monthly
+                    if (count($selectedMonthdays) > 1) {
+                        if (count($selectedMonthdays) <= 5) {
+                            $jobArray['schedule_description'] = sprintf(
+                                'Monthly on days %s at %s',
+                                implode(', ', $selectedMonthdays),
+                                $job->scheduleTime ?? '00:00:00'
+                            );
+                        } else {
+                            $jobArray['schedule_description'] = sprintf(
+                                'Monthly on %d selected days at %s',
+                                count($selectedMonthdays),
+                                $job->scheduleTime ?? '00:00:00'
+                            );
+                        }
+                    }
                 }
             }
 
