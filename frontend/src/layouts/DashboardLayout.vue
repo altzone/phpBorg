@@ -35,6 +35,13 @@
                 Backups
               </RouterLink>
               <RouterLink
+                to="/backup-jobs"
+                class="nav-link"
+                :class="{ 'nav-link-active': $route.name === 'backup-jobs' }"
+              >
+                Backup Jobs
+              </RouterLink>
+              <RouterLink
                 to="/jobs"
                 class="nav-link"
                 :class="{ 'nav-link-active': $route.name === 'jobs' }"
