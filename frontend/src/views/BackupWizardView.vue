@@ -825,18 +825,35 @@ function formatBytes(bytes) {
 onMounted(async () => {
   // Load servers and storage pools
   try {
-    const [serversResponse, poolsResponse] = await Promise.all([
+    const [serversData, poolsData] = await Promise.all([
       serverService.getServers(),
       storageService.getStoragePools()
     ])
     
-    servers.value = serversResponse.servers || []
-    storagePools.value = poolsResponse || []
+    // Handle the response - it might be an object with servers property or an array
+    if (Array.isArray(serversData)) {
+      servers.value = serversData
+    } else if (serversData?.servers) {
+      servers.value = serversData.servers
+    } else {
+      servers.value = []
+    }
+    
+    // Handle storage pools - ensure it's an array
+    if (Array.isArray(poolsData)) {
+      storagePools.value = poolsData
+    } else if (poolsData?.pools) {
+      storagePools.value = poolsData.pools
+    } else {
+      storagePools.value = []
+    }
     
     // Auto-select default pool
-    const defaultPool = storagePools.value.find(p => p.default_pool)
-    if (defaultPool) {
-      wizardData.value.storagePoolId = defaultPool.id
+    if (storagePools.value.length > 0) {
+      const defaultPool = storagePools.value.find(p => p.default_pool)
+      if (defaultPool) {
+        wizardData.value.storagePoolId = defaultPool.id
+      }
     }
   } catch (error) {
     console.error('Failed to load data:', error)
