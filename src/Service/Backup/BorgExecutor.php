@@ -236,6 +236,30 @@ final class BorgExecutor
     }
 
     /**
+     * Delete a specific archive
+     *
+     * @throws BackupException
+     */
+    public function deleteArchive(string $archive, string $passphrase): array
+    {
+        $arguments = [
+            'delete',
+            '--stats',
+            '--force', // Don't ask for confirmation
+            $archive
+        ];
+
+        $result = $this->execute($arguments, $passphrase, 300);
+
+        if ($result['exitCode'] !== 0) {
+            throw new BackupException("Failed to delete archive: {$result['stderr']}");
+        }
+
+        $this->logger->info("Archive deleted: {$archive}", 'BORG');
+        return $result;
+    }
+
+    /**
      * Mount an archive
      *
      * @throws BackupException

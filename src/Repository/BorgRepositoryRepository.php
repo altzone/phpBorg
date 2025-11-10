@@ -57,6 +57,21 @@ final class BorgRepositoryRepository
     }
 
     /**
+     * Find repository by repo_id
+     *
+     * @throws DatabaseException
+     */
+    public function findByRepoId(string $repoId): ?BorgRepository
+    {
+        $row = $this->connection->fetchOne(
+            'SELECT *, FROM_BASE64(passphrase) as passphrase FROM repository WHERE repo_id = ?',
+            [$repoId]
+        );
+
+        return $row ? BorgRepository::fromDatabase($row) : null;
+    }
+
+    /**
      * Find all repositories for a server
      *
      * @return array<int, BorgRepository>

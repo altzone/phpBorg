@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PhpBorg\Command;
 
 use PhpBorg\Application;
+use PhpBorg\Service\Queue\Handlers\ArchiveDeleteHandler;
 use PhpBorg\Service\Queue\Handlers\BackupCreateHandler;
 use PhpBorg\Service\Queue\Handlers\CapabilitiesDetectionHandler;
 use PhpBorg\Service\Queue\Handlers\ServerSetupHandler;
@@ -77,6 +78,13 @@ final class WorkerStartCommand extends Command
         $worker->registerHandler('capabilities_detection', new CapabilitiesDetectionHandler(
             $this->app->getServerRepository(),
             $this->app->getSshExecutor(),
+            $logger
+        ));
+
+        $worker->registerHandler('archive_delete', new ArchiveDeleteHandler(
+            $this->app->getBorgExecutor(),
+            $this->app->getArchiveRepository(),
+            $this->app->getBorgRepositoryRepository(),
             $logger
         ));
 

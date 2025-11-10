@@ -51,10 +51,15 @@ export const backupService = {
   /**
    * Delete a backup
    * @param {number} id - Backup ID
-   * @returns {Promise<boolean>}
+   * @returns {Promise<Object>}
    */
   async delete(id) {
     const response = await api.delete(`/backups/${id}`)
-    return response.data.success
+    return {
+      success: response.data.success,
+      job_id: response.data.data?.job_id,
+      archive_name: response.data.data?.archive_name,
+      message: response.data.message || response.data.data?.message
+    }
   },
 }

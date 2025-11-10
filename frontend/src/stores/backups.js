@@ -73,19 +73,22 @@ export const useBackupStore = defineStore('backups', () => {
   async function deleteBackup(id) {
     try {
       error.value = null
-      await backupService.delete(id)
+      const result = await backupService.delete(id)
 
-      // Remove from local list
-      backups.value = backups.value.filter(b => b.id !== id)
+      if (result.success) {
+        // Don't remove from local list immediately since deletion is async
+        // The user can refresh the page later to see the result
+        // Or we could refresh after a delay
+        
+        // Refresh stats (they may not change immediately but it's good practice)
+        await fetchStats()
+      }
 
-      // Refresh stats
-      await fetchStats()
-
-      return true
+      return result
     } catch (err) {
       error.value = err.response?.data?.error?.message || 'Failed to delete backup'
       console.error('Delete backup error:', err)
-      return false
+      throw err
     }
   }
 

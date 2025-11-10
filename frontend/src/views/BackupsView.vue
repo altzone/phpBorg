@@ -95,7 +95,8 @@
             <tr v-for="backup in backupStore.backups" :key="backup.id" class="hover:bg-gray-50">
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm font-medium text-gray-900">{{ backup.name }}</div>
-                <div class="text-xs text-gray-500">ID: {{ backup.archive_id.substring(0, 16) }}...</div>
+                <div class="text-xs text-gray-500">{{ backup.server_name }} - {{ backup.repository_type }}</div>
+                <div class="text-xs text-gray-400">ID: {{ backup.archive_id.substring(0, 16) }}...</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm text-gray-900">{{ formatDate(backup.end) }}</div>
@@ -190,9 +191,24 @@
           </button>
         </div>
 
-        <p class="text-sm text-gray-600 mb-6">
-          Are you sure you want to delete backup <strong>{{ backupToDelete?.name }}</strong>? This action cannot be undone.
-        </p>
+        <div class="text-sm text-gray-600 mb-6">
+          <p class="mb-3">
+            Êtes-vous sûr de vouloir supprimer cette archive de backup ?
+          </p>
+          <div class="bg-gray-50 p-3 rounded-lg mb-3">
+            <p><strong>Archive :</strong> {{ backupToDelete?.name }}</p>
+            <p><strong>Serveur :</strong> {{ backupToDelete?.server_name }}</p>
+            <p><strong>Type :</strong> {{ backupToDelete?.repository_type }}</p>
+          </div>
+          <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+            <p class="text-yellow-800 font-medium mb-1">⚠️ Attention :</p>
+            <p class="text-yellow-700 text-xs">
+              • Cette action est <strong>irréversible</strong><br>
+              • L'archive sera supprimée définitivement du repository Borg<br>
+              • La suppression sera effectuée par le worker en arrière-plan
+            </p>
+          </div>
+        </div>
 
         <div class="flex gap-3">
           <button @click="showDeleteModal = false" class="btn btn-secondary flex-1">
@@ -260,10 +276,20 @@ function confirmDelete(backup) {
 async function handleDelete() {
   if (!backupToDelete.value) return
 
-  const success = await backupStore.deleteBackup(backupToDelete.value.id)
-  if (success) {
-    showDeleteModal.value = false
-    backupToDelete.value = null
+  try {
+    const result = await backupStore.deleteBackup(backupToDelete.value.id)
+    if (result.success) {
+      showDeleteModal.value = false
+      backupToDelete.value = null
+      
+      // Show success message with job info
+      alert(`✅ Suppression programmée avec succès !\n\nL'archive "${result.archive_name}" va être supprimée par le worker.\n\nJob ID: ${result.job_id}\n\nVous pouvez suivre le progrès dans la section Jobs.`)
+      
+      // Optionally redirect to jobs page to monitor progress
+      // router.push('/jobs')
+    }
+  } catch (err) {
+    console.error('Delete error:', err)
   }
 }
 

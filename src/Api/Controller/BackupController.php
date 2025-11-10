@@ -7,6 +7,8 @@ namespace PhpBorg\Api\Controller;
 use PhpBorg\Application;
 use PhpBorg\Exception\PhpBorgException;
 use PhpBorg\Repository\ArchiveRepository;
+use PhpBorg\Repository\BorgRepositoryRepository;
+use PhpBorg\Service\Backup\BorgExecutor;
 use PhpBorg\Service\Queue\JobQueue;
 
 /**
@@ -15,11 +17,15 @@ use PhpBorg\Service\Queue\JobQueue;
 class BackupController extends BaseController
 {
     private readonly ArchiveRepository $archiveRepo;
+    private readonly BorgRepositoryRepository $repositoryRepo;
+    private readonly BorgExecutor $borgExecutor;
     private readonly JobQueue $jobQueue;
 
     public function __construct(Application $app)
     {
         $this->archiveRepo = $app->getArchiveRepository();
+        $this->repositoryRepo = $app->getBorgRepositoryRepository();
+        $this->borgExecutor = $app->getBorgExecutor();
         $this->jobQueue = $app->getJobQueue();
     }
 
@@ -34,26 +40,25 @@ class BackupController extends BaseController
             $repoId = $_GET['repo_id'] ?? null;
             $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 50;
 
-            // Get archives based on filters
-            if ($repoId) {
-                $archives = $this->archiveRepo->findByRepositoryId($repoId);
-            } else {
-                $archives = $this->archiveRepo->findAll();
-            }
+            // Get archives with server and repository details
+            $archiveRows = $this->archiveRepo->findAllWithDetails();
 
             // Filter by server_id if provided
             if ($serverId !== null) {
-                $archives = array_filter($archives, fn($archive) =>
-                    $this->getServerIdForArchive($archive->repoId) === $serverId
-                );
+                $archiveRows = array_filter($archiveRows, fn($row) => (int)$row['server_id'] === $serverId);
+            }
+
+            // Filter by repo_id if provided
+            if ($repoId !== null) {
+                $archiveRows = array_filter($archiveRows, fn($row) => $row['repo_id'] === $repoId);
             }
 
             // Limit results
-            $archives = array_slice($archives, 0, $limit);
+            $archiveRows = array_slice($archiveRows, 0, $limit);
 
             $this->success([
-                'backups' => array_map(fn($archive) => $this->serializeArchive($archive), $archives),
-                'total' => count($archives),
+                'backups' => array_map(fn($row) => $this->serializeArchiveWithDetails($row), $archiveRows),
+                'total' => count($archiveRows),
             ]);
         } catch (PhpBorgException $e) {
             $this->error($e->getMessage(), 500, 'BACKUP_LIST_ERROR');
@@ -142,7 +147,7 @@ class BackupController extends BaseController
 
     /**
      * DELETE /api/backups/:id
-     * Delete a backup (prune archive)
+     * Delete a backup (queue deletion job for worker)
      */
     public function delete(): void
     {
@@ -168,14 +173,29 @@ class BackupController extends BaseController
                 return;
             }
 
-            // TODO: Implement actual Borg prune for specific archive
-            // For now, just delete from database
-            $this->archiveRepo->deleteById($backupId);
+            // Create archive deletion job payload
+            $payload = [
+                'archive_id' => $backupId,
+                'archive_name' => $archive->name,
+                'user_id' => $user->id,
+            ];
 
-            $this->success(
-                ['id' => $backupId],
-                'Backup deleted successfully'
+            // Queue the deletion job for the worker
+            $jobId = $this->jobQueue->push(
+                'archive_delete',
+                $payload,
+                'default',
+                2, // Priority 2 (high priority for deletions)
+                $user->id
             );
+
+            $this->success([
+                'job_id' => $jobId,
+                'archive_id' => $backupId,
+                'archive_name' => $archive->name,
+                'message' => 'Archive deletion job queued successfully. The deletion will be processed by the worker.'
+            ], 'Archive deletion job created');
+
         } catch (PhpBorgException $e) {
             $this->error($e->getMessage(), 500, 'BACKUP_DELETE_ERROR');
         }
@@ -233,6 +253,46 @@ class BackupController extends BaseController
             'files_count' => $archive->filesCount,
             'compression_ratio' => $archive->getCompressionRatio(),
             'deduplication_ratio' => $archive->getDeduplicationRatio(),
+        ];
+    }
+
+    /**
+     * Serialize archive database row with server and repository details
+     */
+    private function serializeArchiveWithDetails(array $row): array
+    {
+        // Calculate ratios
+        $originalSize = (int)($row['osize'] ?? 0);
+        $compressedSize = (int)($row['csize'] ?? 0);
+        $deduplicatedSize = (int)($row['dsize'] ?? 0);
+        
+        $compressionRatio = $originalSize > 0 ? round((1 - ($compressedSize / $originalSize)) * 100, 2) : 0;
+        $deduplicationRatio = $originalSize > 0 ? round((1 - ($deduplicatedSize / $originalSize)) * 100, 2) : 0;
+        
+        // Format duration
+        $duration = (float)($row['dur'] ?? 0);
+        $hours = floor($duration / 3600);
+        $minutes = floor(($duration % 3600) / 60);
+        $seconds = $duration % 60;
+        $durationFormatted = sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds);
+
+        return [
+            'id' => (int)$row['id'],
+            'repo_id' => $row['repo_id'],
+            'name' => $row['nom'],
+            'archive_id' => $row['archive_id'],
+            'duration' => $duration,
+            'duration_formatted' => $durationFormatted,
+            'start' => $row['start'],
+            'end' => $row['end'],
+            'compressed_size' => $compressedSize,
+            'deduplicated_size' => $deduplicatedSize,
+            'original_size' => $originalSize,
+            'files_count' => (int)($row['nfiles'] ?? 0),
+            'compression_ratio' => $compressionRatio,
+            'deduplication_ratio' => $deduplicationRatio,
+            'server_name' => $row['server_name'] ?? 'Unknown Server',
+            'repository_type' => $row['repository_type'] ?? 'backup',
         ];
     }
 
