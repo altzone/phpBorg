@@ -92,4 +92,36 @@ final readonly class BorgRepository
         }
         return array_map('trim', explode(',', $this->exclude));
     }
+
+    /**
+     * Convert to array for API response
+     */
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'server_id' => $this->serverId,
+            'repo_id' => $this->repoId,
+            'type' => $this->type,
+            'retention' => $this->retention,
+            'keep_daily' => $this->keepDaily,
+            'keep_weekly' => $this->keepWeekly,
+            'keep_monthly' => $this->keepMonthly,
+            'keep_yearly' => $this->keepYearly,
+            'encryption' => $this->encryption,
+            'repo_path' => $this->repoPath,
+            'compression' => $this->compression,
+            'ratelimit' => $this->rateLimit,
+            'backup_path' => $this->backupPath,
+            'backup_paths' => $this->getBackupPaths(),
+            'exclude' => $this->exclude,
+            'exclusion_patterns' => $this->getExclusionPatterns(),
+            'size' => $this->size,
+            'compressed_size' => $this->compressedSize,
+            'deduplicated_size' => $this->deduplicatedSize,
+            'total_unique_chunks' => $this->totalUniqueChunks,
+            'total_chunks' => $this->totalChunks,
+            'modified' => $this->modified->format('Y-m-d H:i:s'),
+        ];
+    }
 }
