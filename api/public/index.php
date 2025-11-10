@@ -89,6 +89,7 @@ try {
     $router->post('/backup-jobs', BackupJobController::class, 'create', requireAuth: true);
     $router->put('/backup-jobs/:id', BackupJobController::class, 'update', requireAuth: true);
     $router->post('/backup-jobs/:id/toggle', BackupJobController::class, 'toggle', requireAuth: true);
+    $router->post('/backup-jobs/:id/run', BackupJobController::class, 'run', requireAuth: true);
     $router->delete('/backup-jobs/:id', BackupJobController::class, 'delete', requireAuth: true);
 
     // ===========================================
