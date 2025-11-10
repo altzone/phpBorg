@@ -35,4 +35,9 @@ export const backupJobsService = {
     const response = await api.delete(`/backup-jobs/${id}`)
     return response.data
   },
+
+  async runBackupJob(id) {
+    const response = await api.post(`/backup-jobs/${id}/run`)
+    return response.data
+  },
 }

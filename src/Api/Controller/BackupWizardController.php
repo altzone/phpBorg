@@ -294,7 +294,7 @@ class BackupWizardController extends BaseController
             ]);
             
             // 2. Create repository
-            // Get storage pool path
+            // Get storage pool path and server name
             $storagePoolPath = '/opt/backups'; // Default
             if (isset($data['storage_pool_id'])) {
                 $pool = $this->storagePoolRepository->findById((int)$data['storage_pool_id']);
@@ -303,12 +303,16 @@ class BackupWizardController extends BaseController
                 }
             }
             
+            // Get server name for directory structure
+            $server = $this->serverRepository->findById((int)$data['server_id']);
+            $serverName = $server ? preg_replace('/[^a-zA-Z0-9-_]/', '_', $server->name) : 'unknown';
+            
+            // Create repository path: <storage_pool>/<server_name>/<repository_name>
             $repoPath = sprintf(
-                '%s/borg/%s-%s-%d',
+                '%s/%s/%s',
                 rtrim($storagePoolPath, '/'),
-                $data['repository_name'],
-                $data['backup_type'],
-                time()
+                $serverName,
+                preg_replace('/[^a-zA-Z0-9-_]/', '_', $data['repository_name'])
             );
             
             // Generate passphrase if not provided and encryption is enabled

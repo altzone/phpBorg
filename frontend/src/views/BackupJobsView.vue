@@ -148,6 +148,13 @@
         <!-- Actions -->
         <div class="flex gap-2 pt-4 border-t">
           <button
+            @click="runJobNow(job)"
+            class="btn btn-primary flex-1 text-sm"
+            :disabled="runningJobs.includes(job.id)"
+          >
+            {{ runningJobs.includes(job.id) ? 'Running...' : 'Run Now' }}
+          </button>
+          <button
             @click="toggleJob(job)"
             :class="[
               'btn flex-1 text-sm',
@@ -319,6 +326,7 @@ const error = ref(null)
 const showJobModal = ref(false)
 const editingJob = ref(null)
 const saving = ref(false)
+const runningJobs = ref([]) // Track jobs currently running
 
 const jobForm = ref({
   name: '',
@@ -508,6 +516,32 @@ async function deleteJob(job) {
     await loadBackupJobs()
   } catch (err) {
     error.value = err.response?.data?.error?.message || 'Failed to delete backup job'
+  }
+}
+
+async function runJobNow(job) {
+  try {
+    error.value = null
+    runningJobs.value.push(job.id)
+    
+    // Call the API to run the job immediately
+    await backupJobsService.runBackupJob(job.id)
+    
+    // Show success message (you could add a toast notification here)
+    alert(`Backup job "${job.name}" has been queued for immediate execution`)
+    
+    // Reload to get updated status
+    await loadBackupJobs()
+  } catch (err) {
+    error.value = err.response?.data?.error?.message || 'Failed to run backup job'
+  } finally {
+    // Remove from running jobs after a delay
+    setTimeout(() => {
+      const index = runningJobs.value.indexOf(job.id)
+      if (index > -1) {
+        runningJobs.value.splice(index, 1)
+      }
+    }, 3000)
   }
 }
 

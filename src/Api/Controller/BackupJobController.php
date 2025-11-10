@@ -483,6 +483,74 @@ class BackupJobController extends BaseController
     }
 
     /**
+     * POST /api/backup-jobs/:id/run
+     * Run backup job immediately (manual trigger)
+     */
+    public function run(): void
+    {
+        try {
+            $currentUser = $_SERVER['USER'] ?? null;
+            if (!$currentUser || !in_array('ROLE_ADMIN', $currentUser->roles) && !in_array('ROLE_OPERATOR', $currentUser->roles)) {
+                $this->error('Admin or Operator role required', 403, 'FORBIDDEN');
+                return;
+            }
+
+            $jobId = (int)($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
+
+            if ($jobId <= 0) {
+                $this->error('Invalid backup job ID', 400, 'INVALID_JOB_ID');
+                return;
+            }
+
+            // Check job exists
+            $job = $this->backupJobRepository->findById($jobId);
+            if (!$job) {
+                $this->error('Backup job not found', 404, 'JOB_NOT_FOUND');
+                return;
+            }
+
+            // Get the application instance to access job queue
+            $app = new \PhpBorg\Application();
+            $jobQueue = $app->getJobQueue();
+
+            // Create a backup execution job with manual trigger flag
+            $queueJobId = $jobQueue->push(
+                'backup_execution',
+                [
+                    'backup_job_id' => $jobId,
+                    'triggered_by' => 'manual',
+                    'triggered_by_user' => $currentUser->username ?? 'Unknown',
+                    'triggered_at' => date('Y-m-d H:i:s'),
+                ],
+                'default',
+                1,  // Priority
+                $currentUser->id ?? null
+            );
+
+            // Log the manual execution
+            error_log(sprintf(
+                "Manual backup execution triggered for job '%s' (ID: %d) by user '%s'",
+                $job->name,
+                $jobId,
+                $currentUser->username ?? 'Unknown'
+            ));
+
+            $this->success([
+                'message' => 'Backup job queued for immediate execution',
+                'queue_job_id' => $queueJobId,
+                'backup_job' => [
+                    'id' => $job->id,
+                    'name' => $job->name,
+                ],
+                'triggered_by' => 'manual',
+                'triggered_at' => date('Y-m-d H:i:s'),
+            ], 'Backup job started', 202);
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'BACKUP_JOB_RUN_ERROR');
+        }
+    }
+
+    /**
      * DELETE /api/backup-jobs/:id
      * Delete backup job
      */
