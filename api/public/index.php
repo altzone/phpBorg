@@ -6,6 +6,10 @@ declare(strict_types=1);
  * phpBorg 2.0 - API REST Entry Point
  */
 
+// Disable error display in production (errors are logged)
+// error_reporting(E_ALL);
+// ini_set('display_errors', '1');
+
 // Load Composer autoloader
 require __DIR__ . '/../../vendor/autoload.php';
 

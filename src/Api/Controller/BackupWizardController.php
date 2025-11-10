@@ -113,8 +113,7 @@ class BackupWizardController extends BaseController
                 preg_match('/password\s*=\s*(.+)/', $myCnf, $passMatch);
                 
                 if ($userMatch) {
-                    return [
-                        'success' => true,
+                    $this->success([
                         'data' => [
                             'detected' => true,
                             'source' => '~/.my.cnf',
@@ -123,7 +122,8 @@ class BackupWizardController extends BaseController
                             'host' => 'localhost',
                             'port' => 3306
                         ]
-                    ];
+                    ]);
+                    return;
                 }
             }
             
@@ -131,21 +131,21 @@ class BackupWizardController extends BaseController
             // SSH connection failed
         }
 
-        return [
-            'success' => true,
+        $this->success([
             'data' => [
                 'detected' => false,
                 'message' => 'Could not auto-detect MySQL credentials'
             ]
-        ];
+        ]);
     }
 
     /**
      * Test database connection
      * POST /api/backup-wizard/test-db-connection
      */
-    public function testDatabaseConnection(array $data): array
+    public function testDatabaseConnection(): void
     {
+        $data = $this->getRequestData();
         $serverId = $data['server_id'] ?? 0;
         $server = $this->serverRepository->findById($serverId);
         
@@ -172,22 +172,20 @@ class BackupWizardController extends BaseController
                 $result = $this->sshExecutor->execute($server, $command, 10);
                 $success = strpos($result['stdout'] . $result['stderr'], 'ERROR') === false;
                 
-                return [
-                    'success' => true,
+                $this->success([
                     'data' => [
                         'connected' => $success,
-                        'message' => $success ? 'Connection successful' : 'Connection failed: ' . $result
+                        'message' => $success ? 'Connection successful' : 'Connection failed'
                     ]
-                ];
+                ]);
+                return;
             }
             
             // Add other database types as needed
             
         } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            $this->error($e->getMessage(), 500);
+            return;
         }
     }
 
@@ -195,8 +193,9 @@ class BackupWizardController extends BaseController
      * Create complete backup configuration
      * POST /api/backup-wizard/create-backup-chain
      */
-    public function createBackupChain(array $data): array
+    public function createBackupChain(): void
     {
+        $data = $this->getRequestData();
         $connection = $this->repositoryRepository->getConnection();
         
         try {
@@ -305,15 +304,15 @@ class BackupWizardController extends BaseController
                 // For now, we'll just mark it as pending
             }
             
-            return [
-                'success' => true,
+            $this->success([
                 'message' => 'Backup configuration created successfully',
                 'data' => [
                     'source_id' => $source->id,
                     'repository_id' => $repositoryId,
                     'job_id' => $jobId
                 ]
-            ];
+            ]);
+            return;
             
         } catch (\Exception $e) {
             $connection->rollBack();
@@ -325,7 +324,7 @@ class BackupWizardController extends BaseController
      * Get backup templates
      * GET /api/backup-wizard/templates
      */
-    public function templates(): array
+    public function templates(): void
     {
         $result = $this->repositoryRepository->getConnection()->query(
             'SELECT * FROM backup_templates ORDER BY is_system DESC, name ASC'
@@ -348,10 +347,9 @@ class BackupWizardController extends BaseController
             ];
         }
         
-        return [
-            'success' => true,
+        $this->success([
             'data' => $templates
-        ];
+        ]);
     }
 
     /**
