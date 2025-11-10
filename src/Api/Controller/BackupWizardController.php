@@ -13,7 +13,6 @@ use PhpBorg\Repository\BackupJobRepository;
 use PhpBorg\Repository\BackupScheduleRepository;
 use PhpBorg\Exception\PhpBorgException;
 use PhpBorg\Service\Server\SshExecutor;
-use PhpBorg\Logger\FileLogger;
 
 /**
  * Backup Wizard API controller
@@ -37,7 +36,8 @@ class BackupWizardController extends BaseController
         $this->sourceRepository = new BackupSourceRepository($app->getConnection());
         $this->jobRepository = new BackupJobRepository($app->getConnection());
         $this->scheduleRepository = new BackupScheduleRepository($app->getConnection());
-        $this->sshExecutor = new SshExecutor(new FileLogger());
+        // Use the application's configured logger
+        $this->sshExecutor = new SshExecutor($app->getLogger());
     }
 
     /**
