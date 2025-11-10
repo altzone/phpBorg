@@ -509,14 +509,25 @@ class BackupJobController extends BaseController
                 return;
             }
 
+            // Get repository to find server_id
+            $repository = $this->repositoryRepository->findById($job->repositoryId);
+            if (!$repository) {
+                $this->error('Repository not found for this job', 404, 'REPOSITORY_NOT_FOUND');
+                return;
+            }
+
             // Get the application instance to access job queue
             $app = new \PhpBorg\Application();
             $jobQueue = $app->getJobQueue();
 
-            // Create a backup execution job with manual trigger flag
+            // Create a backup job with manual trigger flag
+            // Using 'backup_create' which already exists
             $queueJobId = $jobQueue->push(
-                'backup_execution',
+                'backup_create',
                 [
+                    'server_id' => $repository->serverId,
+                    'repository_id' => $repository->id,
+                    'type' => $repository->type ?? 'backup',
                     'backup_job_id' => $jobId,
                     'triggered_by' => 'manual',
                     'triggered_by_user' => $currentUser->username ?? 'Unknown',

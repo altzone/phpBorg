@@ -64,6 +64,35 @@ final class BackupService
                 throw new BackupException("Repository configuration not found for {$server->name} ({$type})");
             }
 
+            return $this->executeBackupWithRepository($server, $repository, $reportId);
+
+        } catch (BackupException $e) {
+            // Log error and update report
+            $this->logger->error("Backup failed: {$e->getMessage()}", $server->name);
+            $this->reportRepo->updateStatus($reportId, status: 'failed', error: $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
+
+        } catch (\Exception $e) {
+            $error = "Unexpected error during backup: {$e->getMessage()}";
+            $this->logger->error($error, $server->name);
+            $this->reportRepo->updateStatus($reportId, status: 'failed', error: $error);
+            return ['success' => false, 'error' => $error];
+        }
+    }
+
+    /**
+     * Execute backup with a specific repository (used by manual triggers and scheduled jobs with specific repos)
+     */
+    public function executeBackupWithRepository(Server $server, BorgRepository $repository, ?int $reportId = null): array
+    {
+        $this->logger->info("Starting backup for repository {$repository->repoId}", $server->name);
+
+        // Create report if not provided
+        if ($reportId === null) {
+            $reportId = $this->reportRepo->create($server->id, $repository->type ?? 'backup');
+        }
+
+        try {
             // Update report with server name
             $this->reportRepo->updateStatus($reportId, currentPosition: $server->host);
 
@@ -92,16 +121,16 @@ final class BackupService
             $cleanupNeeded = false;
             $dbInfo = null;
 
-            if ($type !== 'backup') {
+            if ($repository->type !== 'backup') {
                 // Database backup
-                $dbInfo = $this->dbInfoRepo->findByServerAndType($server->id, $type);
+                $dbInfo = $this->dbInfoRepo->findByServerAndType($server->id, $repository->type);
                 if ($dbInfo === null) {
                     throw new BackupException("Database configuration not found");
                 }
 
-                $strategy = $this->databaseStrategies[$type] ?? null;
+                $strategy = $this->databaseStrategies[$repository->type] ?? null;
                 if ($strategy === null) {
-                    throw new BackupException("No backup strategy registered for type: {$type}");
+                    throw new BackupException("No backup strategy registered for type: {$repository->type}");
                 }
 
                 $prepareResult = $strategy->prepareBackup($server, $dbInfo);
@@ -116,7 +145,7 @@ final class BackupService
             $this->setRepositoryPermissions($server, $repository->repoPath);
 
             // Create archive name
-            $archiveName = $type . '_' . date('Y-m-d_H-i-s');
+            $archiveName = $repository->type . '_' . date('Y-m-d_H-i-s');
 
             // Execute Borg backup via SSH
             $this->logger->info("Creating Borg archive: {$archiveName}", $server->name);
@@ -149,7 +178,7 @@ final class BackupService
 
             // Cleanup database backup if needed
             if ($cleanupNeeded && $dbInfo !== null) {
-                $strategy = $this->databaseStrategies[$type];
+                $strategy = $this->databaseStrategies[$repository->type];
                 $strategy->cleanupBackup($server, $dbInfo);
             }
 

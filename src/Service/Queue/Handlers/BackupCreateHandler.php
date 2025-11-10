@@ -47,6 +47,17 @@ final class BackupCreateHandler implements JobHandlerInterface
 
         $serverId = (int) $payload['server_id'];
         $type = $payload['type'] ?? 'backup';
+        $repositoryId = isset($payload['repository_id']) ? (int)$payload['repository_id'] : null;
+        $backupJobId = isset($payload['backup_job_id']) ? (int)$payload['backup_job_id'] : null;
+        $triggeredBy = $payload['triggered_by'] ?? 'scheduled';
+
+        // Log if this is a manual trigger
+        if ($triggeredBy === 'manual') {
+            $this->logger->info(
+                "Manual backup triggered for job #{$backupJobId} by user '{$payload['triggered_by_user']}' at {$payload['triggered_at']}", 
+                'JOB'
+            );
+        }
 
         $this->logger->info("Starting {$type} backup for server ID: {$serverId}", 'JOB');
         $queue->updateProgress($job->id, 10, "Preparing {$type} backup for server #{$serverId}...");
@@ -58,16 +69,31 @@ final class BackupCreateHandler implements JobHandlerInterface
                 throw new \Exception("Server #{$serverId} not found");
             }
 
-            // Step 1: Ensure repository exists for this server and type (idempotent)
+            // Step 1: Get repository - either specified or auto-find/create
             $queue->updateProgress($job->id, 20, "Checking repository configuration for {$type}...");
-            $repository = $this->ensureRepositoryExists($serverId, $server->name, $type);
-
-            $this->logger->info("Using repository ID: {$repository->repoId} for {$type} backup", 'JOB');
+            
+            if ($repositoryId) {
+                // Use specified repository (for manual runs from backup jobs)
+                $repository = $this->repoRepo->findById($repositoryId);
+                if (!$repository) {
+                    throw new \Exception("Repository #{$repositoryId} not found");
+                }
+                $this->logger->info("Using specified repository ID: {$repository->repoId} for {$type} backup", 'JOB');
+            } else {
+                // Auto-find or create repository (original behavior)
+                $repository = $this->ensureRepositoryExists($serverId, $server->name, $type);
+                $this->logger->info("Using repository ID: {$repository->repoId} for {$type} backup", 'JOB');
+            }
 
             // Step 2: Execute backup
             $queue->updateProgress($job->id, 50, "Executing {$type} backup: {$server->name}...");
 
-            $result = $this->backupService->executeBackup($server, $type);
+            // If we have a specific repository, use it; otherwise use the original method
+            if ($repositoryId) {
+                $result = $this->backupService->executeBackupWithRepository($server, $repository);
+            } else {
+                $result = $this->backupService->executeBackup($server, $type);
+            }
 
             if (!$result['success']) {
                 throw new \Exception($result['error'] ?? 'Backup execution failed');
