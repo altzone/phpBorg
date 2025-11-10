@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace PhpBorg\Repository;
 
 use PhpBorg\Entity\BackupSource;
-use PhpBorg\Infrastructure\Database\Connection;
+use PhpBorg\Database\Connection;
 
 /**
  * Repository for backup sources
