@@ -7,6 +7,7 @@ namespace PhpBorg\Api\Controller;
 use PhpBorg\Application;
 use PhpBorg\Repository\BackupJobRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
+use PhpBorg\Repository\BackupScheduleRepository;
 use PhpBorg\Exception\PhpBorgException;
 
 /**
@@ -16,11 +17,13 @@ class BackupJobController extends BaseController
 {
     private readonly BackupJobRepository $backupJobRepository;
     private readonly BorgRepositoryRepository $repositoryRepository;
+    private readonly BackupScheduleRepository $scheduleRepository;
 
     public function __construct(Application $app)
     {
         $this->backupJobRepository = new BackupJobRepository($app->getConnection());
         $this->repositoryRepository = new BorgRepositoryRepository($app->getConnection());
+        $this->scheduleRepository = new BackupScheduleRepository($app->getConnection());
     }
 
     /**
@@ -187,6 +190,30 @@ class BackupJobController extends BaseController
                 notifyOnFailure: $data['notify_on_failure'] ?? true
             );
 
+            // Create schedule if multi-day selection is provided
+            if ($data['schedule_type'] !== 'manual' && 
+                (isset($data['weekdays_array']) || isset($data['monthdays_array']))) {
+                
+                $scheduleData = [
+                    'job_id' => $jobId,
+                    'type' => $data['schedule_type'],
+                    'time' => $data['schedule_time'] ?? '00:00:00',
+                ];
+
+                // Handle multi-day selection for weekly
+                if ($data['schedule_type'] === 'weekly' && isset($data['weekdays_array'])) {
+                    $scheduleData['weekdays'] = $this->scheduleRepository->calculateWeekdaysBitmap($data['weekdays_array']);
+                }
+
+                // Handle multi-day selection for monthly
+                if ($data['schedule_type'] === 'monthly' && isset($data['monthdays_array'])) {
+                    $scheduleData['monthdays'] = $this->scheduleRepository->calculateMonthdaysBitmap($data['monthdays_array']);
+                }
+
+                // Create the schedule
+                $this->scheduleRepository->create($scheduleData);
+            }
+
             // Get created job
             $job = $this->backupJobRepository->findById($jobId);
             $jobArray = $job->toArray();
@@ -245,6 +272,35 @@ class BackupJobController extends BaseController
                 notifyOnSuccess: isset($data['notify_on_success']) ? (bool)$data['notify_on_success'] : $job->notifyOnSuccess,
                 notifyOnFailure: isset($data['notify_on_failure']) ? (bool)$data['notify_on_failure'] : $job->notifyOnFailure
             );
+
+            // Update or create schedule if multi-day selection is provided
+            if (isset($data['weekdays_array']) || isset($data['monthdays_array'])) {
+                $existingSchedule = $this->scheduleRepository->findByJobId($jobId);
+                
+                $scheduleData = [
+                    'type' => $data['schedule_type'] ?? $job->scheduleType,
+                    'time' => $data['schedule_time'] ?? $job->scheduleTime ?? '00:00:00',
+                ];
+
+                // Handle multi-day selection for weekly
+                if (isset($data['weekdays_array'])) {
+                    $scheduleData['weekdays'] = $this->scheduleRepository->calculateWeekdaysBitmap($data['weekdays_array']);
+                }
+
+                // Handle multi-day selection for monthly
+                if (isset($data['monthdays_array'])) {
+                    $scheduleData['monthdays'] = $this->scheduleRepository->calculateMonthdaysBitmap($data['monthdays_array']);
+                }
+
+                if ($existingSchedule) {
+                    // Update existing schedule
+                    $this->scheduleRepository->update($existingSchedule->id, $scheduleData);
+                } else if ($data['schedule_type'] !== 'manual') {
+                    // Create new schedule
+                    $scheduleData['job_id'] = $jobId;
+                    $this->scheduleRepository->create($scheduleData);
+                }
+            }
 
             // Get updated job
             $job = $this->backupJobRepository->findById($jobId);

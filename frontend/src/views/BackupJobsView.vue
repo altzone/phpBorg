@@ -221,25 +221,38 @@
               <input v-model="jobForm.schedule_time" type="time" required class="input w-full" />
             </div>
 
-            <!-- Day of Week (for weekly) -->
+            <!-- Days of Week (for weekly) - Multi-select -->
             <div v-if="jobForm.schedule_type === 'weekly'">
-              <label class="block text-sm font-medium text-gray-700 mb-2">Day of Week *</label>
-              <select v-model.number="jobForm.schedule_day_of_week" required class="input w-full">
-                <option :value="1">Monday</option>
-                <option :value="2">Tuesday</option>
-                <option :value="3">Wednesday</option>
-                <option :value="4">Thursday</option>
-                <option :value="5">Friday</option>
-                <option :value="6">Saturday</option>
-                <option :value="7">Sunday</option>
-              </select>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Days of Week *</label>
+              <div class="grid grid-cols-7 gap-2">
+                <label v-for="(day, index) in weekDays" :key="index" 
+                       class="flex items-center justify-center p-2 border rounded cursor-pointer hover:bg-blue-50"
+                       :class="{ 'bg-blue-100 border-blue-500': jobForm.selected_weekdays.includes(index + 1) }">
+                  <input type="checkbox" 
+                         :value="index + 1" 
+                         v-model="jobForm.selected_weekdays"
+                         class="sr-only" />
+                  <span class="text-xs font-medium">{{ day.short }}</span>
+                </label>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">Select one or more days for backup</p>
             </div>
 
-            <!-- Day of Month (for monthly) -->
+            <!-- Days of Month (for monthly) - Multi-select -->
             <div v-if="jobForm.schedule_type === 'monthly'">
-              <label class="block text-sm font-medium text-gray-700 mb-2">Day of Month *</label>
-              <input v-model.number="jobForm.schedule_day_of_month" type="number" min="1" max="31" required class="input w-full" placeholder="1-31" />
-              <p class="text-xs text-gray-500 mt-1">If day doesn't exist in month (e.g., 31 in Feb), last day will be used</p>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Days of Month *</label>
+              <div class="grid grid-cols-7 gap-2 max-h-48 overflow-y-auto">
+                <label v-for="day in 31" :key="day"
+                       class="flex items-center justify-center p-2 border rounded cursor-pointer hover:bg-blue-50 min-w-[40px]"
+                       :class="{ 'bg-blue-100 border-blue-500': jobForm.selected_monthdays.includes(day) }">
+                  <input type="checkbox" 
+                         :value="day" 
+                         v-model="jobForm.selected_monthdays"
+                         class="sr-only" />
+                  <span class="text-xs font-medium">{{ day }}</span>
+                </label>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">Select one or more days. If day doesn't exist in month, last day will be used</p>
             </div>
 
             <!-- Notifications -->
@@ -301,10 +314,23 @@ const jobForm = ref({
   schedule_time: '02:00',
   schedule_day_of_week: 1,
   schedule_day_of_month: 1,
+  selected_weekdays: [1], // Array for multiple weekdays
+  selected_monthdays: [1], // Array for multiple month days
   enabled: true,
   notify_on_success: false,
   notify_on_failure: true,
 })
+
+// Week days configuration
+const weekDays = [
+  { short: 'Mon', full: 'Monday' },
+  { short: 'Tue', full: 'Tuesday' },
+  { short: 'Wed', full: 'Wednesday' },
+  { short: 'Thu', full: 'Thursday' },
+  { short: 'Fri', full: 'Friday' },
+  { short: 'Sat', full: 'Saturday' },
+  { short: 'Sun', full: 'Sunday' }
+]
 
 onMounted(async () => {
   await loadBackupJobs()
@@ -336,6 +362,10 @@ async function loadRepositories() {
 function openJobModal(job = null) {
   editingJob.value = job
   if (job) {
+    // Convert single day to array for backward compatibility
+    const weekdays = job.selected_weekdays || (job.schedule_day_of_week ? [job.schedule_day_of_week] : [1])
+    const monthdays = job.selected_monthdays || (job.schedule_day_of_month ? [job.schedule_day_of_month] : [1])
+    
     jobForm.value = {
       name: job.name,
       repository_id: job.repository_id,
@@ -343,6 +373,8 @@ function openJobModal(job = null) {
       schedule_time: job.schedule_time || '02:00',
       schedule_day_of_week: job.schedule_day_of_week || 1,
       schedule_day_of_month: job.schedule_day_of_month || 1,
+      selected_weekdays: weekdays,
+      selected_monthdays: monthdays,
       enabled: job.enabled,
       notify_on_success: job.notify_on_success,
       notify_on_failure: job.notify_on_failure,
@@ -355,6 +387,8 @@ function openJobModal(job = null) {
       schedule_time: '02:00',
       schedule_day_of_week: 1,
       schedule_day_of_month: 1,
+      selected_weekdays: [1],
+      selected_monthdays: [1],
       enabled: true,
       notify_on_success: false,
       notify_on_failure: true,
@@ -373,6 +407,18 @@ async function saveJob() {
     saving.value = true
     error.value = null
 
+    // Validate at least one day is selected
+    if (jobForm.value.schedule_type === 'weekly' && jobForm.value.selected_weekdays.length === 0) {
+      error.value = 'Please select at least one weekday'
+      saving.value = false
+      return
+    }
+    if (jobForm.value.schedule_type === 'monthly' && jobForm.value.selected_monthdays.length === 0) {
+      error.value = 'Please select at least one day of month'
+      saving.value = false
+      return
+    }
+
     const data = {
       name: jobForm.value.name,
       repository_id: parseInt(jobForm.value.repository_id),
@@ -388,11 +434,17 @@ async function saveJob() {
     }
 
     if (jobForm.value.schedule_type === 'weekly') {
-      data.schedule_day_of_week = jobForm.value.schedule_day_of_week
+      // Send array of selected weekdays for the new multi-day support
+      data.weekdays_array = jobForm.value.selected_weekdays
+      // Keep backward compatibility
+      data.schedule_day_of_week = jobForm.value.selected_weekdays[0] || 1
     }
 
     if (jobForm.value.schedule_type === 'monthly') {
-      data.schedule_day_of_month = jobForm.value.schedule_day_of_month
+      // Send array of selected month days for the new multi-day support
+      data.monthdays_array = jobForm.value.selected_monthdays
+      // Keep backward compatibility
+      data.schedule_day_of_month = jobForm.value.selected_monthdays[0] || 1
     }
 
     if (editingJob.value) {
