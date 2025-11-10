@@ -240,83 +240,84 @@ class BackupScheduleRepository
     public function update(int $id, array $data): BackupSchedule
     {
         $fields = [];
-        $params = ['id' => $id];
+        $params = [];
 
         if (isset($data['type'])) {
-            $fields[] = 'type = :type';
-            $params['type'] = $data['type'];
+            $fields[] = 'type = ?';
+            $params[] = $data['type'];
         }
 
         if (isset($data['time'])) {
-            $fields[] = 'time = :time';
-            $params['time'] = $data['time'];
+            $fields[] = 'time = ?';
+            $params[] = $data['time'];
         }
 
         if (isset($data['timezone'])) {
-            $fields[] = 'timezone = :timezone';
-            $params['timezone'] = $data['timezone'];
+            $fields[] = 'timezone = ?';
+            $params[] = $data['timezone'];
         }
 
         if (array_key_exists('weekdays', $data)) {
-            $fields[] = 'weekdays = :weekdays';
-            $params['weekdays'] = $data['weekdays'];
+            $fields[] = 'weekdays = ?';
+            $params[] = $data['weekdays'];
         }
 
         if (array_key_exists('monthdays', $data)) {
-            $fields[] = 'monthdays = :monthdays';
-            $params['monthdays'] = $data['monthdays'];
+            $fields[] = 'monthdays = ?';
+            $params[] = $data['monthdays'];
         }
 
         if (array_key_exists('interval_hours', $data)) {
-            $fields[] = 'interval_hours = :interval_hours';
-            $params['interval_hours'] = $data['interval_hours'];
+            $fields[] = 'interval_hours = ?';
+            $params[] = $data['interval_hours'];
         }
 
         if (array_key_exists('cron_expression', $data)) {
-            $fields[] = 'cron_expression = :cron_expression';
-            $params['cron_expression'] = $data['cron_expression'];
+            $fields[] = 'cron_expression = ?';
+            $params[] = $data['cron_expression'];
         }
 
         if (array_key_exists('window_start', $data)) {
-            $fields[] = 'window_start = :window_start';
-            $params['window_start'] = $data['window_start'];
+            $fields[] = 'window_start = ?';
+            $params[] = $data['window_start'];
         }
 
         if (array_key_exists('window_end', $data)) {
-            $fields[] = 'window_end = :window_end';
-            $params['window_end'] = $data['window_end'];
+            $fields[] = 'window_end = ?';
+            $params[] = $data['window_end'];
         }
 
         if (isset($data['max_runtime'])) {
-            $fields[] = 'max_runtime = :max_runtime';
-            $params['max_runtime'] = $data['max_runtime'];
+            $fields[] = 'max_runtime = ?';
+            $params[] = $data['max_runtime'];
         }
 
         if (array_key_exists('blackout_periods', $data)) {
-            $fields[] = 'blackout_periods = :blackout_periods';
-            $params['blackout_periods'] = $data['blackout_periods'] !== null ? json_encode($data['blackout_periods']) : null;
+            $fields[] = 'blackout_periods = ?';
+            $params[] = $data['blackout_periods'] !== null ? json_encode($data['blackout_periods']) : null;
         }
 
         if (isset($data['retry_on_failure'])) {
-            $fields[] = 'retry_on_failure = :retry_on_failure';
-            $params['retry_on_failure'] = $data['retry_on_failure'];
+            $fields[] = 'retry_on_failure = ?';
+            $params[] = $data['retry_on_failure'] ? 1 : 0;  // Convert boolean to int
         }
 
         if (isset($data['max_retries'])) {
-            $fields[] = 'max_retries = :max_retries';
-            $params['max_retries'] = $data['max_retries'];
+            $fields[] = 'max_retries = ?';
+            $params[] = $data['max_retries'];
         }
 
         if (isset($data['retry_delay_minutes'])) {
-            $fields[] = 'retry_delay_minutes = :retry_delay_minutes';
-            $params['retry_delay_minutes'] = $data['retry_delay_minutes'];
+            $fields[] = 'retry_delay_minutes = ?';
+            $params[] = $data['retry_delay_minutes'];
         }
 
         if (!empty($fields)) {
             $fields[] = 'updated_at = NOW()';
+            $params[] = $id;  // Add id at the end for WHERE clause
             
-            $this->connection->execute(
-                'UPDATE backup_schedules SET ' . implode(', ', $fields) . ' WHERE id = :id',
+            $this->connection->executeUpdate(
+                'UPDATE backup_schedules SET ' . implode(', ', $fields) . ' WHERE id = ?',
                 $params
             );
         }
@@ -337,9 +338,9 @@ class BackupScheduleRepository
         // Get job_id before deletion
         $schedule = $this->findById($id);
         
-        $this->connection->execute(
-            'DELETE FROM backup_schedules WHERE id = :id',
-            ['id' => $id]
+        $this->connection->executeUpdate(
+            'DELETE FROM backup_schedules WHERE id = ?',
+            [$id]
         );
 
         $deleted = $this->connection->affectedRows() > 0;
