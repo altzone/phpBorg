@@ -271,6 +271,90 @@
             </div>
           </form>
         </div>
+
+        <!-- System Settings -->
+        <div v-show="activeTab === 'system'">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">System Settings</h3>
+          <form @submit.prevent="saveSettings('system')" class="space-y-4">
+            <!-- Logging Settings -->
+            <div class="border-b pb-4 mb-4">
+              <h4 class="text-md font-semibold text-gray-800 mb-3">Logging Configuration</h4>
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">Log File Path</label>
+                  <input 
+                    v-model="systemForm['log_path']" 
+                    type="text" 
+                    class="input w-full" 
+                    placeholder="/var/log/phpborg.log"
+                    required 
+                  />
+                  <p class="text-xs text-gray-500 mt-1">Full path to the application log file</p>
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">Log Level</label>
+                  <select v-model="systemForm['log_level']" class="input w-full">
+                    <option value="debug">Debug - All messages including debug info</option>
+                    <option value="info">Info - Informational messages and above</option>
+                    <option value="warning">Warning - Warnings and errors only</option>
+                    <option value="error">Error - Errors and critical only</option>
+                    <option value="critical">Critical - Critical errors only</option>
+                  </select>
+                  <p class="text-xs text-gray-500 mt-1">Minimum severity level to log</p>
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">Log Rotation</label>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-xs text-gray-600 mb-1">Max File Size (MB)</label>
+                      <input 
+                        v-model.number="systemForm['log_max_size']" 
+                        type="number" 
+                        min="1" 
+                        class="input w-full" 
+                        placeholder="100"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-xs text-gray-600 mb-1">Files to Keep</label>
+                      <input 
+                        v-model.number="systemForm['log_max_files']" 
+                        type="number" 
+                        min="1" 
+                        class="input w-full" 
+                        placeholder="10"
+                      />
+                    </div>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">Automatic log rotation settings</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Temporary Files -->
+            <div>
+              <h4 class="text-md font-semibold text-gray-800 mb-3">Temporary Files</h4>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Temp Directory</label>
+                <input 
+                  v-model="systemForm['temp_path']" 
+                  type="text" 
+                  class="input w-full" 
+                  placeholder="/tmp/phpborg"
+                />
+                <p class="text-xs text-gray-500 mt-1">Directory for temporary files during backup operations</p>
+              </div>
+            </div>
+
+            <div class="flex justify-end">
+              <button type="submit" class="btn btn-primary" :disabled="settingsStore.loading">
+                Save System Settings
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
 
@@ -349,6 +433,7 @@ const tabs = [
   { id: 'borg', label: 'Borg' },
   { id: 'security', label: 'Security' },
   { id: 'network', label: 'Network' },
+  { id: 'system', label: 'System' },
 ]
 
 const generalForm = reactive({})
@@ -357,6 +442,7 @@ const backupForm = reactive({})
 const borgForm = reactive({})
 const securityForm = reactive({})
 const networkForm = reactive({})
+const systemForm = reactive({})
 
 onMounted(async () => {
   await settingsStore.fetchSettings()
@@ -378,6 +464,7 @@ function loadForms() {
     securityForm['security.force_https'] = securityForm['security.force_https'] === true || securityForm['security.force_https'] === 'true'
   }
   if (settings.network) Object.assign(networkForm, settings.network)
+  if (settings.system) Object.assign(systemForm, settings.system)
 }
 
 async function saveSettings(category) {
@@ -389,6 +476,7 @@ async function saveSettings(category) {
       borg: borgForm,
       security: securityForm,
       network: networkForm,
+      system: systemForm,
     }[category]
 
     await settingsStore.updateCategorySettings(category, formData)
