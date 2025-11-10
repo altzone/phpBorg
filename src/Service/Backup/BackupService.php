@@ -371,71 +371,30 @@ final class BackupService
             return;
         }
 
-        // Check if user exists locally
-        $username = $server->host;
-        if (posix_getpwnam($username) === false) {
-            $errorMsg = "Local user '{$username}' does not exist. Repository permissions cannot be set.";
-            $this->logger->error($errorMsg, $server->name);
-            throw new BackupException(
-                "{$errorMsg}\n" .
-                "Please run: sudo useradd -d " . dirname($repoPath) . " -m {$username}"
-            );
+        // Modern architecture: repository owned by phpborg user with proper SSH key auth
+        $phpborgUser = 'phpborg';
+        
+        // Ensure repository is accessible by phpborg user
+        if (posix_geteuid() === 0) {
+            // If running as root, set proper ownership
+            $this->logger->info("Setting repository ownership to {$phpborgUser}", $server->name);
+            if (!chown($repoPath, $phpborgUser) || !chgrp($repoPath, $phpborgUser)) {
+                $this->logger->warning("Failed to set repository ownership", $server->name);
+            }
+        } else {
+            // If not running as root, just ensure basic permissions
+            $this->logger->debug("Ensuring basic repository permissions (non-root execution)", $server->name);
         }
-
-        // Check if we're running as root (needed for chown)
-        if (posix_geteuid() !== 0) {
-            $this->logger->warning(
-                "Not running as root - cannot change repository ownership. Permissions may be incorrect.",
-                $server->name
-            );
-            return;
-        }
-
-        $this->logger->info("Setting repository permissions for user: {$username}", $server->name);
-
+        
+        // Set basic directory permissions (owner read/write/execute)
         try {
-            // Set permissions on repository directory itself
             if (!chmod($repoPath, 0700)) {
-                $this->logger->error("Failed to chmod repository: {$repoPath}", $server->name);
-            }
-            if (!chown($repoPath, $username)) {
-                $this->logger->error("Failed to chown repository to {$username}: {$repoPath}", $server->name);
-            }
-            if (!chgrp($repoPath, $username)) {
-                $this->logger->error("Failed to chgrp repository to {$username}: {$repoPath}", $server->name);
-            }
-
-            // Set permissions recursively
-            $iterator = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($repoPath, \RecursiveDirectoryIterator::SKIP_DOTS),
-                \RecursiveIteratorIterator::SELF_FIRST
-            );
-
-            $failed = 0;
-            foreach ($iterator as $item) {
-                $path = $item->getPathname();
-                if (!chmod($path, 0700)) {
-                    $failed++;
-                }
-                if (!chown($path, $username)) {
-                    $failed++;
-                }
-                if (!chgrp($path, $username)) {
-                    $failed++;
-                }
-            }
-
-            if ($failed > 0) {
-                $this->logger->warning(
-                    "Failed to set permissions on {$failed} files/directories in repository",
-                    $server->name
-                );
+                $this->logger->warning("Failed to set repository permissions", $server->name);
             } else {
-                $this->logger->info("Repository permissions updated successfully", $server->name);
+                $this->logger->debug("Repository permissions set successfully", $server->name);
             }
         } catch (\Exception $e) {
-            $this->logger->error("Error setting permissions: {$e->getMessage()}", $server->name);
-            throw new BackupException("Failed to set repository permissions: {$e->getMessage()}");
+            $this->logger->warning("Error setting permissions: {$e->getMessage()}", $server->name);
         }
     }
 

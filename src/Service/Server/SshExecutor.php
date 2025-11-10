@@ -83,9 +83,10 @@ final class SshExecutor
     public function testReverseConnection(Server $server, string $backupServerIp): bool
     {
         // Use deployed SSH key and connect as phpborg user (with borg serve restriction)
+        // Note: Due to borg serve restriction, we can only run borg commands
         $sshKeyPath = '/root/.ssh/phpborg_backup';
         $command = sprintf(
-            'ssh -i %s -q -o BatchMode=yes -o ConnectTimeout=3 -o StrictHostKeyChecking=accept-new phpborg@%s "echo 2>&1"',
+            'ssh -i %s -q -o BatchMode=yes -o ConnectTimeout=3 -o StrictHostKeyChecking=accept-new phpborg@%s "borg --version"',
             escapeshellarg($sshKeyPath),
             $backupServerIp
         );
