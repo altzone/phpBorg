@@ -58,7 +58,7 @@
             <select v-model="wizardData.serverId" class="input w-full" @change="onServerChange">
               <option value="">-- Select a server --</option>
               <option v-for="server in servers" :key="server.id" :value="server.id">
-                {{ server.name }} ({{ server.host }})
+                {{ server.name }} ({{ server.hostname || server.host || '' }})
               </option>
             </select>
           </div>
@@ -71,8 +71,8 @@
               <div class="ml-3">
                 <h3 class="text-sm font-medium text-blue-800">Server Details</h3>
                 <div class="mt-2 text-sm text-blue-700">
-                  <p>Host: {{ selectedServer?.host }}</p>
-                  <p>SSH Port: {{ selectedServer?.ssh_port }}</p>
+                  <p>Host: {{ selectedServer?.hostname || selectedServer?.host }}</p>
+                  <p>SSH Port: {{ selectedServer?.port }}</p>
                   <p v-if="selectedServer?.description">{{ selectedServer.description }}</p>
                 </div>
               </div>
