@@ -424,13 +424,77 @@
               <!-- Custom Exclusions -->
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Additional Exclusions (Optional)</label>
-                <textarea 
-                  v-model="wizardData.sourceConfig.excludePatterns" 
-                  rows="4" 
-                  class="input w-full font-mono text-sm"
-                  placeholder="# Add custom patterns to exclude&#10;/path/to/exclude/*&#10;*.bak&#10;/var/www/*/cache/*"
-                ></textarea>
-                <p class="text-xs text-gray-500 mt-1">Add your own exclusion patterns, one per line. Use * for wildcards.</p>
+                
+                <!-- Input to add new exclusions -->
+                <div class="flex gap-2 mb-3">
+                  <div class="relative flex-1">
+                    <input 
+                      v-model="newExclusionPattern"
+                      @keydown.enter="addCustomExclusion"
+                      type="text" 
+                      class="input w-full pr-10"
+                      placeholder="Enter path or pattern (e.g., /backup/*, *.bak, /var/www/*/cache/)"
+                    />
+                    <div class="absolute inset-y-0 right-2 flex items-center pointer-events-none">
+                      <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <button 
+                    @click="addCustomExclusion" 
+                    :disabled="!newExclusionPattern.trim()"
+                    class="btn btn-primary"
+                  >
+                    Add Exclusion
+                  </button>
+                </div>
+
+                <!-- Quick add buttons for common patterns -->
+                <div class="mb-3">
+                  <p class="text-xs text-gray-600 mb-2">Quick add:</p>
+                  <div class="flex flex-wrap gap-2">
+                    <button 
+                      v-for="pattern in quickExclusionPatterns" 
+                      :key="pattern.value"
+                      @click="newExclusionPattern = pattern.value; addCustomExclusion()"
+                      class="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
+                      :title="pattern.description"
+                    >
+                      {{ pattern.label }}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Display custom exclusions as tags -->
+                <div v-if="customExclusions.length > 0" class="bg-gray-50 p-3 rounded-lg">
+                  <div class="flex flex-wrap gap-2">
+                    <div 
+                      v-for="(exclusion, index) in customExclusions" 
+                      :key="index"
+                      class="group inline-flex items-center bg-white border border-gray-300 rounded-full px-3 py-1 text-sm"
+                    >
+                      <span class="font-mono text-gray-700">{{ exclusion }}</span>
+                      <button 
+                        @click="removeCustomExclusion(index)"
+                        class="ml-2 text-gray-400 hover:text-red-500 transition-colors"
+                        title="Remove"
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-2">{{ customExclusions.length }} custom exclusion{{ customExclusions.length !== 1 ? 's' : '' }} added</p>
+                </div>
+                <div v-else class="text-sm text-gray-500 italic">
+                  No custom exclusions added yet
+                </div>
+                
+                <p class="text-xs text-gray-500 mt-2">
+                  Use * for wildcards, ** for recursive matching. Examples: *.bak, /home/*/.config/**, /var/www/*/temp/
+                </p>
               </div>
 
               <!-- Backup Options -->
@@ -832,6 +896,10 @@ const storagePools = ref([])
 const snapshotCapabilities = ref([])
 const loadingCapabilities = ref(false)
 
+// Custom exclusions
+const newExclusionPattern = ref('')
+const customExclusions = ref([])
+
 // Wizard data
 const wizardData = ref({
   serverId: null,
@@ -905,6 +973,23 @@ const weekDays = [
   { short: 'Sun', full: 'Sunday' }
 ]
 
+// Quick exclusion patterns
+const quickExclusionPatterns = [
+  { label: '*.bak', value: '*.bak', description: 'All backup files' },
+  { label: '*.old', value: '*.old', description: 'All old files' },
+  { label: '~*', value: '~*', description: 'Temporary editor files' },
+  { label: '.git/', value: '*/.git/*', description: 'Git repositories' },
+  { label: '.svn/', value: '*/.svn/*', description: 'SVN repositories' },
+  { label: 'thumbs.db', value: '**/Thumbs.db', description: 'Windows thumbnail cache' },
+  { label: '.DS_Store', value: '**/.DS_Store', description: 'macOS metadata files' },
+  { label: 'lost+found', value: '*/lost+found/*', description: 'Filesystem recovery directories' },
+  { label: 'core dumps', value: '*/core.*', description: 'Core dump files' },
+  { label: '.idea/', value: '*/.idea/*', description: 'IntelliJ IDEA project files' },
+  { label: '.vscode/', value: '*/.vscode/*', description: 'VS Code project files' },
+  { label: '*.iso', value: '*.iso', description: 'ISO image files' },
+  { label: '*.ova', value: '*.ova', description: 'Virtual appliance files' }
+]
+
 // Computed
 const selectedServer = computed(() => 
   servers.value.find(s => s.id === wizardData.value.serverId)
@@ -971,6 +1056,26 @@ function addPath() {
 
 function removePath(index) {
   wizardData.value.sourceConfig.paths.splice(index, 1)
+}
+
+function addCustomExclusion() {
+  const pattern = newExclusionPattern.value.trim()
+  if (pattern && !customExclusions.value.includes(pattern)) {
+    customExclusions.value.push(pattern)
+    newExclusionPattern.value = ''
+    updateCustomExclusions()
+  }
+}
+
+function removeCustomExclusion(index) {
+  customExclusions.value.splice(index, 1)
+  updateCustomExclusions()
+}
+
+function updateCustomExclusions() {
+  if (wizardData.value.backupType === 'system') {
+    buildSystemExclusions()
+  }
 }
 
 async function onServerChange() {
@@ -1078,6 +1183,11 @@ function buildSystemExclusions() {
       '*/.cargo/*',
       '*/out/*'
     )
+  }
+  
+  // Add custom exclusions
+  if (customExclusions.value.length > 0) {
+    exclusions.push(...customExclusions.value)
   }
   
   wizardData.value.sourceConfig.excludePatterns = exclusions.join('\n')
