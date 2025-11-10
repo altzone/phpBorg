@@ -121,7 +121,10 @@ final class BackupService
             $cleanupNeeded = false;
             $dbInfo = null;
 
-            if ($repository->type !== 'backup') {
+            // Define database types
+            $databaseTypes = ['mysql', 'mariadb', 'postgresql', 'mongodb'];
+            
+            if (in_array($repository->type, $databaseTypes)) {
                 // Database backup
                 $dbInfo = $this->dbInfoRepo->findByServerAndType($server->id, $repository->type);
                 if ($dbInfo === null) {
@@ -137,7 +140,7 @@ final class BackupService
                 $backupPaths = [$prepareResult['path']];
                 $cleanupNeeded = $prepareResult['cleanup'];
             } else {
-                // Filesystem backup
+                // Filesystem backup (files, system, etc.)
                 $backupPaths = $repository->getBackupPaths();
             }
 
@@ -177,7 +180,7 @@ final class BackupService
             }
 
             // Cleanup database backup if needed
-            if ($cleanupNeeded && $dbInfo !== null) {
+            if ($cleanupNeeded && $dbInfo !== null && in_array($repository->type, $databaseTypes)) {
                 $strategy = $this->databaseStrategies[$repository->type];
                 $strategy->cleanupBackup($server, $dbInfo);
             }
