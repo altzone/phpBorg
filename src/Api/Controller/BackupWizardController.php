@@ -44,8 +44,16 @@ class BackupWizardController extends BaseController
      * Detect server capabilities (snapshot methods, databases, etc.)
      * GET /api/backup-wizard/capabilities/{serverId}
      */
-    public function capabilities(int $serverId): array
+    public function capabilities(): void
     {
+        // Get serverId from route parameters
+        $params = $_SERVER['ROUTE_PARAMS'] ?? [];
+        $serverId = (int)($params['serverId'] ?? 0);
+        
+        if (!$serverId) {
+            throw new PhpBorgException('Server ID is required', 400);
+        }
+        
         $server = $this->serverRepository->findById($serverId);
         if (!$server) {
             throw new PhpBorgException('Server not found', 404);
@@ -57,18 +65,16 @@ class BackupWizardController extends BaseController
             'filesystem' => $this->getFilesystemInfo($server)
         ];
 
-        return [
-            'success' => true,
-            'data' => $capabilities
-        ];
+        $this->success(['data' => $capabilities]);
     }
 
     /**
      * Auto-detect MySQL credentials
      * POST /api/backup-wizard/detect-mysql
      */
-    public function detectMySQL(array $data): array
+    public function detectMySQL(): void
     {
+        $data = $this->getRequestData();
         $serverId = $data['server_id'] ?? 0;
         $server = $this->serverRepository->findById($serverId);
         
@@ -85,8 +91,7 @@ class BackupWizardController extends BaseController
                 preg_match('/password\s*=\s*(.+)/', $debianCnf, $passMatch);
                 
                 if ($userMatch && $passMatch) {
-                    return [
-                        'success' => true,
+                    $this->success([
                         'data' => [
                             'detected' => true,
                             'source' => '/etc/mysql/debian.cnf',
@@ -95,7 +100,8 @@ class BackupWizardController extends BaseController
                             'host' => 'localhost',
                             'port' => 3306
                         ]
-                    ];
+                    ]);
+                    return;
                 }
             }
             
