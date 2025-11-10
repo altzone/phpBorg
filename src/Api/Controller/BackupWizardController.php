@@ -353,9 +353,21 @@ class BackupWizardController extends BaseController
             // Convert time format from HH:MM to HH:MM:SS if needed
             $scheduleTime = null;
             if (isset($data['schedule_time']) && $data['schedule_time']) {
-                $scheduleTime = strlen($data['schedule_time']) === 5 
-                    ? $data['schedule_time'] . ':00' 
-                    : $data['schedule_time'];
+                // Log the incoming time for debugging
+                error_log("Incoming schedule_time: " . $data['schedule_time']);
+                
+                // Remove any duplicate :00 if present
+                $scheduleTime = $data['schedule_time'];
+                // If it's HH:MM format, add :00
+                if (preg_match('/^\d{2}:\d{2}$/', $scheduleTime)) {
+                    $scheduleTime .= ':00';
+                }
+                // If it's already HH:MM:SS:SS (duplicated), fix it
+                elseif (preg_match('/^\d{2}:\d{2}:\d{2}:\d{2}$/', $scheduleTime)) {
+                    $scheduleTime = substr($scheduleTime, 0, 8); // Take only HH:MM:SS
+                }
+                
+                error_log("Converted schedule_time: " . $scheduleTime);
             }
             
             $jobId = $this->jobRepository->create(

@@ -982,13 +982,31 @@
 
             <div>
               <h3 class="font-semibold text-gray-900 mb-2">Schedule</h3>
-              <p class="text-sm">
-                <span class="text-gray-600">Type:</span> 
-                <span class="font-medium">{{ wizardData.scheduleType }}</span>
-                <span v-if="wizardData.scheduleType !== 'manual'" class="ml-2">
-                  at {{ wizardData.scheduleTime }}
-                </span>
-              </p>
+              <div class="space-y-1">
+                <p class="text-sm">
+                  <span class="text-gray-600">Type:</span> 
+                  <span class="font-medium capitalize">{{ wizardData.scheduleType }}</span>
+                  <span v-if="wizardData.scheduleType !== 'manual'" class="ml-2">
+                    at {{ wizardData.scheduleTime }}
+                  </span>
+                </p>
+                
+                <!-- Show selected days for weekly schedule -->
+                <div v-if="wizardData.scheduleType === 'weekly' && wizardData.selectedWeekdays.length > 0" class="text-sm">
+                  <span class="text-gray-600">Days:</span>
+                  <span class="font-medium ml-1">
+                    {{ wizardData.selectedWeekdays.map(d => weekDays[d-1].short).join(', ') }}
+                  </span>
+                </div>
+                
+                <!-- Show selected days for monthly schedule -->
+                <div v-if="wizardData.scheduleType === 'monthly' && wizardData.selectedMonthdays.length > 0" class="text-sm">
+                  <span class="text-gray-600">Days of month:</span>
+                  <span class="font-medium ml-1">
+                    {{ wizardData.selectedMonthdays.sort((a, b) => a - b).join(', ') }}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1662,7 +1680,10 @@ function formatBytes(bytes) {
 }
 
 function copyPassphrase() {
-  if (generatedPassphrase.value) {
+  if (!generatedPassphrase.value) return
+  
+  // Check if clipboard API is available (requires HTTPS)
+  if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(generatedPassphrase.value).then(() => {
       passphrasecopied.value = true
       // Reset after 3 seconds
@@ -1670,27 +1691,43 @@ function copyPassphrase() {
         passphrasecopied.value = false
       }, 3000)
     }).catch(err => {
-      console.error('Failed to copy:', err)
-      // Fallback for older browsers
-      const textArea = document.createElement('textarea')
-      textArea.value = generatedPassphrase.value
-      textArea.style.position = 'fixed'
-      textArea.style.left = '-999999px'
-      document.body.appendChild(textArea)
-      textArea.focus()
-      textArea.select()
-      try {
-        document.execCommand('copy')
-        passphrasecopied.value = true
-        setTimeout(() => {
-          passphrasecopied.value = false
-        }, 3000)
-      } catch (err) {
-        console.error('Fallback copy failed:', err)
-      }
-      document.body.removeChild(textArea)
+      console.error('Clipboard API failed:', err)
+      // Use fallback method
+      copyUsingFallback()
     })
+  } else {
+    // Use fallback method for HTTP or unsupported browsers
+    copyUsingFallback()
   }
+}
+
+function copyUsingFallback() {
+  const textArea = document.createElement('textarea')
+  textArea.value = generatedPassphrase.value
+  textArea.style.position = 'fixed'
+  textArea.style.left = '-999999px'
+  textArea.style.top = '0'
+  document.body.appendChild(textArea)
+  textArea.focus()
+  textArea.select()
+  
+  try {
+    const successful = document.execCommand('copy')
+    if (successful) {
+      passphrasecopied.value = true
+      setTimeout(() => {
+        passphrasecopied.value = false
+      }, 3000)
+    } else {
+      console.error('Copy command failed')
+      alert('Could not copy passphrase. Please copy it manually:\n\n' + generatedPassphrase.value)
+    }
+  } catch (err) {
+    console.error('Fallback copy failed:', err)
+    alert('Could not copy passphrase. Please copy it manually:\n\n' + generatedPassphrase.value)
+  }
+  
+  document.body.removeChild(textArea)
 }
 
 function closeSuccessModal() {

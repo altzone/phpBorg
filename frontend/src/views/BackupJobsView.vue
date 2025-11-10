@@ -366,11 +366,18 @@ function openJobModal(job = null) {
     const weekdays = job.selected_weekdays || (job.schedule_day_of_week ? [job.schedule_day_of_week] : [1])
     const monthdays = job.selected_monthdays || (job.schedule_day_of_month ? [job.schedule_day_of_month] : [1])
     
+    // Handle schedule_time format - strip seconds if present for UI input
+    let scheduleTime = job.schedule_time || '02:00'
+    if (scheduleTime && scheduleTime.split(':').length === 3) {
+      // Remove seconds for the time input (HH:MM:SS -> HH:MM)
+      scheduleTime = scheduleTime.substring(0, 5)
+    }
+    
     jobForm.value = {
       name: job.name,
       repository_id: job.repository_id,
       schedule_type: job.schedule_type,
-      schedule_time: job.schedule_time || '02:00',
+      schedule_time: scheduleTime,
       schedule_day_of_week: job.schedule_day_of_week || 1,
       schedule_day_of_month: job.schedule_day_of_month || 1,
       selected_weekdays: weekdays,
@@ -430,7 +437,12 @@ async function saveJob() {
 
     // Add schedule parameters based on type
     if (jobForm.value.schedule_type !== 'manual') {
-      data.schedule_time = jobForm.value.schedule_time + ':00' // Add seconds
+      // Check if time already has seconds (HH:MM:SS format)
+      if (jobForm.value.schedule_time && jobForm.value.schedule_time.split(':').length === 3) {
+        data.schedule_time = jobForm.value.schedule_time // Already has seconds
+      } else {
+        data.schedule_time = jobForm.value.schedule_time + ':00' // Add seconds
+      }
     }
 
     if (jobForm.value.schedule_type === 'weekly') {

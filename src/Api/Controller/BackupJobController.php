@@ -41,11 +41,37 @@ class BackupJobController extends BaseController
 
             $jobs = $this->backupJobRepository->findAll();
 
-            // Enrich with repository info
+            // Enrich with repository info and schedule details
             $jobsArray = array_map(function ($job) {
                 $jobArray = $job->toArray();
                 $repository = $this->repositoryRepository->findById($job->repositoryId);
                 $jobArray['repository'] = $repository ? $repository->toArray() : null;
+                
+                // Add multi-day schedule info if it exists
+                $schedule = $this->scheduleRepository->findByJobId($job->id);
+                if ($schedule) {
+                    // Convert bitmaps to arrays of day numbers
+                    if ($schedule->weekdays !== null) {
+                        $selectedWeekdays = [];
+                        for ($i = 0; $i < 7; $i++) {
+                            if ($schedule->weekdays & (1 << $i)) {
+                                $selectedWeekdays[] = $i + 1; // 1-based day numbers
+                            }
+                        }
+                        $jobArray['selected_weekdays'] = $selectedWeekdays;
+                    }
+                    
+                    if ($schedule->monthdays !== null) {
+                        $selectedMonthdays = [];
+                        for ($i = 0; $i < 31; $i++) {
+                            if ($schedule->monthdays & (1 << $i)) {
+                                $selectedMonthdays[] = $i + 1; // 1-based day numbers
+                            }
+                        }
+                        $jobArray['selected_monthdays'] = $selectedMonthdays;
+                    }
+                }
+                
                 return $jobArray;
             }, $jobs);
 
@@ -88,6 +114,31 @@ class BackupJobController extends BaseController
             $jobArray = $job->toArray();
             $repository = $this->repositoryRepository->findById($job->repositoryId);
             $jobArray['repository'] = $repository ? $repository->toArray() : null;
+            
+            // Add multi-day schedule info if it exists
+            $schedule = $this->scheduleRepository->findByJobId($job->id);
+            if ($schedule) {
+                // Convert bitmaps to arrays of day numbers
+                if ($schedule->weekdays !== null) {
+                    $selectedWeekdays = [];
+                    for ($i = 0; $i < 7; $i++) {
+                        if ($schedule->weekdays & (1 << $i)) {
+                            $selectedWeekdays[] = $i + 1; // 1-based day numbers
+                        }
+                    }
+                    $jobArray['selected_weekdays'] = $selectedWeekdays;
+                }
+                
+                if ($schedule->monthdays !== null) {
+                    $selectedMonthdays = [];
+                    for ($i = 0; $i < 31; $i++) {
+                        if ($schedule->monthdays & (1 << $i)) {
+                            $selectedMonthdays[] = $i + 1; // 1-based day numbers
+                        }
+                    }
+                    $jobArray['selected_monthdays'] = $selectedMonthdays;
+                }
+            }
 
             $this->success(['backup_job' => $jobArray]);
         } catch (PhpBorgException $e) {
