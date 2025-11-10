@@ -79,6 +79,10 @@ final class BackupCreateHandler implements JobHandlerInterface
                     throw new \Exception("Repository #{$repositoryId} not found");
                 }
                 $this->logger->info("Using specified repository ID: {$repository->repoId} for {$type} backup", 'JOB');
+                
+                // Ensure the physical repository is initialized (idempotent)
+                $this->logger->info("Ensuring repository is initialized: {$repository->repoPath}", 'JOB');
+                $this->ensureRepositoryInitialized($repository);
             } else {
                 // Auto-find or create repository (original behavior)
                 $repository = $this->ensureRepositoryExists($serverId, $server->name, $type);
@@ -250,5 +254,25 @@ final class BackupCreateHandler implements JobHandlerInterface
                     'exclude' => '',
                 ];
         }
+    }
+
+    /**
+     * Ensure a repository is physically initialized (borg init)
+     * Used when we have a repository in database but need to make sure it's initialized on disk
+     */
+    private function ensureRepositoryInitialized(\PhpBorg\Entity\BorgRepository $repository): void
+    {
+        // Create repository directory if it doesn't exist
+        $repoDir = dirname($repository->repoPath);
+        if (!is_dir($repoDir)) {
+            $this->logger->info("Creating repository directory: {$repoDir}", 'JOB');
+            if (!mkdir($repoDir, 0700, true)) {
+                throw new \Exception("Failed to create repository directory: {$repoDir}");
+            }
+        }
+
+        // Initialize the Borg repository (idempotent - won't fail if already exists)
+        $this->logger->info("Initializing Borg repository: {$repository->repoPath}", 'JOB');
+        $this->initializeBorgRepository($repository->repoPath, $repository->passphrase, $repository->encryption);
     }
 }
