@@ -525,9 +525,23 @@
 
         <!-- Step 4: Snapshot Strategy -->
         <div v-else-if="currentStep === 3" class="space-y-4">
-          <div v-if="loadingCapabilities" class="text-center py-8">
+          <!-- Show different content based on backup type -->
+          <div v-if="!needsSnapshot()" class="p-6 bg-gray-50 rounded-lg text-center">
+            <svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">Snapshot Not Required</h3>
+            <p class="text-gray-600 max-w-md mx-auto">
+              File and folder backups don't require filesystem snapshots. Borg will handle file consistency during the backup process.
+            </p>
+            <p class="text-sm text-gray-500 mt-4">
+              This step is automatically skipped for file-based backups.
+            </p>
+          </div>
+          
+          <div v-else-if="loadingCapabilities" class="text-center py-8">
             <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-200 border-t-primary-600"></div>
-            <p class="mt-2 text-gray-600">Detecting snapshot capabilities...</p>
+            <p class="mt-2 text-gray-600">Detecting snapshot capabilities on {{ selectedServer?.name }}...</p>
           </div>
           
           <div v-else>
@@ -566,18 +580,53 @@
               </div>
             </div>
             
-            <div v-else class="p-4 bg-yellow-50 rounded-lg">
-              <div class="flex items-start">
-                <svg class="w-5 h-5 text-yellow-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                </svg>
-                <div class="ml-3">
-                  <h3 class="text-sm font-medium text-yellow-800">No Snapshot Methods Available</h3>
-                  <p class="mt-1 text-sm text-yellow-700">
-                    No snapshot capabilities detected on this server. Backup will proceed without filesystem snapshots.
-                  </p>
+            <div v-else class="space-y-4">
+              <!-- Warning for database backups without snapshots -->
+              <div v-if="['mysql', 'mariadb', 'postgresql', 'mongodb'].includes(wizardData.backupType)" class="p-4 bg-yellow-50 rounded-lg">
+                <div class="flex items-start">
+                  <svg class="w-5 h-5 text-yellow-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                  </svg>
+                  <div class="ml-3">
+                    <h3 class="text-sm font-medium text-yellow-800">No Snapshot Methods Available</h3>
+                    <p class="mt-1 text-sm text-yellow-700">
+                      No snapshot capabilities detected on this server. For database backups, snapshots ensure data consistency.
+                    </p>
+                    <div class="mt-2 text-sm text-yellow-700">
+                      <strong>Recommendations:</strong>
+                      <ul class="list-disc list-inside mt-1">
+                        <li>Install LVM for logical volume snapshots</li>
+                        <li>Use ZFS or Btrfs filesystems for built-in snapshot support</li>
+                        <li>Consider using database dumps instead for consistency</li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               </div>
+              
+              <!-- Info for system backups without snapshots -->
+              <div v-else class="p-4 bg-blue-50 rounded-lg">
+                <div class="flex items-start">
+                  <svg class="w-5 h-5 text-blue-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0118 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                  </svg>
+                  <div class="ml-3">
+                    <h3 class="text-sm font-medium text-blue-800">Proceeding Without Snapshots</h3>
+                    <p class="mt-1 text-sm text-blue-700">
+                      System backup will proceed without filesystem snapshots. Files may change during backup, but Borg will handle most consistency issues.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Option to proceed without snapshot -->
+              <label class="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50 border-primary-500 bg-primary-50">
+                <input type="radio" value="none" v-model="wizardData.snapshotMethod" checked class="mt-1" />
+                <div class="ml-3">
+                  <div class="font-medium">Continue Without Snapshot</div>
+                  <div class="text-sm text-gray-600">Proceed with backup without filesystem snapshot</div>
+                </div>
+              </label>
             </div>
           </div>
         </div>
@@ -1036,6 +1085,11 @@ function goToStep(step) {
 function previousStep() {
   if (currentStep.value > 0) {
     currentStep.value--
+    
+    // Skip snapshot step when going back for file backups
+    if (currentStep.value === 3 && wizardData.value.backupType === 'files') {
+      currentStep.value-- // Skip back to source config step
+    }
   }
 }
 
@@ -1043,11 +1097,21 @@ function nextStep() {
   if (currentStep.value < steps.length - 1 && isCurrentStepValid.value) {
     currentStep.value++
     
+    // Skip snapshot step for file backups
+    if (currentStep.value === 3 && wizardData.value.backupType === 'files') {
+      currentStep.value++ // Skip to storage step
+    }
+    
     // Trigger actions for specific steps
-    if (currentStep.value === 3) {
+    if (currentStep.value === 3 && needsSnapshot()) {
       detectSnapshotCapabilities()
     }
   }
+}
+
+function needsSnapshot() {
+  // Snapshot is only useful for databases and system backups
+  return ['mysql', 'mariadb', 'postgresql', 'mongodb', 'system'].includes(wizardData.value.backupType)
 }
 
 function addPath() {
@@ -1228,10 +1292,18 @@ async function detectSnapshotCapabilities() {
   loadingCapabilities.value = true
   try {
     const response = await wizardService.getCapabilities(wizardData.value.serverId)
-    snapshotCapabilities.value = response.data.snapshots || []
+    // The API returns snapshots array in the data
+    snapshotCapabilities.value = response.data?.snapshots || []
+    
+    // If we detected capabilities, auto-select the first one
+    if (snapshotCapabilities.value.length > 0 && wizardData.value.snapshotMethod === 'none') {
+      wizardData.value.snapshotMethod = snapshotCapabilities.value[0].type
+    }
   } catch (error) {
-    console.error('Failed to detect capabilities:', error)
+    console.error('Failed to detect snapshot capabilities:', error)
     snapshotCapabilities.value = []
+    // If detection fails, default to no snapshot
+    wizardData.value.snapshotMethod = 'none'
   } finally {
     loadingCapabilities.value = false
   }
