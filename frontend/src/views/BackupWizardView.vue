@@ -577,7 +577,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { serverService } from '../services/server'
-import { storagePoolService } from '../services/storage'
+import { storageService } from '../services/storage'
 import { wizardService } from '../services/wizardService'
 
 const router = useRouter()
@@ -827,11 +827,11 @@ onMounted(async () => {
   try {
     const [serversResponse, poolsResponse] = await Promise.all([
       serverService.getServers(),
-      storagePoolService.getStoragePools()
+      storageService.getStoragePools()
     ])
     
     servers.value = serversResponse.servers || []
-    storagePools.value = poolsResponse.data || []
+    storagePools.value = poolsResponse || []
     
     // Auto-select default pool
     const defaultPool = storagePools.value.find(p => p.default_pool)
