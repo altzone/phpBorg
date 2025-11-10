@@ -13,6 +13,7 @@ use PhpBorg\Application;
 use PhpBorg\Api\Router;
 use PhpBorg\Api\Controller\AuthController;
 use PhpBorg\Api\Controller\BackupController;
+use PhpBorg\Api\Controller\BackupJobController;
 use PhpBorg\Api\Controller\DashboardController;
 use PhpBorg\Api\Controller\EmailController;
 use PhpBorg\Api\Controller\JobController;
@@ -73,10 +74,21 @@ try {
     $router->delete('/backups/:id', BackupController::class, 'delete', requireAuth: true);
 
     // ===========================================
+    // Backup Job Routes (Protected)
+    // ===========================================
+    $router->get('/backup-jobs', BackupJobController::class, 'list', requireAuth: true);
+    $router->get('/backup-jobs/:id', BackupJobController::class, 'show', requireAuth: true);
+    $router->post('/backup-jobs', BackupJobController::class, 'create', requireAuth: true);
+    $router->put('/backup-jobs/:id', BackupJobController::class, 'update', requireAuth: true);
+    $router->post('/backup-jobs/:id/toggle', BackupJobController::class, 'toggle', requireAuth: true);
+    $router->delete('/backup-jobs/:id', BackupJobController::class, 'delete', requireAuth: true);
+
+    // ===========================================
     // Repository Routes (Protected)
     // ===========================================
     $router->get('/repositories', RepositoryController::class, 'list', requireAuth: true);
     $router->get('/repositories/:id', RepositoryController::class, 'show', requireAuth: true);
+    $router->get('/repositories/:id/backup-jobs', BackupJobController::class, 'listByRepository', requireAuth: true);
     $router->put('/repositories/:id/retention', RepositoryController::class, 'updateRetention', requireAuth: true);
 
     // ===========================================
