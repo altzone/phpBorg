@@ -36,6 +36,11 @@ const router = createRouter({
           component: () => import('@/views/BackupsView.vue'),
         },
         {
+          path: 'backups/:id/browse',
+          name: 'archive-browser',
+          component: () => import('@/views/ArchiveBrowserView.vue'),
+        },
+        {
           path: 'backup-jobs',
           name: 'backup-jobs',
           component: () => import('@/views/BackupJobsView.vue'),

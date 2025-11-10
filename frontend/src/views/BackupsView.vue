@@ -78,32 +78,131 @@
 
     <!-- Backups List -->
     <div v-else class="card">
+      <!-- Search Bar -->
+      <div class="mb-6">
+        <div class="relative">
+          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+            placeholder="Rechercher par nom d'archive, serveur, ou type..."
+          >
+        </div>
+      </div>
+
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead class="bg-gray-50 border-b">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Archive Name</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Files</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Compression</th>
+              <th @click="sortBy('server_name')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                <div class="flex items-center gap-1">
+                  Serveur
+                  <svg v-if="sortColumn === 'server_name'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                  </svg>
+                </div>
+              </th>
+              <th @click="sortBy('repository_type')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                <div class="flex items-center gap-1">
+                  Storage Pool
+                  <svg v-if="sortColumn === 'repository_type'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                  </svg>
+                </div>
+              </th>
+              <th @click="sortBy('name')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                <div class="flex items-center gap-1">
+                  Archive
+                  <svg v-if="sortColumn === 'name'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                  </svg>
+                </div>
+              </th>
+              <th @click="sortBy('end')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                <div class="flex items-center gap-1">
+                  Date
+                  <svg v-if="sortColumn === 'end'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                  </svg>
+                </div>
+              </th>
+              <th @click="sortBy('original_size')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                <div class="flex items-center gap-1">
+                  Taille
+                  <svg v-if="sortColumn === 'original_size'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                  </svg>
+                </div>
+              </th>
+              <th @click="sortBy('files_count')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                <div class="flex items-center gap-1">
+                  Fichiers
+                  <svg v-if="sortColumn === 'files_count'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                  </svg>
+                </div>
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stats</th>
               <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider" v-if="authStore.isAdmin">Actions</th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
-            <tr v-for="backup in backupStore.backups" :key="backup.id" class="hover:bg-gray-50">
+            <tr v-for="backup in filteredAndSortedBackups" :key="backup.id" class="hover:bg-gray-50">
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">{{ backup.name }}</div>
-                <div class="text-xs text-gray-500">{{ backup.server_name }} - {{ backup.repository_type }}</div>
-                <div class="text-xs text-gray-400">ID: {{ backup.archive_id.substring(0, 16) }}...</div>
+                <div class="text-sm font-medium text-gray-900">{{ backup.server_name }}</div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+                  {{ backup.repository_type }}
+                </span>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <div class="text-sm font-medium text-gray-900">{{ backup.name }}</div>
+                  <span
+                    v-if="backup.mount_status === 'mounted'"
+                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"
+                    title="Archive is currently mounted"
+                  >
+                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Mounted
+                  </span>
+                  <span
+                    v-else-if="backup.mount_status === 'mounting'"
+                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
+                    title="Archive is being mounted"
+                  >
+                    <svg class="w-3 h-3 mr-1 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Mounting...
+                  </span>
+                  <span
+                    v-else-if="backup.mount_status === 'unmounting'"
+                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800"
+                    title="Archive is being unmounted"
+                  >
+                    Unmounting...
+                  </span>
+                  <span
+                    v-else-if="backup.mount_status === 'error'"
+                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800"
+                    title="Mount error"
+                  >
+                    Error
+                  </span>
+                </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm text-gray-900">{{ formatDate(backup.end) }}</div>
-                <div class="text-xs text-gray-500">Started: {{ formatDate(backup.start) }}</div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                {{ backup.duration_formatted }}
+                <div class="text-xs text-gray-500">{{ backup.duration_formatted }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm text-gray-900">{{ formatBytes(backup.original_size) }}</div>
@@ -113,23 +212,41 @@
                 {{ backup.files_count.toLocaleString() }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-900">{{ backup.compression_ratio }}%</div>
-                <div class="text-xs text-gray-500">Dedup: {{ backup.deduplication_ratio }}%</div>
+                <div class="text-xs text-gray-600">
+                  <div>Compression: <span class="font-medium">{{ backup.compression_ratio }}%</span></div>
+                  <div>Dedup: <span class="font-medium">{{ backup.deduplication_ratio }}%</span></div>
+                </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" v-if="authStore.isAdmin">
-                <button
-                  @click="confirmDelete(backup)"
-                  class="text-red-600 hover:text-red-900"
-                  title="Delete backup"
-                >
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
+                <div class="flex justify-end gap-2">
+                  <button
+                    @click="handleBrowse(backup)"
+                    class="text-primary-600 hover:text-primary-900"
+                    title="Browse files"
+                  >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                  </button>
+                  <button
+                    @click="confirmDelete(backup)"
+                    class="text-red-600 hover:text-red-900"
+                    title="Delete backup"
+                  >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- Results count -->
+      <div v-if="searchQuery" class="mt-4 text-sm text-gray-600">
+        {{ filteredAndSortedBackups.length }} résultat(s) trouvé(s)
       </div>
     </div>
 
@@ -224,7 +341,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBackupStore } from '@/stores/backups'
@@ -242,6 +359,58 @@ const createForm = ref({
   server_id: '',
   type: 'backup'
 })
+
+// Search and sort
+const searchQuery = ref('')
+const sortColumn = ref('end')
+const sortDirection = ref('desc')
+
+// Filtered and sorted backups
+const filteredAndSortedBackups = computed(() => {
+  let filtered = backupStore.backups
+
+  // Filter by search query
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    filtered = filtered.filter(backup =>
+      backup.name.toLowerCase().includes(query) ||
+      backup.server_name.toLowerCase().includes(query) ||
+      backup.repository_type.toLowerCase().includes(query)
+    )
+  }
+
+  // Sort
+  const sorted = [...filtered].sort((a, b) => {
+    let aVal = a[sortColumn.value]
+    let bVal = b[sortColumn.value]
+
+    // Handle null/undefined
+    if (aVal == null) aVal = ''
+    if (bVal == null) bVal = ''
+
+    // Compare
+    if (typeof aVal === 'string') {
+      aVal = aVal.toLowerCase()
+      bVal = bVal.toLowerCase()
+    }
+
+    if (aVal < bVal) return sortDirection.value === 'asc' ? -1 : 1
+    if (aVal > bVal) return sortDirection.value === 'asc' ? 1 : -1
+    return 0
+  })
+
+  return sorted
+})
+
+// Sort function
+function sortBy(column) {
+  if (sortColumn.value === column) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortColumn.value = column
+    sortDirection.value = 'asc'
+  }
+}
 
 onMounted(async () => {
   await Promise.all([
@@ -281,16 +450,24 @@ async function handleDelete() {
     if (result.success) {
       showDeleteModal.value = false
       backupToDelete.value = null
-      
+
       // Show success message with job info
       alert(`✅ Suppression programmée avec succès !\n\nL'archive "${result.archive_name}" va être supprimée par le worker.\n\nJob ID: ${result.job_id}\n\nVous pouvez suivre le progrès dans la section Jobs.`)
-      
+
       // Optionally redirect to jobs page to monitor progress
       // router.push('/jobs')
     }
   } catch (err) {
     console.error('Delete error:', err)
   }
+}
+
+function handleBrowse(backup) {
+  router.push({
+    name: 'archive-browser',
+    params: { id: backup.id },
+    query: { name: backup.name }
+  })
 }
 
 function formatBytes(bytes) {

@@ -80,6 +80,10 @@ try {
     $router->post('/backups', BackupController::class, 'create', requireAuth: true);
     $router->get('/backups/:id', BackupController::class, 'show', requireAuth: true);
     $router->delete('/backups/:id', BackupController::class, 'delete', requireAuth: true);
+    $router->post('/backups/:id/mount', BackupController::class, 'mount', requireAuth: true);
+    $router->post('/backups/:id/unmount', BackupController::class, 'unmount', requireAuth: true);
+    $router->get('/backups/:id/browse', BackupController::class, 'browse', requireAuth: true);
+    $router->get('/backups/:id/download', BackupController::class, 'download', requireAuth: true);
 
     // ===========================================
     // Backup Job Routes (Protected)

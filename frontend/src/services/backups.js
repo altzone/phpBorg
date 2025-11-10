@@ -62,4 +62,61 @@ export const backupService = {
       message: response.data.message || response.data.data?.message
     }
   },
+
+  /**
+   * Mount an archive for browsing
+   * @param {number} id - Backup ID
+   * @returns {Promise<Object>}
+   */
+  async mount(id) {
+    const response = await api.post(`/backups/${id}/mount`)
+    return {
+      success: response.data.success,
+      job_id: response.data.data?.job_id,
+      mount_id: response.data.data?.mount_id,
+      status: response.data.data?.status,
+      message: response.data.message || response.data.data?.message
+    }
+  },
+
+  /**
+   * Unmount an archive
+   * @param {number} id - Backup ID
+   * @returns {Promise<Object>}
+   */
+  async unmount(id) {
+    const response = await api.post(`/backups/${id}/unmount`)
+    return {
+      success: response.data.success,
+      job_id: response.data.data?.job_id,
+      message: response.data.message || response.data.data?.message
+    }
+  },
+
+  /**
+   * Browse files in a mounted archive
+   * @param {number} id - Backup ID
+   * @param {string} path - Path to browse (default: '/')
+   * @returns {Promise<Object>}
+   */
+  async browse(id, path = '/') {
+    const response = await api.get(`/backups/${id}/browse`, { params: { path } })
+    return {
+      path: response.data.data?.path || '/',
+      items: response.data.data?.items || [],
+      total: response.data.data?.total || 0
+    }
+  },
+
+  /**
+   * Get download URL for a file
+   * @param {number} id - Backup ID
+   * @param {string} path - File path
+   * @returns {string} Download URL
+   */
+  getDownloadUrl(id, path) {
+    const baseUrl = api.defaults.baseURL || ''
+    const encodedPath = encodeURIComponent(path)
+    return `${baseUrl}/backups/${id}/download?path=${encodedPath}`
+  },
 }

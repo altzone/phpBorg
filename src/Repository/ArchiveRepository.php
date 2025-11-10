@@ -89,10 +89,12 @@ final class ArchiveRepository
     public function findAllWithDetails(): array
     {
         $rows = $this->connection->fetchAll(
-            'SELECT a.*, s.name as server_name, r.type as repository_type
+            'SELECT a.*, s.name as server_name, r.type as repository_type,
+                    m.id as mount_id, m.status as mount_status, m.mount_path
              FROM archives a
              LEFT JOIN servers s ON a.server_id = s.id
              LEFT JOIN repository r ON a.repo_id = r.repo_id
+             LEFT JOIN archive_mounts m ON a.id = m.archive_id
              ORDER BY a.end DESC'
         );
 

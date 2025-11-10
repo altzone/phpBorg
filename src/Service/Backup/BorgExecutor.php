@@ -266,17 +266,47 @@ final class BorgExecutor
      */
     public function mountArchive(string $archive, string $mountPoint, string $passphrase): void
     {
+        // Mount with allow_other and force ownership to www-data (UID 33, GID 33)
+        // This allows www-data to read all files regardless of original permissions
         $result = $this->execute(
-            ['mount', $archive, $mountPoint],
+            ['mount', $archive, $mountPoint, '-o', 'allow_other,uid=33,gid=33'],
             $passphrase,
             60
         );
 
+        // Log stderr even on success to debug
+        if (!empty($result['stderr'])) {
+            $this->logger->info("Borg mount stderr: {$result['stderr']}", 'BORG');
+        }
+        if (!empty($result['stdout'])) {
+            $this->logger->info("Borg mount stdout: {$result['stdout']}", 'BORG');
+        }
+
         if ($result['exitCode'] !== 0) {
-            throw new BackupException("Failed to mount archive: {$result['stderr']}");
+            throw new BackupException("Failed to mount archive (exit {$result['exitCode']}): {$result['stderr']}");
+        }
+
+        // Verify mount was successful by checking if directory is actually mounted
+        sleep(1); // Give FUSE time to mount
+        if (!is_dir($mountPoint)) {
+            throw new BackupException("Mount succeeded but directory does not exist: {$mountPoint}");
+        }
+
+        if (!$this->isMounted($mountPoint)) {
+            throw new BackupException("Mount succeeded but directory is not in /proc/mounts. Stderr: {$result['stderr']}");
         }
 
         $this->logger->info("Archive mounted at: {$mountPoint}", 'BORG');
+    }
+
+    /**
+     * Check if a directory is a mount point
+     */
+    private function isMounted(string $path): bool
+    {
+        // Check if path is in /proc/mounts
+        $mounts = file_get_contents('/proc/mounts');
+        return strpos($mounts, $path) !== false;
     }
 
     /**

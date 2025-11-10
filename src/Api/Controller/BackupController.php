@@ -7,6 +7,7 @@ namespace PhpBorg\Api\Controller;
 use PhpBorg\Application;
 use PhpBorg\Exception\PhpBorgException;
 use PhpBorg\Repository\ArchiveRepository;
+use PhpBorg\Repository\ArchiveMountRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Service\Backup\BorgExecutor;
 use PhpBorg\Service\Queue\JobQueue;
@@ -17,6 +18,7 @@ use PhpBorg\Service\Queue\JobQueue;
 class BackupController extends BaseController
 {
     private readonly ArchiveRepository $archiveRepo;
+    private readonly ArchiveMountRepository $mountRepo;
     private readonly BorgRepositoryRepository $repositoryRepo;
     private readonly BorgExecutor $borgExecutor;
     private readonly JobQueue $jobQueue;
@@ -24,6 +26,7 @@ class BackupController extends BaseController
     public function __construct(Application $app)
     {
         $this->archiveRepo = $app->getArchiveRepository();
+        $this->mountRepo = $app->getArchiveMountRepository();
         $this->repositoryRepo = $app->getBorgRepositoryRepository();
         $this->borgExecutor = $app->getBorgExecutor();
         $this->jobQueue = $app->getJobQueue();
@@ -293,7 +296,435 @@ class BackupController extends BaseController
             'deduplication_ratio' => $deduplicationRatio,
             'server_name' => $row['server_name'] ?? 'Unknown Server',
             'repository_type' => $row['repository_type'] ?? 'backup',
+            'mount_id' => isset($row['mount_id']) ? (int)$row['mount_id'] : null,
+            'mount_status' => $row['mount_status'] ?? null,
+            'mount_path' => $row['mount_path'] ?? null,
         ];
+    }
+
+    /**
+     * POST /api/backups/:id/mount
+     * Mount an archive for browsing/restore (queue job for worker)
+     */
+    public function mount(): void
+    {
+        try {
+            // Check admin or operator role
+            $user = $_SERVER['USER'] ?? null;
+            if (!$user || !in_array('ROLE_ADMIN', $user->roles) && !in_array('ROLE_OPERATOR', $user->roles)) {
+                $this->error('Admin or Operator role required', 403, 'FORBIDDEN');
+                return;
+            }
+
+            $backupId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
+
+            if ($backupId <= 0) {
+                $this->error('Invalid backup ID', 400, 'INVALID_BACKUP_ID');
+                return;
+            }
+
+            // Check backup exists
+            $archive = $this->archiveRepo->findById($backupId);
+            if (!$archive) {
+                $this->error('Backup not found', 404, 'BACKUP_NOT_FOUND');
+                return;
+            }
+
+            // Check if already mounted
+            $existingMount = $this->mountRepo->findByArchiveId($backupId);
+            if ($existingMount && $existingMount->status === 'mounted') {
+                // Verify the mount actually exists in /proc/mounts
+                if ($this->isMounted($existingMount->mountPath)) {
+                    $this->success([
+                        'mount_id' => $existingMount->id,
+                        'archive_id' => $backupId,
+                        'mount_path' => $existingMount->mountPath,
+                        'status' => 'already_mounted',
+                        'message' => 'Archive is already mounted'
+                    ], 'Archive already mounted');
+                    return;
+                } else {
+                    // Mount record exists but actual mount is gone - clean it up
+                    $this->mountRepo->deleteById($existingMount->id);
+                }
+            }
+
+            // Create mount job payload
+            $payload = [
+                'archive_id' => $backupId,
+                'action' => 'mount',
+                'user_id' => $user->id,
+            ];
+
+            // Queue the mount job for the worker
+            $jobId = $this->jobQueue->push(
+                'archive_mount',
+                $payload,
+                'default',
+                2, // Priority 2 (high)
+                $user->id
+            );
+
+            $this->success([
+                'job_id' => $jobId,
+                'archive_id' => $backupId,
+                'archive_name' => $archive->name,
+                'message' => 'Archive mount job queued successfully. The mount will be processed by the worker.'
+            ], 'Archive mount job created');
+
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'BACKUP_MOUNT_ERROR');
+        }
+    }
+
+    /**
+     * POST /api/backups/:id/unmount
+     * Unmount a mounted archive (queue job for worker)
+     */
+    public function unmount(): void
+    {
+        try {
+            // Check admin or operator role
+            $user = $_SERVER['USER'] ?? null;
+            if (!$user || !in_array('ROLE_ADMIN', $user->roles) && !in_array('ROLE_OPERATOR', $user->roles)) {
+                $this->error('Admin or Operator role required', 403, 'FORBIDDEN');
+                return;
+            }
+
+            $backupId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
+
+            if ($backupId <= 0) {
+                $this->error('Invalid backup ID', 400, 'INVALID_BACKUP_ID');
+                return;
+            }
+
+            // Check backup exists
+            $archive = $this->archiveRepo->findById($backupId);
+            if (!$archive) {
+                $this->error('Backup not found', 404, 'BACKUP_NOT_FOUND');
+                return;
+            }
+
+            // Check if mounted
+            $mount = $this->mountRepo->findByArchiveId($backupId);
+            if (!$mount) {
+                $this->error('Archive is not mounted', 400, 'NOT_MOUNTED');
+                return;
+            }
+
+            // Create unmount job payload
+            $payload = [
+                'archive_id' => $backupId,
+                'action' => 'unmount',
+                'user_id' => $user->id,
+            ];
+
+            // Queue the unmount job for the worker
+            $jobId = $this->jobQueue->push(
+                'archive_mount',
+                $payload,
+                'default',
+                2, // Priority 2 (high)
+                $user->id
+            );
+
+            $this->success([
+                'job_id' => $jobId,
+                'archive_id' => $backupId,
+                'archive_name' => $archive->name,
+                'message' => 'Archive unmount job queued successfully. The unmount will be processed by the worker.'
+            ], 'Archive unmount job created');
+
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'BACKUP_UNMOUNT_ERROR');
+        }
+    }
+
+    /**
+     * GET /api/backups/:id/browse?path=/some/path
+     * Browse files in a mounted archive
+     */
+    public function browse(): void
+    {
+        try {
+            $backupId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
+            $relativePath = $_GET['path'] ?? '/';
+
+            if ($backupId <= 0) {
+                $this->error('Invalid backup ID', 400, 'INVALID_BACKUP_ID');
+                return;
+            }
+
+            // Get mount info
+            $mount = $this->mountRepo->findByArchiveId($backupId);
+            if (!$mount || $mount->status !== 'mounted') {
+                $this->error('Archive is not mounted', 400, 'NOT_MOUNTED');
+                return;
+            }
+
+            // Update last access time
+            $this->mountRepo->updateLastAccessByArchiveId($backupId);
+
+            // Security: Validate and sanitize path to prevent directory traversal
+            $relativePath = $this->sanitizePath($relativePath);
+            $fullPath = rtrim($mount->mountPath, '/') . '/' . ltrim($relativePath, '/');
+
+            // Normalize the path to remove any ./ or ../ segments
+            $normalizedPath = $this->normalizePath($fullPath);
+
+            // Ensure path is within mount directory (without realpath for FUSE compatibility)
+            $mountPath = rtrim($mount->mountPath, '/');
+            if (strpos($normalizedPath, $mountPath) !== 0) {
+                $this->error('Invalid path', 400, 'INVALID_PATH');
+                return;
+            }
+
+            // Check if path exists
+            if (!file_exists($normalizedPath)) {
+                $this->error('Path not found', 404, 'PATH_NOT_FOUND');
+                return;
+            }
+
+            // If it's a file, return file info
+            if (is_file($normalizedPath)) {
+                $this->success([
+                    'type' => 'file',
+                    'path' => $relativePath,
+                    'name' => basename($normalizedPath),
+                    'size' => filesize($normalizedPath),
+                    'modified' => date('Y-m-d H:i:s', filemtime($normalizedPath)),
+                    'mime_type' => mime_content_type($normalizedPath),
+                ]);
+                return;
+            }
+
+            // If it's a directory, list contents
+            if (!is_dir($normalizedPath)) {
+                $this->error('Path is not a directory', 400, 'NOT_A_DIRECTORY');
+                return;
+            }
+
+            $items = [];
+            $entries = scandir($normalizedPath);
+
+            foreach ($entries as $entry) {
+                if ($entry === '.' || $entry === '..') {
+                    continue;
+                }
+
+                $entryPath = $normalizedPath . '/' . $entry;
+                $entryRelativePath = rtrim($relativePath, '/') . '/' . $entry;
+
+                // Check if it's a symlink (skip them as they cause issues with FUSE)
+                if (is_link($entryPath)) {
+                    $item = [
+                        'name' => $entry,
+                        'path' => $entryRelativePath,
+                        'type' => 'symlink',
+                        'size' => 0,
+                        'modified' => date('Y-m-d H:i:s', time()),
+                        'mime_type' => 'inode/symlink',
+                    ];
+                } else {
+                    $isDir = is_dir($entryPath);
+                    $mtime = @filemtime($entryPath);
+                    $size = is_file($entryPath) ? @filesize($entryPath) : 0;
+
+                    $item = [
+                        'name' => $entry,
+                        'path' => $entryRelativePath,
+                        'type' => $isDir ? 'directory' : 'file',
+                        'size' => $size !== false ? $size : 0,
+                        'modified' => $mtime !== false ? date('Y-m-d H:i:s', $mtime) : date('Y-m-d H:i:s', time()),
+                    ];
+
+                    if ($item['type'] === 'file') {
+                        $mimeType = @mime_content_type($entryPath);
+                        $item['mime_type'] = $mimeType !== false ? $mimeType : 'application/octet-stream';
+                    }
+                }
+
+                $items[] = $item;
+            }
+
+            // Sort: directories first, then alphabetically
+            usort($items, function ($a, $b) {
+                if ($a['type'] === $b['type']) {
+                    return strcasecmp($a['name'], $b['name']);
+                }
+                return $a['type'] === 'directory' ? -1 : 1;
+            });
+
+            $this->success([
+                'path' => $relativePath,
+                'items' => $items,
+                'total' => count($items),
+            ]);
+
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'BROWSE_ERROR');
+        } catch (\Exception $e) {
+            $this->error('Failed to browse archive: ' . $e->getMessage(), 500, 'BROWSE_ERROR');
+        }
+    }
+
+    /**
+     * GET /api/backups/:id/download?path=/some/file
+     * Download a file from a mounted archive
+     */
+    public function download(): void
+    {
+        try {
+            $backupId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
+            $relativePath = $_GET['path'] ?? '';
+
+            if ($backupId <= 0) {
+                $this->error('Invalid backup ID', 400, 'INVALID_BACKUP_ID');
+                return;
+            }
+
+            if (empty($relativePath)) {
+                $this->error('Path parameter is required', 400, 'MISSING_PATH');
+                return;
+            }
+
+            // Get mount info
+            $mount = $this->mountRepo->findByArchiveId($backupId);
+            if (!$mount || $mount->status !== 'mounted') {
+                $this->error('Archive is not mounted', 400, 'NOT_MOUNTED');
+                return;
+            }
+
+            // Update last access time
+            $this->mountRepo->updateLastAccessByArchiveId($backupId);
+
+            // Security: Validate and sanitize path
+            $relativePath = $this->sanitizePath($relativePath);
+            $fullPath = rtrim($mount->mountPath, '/') . '/' . ltrim($relativePath, '/');
+
+            // Normalize the path to remove any ./ or ../ segments
+            $normalizedPath = $this->normalizePath($fullPath);
+
+            // Ensure path is within mount directory (without realpath for FUSE compatibility)
+            $mountPath = rtrim($mount->mountPath, '/');
+            if (strpos($normalizedPath, $mountPath) !== 0) {
+                $this->error('Invalid path', 400, 'INVALID_PATH');
+                return;
+            }
+
+            // Check if file exists and is a file
+            if (!file_exists($normalizedPath)) {
+                $this->error('File not found', 404, 'FILE_NOT_FOUND');
+                return;
+            }
+
+            if (!is_file($normalizedPath)) {
+                $this->error('Path is not a file', 400, 'NOT_A_FILE');
+                return;
+            }
+
+            // Stream file to browser
+            $filename = basename($normalizedPath);
+            $filesize = filesize($normalizedPath);
+            $mimeType = mime_content_type($normalizedPath) ?: 'application/octet-stream';
+
+            header('Content-Type: ' . $mimeType);
+            header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"');
+            header('Content-Length: ' . $filesize);
+            header('Cache-Control: no-cache, must-revalidate');
+            header('Pragma: no-cache');
+
+            // Stream file in chunks to handle large files
+            $handle = fopen($normalizedPath, 'rb');
+            if ($handle === false) {
+                $this->error('Failed to open file', 500, 'FILE_READ_ERROR');
+                return;
+            }
+
+            while (!feof($handle)) {
+                echo fread($handle, 8192);
+                flush();
+            }
+
+            fclose($handle);
+            exit;
+
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'DOWNLOAD_ERROR');
+        } catch (\Exception $e) {
+            $this->error('Failed to download file: ' . $e->getMessage(), 500, 'DOWNLOAD_ERROR');
+        }
+    }
+
+    /**
+     * Sanitize path to prevent directory traversal attacks
+     */
+    private function sanitizePath(string $path): string
+    {
+        // Remove any ../ or ..\ sequences
+        $path = str_replace(['../', '..\\'], '', $path);
+
+        // Normalize slashes
+        $path = str_replace('\\', '/', $path);
+
+        // Remove multiple slashes
+        $path = preg_replace('#/+#', '/', $path);
+
+        return $path;
+    }
+
+    /**
+     * Normalize path to resolve ./ and ../ segments (FUSE-compatible)
+     * Alternative to realpath() that works with FUSE mounts
+     */
+    private function normalizePath(string $path): string
+    {
+        // Normalize slashes
+        $path = str_replace('\\', '/', $path);
+
+        // Split path into parts
+        $parts = explode('/', $path);
+        $normalized = [];
+
+        foreach ($parts as $part) {
+            if ($part === '' || $part === '.') {
+                // Skip empty parts and current directory references
+                continue;
+            }
+
+            if ($part === '..') {
+                // Go up one directory if possible
+                if (count($normalized) > 0) {
+                    array_pop($normalized);
+                }
+            } else {
+                // Add normal directory/file name
+                $normalized[] = $part;
+            }
+        }
+
+        // Rebuild path
+        $result = '/' . implode('/', $normalized);
+
+        // Remove trailing slash except for root
+        if ($result !== '/' && substr($result, -1) === '/') {
+            $result = substr($result, 0, -1);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Check if a directory is a mount point
+     */
+    private function isMounted(string $path): bool
+    {
+        // Check if path is in /proc/mounts
+        $mounts = @file_get_contents('/proc/mounts');
+        if ($mounts === false) {
+            return false;
+        }
+        return strpos($mounts, $path) !== false;
     }
 
     /**

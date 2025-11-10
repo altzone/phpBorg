@@ -9,6 +9,7 @@ use PhpBorg\Database\Connection;
 use PhpBorg\Logger\FileLogger;
 use PhpBorg\Logger\LoggerInterface;
 use PhpBorg\Repository\ArchiveRepository;
+use PhpBorg\Repository\ArchiveMountRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\DatabaseInfoRepository;
 use PhpBorg\Repository\JobRepository;
@@ -142,6 +143,13 @@ final class Application
     {
         return $this->getService(ArchiveRepository::class, fn() =>
             new ArchiveRepository($this->connection)
+        );
+    }
+
+    public function getArchiveMountRepository(): ArchiveMountRepository
+    {
+        return $this->getService(ArchiveMountRepository::class, fn() =>
+            new ArchiveMountRepository($this->connection)
         );
     }
 
