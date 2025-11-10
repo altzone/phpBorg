@@ -339,8 +339,7 @@ final class BackupService
         $escapedPassphrase = escapeshellarg($repository->passphrase);
 
         // Path to SSH private key on remote server (deployed during setup)
-        // Keys are stored per server in /home/phpborg/.ssh/keys/{serverName}/
-        $sshKeyPath = '/home/phpborg/.ssh/keys/' . $server->name . '/id_ed25519';
+        $sshKeyPath = '/root/.ssh/phpborg_backup';
 
         // Backup server user (from server config, defaults to 'phpborg')
         $backupServerUser = 'phpborg';
