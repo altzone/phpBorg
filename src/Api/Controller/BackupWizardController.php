@@ -294,8 +294,18 @@ class BackupWizardController extends BaseController
             ]);
             
             // 2. Create repository
+            // Get storage pool path
+            $storagePoolPath = '/opt/backups'; // Default
+            if (isset($data['storage_pool_id'])) {
+                $pool = $this->storagePoolRepository->findById((int)$data['storage_pool_id']);
+                if ($pool) {
+                    $storagePoolPath = $pool->path;
+                }
+            }
+            
             $repoPath = sprintf(
-                '/backup/borg/%s-%s-%d',
+                '%s/borg/%s-%s-%d',
+                rtrim($storagePoolPath, '/'),
                 $data['repository_name'],
                 $data['backup_type'],
                 time()
@@ -340,11 +350,19 @@ class BackupWizardController extends BaseController
             }
             
             // 3. Create backup job
+            // Convert time format from HH:MM to HH:MM:SS if needed
+            $scheduleTime = null;
+            if (isset($data['schedule_time']) && $data['schedule_time']) {
+                $scheduleTime = strlen($data['schedule_time']) === 5 
+                    ? $data['schedule_time'] . ':00' 
+                    : $data['schedule_time'];
+            }
+            
             $jobId = $this->jobRepository->create(
                 name: $data['job_name'] ?? $data['repository_name'],
                 repositoryId: $repositoryId,
                 scheduleType: $data['schedule_type'] ?? 'manual',
-                scheduleTime: $data['schedule_time'] ?? null,
+                scheduleTime: $scheduleTime,
                 scheduleDayOfWeek: $data['schedule_day_of_week'] ?? null,
                 scheduleDayOfMonth: $data['schedule_day_of_month'] ?? null,
                 cronExpression: $data['cron_expression'] ?? null,

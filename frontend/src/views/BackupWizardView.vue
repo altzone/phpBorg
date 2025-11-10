@@ -1040,6 +1040,124 @@
         </button>
       </div>
     </div>
+
+    <!-- Success Modal with Generated Passphrase -->
+    <Teleport to="body">
+      <div v-if="showSuccessModal" class="fixed inset-0 z-50 overflow-y-auto">
+        <!-- Backdrop -->
+        <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"></div>
+        
+        <!-- Modal -->
+        <div class="flex min-h-full items-center justify-center p-4">
+          <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-lg transform transition-all">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-green-500 to-green-600 px-6 py-4 rounded-t-xl">
+              <h3 class="text-xl font-bold text-white flex items-center">
+                <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Backup Configuration Created Successfully!
+              </h3>
+            </div>
+            
+            <!-- Body -->
+            <div class="p-6 space-y-4">
+              <!-- Success Message -->
+              <div class="flex items-start space-x-3 p-4 bg-green-50 rounded-lg border border-green-200">
+                <svg class="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                <div>
+                  <p class="text-sm font-medium text-green-800">Your backup configuration has been created successfully.</p>
+                  <p class="text-sm text-green-700 mt-1">The repository and backup job are now configured and ready to use.</p>
+                </div>
+              </div>
+
+              <!-- Generated Passphrase Section -->
+              <div v-if="generatedPassphrase" class="space-y-3">
+                <div class="flex items-center space-x-2">
+                  <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                  </svg>
+                  <h4 class="font-semibold text-gray-900">Repository Encryption Passphrase</h4>
+                </div>
+                
+                <div class="bg-amber-50 border-2 border-amber-200 rounded-lg p-4">
+                  <p class="text-sm text-amber-800 font-medium mb-3">
+                    ⚠️ IMPORTANT: Save this passphrase securely! It cannot be recovered if lost.
+                  </p>
+                  
+                  <div class="relative">
+                    <div class="bg-white rounded-lg border border-amber-300 p-3 pr-12 font-mono text-sm break-all">
+                      {{ generatedPassphrase }}
+                    </div>
+                    <button 
+                      @click="copyPassphrase"
+                      class="absolute right-2 top-2 p-2 text-amber-600 hover:text-amber-700 hover:bg-amber-100 rounded-lg transition-colors"
+                      :title="passphrasecopied ? 'Copied!' : 'Copy to clipboard'"
+                    >
+                      <svg v-if="!passphrasecopied" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                      </svg>
+                      <svg v-else class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  <p v-if="passphrasecopied" class="text-xs text-green-600 mt-2 font-medium">
+                    ✓ Passphrase copied to clipboard
+                  </p>
+                </div>
+
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p class="text-sm text-blue-800">
+                    <strong>Tip:</strong> Store this passphrase in a password manager or secure location. 
+                    You will need it to restore backups from this repository.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Configuration Details -->
+              <div class="border-t pt-4">
+                <h4 class="font-medium text-gray-900 mb-2">Configuration Details:</h4>
+                <dl class="space-y-1 text-sm">
+                  <div class="flex justify-between">
+                    <dt class="text-gray-600">Repository ID:</dt>
+                    <dd class="font-medium text-gray-900">#{{ createdIds.repository_id }}</dd>
+                  </div>
+                  <div class="flex justify-between">
+                    <dt class="text-gray-600">Backup Job ID:</dt>
+                    <dd class="font-medium text-gray-900">#{{ createdIds.job_id }}</dd>
+                  </div>
+                  <div class="flex justify-between">
+                    <dt class="text-gray-600">Source ID:</dt>
+                    <dd class="font-medium text-gray-900">#{{ createdIds.source_id }}</dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="bg-gray-50 px-6 py-4 rounded-b-xl flex items-center justify-between">
+              <button 
+                @click="goToBackupJobs"
+                class="btn btn-secondary"
+              >
+                View Backup Jobs
+              </button>
+              <button 
+                @click="closeSuccessModal"
+                class="btn btn-primary"
+              >
+                <span v-if="generatedPassphrase && !passphrasecopied">Copy & Close</span>
+                <span v-else>Close</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -1067,6 +1185,14 @@ const steps = [
 
 const currentStep = ref(0)
 const creating = ref(false)
+const showSuccessModal = ref(false)
+const generatedPassphrase = ref('')
+const passphrasecopied = ref(false)
+const createdIds = ref({
+  source_id: null,
+  repository_id: null,
+  job_id: null
+})
 
 // Data
 const servers = ref([])
@@ -1504,25 +1630,21 @@ async function createBackup() {
     
     const response = await wizardService.createBackupChain(data)
     
-    // Check if a passphrase was generated
-    if (response.data?.data?.generated_passphrase) {
-      // Show the generated passphrase to the user
-      alert(`
-Backup configuration created successfully!
-
-IMPORTANT: A passphrase was automatically generated for your repository encryption.
-Please save it securely:
-
-${response.data.data.generated_passphrase}
-
-This passphrase CANNOT be recovered if lost!
-      `)
-    } else {
-      alert('Backup configuration created successfully!')
+    // Store the created IDs and passphrase
+    if (response.data?.data) {
+      createdIds.value = {
+        source_id: response.data.data.source_id,
+        repository_id: response.data.data.repository_id,
+        job_id: response.data.data.job_id
+      }
+      
+      if (response.data.data.generated_passphrase) {
+        generatedPassphrase.value = response.data.data.generated_passphrase
+      }
     }
     
-    // Navigate to backup jobs page on success
-    router.push('/backup-jobs')
+    // Show success modal
+    showSuccessModal.value = true
   } catch (error) {
     console.error('Failed to create backup:', error)
     alert('Failed to create backup configuration: ' + (error.response?.data?.error || error.message))
@@ -1537,6 +1659,54 @@ function formatBytes(bytes) {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+}
+
+function copyPassphrase() {
+  if (generatedPassphrase.value) {
+    navigator.clipboard.writeText(generatedPassphrase.value).then(() => {
+      passphrasecopied.value = true
+      // Reset after 3 seconds
+      setTimeout(() => {
+        passphrasecopied.value = false
+      }, 3000)
+    }).catch(err => {
+      console.error('Failed to copy:', err)
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea')
+      textArea.value = generatedPassphrase.value
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-999999px'
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      try {
+        document.execCommand('copy')
+        passphrasecopied.value = true
+        setTimeout(() => {
+          passphrasecopied.value = false
+        }, 3000)
+      } catch (err) {
+        console.error('Fallback copy failed:', err)
+      }
+      document.body.removeChild(textArea)
+    })
+  }
+}
+
+function closeSuccessModal() {
+  // Copy passphrase if not already copied
+  if (generatedPassphrase.value && !passphrasecopied.value) {
+    copyPassphrase()
+  }
+  
+  showSuccessModal.value = false
+  // Navigate to backup jobs page
+  router.push('/backup-jobs')
+}
+
+function goToBackupJobs() {
+  showSuccessModal.value = false
+  router.push('/backup-jobs')
 }
 
 // Lifecycle

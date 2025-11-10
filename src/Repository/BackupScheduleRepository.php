@@ -346,9 +346,9 @@ class BackupScheduleRepository
         
         // Clear job's next_run_at if schedule deleted
         if ($deleted && $schedule) {
-            $this->connection->execute(
-                'UPDATE backup_jobs SET next_run_at = NULL WHERE id = :job_id',
-                ['job_id' => $schedule->jobId]
+            $this->connection->executeUpdate(
+                'UPDATE backup_jobs SET next_run_at = NULL WHERE id = ?',
+                [$schedule->jobId]
             );
         }
 
@@ -362,11 +362,11 @@ class BackupScheduleRepository
     {
         $nextRun = $schedule->calculateNextRun();
         
-        $this->connection->execute(
-            'UPDATE backup_jobs SET next_run_at = :next_run WHERE id = :job_id',
+        $this->connection->executeUpdate(
+            'UPDATE backup_jobs SET next_run_at = ? WHERE id = ?',
             [
-                'job_id' => $jobId,
-                'next_run' => $nextRun?->format('Y-m-d H:i:s')
+                $nextRun?->format('Y-m-d H:i:s'),
+                $jobId
             ]
         );
     }
