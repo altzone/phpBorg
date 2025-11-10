@@ -28,18 +28,37 @@ try {
     // Read SQL file
     $sql = file_get_contents($migrationFile);
 
-    // Split by semicolon to handle multiple statements
-    $statements = array_filter(
-        array_map('trim', explode(';', $sql)),
-        fn($s) => !empty($s) && !preg_match('/^\s*--/', $s)
+    // Remove SQL comments but preserve JSON content
+    $cleanSql = preg_replace('/^\s*--.*$/m', '', $sql);
+    
+    // Use mysqli multi_query for better handling of complex statements
+    $mysqli = new mysqli(
+        $_ENV['DB_HOST'] ?? 'localhost',
+        $_ENV['DB_USER'] ?? 'root',
+        $_ENV['DB_PASSWORD'] ?? '',
+        $_ENV['DB_NAME'] ?? 'phpborg'
     );
-
-    foreach ($statements as $statement) {
-        if (empty(trim($statement))) continue;
-
-        echo "Executing: " . substr($statement, 0, 80) . "...\n";
-        $connection->execute($statement);
+    
+    if ($mysqli->connect_error) {
+        throw new Exception("Connection failed: " . $mysqli->connect_error);
     }
+    
+    // Execute the migration as a whole to preserve statement integrity
+    if ($mysqli->multi_query($cleanSql)) {
+        do {
+            if ($result = $mysqli->store_result()) {
+                $result->free();
+            }
+        } while ($mysqli->more_results() && $mysqli->next_result());
+        
+        if ($mysqli->error) {
+            throw new Exception("SQL Error: " . $mysqli->error);
+        }
+    } else {
+        throw new Exception("Query failed: " . $mysqli->error);
+    }
+    
+    $mysqli->close();
 
     echo "✓ Migration completed successfully!\n";
 
