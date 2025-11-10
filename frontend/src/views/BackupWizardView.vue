@@ -576,8 +576,8 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { serverService } from '../services/servers'
-import { storagePoolService } from '../services/storagePools'
+import { serverService } from '../services/server'
+import { storagePoolService } from '../services/storage'
 import { wizardService } from '../services/wizardService'
 
 const router = useRouter()
