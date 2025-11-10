@@ -16,6 +16,7 @@ use PhpBorg\Api\Controller\BackupController;
 use PhpBorg\Api\Controller\BackupJobController;
 use PhpBorg\Api\Controller\BackupSourceController;
 use PhpBorg\Api\Controller\BackupScheduleController;
+use PhpBorg\Api\Controller\BackupWizardController;
 use PhpBorg\Api\Controller\DashboardController;
 use PhpBorg\Api\Controller\EmailController;
 use PhpBorg\Api\Controller\JobController;
@@ -167,6 +168,15 @@ try {
     // Email Routes (Protected)
     // ===========================================
     $router->post('/email/test', EmailController::class, 'sendTest', requireAuth: true);
+
+    // ===========================================
+    // Backup Wizard Routes (Protected)
+    // ===========================================
+    $router->get('/backup-wizard/capabilities/:serverId', BackupWizardController::class, 'capabilities', requireAuth: true);
+    $router->post('/backup-wizard/detect-mysql', BackupWizardController::class, 'detectMySQL', requireAuth: true);
+    $router->post('/backup-wizard/test-db-connection', BackupWizardController::class, 'testDatabaseConnection', requireAuth: true);
+    $router->post('/backup-wizard/create-backup-chain', BackupWizardController::class, 'createBackupChain', requireAuth: true);
+    $router->get('/backup-wizard/templates', BackupWizardController::class, 'templates', requireAuth: true);
 
     // ===========================================
     // Future Routes (To be implemented)

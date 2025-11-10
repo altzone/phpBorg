@@ -41,6 +41,11 @@ const router = createRouter({
           component: () => import('@/views/BackupJobsView.vue'),
         },
         {
+          path: 'backup-wizard',
+          name: 'backup-wizard',
+          component: () => import('@/views/BackupWizardView.vue'),
+        },
+        {
           path: 'jobs',
           name: 'jobs',
           component: () => import('@/views/JobsView.vue'),
