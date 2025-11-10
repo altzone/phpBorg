@@ -229,6 +229,128 @@
             <!-- Similar to MySQL but with PostgreSQL-specific options -->
             <p class="text-gray-600">PostgreSQL configuration...</p>
           </div>
+
+          <!-- Full System Backup Configuration -->
+          <div v-else-if="wizardData.backupType === 'system'">
+            <div class="space-y-4">
+              <!-- Information Banner -->
+              <div class="p-4 bg-blue-50 rounded-lg">
+                <div class="flex items-start">
+                  <svg class="w-5 h-5 text-blue-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0118 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                  </svg>
+                  <div class="ml-3">
+                    <h3 class="text-sm font-medium text-blue-800">Full System Backup</h3>
+                    <p class="mt-1 text-sm text-blue-700">
+                      This will create a complete backup of the system starting from root (/) with intelligent exclusions for temporary and system files.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Backup Scope -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Backup Scope</label>
+                <div class="bg-gray-50 p-3 rounded-lg">
+                  <div class="flex items-center mb-2">
+                    <svg class="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                    <span class="text-sm">Root filesystem (/)</span>
+                  </div>
+                  <div class="flex items-center mb-2">
+                    <svg class="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                    <span class="text-sm">All user data (/home)</span>
+                  </div>
+                  <div class="flex items-center mb-2">
+                    <svg class="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                    <span class="text-sm">System configuration (/etc)</span>
+                  </div>
+                  <div class="flex items-center">
+                    <svg class="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                    <span class="text-sm">Application data (/opt, /var)</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Standard Exclusions -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Standard Exclusions (Recommended)</label>
+                <div class="bg-gray-50 p-3 rounded-lg max-h-64 overflow-y-auto">
+                  <div class="space-y-1 font-mono text-xs text-gray-600">
+                    <div class="text-gray-700 font-semibold mb-2"># System directories</div>
+                    <div>/proc/*</div>
+                    <div>/sys/*</div>
+                    <div>/dev/*</div>
+                    <div>/run/*</div>
+                    <div>/tmp/*</div>
+                    <div>/var/tmp/*</div>
+                    <div>/mnt/*</div>
+                    <div>/media/*</div>
+                    <div class="text-gray-700 font-semibold mt-3 mb-2"># Cache and logs</div>
+                    <div>/var/cache/*</div>
+                    <div>/var/log/*.log</div>
+                    <div>/var/log/*.old</div>
+                    <div>*/.cache/*</div>
+                    <div class="text-gray-700 font-semibold mt-3 mb-2"># Package manager</div>
+                    <div>/var/lib/apt/lists/*</div>
+                    <div>/var/cache/apt/*</div>
+                    <div>/var/cache/yum/*</div>
+                    <div class="text-gray-700 font-semibold mt-3 mb-2"># Swap and temp files</div>
+                    <div>/swapfile</div>
+                    <div>*.swp</div>
+                    <div>*.tmp</div>
+                    <div>*~</div>
+                    <div class="text-gray-700 font-semibold mt-3 mb-2"># Docker/Container data</div>
+                    <div>/var/lib/docker/*</div>
+                    <div>/var/lib/containerd/*</div>
+                  </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">These exclusions prevent backing up temporary files, system files, and runtime data that shouldn't be restored.</p>
+              </div>
+
+              <!-- Custom Exclusions -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Additional Exclusions (Optional)</label>
+                <textarea 
+                  v-model="wizardData.sourceConfig.excludePatterns" 
+                  rows="4" 
+                  class="input w-full font-mono text-sm"
+                  placeholder="# Add custom patterns to exclude&#10;/path/to/exclude/*&#10;*.bak&#10;/var/www/*/cache/*"
+                ></textarea>
+                <p class="text-xs text-gray-500 mt-1">Add your own exclusion patterns, one per line. Use * for wildcards.</p>
+              </div>
+
+              <!-- Backup Options -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Options</label>
+                <div class="space-y-2">
+                  <label class="flex items-center">
+                    <input type="checkbox" v-model="wizardData.sourceConfig.oneFileSystem" class="mr-2" checked />
+                    <span class="text-sm">Stay on same filesystem (don't cross mount points)</span>
+                  </label>
+                  <label class="flex items-center">
+                    <input type="checkbox" v-model="wizardData.sourceConfig.preservePermissions" class="mr-2" checked />
+                    <span class="text-sm">Preserve file permissions and ownership</span>
+                  </label>
+                  <label class="flex items-center">
+                    <input type="checkbox" v-model="wizardData.sourceConfig.preserveTimestamps" class="mr-2" checked />
+                    <span class="text-sm">Preserve file timestamps</span>
+                  </label>
+                  <label class="flex items-center">
+                    <input type="checkbox" v-model="wizardData.sourceConfig.followSymlinks" class="mr-2" />
+                    <span class="text-sm">Follow symbolic links</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Step 4: Snapshot Strategy -->
@@ -622,7 +744,12 @@ const wizardData = ref({
     singleTransaction: true,
     routines: true,
     triggers: true,
-    events: true
+    events: true,
+    // System backup options
+    oneFileSystem: true,
+    preservePermissions: true,
+    preserveTimestamps: true,
+    followSymlinks: false
   },
   snapshotMethod: 'none',
   storagePoolId: null,
@@ -737,6 +864,39 @@ async function onServerChange() {
   wizardData.value.snapshotMethod = 'none'
   snapshotCapabilities.value = []
 }
+
+// Set default exclusions for system backup
+watch(() => wizardData.value.backupType, (newType) => {
+  if (newType === 'system') {
+    // Set root path for system backup
+    wizardData.value.sourceConfig.paths = ['/']
+    // Set default system exclusions
+    const defaultExclusions = [
+      '/proc/*',
+      '/sys/*',
+      '/dev/*',
+      '/run/*',
+      '/tmp/*',
+      '/var/tmp/*',
+      '/mnt/*',
+      '/media/*',
+      '/var/cache/*',
+      '/var/log/*.log',
+      '/var/log/*.old',
+      '*/.cache/*',
+      '/var/lib/apt/lists/*',
+      '/var/cache/apt/*',
+      '/var/cache/yum/*',
+      '/swapfile',
+      '*.swp',
+      '*.tmp',
+      '*~',
+      '/var/lib/docker/*',
+      '/var/lib/containerd/*'
+    ]
+    wizardData.value.sourceConfig.excludePatterns = defaultExclusions.join('\n')
+  }
+})
 
 async function detectMySQLCredentials() {
   try {
