@@ -138,8 +138,16 @@ final class JobRepository
         $params = [$progress];
 
         if ($output !== null) {
-            $fields[] = 'output = CONCAT(COALESCE(output, ""), ?)';
-            $params[] = $output . "\n";
+            // If progress is 100 and output starts with '{', it's the final JSON result
+            // Replace the output instead of concatenating
+            if ($progress === 100 && strlen($output) > 0 && $output[0] === '{') {
+                $fields[] = 'output = ?';
+                $params[] = $output;
+            } else {
+                // Otherwise concatenate progress messages
+                $fields[] = 'output = CONCAT(COALESCE(output, ""), ?)';
+                $params[] = $output . "\n";
+            }
         }
 
         $params[] = $id;

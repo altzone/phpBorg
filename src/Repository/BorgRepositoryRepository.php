@@ -19,6 +19,14 @@ final class BorgRepositoryRepository
     }
 
     /**
+     * Get the database connection
+     */
+    public function getConnection(): Connection
+    {
+        return $this->connection;
+    }
+
+    /**
      * Find repository by ID
      *
      * @throws DatabaseException

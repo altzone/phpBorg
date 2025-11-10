@@ -11,8 +11,11 @@ use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\BackupSourceRepository;
 use PhpBorg\Repository\BackupJobRepository;
 use PhpBorg\Repository\BackupScheduleRepository;
+use PhpBorg\Repository\JobRepository;
 use PhpBorg\Exception\PhpBorgException;
 use PhpBorg\Service\Server\SshExecutor;
+use PhpBorg\Service\Queue\JobQueue;
+use PhpBorg\Service\Repository\EncryptionService;
 
 /**
  * Backup Wizard API controller
@@ -26,7 +29,10 @@ class BackupWizardController extends BaseController
     private readonly BackupSourceRepository $sourceRepository;
     private readonly BackupJobRepository $jobRepository;
     private readonly BackupScheduleRepository $scheduleRepository;
+    private readonly JobRepository $queueJobRepository;
+    private readonly JobQueue $jobQueue;
     private readonly SshExecutor $sshExecutor;
+    private readonly EncryptionService $encryptionService;
 
     public function __construct(Application $app)
     {
@@ -36,36 +42,112 @@ class BackupWizardController extends BaseController
         $this->sourceRepository = new BackupSourceRepository($app->getConnection());
         $this->jobRepository = new BackupJobRepository($app->getConnection());
         $this->scheduleRepository = new BackupScheduleRepository($app->getConnection());
+        $this->queueJobRepository = new JobRepository($app->getConnection());
+        $this->jobQueue = $app->getJobQueue();
         // Use the application's configured logger
         $this->sshExecutor = new SshExecutor($app->getLogger());
+        $this->encryptionService = new EncryptionService($app->getConfig());
     }
 
     /**
      * Detect server capabilities (snapshot methods, databases, etc.)
+     * Creates a job for background detection
      * GET /api/backup-wizard/capabilities/{serverId}
      */
     public function capabilities(): void
     {
-        // Get serverId from route parameters
-        $params = $_SERVER['ROUTE_PARAMS'] ?? [];
-        $serverId = (int)($params['serverId'] ?? 0);
-        
-        if (!$serverId) {
-            throw new PhpBorgException('Server ID is required', 400);
+        try {
+            // Get serverId from route parameters
+            $params = $_SERVER['ROUTE_PARAMS'] ?? [];
+            $serverId = (int)($params['serverId'] ?? 0);
+            
+            if (!$serverId) {
+                $this->error('Server ID is required', 400);
+                return;
+            }
+            
+            $server = $this->serverRepository->findById($serverId);
+            if (!$server) {
+                $this->error('Server not found', 404);
+                return;
+            }
+
+            // Get user from JWT
+            $user = $_SERVER['USER'] ?? null;
+            $userId = $user ? $user->id : null;
+
+            // Create a job for capabilities detection
+            $jobId = $this->jobQueue->push(
+                'capabilities_detection',
+                ['server_id' => $serverId],
+                'default',
+                1,  // Only 1 attempt, fast operation
+                $userId
+            );
+
+            $this->success([
+                'job_id' => $jobId,
+                'message' => 'Detection job created',
+                'status' => 'pending'
+            ]);
+        } catch (\Exception $e) {
+            // Log error and return proper error response
+            error_log("BackupWizard capabilities error: " . $e->getMessage());
+            $this->error('Failed to create detection job: ' . $e->getMessage(), 500);
         }
+    }
+
+    /**
+     * Check job status and get results
+     * GET /api/backup-wizard/job-status/{jobId}
+     */
+    public function jobStatus(): void
+    {
+        $params = $_SERVER['ROUTE_PARAMS'] ?? [];
+        $jobId = (int)($params['jobId'] ?? 0);
         
-        $server = $this->serverRepository->findById($serverId);
-        if (!$server) {
-            throw new PhpBorgException('Server not found', 404);
+        if (!$jobId) {
+            throw new PhpBorgException('Job ID is required', 400);
         }
 
-        $capabilities = [
-            'snapshots' => $this->detectSnapshotCapabilities($server),
-            'databases' => $this->detectDatabases($server),
-            'filesystem' => $this->getFilesystemInfo($server)
+        $job = $this->queueJobRepository->findById($jobId);
+        if (!$job) {
+            throw new PhpBorgException('Job not found', 404);
+        }
+
+        $response = [
+            'job_id' => $job->id,
+            'status' => $job->status,
+            'progress' => $job->progress,
+            'progress_message' => null, // Could extract from output if needed
+            'created_at' => $job->createdAt->format('Y-m-d H:i:s')
         ];
 
-        $this->success(['data' => $capabilities]);
+        if ($job->status === 'completed') {
+            // Output is already in JSON format with progress_messages and data
+            if ($job->output) {
+                $decoded = json_decode($job->output, true);
+                if ($decoded && isset($decoded['data'])) {
+                    $response['data'] = $decoded['data'];
+                    $response['progress_messages'] = $decoded['progress_messages'] ?? [];
+                } else {
+                    // Fallback for old format (try to extract JSON from last line)
+                    $lines = explode("\n", $job->output);
+                    $lastLine = trim(end($lines));
+                    if ($lastLine && $lastLine[0] === '{') {
+                        $response['data'] = json_decode($lastLine, true);
+                    } else {
+                        $response['data'] = null;
+                    }
+                }
+            } else {
+                $response['data'] = null;
+            }
+        } elseif ($job->status === 'failed') {
+            $response['error'] = $job->error;
+        }
+
+        $this->success($response);
     }
 
     /**
@@ -74,7 +156,7 @@ class BackupWizardController extends BaseController
      */
     public function detectMySQL(): void
     {
-        $data = $this->getRequestData();
+        $data = $this->getJsonBody();
         $serverId = $data['server_id'] ?? 0;
         $server = $this->serverRepository->findById($serverId);
         
@@ -145,7 +227,7 @@ class BackupWizardController extends BaseController
      */
     public function testDatabaseConnection(): void
     {
-        $data = $this->getRequestData();
+        $data = $this->getJsonBody();
         $serverId = $data['server_id'] ?? 0;
         $server = $this->serverRepository->findById($serverId);
         
@@ -195,10 +277,9 @@ class BackupWizardController extends BaseController
      */
     public function createBackupChain(): void
     {
-        $data = $this->getRequestData();
-        $connection = $this->repositoryRepository->getConnection();
-        
         try {
+            $data = $this->getJsonBody();
+            $connection = $this->repositoryRepository->getConnection();
             $connection->beginTransaction();
             
             // 1. Create backup source
@@ -220,12 +301,19 @@ class BackupWizardController extends BaseController
                 time()
             );
             
+            // Generate passphrase if not provided and encryption is enabled
+            $passphrase = $data['passphrase'] ?? '';
+            if (empty($passphrase) && ($data['encryption'] ?? 'repokey-blake2') !== 'none') {
+                $passphrase = $this->encryptionService->generatePassphrase();
+            }
+            
             $repositoryId = $this->repositoryRepository->create(
                 serverId: (int)$data['server_id'],
                 repoId: uniqid('repo_'),
                 type: $data['backup_type'],
+                retention: $data['retention']['keep_daily'] ?? 7, // Legacy retention field
                 encryption: $data['encryption'] ?? 'repokey-blake2',
-                passphrase: $data['passphrase'] ?? '',
+                passphrase: $passphrase,
                 repoPath: $repoPath,
                 compression: $data['compression'] ?? 'lz4',
                 rateLimit: $data['rate_limit'] ?? 0,
@@ -304,18 +392,32 @@ class BackupWizardController extends BaseController
                 // For now, we'll just mark it as pending
             }
             
-            $this->success([
+            $response = [
                 'message' => 'Backup configuration created successfully',
                 'data' => [
                     'source_id' => $source->id,
                     'repository_id' => $repositoryId,
                     'job_id' => $jobId
                 ]
-            ]);
+            ];
+            
+            // Include generated passphrase in response if it was auto-generated
+            if (empty($data['passphrase']) && ($data['encryption'] ?? 'repokey-blake2') !== 'none') {
+                $response['data']['generated_passphrase'] = $passphrase;
+                $response['data']['passphrase_warning'] = 'IMPORTANT: Save this passphrase securely! It cannot be recovered.';
+            }
+            
+            $this->success($response);
             return;
             
         } catch (\Exception $e) {
-            $connection->rollBack();
+            if (isset($connection)) {
+                $connection->rollBack();
+            }
+            
+            // Log error for debugging
+            error_log("BackupWizard createBackupChain error: " . $e->getMessage());
+            
             throw new PhpBorgException('Failed to create backup configuration: ' . $e->getMessage(), 500);
         }
     }
@@ -358,45 +460,59 @@ class BackupWizardController extends BaseController
     private function detectSnapshotCapabilities($server): array
     {
         $capabilities = [];
+        $app = new \PhpBorg\Application();
+        $logger = $app->getLogger();
         
         try {
+            $logger->debug("Starting snapshot detection for server: {$server->name}", 'BackupWizard');
+            
             // Check LVM
+            $logger->debug("Checking for LVM...", 'BackupWizard');
             $result = $this->sshExecutor->execute($server, 'which lvcreate 2>/dev/null', 5);
-            if ($result['stdout']) {
+            if (trim($result['stdout'])) {
+                $logger->debug("LVM tools found, checking volumes...", 'BackupWizard');
                 $result = $this->sshExecutor->execute($server, 'sudo lvs --noheadings -o lv_name,vg_name,lv_path 2>/dev/null', 10);
-                $lvs = $result['stdout'];
+                $lvs = trim($result['stdout']);
                 if ($lvs) {
+                    $volumeCount = count(array_filter(explode("\n", $lvs)));
                     $capabilities[] = [
                         'type' => 'lvm',
                         'name' => 'LVM Snapshot',
                         'available' => true,
                         'description' => 'Logical Volume Manager snapshots for consistent backups',
-                        'details' => count(explode("\n", trim($lvs))) . ' volumes available'
+                        'details' => $volumeCount . ' volume(s) available'
                     ];
+                    $logger->info("LVM detected with {$volumeCount} volumes", 'BackupWizard');
                 }
             }
             
             // Check ZFS
+            $logger->debug("Checking for ZFS...", 'BackupWizard');
             $result = $this->sshExecutor->execute($server, 'which zfs 2>/dev/null', 5);
-            if ($result['stdout']) {
+            if (trim($result['stdout'])) {
+                $logger->debug("ZFS tools found, checking datasets...", 'BackupWizard');
                 $result = $this->sshExecutor->execute($server, 'zfs list -H -o name 2>/dev/null', 10);
-                $datasets = $result['stdout'];
+                $datasets = trim($result['stdout']);
                 if ($datasets) {
+                    $datasetCount = count(array_filter(explode("\n", $datasets)));
                     $capabilities[] = [
                         'type' => 'zfs',
                         'name' => 'ZFS Snapshot',
                         'available' => true,
                         'description' => 'ZFS dataset snapshots with instant creation',
-                        'details' => count(explode("\n", trim($datasets))) . ' datasets available'
+                        'details' => $datasetCount . ' dataset(s) available'
                     ];
+                    $logger->info("ZFS detected with {$datasetCount} datasets", 'BackupWizard');
                 }
             }
             
             // Check Btrfs
+            $logger->debug("Checking for Btrfs...", 'BackupWizard');
             $result = $this->sshExecutor->execute($server, 'which btrfs 2>/dev/null', 5);
-            if ($result['stdout']) {
+            if (trim($result['stdout'])) {
+                $logger->debug("Btrfs tools found, checking subvolumes...", 'BackupWizard');
                 $result = $this->sshExecutor->execute($server, 'sudo btrfs subvolume list / 2>/dev/null', 10);
-                $subvolumes = $result['stdout'];
+                $subvolumes = trim($result['stdout']);
                 if ($subvolumes) {
                     $capabilities[] = [
                         'type' => 'btrfs',
@@ -405,11 +521,14 @@ class BackupWizardController extends BaseController
                         'description' => 'Btrfs subvolume snapshots with CoW efficiency',
                         'details' => 'Btrfs filesystem detected'
                     ];
+                    $logger->info("Btrfs detected", 'BackupWizard');
                 }
             }
             
+            $logger->info("Snapshot detection complete. Found " . count($capabilities) . " snapshot methods", 'BackupWizard');
+            
         } catch (\Exception $e) {
-            // SSH connection failed, return empty capabilities
+            $logger->error("SSH connection failed during snapshot detection: " . $e->getMessage(), 'BackupWizard');
         }
         
         return $capabilities;
@@ -421,46 +540,61 @@ class BackupWizardController extends BaseController
     private function detectDatabases($server): array
     {
         $databases = [];
+        $app = new \PhpBorg\Application();
+        $logger = $app->getLogger();
         
         try {
+            $logger->debug("Starting database detection for server: {$server->name}", 'BackupWizard');
+            
             // Check MySQL/MariaDB
+            $logger->debug("Checking for MySQL/MariaDB...", 'BackupWizard');
             $result = $this->sshExecutor->execute($server, 'which mysql 2>/dev/null', 5);
-            if ($result['stdout']) {
+            if (trim($result['stdout'])) {
                 $result = $this->sshExecutor->execute($server, 'mysql --version 2>/dev/null | head -n1', 5);
+                $version = trim($result['stdout']);
                 $databases[] = [
                     'type' => 'mysql',
                     'name' => 'MySQL/MariaDB',
                     'detected' => true,
-                    'version' => trim($result['stdout'])
+                    'version' => $version
                 ];
+                $logger->info("MySQL/MariaDB detected: {$version}", 'BackupWizard');
             }
             
             // Check PostgreSQL
+            $logger->debug("Checking for PostgreSQL...", 'BackupWizard');
             $result = $this->sshExecutor->execute($server, 'which psql 2>/dev/null', 5);
-            if ($result['stdout']) {
+            if (trim($result['stdout'])) {
                 $result = $this->sshExecutor->execute($server, 'psql --version 2>/dev/null | head -n1', 5);
+                $version = trim($result['stdout']);
                 $databases[] = [
                     'type' => 'postgresql',
                     'name' => 'PostgreSQL',
                     'detected' => true,
-                    'version' => trim($result['stdout'])
+                    'version' => $version
                 ];
+                $logger->info("PostgreSQL detected: {$version}", 'BackupWizard');
             }
             
             // Check MongoDB
+            $logger->debug("Checking for MongoDB...", 'BackupWizard');
             $result = $this->sshExecutor->execute($server, 'which mongod 2>/dev/null', 5);
-            if ($result['stdout']) {
+            if (trim($result['stdout'])) {
                 $result = $this->sshExecutor->execute($server, 'mongod --version 2>/dev/null | head -n1', 5);
+                $version = trim($result['stdout']);
                 $databases[] = [
                     'type' => 'mongodb',
                     'name' => 'MongoDB',
                     'detected' => true,
-                    'version' => trim($result['stdout'])
+                    'version' => $version
                 ];
+                $logger->info("MongoDB detected: {$version}", 'BackupWizard');
             }
             
+            $logger->info("Database detection complete. Found " . count($databases) . " database(s)", 'BackupWizard');
+            
         } catch (\Exception $e) {
-            // SSH connection failed
+            $logger->error("SSH connection failed during database detection: " . $e->getMessage(), 'BackupWizard');
         }
         
         return $databases;

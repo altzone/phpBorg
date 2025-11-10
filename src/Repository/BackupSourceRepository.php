@@ -24,7 +24,7 @@ class BackupSourceRepository
      */
     public function findAll(): array
     {
-        $result = $this->connection->query(
+        $result = $this->connection->execute(
             'SELECT * FROM backup_sources ORDER BY name ASC'
         );
 
@@ -43,7 +43,7 @@ class BackupSourceRepository
      */
     public function findActive(): array
     {
-        $result = $this->connection->query(
+        $result = $this->connection->execute(
             'SELECT * FROM backup_sources WHERE active = 1 ORDER BY name ASC'
         );
 
@@ -60,12 +60,11 @@ class BackupSourceRepository
      */
     public function findById(int $id): ?BackupSource
     {
-        $result = $this->connection->query(
-            'SELECT * FROM backup_sources WHERE id = :id',
-            ['id' => $id]
+        $row = $this->connection->fetchOne(
+            'SELECT * FROM backup_sources WHERE id = ?',
+            [$id]
         );
 
-        $row = $result->fetch();
         return $row ? BackupSource::fromDatabase($row) : null;
     }
 
@@ -76,9 +75,9 @@ class BackupSourceRepository
      */
     public function findByServerId(int $serverId): array
     {
-        $result = $this->connection->query(
-            'SELECT * FROM backup_sources WHERE server_id = :server_id ORDER BY name ASC',
-            ['server_id' => $serverId]
+        $result = $this->connection->execute(
+            'SELECT * FROM backup_sources WHERE server_id = ? ORDER BY name ASC',
+            [$serverId]
         );
 
         $sources = [];
@@ -96,9 +95,9 @@ class BackupSourceRepository
      */
     public function findByType(string $type): array
     {
-        $result = $this->connection->query(
-            'SELECT * FROM backup_sources WHERE type = :type ORDER BY name ASC',
-            ['type' => $type]
+        $result = $this->connection->execute(
+            'SELECT * FROM backup_sources WHERE type = ? ORDER BY name ASC',
+            [$type]
         );
 
         $sources = [];
@@ -114,30 +113,27 @@ class BackupSourceRepository
      */
     public function create(array $data): BackupSource
     {
-        $this->connection->execute(
+        $this->connection->executeUpdate(
             'INSERT INTO backup_sources (
                 name, type, server_id, config, paths, exclude_patterns,
                 pre_backup_script, post_backup_script, tags, active, created_at
-            ) VALUES (
-                :name, :type, :server_id, :config, :paths, :exclude_patterns,
-                :pre_backup_script, :post_backup_script, :tags, :active, NOW()
-            )',
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
             [
-                'name' => $data['name'],
-                'type' => $data['type'],
-                'server_id' => $data['server_id'],
-                'config' => json_encode($data['config'] ?? []),
-                'paths' => isset($data['paths']) ? json_encode($data['paths']) : null,
-                'exclude_patterns' => isset($data['exclude_patterns']) ? json_encode($data['exclude_patterns']) : null,
-                'pre_backup_script' => $data['pre_backup_script'] ?? null,
-                'post_backup_script' => $data['post_backup_script'] ?? null,
-                'tags' => isset($data['tags']) ? json_encode($data['tags']) : null,
-                'active' => $data['active'] ?? true,
+                $data['name'],
+                $data['type'],
+                $data['server_id'],
+                json_encode($data['config'] ?? []),
+                isset($data['paths']) ? json_encode($data['paths']) : null,
+                isset($data['exclude_patterns']) ? json_encode($data['exclude_patterns']) : null,
+                $data['pre_backup_script'] ?? null,
+                $data['post_backup_script'] ?? null,
+                isset($data['tags']) ? json_encode($data['tags']) : null,
+                ($data['active'] ?? true) ? 1 : 0,  // Convert boolean to integer
             ]
         );
 
-        $id = $this->connection->lastInsertId();
-        return $this->findById($id);
+        $id = $this->connection->getLastInsertId();
+        return $this->findById((int)$id);
     }
 
     /**

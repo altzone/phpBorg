@@ -6,6 +6,7 @@ namespace PhpBorg\Command;
 
 use PhpBorg\Application;
 use PhpBorg\Service\Queue\Handlers\BackupCreateHandler;
+use PhpBorg\Service\Queue\Handlers\CapabilitiesDetectionHandler;
 use PhpBorg\Service\Queue\Handlers\ServerSetupHandler;
 use PhpBorg\Service\Queue\Handlers\TestJobHandler;
 use PhpBorg\Service\Queue\Worker;
@@ -70,6 +71,12 @@ final class WorkerStartCommand extends Command
             $this->app->getBorgRepositoryRepository(),
             $this->app->getEncryptionService(),
             $this->app->getConfig(),
+            $logger
+        ));
+
+        $worker->registerHandler('capabilities_detection', new CapabilitiesDetectionHandler(
+            $this->app->getServerRepository(),
+            $this->app->getSshExecutor(),
             $logger
         ));
 

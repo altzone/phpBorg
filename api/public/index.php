@@ -7,8 +7,9 @@ declare(strict_types=1);
  */
 
 // Disable error display in production (errors are logged)
-// error_reporting(E_ALL);
-// ini_set('display_errors', '1');
+error_reporting(E_ALL);
+ini_set('display_errors', '0');
+ini_set('display_startup_errors', '0');
 
 // Load Composer autoloader
 require __DIR__ . '/../../vendor/autoload.php';
@@ -177,6 +178,7 @@ try {
     // Backup Wizard Routes (Protected)
     // ===========================================
     $router->get('/backup-wizard/capabilities/:serverId', BackupWizardController::class, 'capabilities', requireAuth: true);
+    $router->get('/backup-wizard/job-status/:jobId', BackupWizardController::class, 'jobStatus', requireAuth: true);
     $router->post('/backup-wizard/detect-mysql', BackupWizardController::class, 'detectMySQL', requireAuth: true);
     $router->post('/backup-wizard/test-db-connection', BackupWizardController::class, 'testDatabaseConnection', requireAuth: true);
     $router->post('/backup-wizard/create-backup-chain', BackupWizardController::class, 'createBackupChain', requireAuth: true);

@@ -542,6 +542,7 @@
           <div v-else-if="loadingCapabilities" class="text-center py-8">
             <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-200 border-t-primary-600"></div>
             <p class="mt-2 text-gray-600">Detecting snapshot capabilities on {{ selectedServer?.name }}...</p>
+            <p v-if="progressMessage" class="mt-2 text-sm text-gray-500">{{ progressMessage }}</p>
           </div>
           
           <div v-else>
@@ -708,53 +709,181 @@
           </div>
 
           <div v-if="wizardData.encryption !== 'none'">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Passphrase</label>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Passphrase (Optional)</label>
             <input 
               v-model="wizardData.passphrase" 
               type="password" 
               class="input w-full"
-              placeholder="Strong passphrase for encryption"
+              placeholder="Leave empty to auto-generate a secure passphrase"
             />
-            <p class="text-xs text-gray-500 mt-1">Store this passphrase securely - it cannot be recovered!</p>
+            <p class="text-xs text-gray-500 mt-1">
+              <span v-if="!wizardData.passphrase">A secure passphrase will be automatically generated if not provided.</span>
+              <span v-else>Store this passphrase securely - it cannot be recovered!</span>
+            </p>
           </div>
         </div>
 
         <!-- Step 7: Retention Policy -->
         <div v-else-if="currentStep === 6" class="space-y-4">
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Keep Daily</label>
-              <input v-model.number="wizardData.retention.keepDaily" type="number" min="0" class="input w-full" />
-              <p class="text-xs text-gray-500 mt-1">Number of daily backups to keep</p>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Keep Weekly</label>
-              <input v-model.number="wizardData.retention.keepWeekly" type="number" min="0" class="input w-full" />
-              <p class="text-xs text-gray-500 mt-1">Number of weekly backups to keep</p>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Keep Monthly</label>
-              <input v-model.number="wizardData.retention.keepMonthly" type="number" min="0" class="input w-full" />
-              <p class="text-xs text-gray-500 mt-1">Number of monthly backups to keep</p>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Keep Yearly</label>
-              <input v-model.number="wizardData.retention.keepYearly" type="number" min="0" class="input w-full" />
-              <p class="text-xs text-gray-500 mt-1">Number of yearly backups to keep</p>
+          <!-- Info Banner -->
+          <div class="rounded-lg bg-blue-50 border border-blue-200 p-4">
+            <div class="flex items-start space-x-3">
+              <svg class="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div class="text-sm text-blue-900">
+                <p class="font-medium mb-1">Retention Policy Explained</p>
+                <p class="text-blue-800">
+                  Borg will keep the specified number of backups for each period.
+                  Set to 0 to disable a period. At least one value must be greater than 0.
+                </p>
+              </div>
             </div>
           </div>
 
-          <div class="p-4 bg-blue-50 rounded-lg">
-            <h3 class="text-sm font-medium text-blue-800 mb-2">Retention Preview</h3>
-            <p class="text-sm text-blue-700">
-              With this configuration, you'll keep approximately:
-            </p>
-            <ul class="mt-2 text-sm text-blue-700 list-disc list-inside">
-              <li>{{ wizardData.retention.keepDaily }} daily backups (last {{ wizardData.retention.keepDaily }} days)</li>
-              <li>{{ wizardData.retention.keepWeekly }} weekly backups (last {{ wizardData.retention.keepWeekly }} weeks)</li>
-              <li>{{ wizardData.retention.keepMonthly }} monthly backups (last {{ wizardData.retention.keepMonthly }} months)</li>
-              <li v-if="wizardData.retention.keepYearly > 0">{{ wizardData.retention.keepYearly }} yearly backups</li>
-            </ul>
+          <!-- Retention Settings with sliders -->
+          <div class="space-y-5">
+            <!-- Daily -->
+            <div class="flex items-center justify-between space-x-4">
+              <div class="flex-1">
+                <label class="block text-sm font-semibold text-gray-900 mb-1">
+                  Daily Backups
+                </label>
+                <p class="text-xs text-gray-600">
+                  Keep last N daily backups
+                </p>
+              </div>
+              <div class="flex items-center space-x-3">
+                <input
+                  v-model.number="wizardData.retention.keepDaily"
+                  type="range"
+                  min="0"
+                  max="365"
+                  class="w-32 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                />
+                <input
+                  v-model.number="wizardData.retention.keepDaily"
+                  type="number"
+                  min="0"
+                  max="365"
+                  class="w-20 px-3 py-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <span class="text-sm font-medium text-gray-700 w-12">days</span>
+              </div>
+            </div>
+
+            <!-- Weekly -->
+            <div class="flex items-center justify-between space-x-4">
+              <div class="flex-1">
+                <label class="block text-sm font-semibold text-gray-900 mb-1">
+                  Weekly Backups
+                </label>
+                <p class="text-xs text-gray-600">
+                  Keep last N weekly backups
+                </p>
+              </div>
+              <div class="flex items-center space-x-3">
+                <input
+                  v-model.number="wizardData.retention.keepWeekly"
+                  type="range"
+                  min="0"
+                  max="52"
+                  class="w-32 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                />
+                <input
+                  v-model.number="wizardData.retention.keepWeekly"
+                  type="number"
+                  min="0"
+                  max="52"
+                  class="w-20 px-3 py-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <span class="text-sm font-medium text-gray-700 w-12">weeks</span>
+              </div>
+            </div>
+
+            <!-- Monthly -->
+            <div class="flex items-center justify-between space-x-4">
+              <div class="flex-1">
+                <label class="block text-sm font-semibold text-gray-900 mb-1">
+                  Monthly Backups
+                </label>
+                <p class="text-xs text-gray-600">
+                  Keep last N monthly backups
+                </p>
+              </div>
+              <div class="flex items-center space-x-3">
+                <input
+                  v-model.number="wizardData.retention.keepMonthly"
+                  type="range"
+                  min="0"
+                  max="60"
+                  class="w-32 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                />
+                <input
+                  v-model.number="wizardData.retention.keepMonthly"
+                  type="number"
+                  min="0"
+                  max="60"
+                  class="w-20 px-3 py-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <span class="text-sm font-medium text-gray-700 w-12">months</span>
+              </div>
+            </div>
+
+            <!-- Yearly -->
+            <div class="flex items-center justify-between space-x-4">
+              <div class="flex-1">
+                <label class="block text-sm font-semibold text-gray-900 mb-1">
+                  Yearly Backups
+                </label>
+                <p class="text-xs text-gray-600">
+                  Keep last N yearly backups (0 = disabled)
+                </p>
+              </div>
+              <div class="flex items-center space-x-3">
+                <input
+                  v-model.number="wizardData.retention.keepYearly"
+                  type="range"
+                  min="0"
+                  max="10"
+                  class="w-32 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                />
+                <input
+                  v-model.number="wizardData.retention.keepYearly"
+                  type="number"
+                  min="0"
+                  max="10"
+                  class="w-20 px-3 py-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <span class="text-sm font-medium text-gray-700 w-12">years</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Preview -->
+          <div class="rounded-lg bg-gray-50 border border-gray-200 p-4">
+            <h4 class="text-sm font-semibold text-gray-900 mb-3">Policy Preview</h4>
+            <div class="space-y-2 text-sm text-gray-700">
+              <div v-if="wizardData.retention.keepDaily > 0" class="flex items-center justify-between">
+                <span>Last <strong>{{ wizardData.retention.keepDaily }}</strong> daily backups</span>
+                <span class="text-xs text-gray-500">≈ {{ Math.ceil(wizardData.retention.keepDaily) }} days</span>
+              </div>
+              <div v-if="wizardData.retention.keepWeekly > 0" class="flex items-center justify-between">
+                <span>Last <strong>{{ wizardData.retention.keepWeekly }}</strong> weekly backups</span>
+                <span class="text-xs text-gray-500">≈ {{ Math.ceil(wizardData.retention.keepWeekly * 7 / 30) }} months</span>
+              </div>
+              <div v-if="wizardData.retention.keepMonthly > 0" class="flex items-center justify-between">
+                <span>Last <strong>{{ wizardData.retention.keepMonthly }}</strong> monthly backups</span>
+                <span class="text-xs text-gray-500">≈ {{ Math.ceil(wizardData.retention.keepMonthly / 12) }} years</span>
+              </div>
+              <div v-if="wizardData.retention.keepYearly > 0" class="flex items-center justify-between">
+                <span>Last <strong>{{ wizardData.retention.keepYearly }}</strong> yearly backups</span>
+                <span class="text-xs text-gray-500">{{ wizardData.retention.keepYearly }} years</span>
+              </div>
+              <div v-if="totalRetentionPeriods === 0" class="text-amber-600 font-medium">
+                ⚠️ At least one retention value must be greater than 0
+              </div>
+            </div>
           </div>
         </div>
 
@@ -943,6 +1072,7 @@ const creating = ref(false)
 const servers = ref([])
 const storagePools = ref([])
 const snapshotCapabilities = ref([])
+const serverCapabilities = ref(null)
 const loadingCapabilities = ref(false)
 
 // Custom exclusions
@@ -1048,6 +1178,13 @@ const selectedPool = computed(() =>
   storagePools.value.find(p => p.id === wizardData.value.storagePoolId)
 )
 
+const totalRetentionPeriods = computed(() => {
+  return (wizardData.value.retention.keepDaily > 0 ? 1 : 0) +
+         (wizardData.value.retention.keepWeekly > 0 ? 1 : 0) +
+         (wizardData.value.retention.keepMonthly > 0 ? 1 : 0) +
+         (wizardData.value.retention.keepYearly > 0 ? 1 : 0)
+})
+
 const isCurrentStepValid = computed(() => {
   switch (currentStep.value) {
     case 0: return !!wizardData.value.serverId
@@ -1055,8 +1192,8 @@ const isCurrentStepValid = computed(() => {
     case 2: return validateSourceConfig()
     case 3: return true // Snapshot is optional
     case 4: return !!wizardData.value.storagePoolId
-    case 5: return !!wizardData.value.repositoryName && (!wizardData.value.encryption || wizardData.value.encryption === 'none' || !!wizardData.value.passphrase)
-    case 6: return true // Retention has defaults
+    case 5: return !!wizardData.value.repositoryName // Passphrase is now optional (auto-generated if not provided)
+    case 6: return totalRetentionPeriods.value > 0 // At least one retention value must be set
     case 7: return true // Schedule is valid
     default: return true
   }
@@ -1086,8 +1223,8 @@ function previousStep() {
   if (currentStep.value > 0) {
     currentStep.value--
     
-    // Skip snapshot step when going back for file backups
-    if (currentStep.value === 3 && wizardData.value.backupType === 'files') {
+    // Skip snapshot step when going back for file and system backups
+    if (currentStep.value === 3 && ['files', 'system'].includes(wizardData.value.backupType)) {
       currentStep.value-- // Skip back to source config step
     }
   }
@@ -1097,8 +1234,8 @@ function nextStep() {
   if (currentStep.value < steps.length - 1 && isCurrentStepValid.value) {
     currentStep.value++
     
-    // Skip snapshot step for file backups
-    if (currentStep.value === 3 && wizardData.value.backupType === 'files') {
+    // Skip snapshot step for file and system backups
+    if (currentStep.value === 3 && ['files', 'system'].includes(wizardData.value.backupType)) {
       currentStep.value++ // Skip to storage step
     }
     
@@ -1110,8 +1247,8 @@ function nextStep() {
 }
 
 function needsSnapshot() {
-  // Snapshot is only useful for databases and system backups
-  return ['mysql', 'mariadb', 'postgresql', 'mongodb', 'system'].includes(wizardData.value.backupType)
+  // Snapshot is only useful for databases
+  return ['mysql', 'mariadb', 'postgresql', 'mongodb'].includes(wizardData.value.backupType)
 }
 
 function addPath() {
@@ -1286,26 +1423,43 @@ async function detectMySQLCredentials() {
   }
 }
 
+const progressMessage = ref('')
+
 async function detectSnapshotCapabilities() {
   if (!wizardData.value.serverId) return
   
   loadingCapabilities.value = true
+  progressMessage.value = 'Initializing detection...'
+  
   try {
-    const response = await wizardService.getCapabilities(wizardData.value.serverId)
-    // The API returns snapshots array in the data
-    snapshotCapabilities.value = response.data?.snapshots || []
+    const response = await wizardService.getCapabilitiesWithPolling(
+      wizardData.value.serverId,
+      (message, progress) => {
+        progressMessage.value = message || `Progress: ${progress}%`
+      }
+    )
     
-    // If we detected capabilities, auto-select the first one
-    if (snapshotCapabilities.value.length > 0 && wizardData.value.snapshotMethod === 'none') {
-      wizardData.value.snapshotMethod = snapshotCapabilities.value[0].type
+    // The API returns capabilities data
+    if (response.success && response.data) {
+      snapshotCapabilities.value = response.data.snapshots || []
+      
+      // Store all capabilities for later use
+      serverCapabilities.value = response.data
+      
+      // If we detected capabilities, auto-select the first one
+      if (snapshotCapabilities.value.length > 0 && wizardData.value.snapshotMethod === 'none') {
+        wizardData.value.snapshotMethod = snapshotCapabilities.value[0].type
+      }
     }
   } catch (error) {
     console.error('Failed to detect snapshot capabilities:', error)
     snapshotCapabilities.value = []
     // If detection fails, default to no snapshot
     wizardData.value.snapshotMethod = 'none'
+    alert(`Failed to detect capabilities: ${error.message}`)
   } finally {
     loadingCapabilities.value = false
+    progressMessage.value = ''
   }
 }
 
@@ -1331,7 +1485,12 @@ async function createBackup() {
       encryption: wizardData.value.encryption,
       passphrase: wizardData.value.passphrase,
       compression: wizardData.value.compression,
-      retention: wizardData.value.retention,
+      retention: {
+        keep_daily: wizardData.value.retention.keepDaily,
+        keep_weekly: wizardData.value.retention.keepWeekly,
+        keep_monthly: wizardData.value.retention.keepMonthly,
+        keep_yearly: wizardData.value.retention.keepYearly
+      },
       schedule_type: wizardData.value.scheduleType,
       schedule_time: wizardData.value.scheduleTime,
       weekdays_array: wizardData.value.selectedWeekdays,
@@ -1344,6 +1503,23 @@ async function createBackup() {
     }
     
     const response = await wizardService.createBackupChain(data)
+    
+    // Check if a passphrase was generated
+    if (response.data?.data?.generated_passphrase) {
+      // Show the generated passphrase to the user
+      alert(`
+Backup configuration created successfully!
+
+IMPORTANT: A passphrase was automatically generated for your repository encryption.
+Please save it securely:
+
+${response.data.data.generated_passphrase}
+
+This passphrase CANNOT be recovered if lost!
+      `)
+    } else {
+      alert('Backup configuration created successfully!')
+    }
     
     // Navigate to backup jobs page on success
     router.push('/backup-jobs')
@@ -1384,6 +1560,8 @@ onMounted(async () => {
     // Handle storage pools - ensure it's an array
     if (Array.isArray(poolsData)) {
       storagePools.value = poolsData
+    } else if (poolsData?.storage_pools) {
+      storagePools.value = poolsData.storage_pools
     } else if (poolsData?.pools) {
       storagePools.value = poolsData.pools
     } else {
@@ -1402,6 +1580,34 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+/* Slider styling */
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgb(37, 99, 235);
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgb(37, 99, 235);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+}
+</style>
 
 <style scoped>
 .wizard-progress {

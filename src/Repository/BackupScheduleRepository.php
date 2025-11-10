@@ -25,7 +25,7 @@ class BackupScheduleRepository
      */
     public function findAll(): array
     {
-        $result = $this->connection->query(
+        $result = $this->connection->execute(
             'SELECT * FROM backup_schedules ORDER BY job_id ASC'
         );
 
@@ -42,12 +42,11 @@ class BackupScheduleRepository
      */
     public function findById(int $id): ?BackupSchedule
     {
-        $result = $this->connection->query(
-            'SELECT * FROM backup_schedules WHERE id = :id',
-            ['id' => $id]
+        $row = $this->connection->fetchOne(
+            'SELECT * FROM backup_schedules WHERE id = ?',
+            [$id]
         );
 
-        $row = $result->fetch();
         return $row ? BackupSchedule::fromDatabase($row) : null;
     }
 
@@ -56,12 +55,11 @@ class BackupScheduleRepository
      */
     public function findByJobId(int $jobId): ?BackupSchedule
     {
-        $result = $this->connection->query(
-            'SELECT * FROM backup_schedules WHERE job_id = :job_id',
-            ['job_id' => $jobId]
+        $row = $this->connection->fetchOne(
+            'SELECT * FROM backup_schedules WHERE job_id = ?',
+            [$jobId]
         );
 
-        $row = $result->fetch();
         return $row ? BackupSchedule::fromDatabase($row) : null;
     }
 
@@ -72,9 +70,9 @@ class BackupScheduleRepository
      */
     public function findByType(string $type): array
     {
-        $result = $this->connection->query(
-            'SELECT * FROM backup_schedules WHERE type = :type ORDER BY time ASC',
-            ['type' => $type]
+        $result = $this->connection->execute(
+            'SELECT * FROM backup_schedules WHERE type = ? ORDER BY time ASC',
+            [$type]
         );
 
         $schedules = [];
@@ -97,56 +95,50 @@ class BackupScheduleRepository
         $currentDayOfMonth = (int)$time->format('d');
         
         // Find daily schedules
-        $dailySchedules = $this->connection->query(
+        $dailySchedules = $this->connection->execute(
             "SELECT s.* FROM backup_schedules s
              INNER JOIN backup_jobs j ON s.job_id = j.id
              WHERE s.type = 'daily' 
-               AND s.time <= :current_time
+               AND s.time <= ?
                AND j.enabled = 1",
-            ['current_time' => $currentTime]
+            [$currentTime]
         );
 
         // Find weekly schedules (using bitmap)
         $weekdayBit = 1 << ($currentDayOfWeek - 1);
-        $weeklySchedules = $this->connection->query(
+        $weeklySchedules = $this->connection->execute(
             "SELECT s.* FROM backup_schedules s
              INNER JOIN backup_jobs j ON s.job_id = j.id
              WHERE s.type = 'weekly' 
-               AND (s.weekdays & :weekday_bit) > 0
-               AND s.time <= :current_time
+               AND (s.weekdays & ?) > 0
+               AND s.time <= ?
                AND j.enabled = 1",
-            [
-                'weekday_bit' => $weekdayBit,
-                'current_time' => $currentTime
-            ]
+            [$weekdayBit, $currentTime]
         );
 
         // Find monthly schedules (using bitmap)
         $monthdayBit = 1 << ($currentDayOfMonth - 1);
-        $monthlySchedules = $this->connection->query(
+        $monthlySchedules = $this->connection->execute(
             "SELECT s.* FROM backup_schedules s
              INNER JOIN backup_jobs j ON s.job_id = j.id
              WHERE s.type = 'monthly' 
-               AND (s.monthdays & :monthday_bit) > 0
-               AND s.time <= :current_time
+               AND (s.monthdays & ?) > 0
+               AND s.time <= ?
                AND j.enabled = 1",
-            [
-                'monthday_bit' => $monthdayBit,
-                'current_time' => $currentTime
-            ]
+            [$monthdayBit, $currentTime]
         );
 
         // Find interval schedules
-        $intervalSchedules = $this->connection->query(
+        $intervalSchedules = $this->connection->execute(
             "SELECT s.* FROM backup_schedules s
              INNER JOIN backup_jobs j ON s.job_id = j.id
              WHERE s.type = 'interval' 
                AND j.enabled = 1
                AND (
                    j.next_run_at IS NULL 
-                   OR j.next_run_at <= :current_datetime
+                   OR j.next_run_at <= ?
                )",
-            ['current_datetime' => $time->format('Y-m-d H:i:s')]
+            [$time->format('Y-m-d H:i:s')]
         );
 
         $schedules = [];
@@ -205,38 +197,33 @@ class BackupScheduleRepository
      */
     public function create(array $data): BackupSchedule
     {
-        $this->connection->execute(
+        $this->connection->executeUpdate(
             'INSERT INTO backup_schedules (
                 job_id, type, time, timezone, weekdays, monthdays,
                 interval_hours, cron_expression, window_start, window_end,
                 max_runtime, blackout_periods, retry_on_failure,
                 max_retries, retry_delay_minutes, created_at
-            ) VALUES (
-                :job_id, :type, :time, :timezone, :weekdays, :monthdays,
-                :interval_hours, :cron_expression, :window_start, :window_end,
-                :max_runtime, :blackout_periods, :retry_on_failure,
-                :max_retries, :retry_delay_minutes, NOW()
-            )',
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
             [
-                'job_id' => $data['job_id'],
-                'type' => $data['type'],
-                'time' => $data['time'] ?? '00:00:00',
-                'timezone' => $data['timezone'] ?? 'UTC',
-                'weekdays' => $data['weekdays'] ?? null,
-                'monthdays' => $data['monthdays'] ?? null,
-                'interval_hours' => $data['interval_hours'] ?? null,
-                'cron_expression' => $data['cron_expression'] ?? null,
-                'window_start' => $data['window_start'] ?? null,
-                'window_end' => $data['window_end'] ?? null,
-                'max_runtime' => $data['max_runtime'] ?? 14400,
-                'blackout_periods' => isset($data['blackout_periods']) ? json_encode($data['blackout_periods']) : null,
-                'retry_on_failure' => $data['retry_on_failure'] ?? true,
-                'max_retries' => $data['max_retries'] ?? 3,
-                'retry_delay_minutes' => $data['retry_delay_minutes'] ?? 30,
+                $data['job_id'],
+                $data['type'],
+                $data['time'] ?? '00:00:00',
+                $data['timezone'] ?? 'UTC',
+                $data['weekdays'] ?? null,
+                $data['monthdays'] ?? null,
+                $data['interval_hours'] ?? null,
+                $data['cron_expression'] ?? null,
+                $data['window_start'] ?? null,
+                $data['window_end'] ?? null,
+                $data['max_runtime'] ?? 14400,
+                isset($data['blackout_periods']) ? json_encode($data['blackout_periods']) : null,
+                ($data['retry_on_failure'] ?? true) ? 1 : 0,  // Convert boolean to int
+                $data['max_retries'] ?? 3,
+                $data['retry_delay_minutes'] ?? 30,
             ]
         );
 
-        $id = $this->connection->lastInsertId();
+        $id = $this->connection->getLastInsertId();
         
         // Update job's next_run_at
         $schedule = $this->findById($id);
