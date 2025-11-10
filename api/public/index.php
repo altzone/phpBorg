@@ -14,6 +14,8 @@ use PhpBorg\Api\Router;
 use PhpBorg\Api\Controller\AuthController;
 use PhpBorg\Api\Controller\BackupController;
 use PhpBorg\Api\Controller\BackupJobController;
+use PhpBorg\Api\Controller\BackupSourceController;
+use PhpBorg\Api\Controller\BackupScheduleController;
 use PhpBorg\Api\Controller\DashboardController;
 use PhpBorg\Api\Controller\EmailController;
 use PhpBorg\Api\Controller\JobController;
@@ -82,6 +84,35 @@ try {
     $router->put('/backup-jobs/:id', BackupJobController::class, 'update', requireAuth: true);
     $router->post('/backup-jobs/:id/toggle', BackupJobController::class, 'toggle', requireAuth: true);
     $router->delete('/backup-jobs/:id', BackupJobController::class, 'delete', requireAuth: true);
+
+    // ===========================================
+    // Backup Source Routes (Protected)
+    // ===========================================
+    $router->get('/backup-sources', BackupSourceController::class, 'index', requireAuth: true);
+    $router->get('/backup-sources/active', BackupSourceController::class, 'active', requireAuth: true);
+    $router->get('/backup-sources/types', BackupSourceController::class, 'types', requireAuth: true);
+    $router->get('/backup-sources/statistics', BackupSourceController::class, 'statistics', requireAuth: true);
+    $router->get('/backup-sources/search', BackupSourceController::class, 'search', requireAuth: true);
+    $router->post('/backup-sources/validate', BackupSourceController::class, 'validate', requireAuth: true);
+    $router->get('/backup-sources/:id', BackupSourceController::class, 'show', requireAuth: true);
+    $router->post('/backup-sources', BackupSourceController::class, 'create', requireAuth: true);
+    $router->put('/backup-sources/:id', BackupSourceController::class, 'update', requireAuth: true);
+    $router->delete('/backup-sources/:id', BackupSourceController::class, 'delete', requireAuth: true);
+    $router->get('/backup-sources/by-server/:serverId', BackupSourceController::class, 'byServer', requireAuth: true);
+    $router->get('/backup-sources/by-type/:type', BackupSourceController::class, 'byType', requireAuth: true);
+
+    // ===========================================
+    // Backup Schedule Routes (Protected)
+    // ===========================================
+    $router->get('/backup-schedules', BackupScheduleController::class, 'index', requireAuth: true);
+    $router->get('/backup-schedules/due', BackupScheduleController::class, 'due', requireAuth: true);
+    $router->get('/backup-schedules/types', BackupScheduleController::class, 'types', requireAuth: true);
+    $router->post('/backup-schedules/preview', BackupScheduleController::class, 'preview', requireAuth: true);
+    $router->get('/backup-schedules/:id', BackupScheduleController::class, 'show', requireAuth: true);
+    $router->get('/backup-schedules/by-job/:jobId', BackupScheduleController::class, 'byJob', requireAuth: true);
+    $router->post('/backup-schedules', BackupScheduleController::class, 'create', requireAuth: true);
+    $router->put('/backup-schedules/:id', BackupScheduleController::class, 'update', requireAuth: true);
+    $router->delete('/backup-schedules/:id', BackupScheduleController::class, 'delete', requireAuth: true);
 
     // ===========================================
     // Repository Routes (Protected)
