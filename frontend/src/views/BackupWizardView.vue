@@ -281,10 +281,10 @@
 
               <!-- Standard Exclusions -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Standard Exclusions (Recommended)</label>
-                <div class="bg-gray-50 p-3 rounded-lg max-h-64 overflow-y-auto">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Standard Exclusions (Always Applied)</label>
+                <div class="bg-gray-50 p-3 rounded-lg">
                   <div class="space-y-1 font-mono text-xs text-gray-600">
-                    <div class="text-gray-700 font-semibold mb-2"># System directories</div>
+                    <div class="text-gray-700 font-semibold mb-2"># Critical system directories</div>
                     <div>/proc/*</div>
                     <div>/sys/*</div>
                     <div>/dev/*</div>
@@ -293,26 +293,132 @@
                     <div>/var/tmp/*</div>
                     <div>/mnt/*</div>
                     <div>/media/*</div>
-                    <div class="text-gray-700 font-semibold mt-3 mb-2"># Cache and logs</div>
-                    <div>/var/cache/*</div>
-                    <div>/var/log/*.log</div>
-                    <div>/var/log/*.old</div>
-                    <div>*/.cache/*</div>
-                    <div class="text-gray-700 font-semibold mt-3 mb-2"># Package manager</div>
-                    <div>/var/lib/apt/lists/*</div>
-                    <div>/var/cache/apt/*</div>
-                    <div>/var/cache/yum/*</div>
-                    <div class="text-gray-700 font-semibold mt-3 mb-2"># Swap and temp files</div>
+                    <div class="text-gray-700 font-semibold mt-3 mb-2"># Swap files</div>
                     <div>/swapfile</div>
                     <div>*.swp</div>
                     <div>*.tmp</div>
                     <div>*~</div>
-                    <div class="text-gray-700 font-semibold mt-3 mb-2"># Docker/Container data</div>
-                    <div>/var/lib/docker/*</div>
-                    <div>/var/lib/containerd/*</div>
                   </div>
                 </div>
-                <p class="text-xs text-gray-500 mt-2">These exclusions prevent backing up temporary files, system files, and runtime data that shouldn't be restored.</p>
+                <p class="text-xs text-gray-500 mt-2">These exclusions are always applied to prevent backing up system runtime files.</p>
+              </div>
+
+              <!-- Optional Exclusions -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Optional Exclusions</label>
+                <div class="space-y-3">
+                  <!-- Docker -->
+                  <div class="p-3 border rounded-lg">
+                    <label class="flex items-start">
+                      <input type="checkbox" v-model="wizardData.sourceConfig.excludeDocker" class="mt-1 mr-3" checked />
+                      <div class="flex-1">
+                        <div class="font-medium text-sm">Docker & Container Data</div>
+                        <div class="text-xs text-gray-600 mt-1">
+                          Excludes: /var/lib/docker/*, /var/lib/containerd/*, /var/lib/lxc/*
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                          Container data should be backed up using container-specific tools for consistency.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+
+                  <!-- Database Data -->
+                  <div class="p-3 border rounded-lg">
+                    <label class="flex items-start">
+                      <input type="checkbox" v-model="wizardData.sourceConfig.excludeDatabaseData" class="mt-1 mr-3" checked />
+                      <div class="flex-1">
+                        <div class="font-medium text-sm">Database Data Files</div>
+                        <div class="text-xs text-gray-600 mt-1">
+                          Excludes: /var/lib/mysql/*, /var/lib/postgresql/*, /var/lib/mongodb/*
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                          Database files should be backed up using dumps for consistency. Use dedicated database backup instead.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+
+                  <!-- Virtual Machines -->
+                  <div class="p-3 border rounded-lg">
+                    <label class="flex items-start">
+                      <input type="checkbox" v-model="wizardData.sourceConfig.excludeVMs" class="mt-1 mr-3" checked />
+                      <div class="flex-1">
+                        <div class="font-medium text-sm">Virtual Machine Images</div>
+                        <div class="text-xs text-gray-600 mt-1">
+                          Excludes: /var/lib/libvirt/*, *.qcow2, *.vmdk, *.vdi, /var/lib/vz/*
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                          VM images are large and should be backed up while powered off or using VM snapshots.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+
+                  <!-- Logs -->
+                  <div class="p-3 border rounded-lg">
+                    <label class="flex items-start">
+                      <input type="checkbox" v-model="wizardData.sourceConfig.excludeLogs" class="mt-1 mr-3" checked />
+                      <div class="flex-1">
+                        <div class="font-medium text-sm">Log Files</div>
+                        <div class="text-xs text-gray-600 mt-1">
+                          Excludes: /var/log/*, *.log, *.log.*, /var/spool/mail/*
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                          Logs can be large and are usually not needed for system restoration.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+
+                  <!-- Caches -->
+                  <div class="p-3 border rounded-lg">
+                    <label class="flex items-start">
+                      <input type="checkbox" v-model="wizardData.sourceConfig.excludeCaches" class="mt-1 mr-3" checked />
+                      <div class="flex-1">
+                        <div class="font-medium text-sm">Cache Directories</div>
+                        <div class="text-xs text-gray-600 mt-1">
+                          Excludes: /var/cache/*, */.cache/*, /var/lib/apt/lists/*, */node_modules/*
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                          Caches can be regenerated and excluding them saves significant space.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+
+                  <!-- Downloads & Trash -->
+                  <div class="p-3 border rounded-lg">
+                    <label class="flex items-start">
+                      <input type="checkbox" v-model="wizardData.sourceConfig.excludeDownloads" class="mt-1 mr-3" />
+                      <div class="flex-1">
+                        <div class="font-medium text-sm">Downloads & Trash</div>
+                        <div class="text-xs text-gray-600 mt-1">
+                          Excludes: */Downloads/*, */.Trash/*, */Trash/*, */.local/share/Trash/*
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                          Temporary user files that are typically not important for backup.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+
+                  <!-- Build Artifacts -->
+                  <div class="p-3 border rounded-lg">
+                    <label class="flex items-start">
+                      <input type="checkbox" v-model="wizardData.sourceConfig.excludeBuildArtifacts" class="mt-1 mr-3" />
+                      <div class="flex-1">
+                        <div class="font-medium text-sm">Build Artifacts & Dependencies</div>
+                        <div class="text-xs text-gray-600 mt-1">
+                          Excludes: */target/*, */dist/*, */build/*, */.gradle/*, */.m2/*, */vendor/*
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                          Development build outputs and downloaded dependencies that can be regenerated.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
               </div>
 
               <!-- Custom Exclusions -->
@@ -749,7 +855,15 @@ const wizardData = ref({
     oneFileSystem: true,
     preservePermissions: true,
     preserveTimestamps: true,
-    followSymlinks: false
+    followSymlinks: false,
+    // Exclusion toggles
+    excludeDocker: true,
+    excludeDatabaseData: true,
+    excludeVMs: true,
+    excludeLogs: true,
+    excludeCaches: true,
+    excludeDownloads: false,
+    excludeBuildArtifacts: false
   },
   snapshotMethod: 'none',
   storagePoolId: null,
@@ -870,31 +984,117 @@ watch(() => wizardData.value.backupType, (newType) => {
   if (newType === 'system') {
     // Set root path for system backup
     wizardData.value.sourceConfig.paths = ['/']
-    // Set default system exclusions
-    const defaultExclusions = [
-      '/proc/*',
-      '/sys/*',
-      '/dev/*',
-      '/run/*',
-      '/tmp/*',
-      '/var/tmp/*',
-      '/mnt/*',
-      '/media/*',
+    // Build exclusions will be done dynamically based on checkboxes
+    buildSystemExclusions()
+  }
+})
+
+// Build system exclusions based on checkboxes
+function buildSystemExclusions() {
+  const exclusions = [
+    // Always excluded (critical system directories)
+    '/proc/*',
+    '/sys/*',
+    '/dev/*',
+    '/run/*',
+    '/tmp/*',
+    '/var/tmp/*',
+    '/mnt/*',
+    '/media/*',
+    '/swapfile',
+    '*.swp',
+    '*.tmp',
+    '*~'
+  ]
+  
+  // Add optional exclusions based on checkboxes
+  if (wizardData.value.sourceConfig.excludeDocker) {
+    exclusions.push(
+      '/var/lib/docker/*',
+      '/var/lib/containerd/*',
+      '/var/lib/lxc/*'
+    )
+  }
+  
+  if (wizardData.value.sourceConfig.excludeDatabaseData) {
+    exclusions.push(
+      '/var/lib/mysql/*',
+      '/var/lib/postgresql/*',
+      '/var/lib/mongodb/*',
+      '/var/lib/redis/*',
+      '/var/lib/elasticsearch/*'
+    )
+  }
+  
+  if (wizardData.value.sourceConfig.excludeVMs) {
+    exclusions.push(
+      '/var/lib/libvirt/*',
+      '*.qcow2',
+      '*.vmdk',
+      '*.vdi',
+      '/var/lib/vz/*'
+    )
+  }
+  
+  if (wizardData.value.sourceConfig.excludeLogs) {
+    exclusions.push(
+      '/var/log/*',
+      '*.log',
+      '*.log.*',
+      '/var/spool/mail/*'
+    )
+  }
+  
+  if (wizardData.value.sourceConfig.excludeCaches) {
+    exclusions.push(
       '/var/cache/*',
-      '/var/log/*.log',
-      '/var/log/*.old',
       '*/.cache/*',
       '/var/lib/apt/lists/*',
       '/var/cache/apt/*',
       '/var/cache/yum/*',
-      '/swapfile',
-      '*.swp',
-      '*.tmp',
-      '*~',
-      '/var/lib/docker/*',
-      '/var/lib/containerd/*'
-    ]
-    wizardData.value.sourceConfig.excludePatterns = defaultExclusions.join('\n')
+      '*/node_modules/*',
+      '*/__pycache__/*',
+      '*/.npm/*'
+    )
+  }
+  
+  if (wizardData.value.sourceConfig.excludeDownloads) {
+    exclusions.push(
+      '*/Downloads/*',
+      '*/.Trash/*',
+      '*/Trash/*',
+      '*/.local/share/Trash/*'
+    )
+  }
+  
+  if (wizardData.value.sourceConfig.excludeBuildArtifacts) {
+    exclusions.push(
+      '*/target/*',
+      '*/dist/*',
+      '*/build/*',
+      '*/.gradle/*',
+      '*/.m2/*',
+      '*/vendor/*',
+      '*/.cargo/*',
+      '*/out/*'
+    )
+  }
+  
+  wizardData.value.sourceConfig.excludePatterns = exclusions.join('\n')
+}
+
+// Watch for changes in exclusion checkboxes
+watch(() => [
+  wizardData.value.sourceConfig.excludeDocker,
+  wizardData.value.sourceConfig.excludeDatabaseData,
+  wizardData.value.sourceConfig.excludeVMs,
+  wizardData.value.sourceConfig.excludeLogs,
+  wizardData.value.sourceConfig.excludeCaches,
+  wizardData.value.sourceConfig.excludeDownloads,
+  wizardData.value.sourceConfig.excludeBuildArtifacts
+], () => {
+  if (wizardData.value.backupType === 'system') {
+    buildSystemExclusions()
   }
 })
 
