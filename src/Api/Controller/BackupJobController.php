@@ -6,7 +6,7 @@ namespace PhpBorg\Api\Controller;
 
 use PhpBorg\Application;
 use PhpBorg\Repository\BackupJobRepository;
-use PhpBorg\Repository\RepositoryRepository;
+use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Exception\PhpBorgException;
 
 /**
@@ -15,12 +15,12 @@ use PhpBorg\Exception\PhpBorgException;
 class BackupJobController extends BaseController
 {
     private readonly BackupJobRepository $backupJobRepository;
-    private readonly RepositoryRepository $repositoryRepository;
+    private readonly BorgRepositoryRepository $repositoryRepository;
 
     public function __construct(Application $app)
     {
         $this->backupJobRepository = new BackupJobRepository($app->getConnection());
-        $this->repositoryRepository = new RepositoryRepository($app->getConnection());
+        $this->repositoryRepository = new BorgRepositoryRepository($app->getConnection());
     }
 
     /**
