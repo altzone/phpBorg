@@ -133,28 +133,74 @@
             </div>
           </div>
 
-          <!-- System Stats -->
-          <div v-if="server.stats" class="space-y-2 mb-4 p-3 bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-700/30 dark:to-blue-900/10 rounded-lg border border-gray-200 dark:border-gray-600">
-            <div class="flex items-center justify-between text-xs mb-2">
-              <span class="font-semibold text-gray-700 dark:text-gray-300">System Info</span>
-              <button
-                @click.stop="refreshStats(server.id)"
-                class="text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 transition-colors"
-                title="Refresh stats"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </button>
-            </div>
+          <!-- System Stats Accordion -->
+          <div v-if="server.stats" class="mb-4 rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden">
+            <!-- Accordion Header -->
+            <button
+              @click.stop="toggleStatsExpanded(server.id)"
+              class="w-full p-3 bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-700/30 dark:to-blue-900/10 hover:from-gray-100 hover:to-blue-100 dark:hover:from-gray-700/50 dark:hover:to-blue-900/20 transition-colors"
+            >
+              <div class="flex items-center justify-between text-xs">
+                <div class="flex items-center gap-3">
+                  <svg
+                    class="w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform"
+                    :class="{ 'rotate-90': isStatsExpanded(server.id) }"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                  <span class="font-semibold text-gray-700 dark:text-gray-300">System Info</span>
+                  <span class="text-gray-600 dark:text-gray-400">
+                    {{ server.stats.os_distribution }} {{ server.stats.os_version }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <!-- Quick status indicators -->
+                  <div class="flex items-center gap-1">
+                    <span class="text-[10px] text-gray-500 dark:text-gray-400">CPU</span>
+                    <span :class="getCpuColor(server.stats.cpu_usage_percent)" class="font-medium">
+                      {{ server.stats.cpu_usage_percent?.toFixed(0) }}%
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="text-[10px] text-gray-500 dark:text-gray-400">RAM</span>
+                    <span :class="getMemoryColor(server.stats.memory_percent)" class="font-medium">
+                      {{ server.stats.memory_percent?.toFixed(0) }}%
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="text-[10px] text-gray-500 dark:text-gray-400">Disk</span>
+                    <span :class="getDiskColor(server.stats.disk_percent)" class="font-medium">
+                      {{ server.stats.disk_percent?.toFixed(0) }}%
+                    </span>
+                  </div>
+                  <button
+                    @click.stop="refreshStats(server.id)"
+                    class="ml-1 text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 transition-colors"
+                    title="Refresh stats"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </button>
 
-            <!-- OS -->
+            <!-- Accordion Content -->
+            <div
+              v-show="isStatsExpanded(server.id)"
+              class="p-3 space-y-2 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700"
+            >
+            <!-- Architecture -->
             <div class="flex items-center gap-2 text-xs">
               <svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
               </svg>
               <span class="text-gray-700 dark:text-gray-300">
-                {{ server.stats.os_distribution }} {{ server.stats.os_version }}
+                Architecture: {{ server.stats.architecture || 'N/A' }}
               </span>
             </div>
 
@@ -233,6 +279,7 @@
               <span class="text-gray-700 dark:text-gray-300">
                 Uptime: {{ server.stats.uptime_human }}
               </span>
+            </div>
             </div>
           </div>
 
@@ -324,6 +371,7 @@ const showEditModal = ref(false)
 const showDeleteModal = ref(false)
 const editingServer = ref(null)
 const deletingServer = ref(null)
+const expandedStatsServers = ref(new Set())
 
 onMounted(async () => {
   await serverStore.fetchServers()
@@ -440,5 +488,17 @@ function getDiskColorBg(percent) {
   if (percent < 70) return 'bg-green-500'
   if (percent < 85) return 'bg-yellow-500'
   return 'bg-red-500'
+}
+
+function toggleStatsExpanded(serverId) {
+  if (expandedStatsServers.value.has(serverId)) {
+    expandedStatsServers.value.delete(serverId)
+  } else {
+    expandedStatsServers.value.add(serverId)
+  }
+}
+
+function isStatsExpanded(serverId) {
+  return expandedStatsServers.value.has(serverId)
 }
 </script>
