@@ -2,8 +2,8 @@
   <div>
     <!-- Header -->
     <div class="mb-8">
-      <h1 class="text-3xl font-bold text-gray-900">Background Jobs</h1>
-      <p class="mt-2 text-gray-600">Monitor and manage background tasks</p>
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Background Jobs</h1>
+      <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Monitor and manage background tasks</p>
     </div>
 
     <!-- Error Message -->
@@ -20,9 +20,9 @@
 
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-      <div class="card bg-gray-50">
-        <div class="text-sm text-gray-600 mb-1">Total</div>
-        <div class="text-2xl font-bold text-gray-900">{{ jobStore.stats.total }}</div>
+      <div class="card bg-gray-50 dark:bg-gray-800">
+        <div class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">Total</div>
+        <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ jobStore.stats.total }}</div>
       </div>
       <div class="card bg-blue-50">
         <div class="text-sm text-blue-600 mb-1">Pending</div>
@@ -40,27 +40,27 @@
         <div class="text-sm text-red-600 mb-1">Failed</div>
         <div class="text-2xl font-bold text-red-900">{{ jobStore.stats.failed }}</div>
       </div>
-      <div class="card bg-gray-50">
-        <div class="text-sm text-gray-600 mb-1">Cancelled</div>
-        <div class="text-2xl font-bold text-gray-900">{{ jobStore.stats.cancelled }}</div>
+      <div class="card bg-gray-50 dark:bg-gray-800">
+        <div class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">Cancelled</div>
+        <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ jobStore.stats.cancelled }}</div>
       </div>
     </div>
 
     <!-- Loading State -->
     <div v-if="jobStore.loading && !jobStore.jobs.length" class="card">
       <div class="text-center py-12">
-        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-primary-600"></div>
-        <p class="mt-4 text-gray-600">Loading jobs...</p>
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 dark:border-gray-700 border-t-primary-600"></div>
+        <p class="mt-4 text-gray-600 dark:text-gray-400 dark:text-gray-500">Loading jobs...</p>
       </div>
     </div>
 
     <!-- Empty State -->
     <div v-else-if="!jobStore.jobs.length" class="card">
-      <div class="text-center py-16 text-gray-500">
-        <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="text-center py-16 text-gray-500 dark:text-gray-400 dark:text-gray-500">
+        <svg class="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <h3 class="text-lg font-medium text-gray-900 mb-2">No jobs yet</h3>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No jobs yet</h3>
         <p class="text-sm">Background jobs will appear here when they are created</p>
       </div>
     </div>
@@ -76,7 +76,7 @@
         <div class="flex items-start justify-between mb-4">
           <div class="flex-1">
             <div class="flex items-center gap-3 mb-2">
-              <h3 class="text-lg font-semibold text-gray-900">
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {{ formatJobType(job.type) }}
               </h3>
               <span
@@ -86,7 +86,7 @@
                 {{ job.status.toUpperCase() }}
               </span>
             </div>
-            <p class="text-sm text-gray-600">
+            <p class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500">
               Job #{{ job.id }} • Queue: {{ job.queue }}
             </p>
           </div>
@@ -116,7 +116,7 @@
 
         <!-- Progress Bar -->
         <div v-if="job.status === 'running' || job.status === 'completed'" class="mb-4">
-          <div class="flex justify-between text-sm text-gray-600 mb-1">
+          <div class="flex justify-between text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">
             <span>Progress</span>
             <span>{{ job.progress }}%</span>
           </div>
@@ -132,27 +132,27 @@
         <!-- Job Info -->
         <div class="grid grid-cols-2 gap-4 text-sm mb-4">
           <div>
-            <span class="text-gray-600">Created:</span>
-            <span class="ml-2 text-gray-900">{{ formatDate(job.created_at) }}</span>
+            <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Created:</span>
+            <span class="ml-2 text-gray-900 dark:text-gray-100">{{ formatDate(job.created_at) }}</span>
           </div>
           <div v-if="job.started_at">
-            <span class="text-gray-600">Started:</span>
-            <span class="ml-2 text-gray-900">{{ formatDate(job.started_at) }}</span>
+            <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Started:</span>
+            <span class="ml-2 text-gray-900 dark:text-gray-100">{{ formatDate(job.started_at) }}</span>
           </div>
           <div v-if="job.completed_at">
-            <span class="text-gray-600">Completed:</span>
-            <span class="ml-2 text-gray-900">{{ formatDate(job.completed_at) }}</span>
+            <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Completed:</span>
+            <span class="ml-2 text-gray-900 dark:text-gray-100">{{ formatDate(job.completed_at) }}</span>
           </div>
           <div>
-            <span class="text-gray-600">Attempts:</span>
-            <span class="ml-2 text-gray-900">{{ job.attempts }} / {{ job.max_attempts }}</span>
+            <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Attempts:</span>
+            <span class="ml-2 text-gray-900 dark:text-gray-100">{{ job.attempts }} / {{ job.max_attempts }}</span>
           </div>
         </div>
 
         <!-- Output/Error -->
         <div v-if="job.output || job.error" class="mt-4 pt-4 border-t">
           <details class="cursor-pointer">
-            <summary class="text-sm font-medium text-gray-700 hover:text-gray-900">
+            <summary class="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:text-gray-100">
               {{ job.error ? 'Error Details' : 'Output Logs' }}
             </summary>
             <div
@@ -163,7 +163,7 @@
             </div>
             <div
               v-else-if="job.output"
-              class="mt-2 p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-800 font-mono whitespace-pre-wrap"
+              class="mt-2 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-sm text-gray-800 dark:text-gray-200 font-mono whitespace-pre-wrap"
             >
               {{ job.output }}
             </div>
@@ -173,10 +173,10 @@
         <!-- Payload Info (collapsed by default) -->
         <div class="mt-4 pt-4 border-t">
           <details class="cursor-pointer">
-            <summary class="text-sm font-medium text-gray-700 hover:text-gray-900">
+            <summary class="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:text-gray-100">
               Job Payload
             </summary>
-            <div class="mt-2 p-3 bg-gray-50 border border-gray-200 rounded text-xs text-gray-700 font-mono">
+            <div class="mt-2 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs text-gray-700 dark:text-gray-300 font-mono">
               <pre>{{ JSON.stringify(job.payload, null, 2) }}</pre>
             </div>
           </details>
@@ -258,8 +258,8 @@ function getStatusClass(status) {
     running: 'bg-yellow-100 text-yellow-800',
     completed: 'bg-green-100 text-green-800',
     failed: 'bg-red-100 text-red-800',
-    cancelled: 'bg-gray-100 text-gray-800'
+    cancelled: 'bg-gray-100 text-gray-800 dark:text-gray-200'
   }
-  return classes[status] || 'bg-gray-100 text-gray-800'
+  return classes[status] || 'bg-gray-100 text-gray-800 dark:text-gray-200'
 }
 </script>

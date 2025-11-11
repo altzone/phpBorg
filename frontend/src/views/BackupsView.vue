@@ -3,8 +3,8 @@
     <!-- Header -->
     <div class="flex justify-between items-center mb-8">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900">Backups</h1>
-        <p class="mt-2 text-gray-600">Browse and manage backup archives</p>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Backups</h1>
+        <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Browse and manage backup archives</p>
       </div>
       <button
         v-if="authStore.isAdmin || authStore.isOperator"
@@ -53,18 +53,18 @@
     <!-- Loading State -->
     <div v-if="backupStore.loading && !backupStore.backups.length" class="card">
       <div class="text-center py-12">
-        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-primary-600"></div>
-        <p class="mt-4 text-gray-600">Loading backups...</p>
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 dark:border-gray-700 border-t-primary-600"></div>
+        <p class="mt-4 text-gray-600 dark:text-gray-400 dark:text-gray-500">Loading backups...</p>
       </div>
     </div>
 
     <!-- Empty State -->
     <div v-else-if="!backupStore.backups.length" class="card">
-      <div class="text-center py-16 text-gray-500">
-        <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="text-center py-16 text-gray-500 dark:text-gray-400 dark:text-gray-500">
+        <svg class="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
         </svg>
-        <h3 class="text-lg font-medium text-gray-900 mb-2">No backups yet</h3>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No backups yet</h3>
         <p class="text-sm mb-4">Create your first backup to get started</p>
         <button
           v-if="authStore.isAdmin || authStore.isOperator"
@@ -82,14 +82,14 @@
       <div class="mb-6">
         <div class="relative">
           <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="h-5 w-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </div>
           <input
             v-model="searchQuery"
             type="text"
-            class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+            class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
             placeholder="Rechercher par nom d'archive, serveur, ou type..."
           >
         </div>
@@ -97,9 +97,9 @@
 
       <div class="overflow-x-auto">
         <table class="w-full">
-          <thead class="bg-gray-50 border-b">
+          <thead class="bg-gray-50 dark:bg-gray-800 border-b">
             <tr>
-              <th @click="sortBy('server_name')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+              <th @click="sortBy('server_name')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center gap-1">
                   Serveur
                   <svg v-if="sortColumn === 'server_name'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -107,7 +107,7 @@
                   </svg>
                 </div>
               </th>
-              <th @click="sortBy('repository_type')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+              <th @click="sortBy('repository_type')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center gap-1">
                   Storage Pool
                   <svg v-if="sortColumn === 'repository_type'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -115,7 +115,7 @@
                   </svg>
                 </div>
               </th>
-              <th @click="sortBy('name')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+              <th @click="sortBy('name')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center gap-1">
                   Archive
                   <svg v-if="sortColumn === 'name'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -123,7 +123,7 @@
                   </svg>
                 </div>
               </th>
-              <th @click="sortBy('end')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+              <th @click="sortBy('end')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center gap-1">
                   Date
                   <svg v-if="sortColumn === 'end'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -131,7 +131,7 @@
                   </svg>
                 </div>
               </th>
-              <th @click="sortBy('original_size')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+              <th @click="sortBy('original_size')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center gap-1">
                   Taille
                   <svg v-if="sortColumn === 'original_size'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -139,7 +139,7 @@
                   </svg>
                 </div>
               </th>
-              <th @click="sortBy('files_count')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+              <th @click="sortBy('files_count')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center gap-1">
                   Fichiers
                   <svg v-if="sortColumn === 'files_count'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,14 +147,14 @@
                   </svg>
                 </div>
               </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stats</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider" v-if="authStore.isAdmin">Actions</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider">Stats</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider" v-if="authStore.isAdmin">Actions</th>
             </tr>
           </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-            <tr v-for="backup in filteredAndSortedBackups" :key="backup.id" class="hover:bg-gray-50">
+          <tbody class="bg-white divide-y divide-gray-200 dark:divide-gray-700">
+            <tr v-for="backup in filteredAndSortedBackups" :key="backup.id" class="hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800">
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">{{ backup.server_name }}</div>
+                <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ backup.server_name }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
@@ -163,7 +163,7 @@
               </td>
               <td class="px-6 py-4">
                 <div class="flex items-center gap-2 flex-wrap">
-                  <div class="text-sm font-medium text-gray-900">{{ backup.name }}</div>
+                  <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ backup.name }}</div>
                   <span
                     v-if="backup.mount_status === 'mounted'"
                     class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"
@@ -201,18 +201,18 @@
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-900">{{ formatDate(backup.end) }}</div>
-                <div class="text-xs text-gray-500">{{ backup.duration_formatted }}</div>
+                <div class="text-sm text-gray-900 dark:text-gray-100">{{ formatDate(backup.end) }}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">{{ backup.duration_formatted }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-900">{{ formatBytes(backup.original_size) }}</div>
-                <div class="text-xs text-gray-500">→ {{ formatBytes(backup.deduplicated_size) }}</div>
+                <div class="text-sm text-gray-900 dark:text-gray-100">{{ formatBytes(backup.original_size) }}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">→ {{ formatBytes(backup.deduplicated_size) }}</div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                 {{ backup.files_count.toLocaleString() }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-xs text-gray-600">
+                <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
                   <div>Compression: <span class="font-medium">{{ backup.compression_ratio }}%</span></div>
                   <div>Dedup: <span class="font-medium">{{ backup.deduplication_ratio }}%</span></div>
                 </div>
@@ -245,17 +245,17 @@
       </div>
 
       <!-- Results count -->
-      <div v-if="searchQuery" class="mt-4 text-sm text-gray-600">
+      <div v-if="searchQuery" class="mt-4 text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500">
         {{ filteredAndSortedBackups.length }} résultat(s) trouvé(s)
       </div>
     </div>
 
     <!-- Create Backup Modal -->
-    <div v-if="showCreateModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="showCreateModal = false">
+    <div v-if="showCreateModal" class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="showCreateModal = false">
       <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-medium text-gray-900">Create Backup</h3>
-          <button @click="showCreateModal = false" class="text-gray-400 hover:text-gray-500">
+          <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Create Backup</h3>
+          <button @click="showCreateModal = false" class="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:text-gray-400">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -264,7 +264,7 @@
 
         <form @submit.prevent="handleCreateBackup">
           <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Server</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Server</label>
             <select v-model="createForm.server_id" required class="input w-full">
               <option value="">Select a server...</option>
               <option v-for="server in serverStore.servers" :key="server.id" :value="server.id">
@@ -274,7 +274,7 @@
           </div>
 
           <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Backup Type</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Backup Type</label>
             <select v-model="createForm.type" required class="input w-full">
               <option value="backup">Filesystem</option>
               <option value="mysql">MySQL</option>
@@ -297,22 +297,22 @@
     </div>
 
     <!-- Delete Confirmation Modal -->
-    <div v-if="showDeleteModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="showDeleteModal = false">
+    <div v-if="showDeleteModal" class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="showDeleteModal = false">
       <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-medium text-gray-900">Delete Backup</h3>
-          <button @click="showDeleteModal = false" class="text-gray-400 hover:text-gray-500">
+          <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Delete Backup</h3>
+          <button @click="showDeleteModal = false" class="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:text-gray-400">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <div class="text-sm text-gray-600 mb-6">
+        <div class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-6">
           <p class="mb-3">
             Êtes-vous sûr de vouloir supprimer cette archive de backup ?
           </p>
-          <div class="bg-gray-50 p-3 rounded-lg mb-3">
+          <div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg mb-3">
             <p><strong>Archive :</strong> {{ backupToDelete?.name }}</p>
             <p><strong>Serveur :</strong> {{ backupToDelete?.server_name }}</p>
             <p><strong>Type :</strong> {{ backupToDelete?.repository_type }}</p>

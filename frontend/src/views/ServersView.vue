@@ -3,8 +3,8 @@
     <!-- Header -->
     <div class="flex justify-between items-center mb-8">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900">Servers</h1>
-        <p class="mt-2 text-gray-600">Manage your backup servers</p>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Servers</h1>
+        <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Manage your backup servers</p>
       </div>
       <button
         v-if="authStore.isAdmin"
@@ -30,18 +30,18 @@
     <!-- Loading State -->
     <div v-if="serverStore.loading && !serverStore.servers.length" class="card">
       <div class="text-center py-12">
-        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-primary-600"></div>
-        <p class="mt-4 text-gray-600">Loading servers...</p>
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 dark:border-gray-700 border-t-primary-600"></div>
+        <p class="mt-4 text-gray-600 dark:text-gray-400 dark:text-gray-500">Loading servers...</p>
       </div>
     </div>
 
     <!-- Empty State -->
     <div v-else-if="!serverStore.servers.length" class="card">
-      <div class="text-center py-16 text-gray-500">
-        <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="text-center py-16 text-gray-500 dark:text-gray-400 dark:text-gray-500">
+        <svg class="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
         </svg>
-        <h3 class="text-lg font-medium text-gray-900 mb-2">No servers yet</h3>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No servers yet</h3>
         <p class="text-sm mb-4">Get started by adding your first backup server</p>
         <button
           v-if="authStore.isAdmin"
@@ -64,15 +64,15 @@
         <!-- Server Header -->
         <div class="flex items-start justify-between mb-4">
           <div class="flex-1">
-            <h3 class="text-lg font-semibold text-gray-900">{{ server.name }}</h3>
-            <p class="text-sm text-gray-600">{{ server.hostname }}:{{ server.port }}</p>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ server.name }}</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ server.hostname }}:{{ server.port }}</p>
           </div>
           <span
             :class="[
               'px-2 py-1 text-xs font-semibold rounded',
               server.active
                 ? 'bg-green-100 text-green-800'
-                : 'bg-gray-100 text-gray-800',
+                : 'bg-gray-100 text-gray-800 dark:text-gray-200',
             ]"
           >
             {{ server.active ? 'Active' : 'Inactive' }}
@@ -81,21 +81,21 @@
 
         <!-- Server Info -->
         <div class="space-y-2 text-sm">
-          <div class="flex items-center text-gray-600">
+          <div class="flex items-center text-gray-600 dark:text-gray-400 dark:text-gray-500">
             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
             <span>{{ server.username || 'root' }}</span>
           </div>
 
-          <div v-if="server.description" class="flex items-start text-gray-600">
+          <div v-if="server.description" class="flex items-start text-gray-600 dark:text-gray-400 dark:text-gray-500">
             <svg class="w-4 h-4 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span class="line-clamp-2">{{ server.description }}</span>
           </div>
 
-          <div class="flex items-center text-gray-500 text-xs pt-2 border-t">
+          <div class="flex items-center text-gray-500 dark:text-gray-400 dark:text-gray-500 text-xs pt-2 border-t">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>

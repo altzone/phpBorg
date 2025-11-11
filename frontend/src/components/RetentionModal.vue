@@ -24,12 +24,12 @@
             leave-from="opacity-100 scale-100"
             leave-to="opacity-0 scale-95"
           >
-            <DialogPanel class="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white shadow-2xl transition-all">
+            <DialogPanel class="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 shadow-2xl transition-all">
               <!-- Header -->
               <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-5">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center space-x-3">
-                    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-white dark:bg-gray-800/20">
                       <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
@@ -45,7 +45,7 @@
                   </div>
                   <button
                     @click="closeModal"
-                    class="rounded-lg p-2 text-white/80 transition hover:bg-white/10 hover:text-white"
+                    class="rounded-lg p-2 text-white/80 transition hover:bg-white dark:bg-gray-800/10 hover:text-white"
                   >
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -77,10 +77,10 @@
                   <!-- Daily -->
                   <div class="flex items-center justify-between space-x-4">
                     <div class="flex-1">
-                      <label class="block text-sm font-semibold text-gray-900 mb-1">
+                      <label class="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
                         Daily Backups
                       </label>
-                      <p class="text-xs text-gray-600">
+                      <p class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
                         Keep last N daily backups
                       </p>
                     </div>
@@ -97,19 +97,19 @@
                         type="number"
                         min="0"
                         max="365"
-                        class="w-20 px-3 py-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        class="w-20 px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
-                      <span class="text-sm font-medium text-gray-700 w-12">days</span>
+                      <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-12">days</span>
                     </div>
                   </div>
 
                   <!-- Weekly -->
                   <div class="flex items-center justify-between space-x-4">
                     <div class="flex-1">
-                      <label class="block text-sm font-semibold text-gray-900 mb-1">
+                      <label class="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
                         Weekly Backups
                       </label>
-                      <p class="text-xs text-gray-600">
+                      <p class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
                         Keep last N weekly backups
                       </p>
                     </div>
@@ -126,19 +126,19 @@
                         type="number"
                         min="0"
                         max="52"
-                        class="w-20 px-3 py-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        class="w-20 px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
-                      <span class="text-sm font-medium text-gray-700 w-12">weeks</span>
+                      <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-12">weeks</span>
                     </div>
                   </div>
 
                   <!-- Monthly -->
                   <div class="flex items-center justify-between space-x-4">
                     <div class="flex-1">
-                      <label class="block text-sm font-semibold text-gray-900 mb-1">
+                      <label class="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
                         Monthly Backups
                       </label>
-                      <p class="text-xs text-gray-600">
+                      <p class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
                         Keep last N monthly backups
                       </p>
                     </div>
@@ -155,19 +155,19 @@
                         type="number"
                         min="0"
                         max="60"
-                        class="w-20 px-3 py-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        class="w-20 px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
-                      <span class="text-sm font-medium text-gray-700 w-12">months</span>
+                      <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-12">months</span>
                     </div>
                   </div>
 
                   <!-- Yearly -->
                   <div class="flex items-center justify-between space-x-4">
                     <div class="flex-1">
-                      <label class="block text-sm font-semibold text-gray-900 mb-1">
+                      <label class="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
                         Yearly Backups
                       </label>
-                      <p class="text-xs text-gray-600">
+                      <p class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
                         Keep last N yearly backups (0 = disabled)
                       </p>
                     </div>
@@ -184,32 +184,32 @@
                         type="number"
                         min="0"
                         max="10"
-                        class="w-20 px-3 py-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        class="w-20 px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
-                      <span class="text-sm font-medium text-gray-700 w-12">years</span>
+                      <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-12">years</span>
                     </div>
                   </div>
                 </div>
 
                 <!-- Preview -->
-                <div class="rounded-lg bg-gray-50 border border-gray-200 p-4">
-                  <h4 class="text-sm font-semibold text-gray-900 mb-3">Policy Preview</h4>
-                  <div class="space-y-2 text-sm text-gray-700">
+                <div class="rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+                  <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Policy Preview</h4>
+                  <div class="space-y-2 text-sm text-gray-700 dark:text-gray-300">
                     <div v-if="form.keep_daily > 0" class="flex items-center justify-between">
                       <span>Last <strong>{{ form.keep_daily }}</strong> daily backups</span>
-                      <span class="text-xs text-gray-500">≈ {{ Math.ceil(form.keep_daily) }} days</span>
+                      <span class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">≈ {{ Math.ceil(form.keep_daily) }} days</span>
                     </div>
                     <div v-if="form.keep_weekly > 0" class="flex items-center justify-between">
                       <span>Last <strong>{{ form.keep_weekly }}</strong> weekly backups</span>
-                      <span class="text-xs text-gray-500">≈ {{ Math.ceil(form.keep_weekly * 7 / 30) }} months</span>
+                      <span class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">≈ {{ Math.ceil(form.keep_weekly * 7 / 30) }} months</span>
                     </div>
                     <div v-if="form.keep_monthly > 0" class="flex items-center justify-between">
                       <span>Last <strong>{{ form.keep_monthly }}</strong> monthly backups</span>
-                      <span class="text-xs text-gray-500">≈ {{ Math.ceil(form.keep_monthly / 12) }} years</span>
+                      <span class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">≈ {{ Math.ceil(form.keep_monthly / 12) }} years</span>
                     </div>
                     <div v-if="form.keep_yearly > 0" class="flex items-center justify-between">
                       <span>Last <strong>{{ form.keep_yearly }}</strong> yearly backups</span>
-                      <span class="text-xs text-gray-500">{{ form.keep_yearly }} years</span>
+                      <span class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">{{ form.keep_yearly }} years</span>
                     </div>
                     <div v-if="totalPeriods === 0" class="text-amber-600 font-medium">
                       ⚠️ At least one retention value must be greater than 0
@@ -229,10 +229,10 @@
               </div>
 
               <!-- Footer -->
-              <div class="bg-gray-50 px-6 py-4 flex items-center justify-between">
+              <div class="bg-gray-50 dark:bg-gray-800 px-6 py-4 flex items-center justify-between">
                 <button
                   @click="closeModal"
-                  class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition"
+                  class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:text-gray-100 transition"
                 >
                   Cancel
                 </button>

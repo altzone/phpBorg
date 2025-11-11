@@ -3,8 +3,8 @@
     <!-- Header -->
     <div class="flex justify-between items-center mb-8">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900">Backup Jobs</h1>
-        <p class="mt-2 text-gray-600">Schedule automatic backups for your repositories</p>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Backup Jobs</h1>
+        <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Schedule automatic backups for your repositories</p>
       </div>
       <button @click="openJobModal()" class="btn btn-primary">
         <svg class="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -52,8 +52,8 @@
     <!-- Loading State -->
     <div v-if="loading" class="card">
       <div class="text-center py-12">
-        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-primary-600"></div>
-        <p class="mt-4 text-gray-600">Loading backup jobs...</p>
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 dark:border-gray-700 border-t-primary-600"></div>
+        <p class="mt-4 text-gray-600 dark:text-gray-400 dark:text-gray-500">Loading backup jobs...</p>
       </div>
     </div>
 
@@ -62,11 +62,11 @@
       <div v-for="job in backupJobs" :key="job.id" class="card">
         <div class="flex justify-between items-start mb-4">
           <div class="flex items-center gap-2 flex-1">
-            <h3 class="text-lg font-semibold text-gray-900">{{ job.name }}</h3>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ job.name }}</h3>
             <span
               :class="[
                 'px-2 py-1 text-xs font-semibold rounded',
-                job.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                job.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800 dark:text-gray-200'
               ]"
             >
               {{ job.enabled ? 'Enabled' : 'Disabled' }}
@@ -81,16 +81,16 @@
         </div>
 
         <!-- Repository Info -->
-        <div v-if="job.repository" class="mb-3 p-2 bg-gray-50 rounded text-sm">
-          <div class="font-medium text-gray-700">Repository:</div>
-          <div class="text-gray-600">{{ job.repository.type || 'Backup' }} @ {{ job.repository.repo_path }}</div>
+        <div v-if="job.repository" class="mb-3 p-2 bg-gray-50 dark:bg-gray-800 rounded text-sm">
+          <div class="font-medium text-gray-700 dark:text-gray-300">Repository:</div>
+          <div class="text-gray-600 dark:text-gray-400 dark:text-gray-500 dark:text-gray-500 dark:text-gray-400">{{ job.repository.type || 'Backup' }} @ {{ job.repository.repo_path }}</div>
         </div>
 
         <!-- Schedule Info -->
         <div class="space-y-2 mb-4">
           <div class="flex justify-between text-sm">
-            <span class="text-gray-600">Schedule:</span>
-            <span class="font-semibold text-gray-900">
+            <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Schedule:</span>
+            <span class="font-semibold text-gray-900 dark:text-gray-100">
               {{ job.schedule_description }}
               <!-- Show indicator if multi-selection -->
               <span v-if="job.selected_weekdays && job.selected_weekdays.length > 1" 
@@ -107,17 +107,17 @@
           </div>
 
           <div v-if="job.next_run_at" class="flex justify-between text-sm">
-            <span class="text-gray-600">Next Run:</span>
+            <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Next Run:</span>
             <span class="font-semibold text-blue-700">{{ formatDateTime(job.next_run_at) }}</span>
           </div>
 
           <div v-if="job.last_run_at" class="flex justify-between text-sm">
-            <span class="text-gray-600">Last Run:</span>
+            <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Last Run:</span>
             <span :class="[
               'font-semibold',
               job.last_status === 'success' ? 'text-green-700' :
               job.last_status === 'failure' ? 'text-red-700' :
-              job.last_status === 'running' ? 'text-blue-700' : 'text-gray-700'
+              job.last_status === 'running' ? 'text-blue-700' : 'text-gray-700 dark:text-gray-300'
             ]">
               {{ formatDateTime(job.last_run_at) }}
               <span v-if="job.last_status === 'success'">✓</span>
@@ -127,7 +127,7 @@
           </div>
 
           <!-- Notifications -->
-          <div class="flex gap-4 text-xs text-gray-600 mt-2">
+          <div class="flex gap-4 text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-2">
             <span v-if="job.notify_on_success" class="flex items-center gap-1">
               <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
@@ -178,11 +178,11 @@
 
     <!-- Empty State -->
     <div v-else class="card text-center py-12">
-      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
-      <h3 class="mt-2 text-sm font-medium text-gray-900">No backup jobs</h3>
-      <p class="mt-1 text-sm text-gray-500">Get started by creating a new backup job.</p>
+      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No backup jobs</h3>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500">Get started by creating a new backup job.</p>
       <div class="mt-6">
         <button @click="openJobModal()" class="btn btn-primary">
           Create Backup Job
@@ -191,14 +191,14 @@
     </div>
 
     <!-- Create/Edit Modal -->
-    <div v-if="showJobModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50 p-4">
+    <div v-if="showJobModal" class="fixed inset-0 bg-gray-50 dark:bg-gray-8000 bg-opacity-75 flex items-center justify-center z-50 p-4">
       <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div class="p-6">
           <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-bold text-gray-900">
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {{ editingJob ? 'Edit Backup Job' : 'Create Backup Job' }}
             </h2>
-            <button @click="closeJobModal" class="text-gray-400 hover:text-gray-600">
+            <button @click="closeJobModal" class="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -208,25 +208,25 @@
           <form @submit.prevent="saveJob" class="space-y-4">
             <!-- Job Name -->
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Job Name *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Job Name *</label>
               <input v-model="jobForm.name" type="text" required class="input w-full" placeholder="e.g., MySQL Daily Backup" />
             </div>
 
             <!-- Repository Selection -->
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Repository *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Repository *</label>
               <select v-model="jobForm.repository_id" required class="input w-full" :disabled="editingJob">
                 <option value="">Select a repository</option>
                 <option v-for="repo in repositories" :key="repo.id" :value="repo.id">
                   {{ repo.type || 'Backup' }} - {{ repo.repo_path }}
                 </option>
               </select>
-              <p v-if="editingJob" class="text-xs text-gray-500 mt-1">Repository cannot be changed after creation</p>
+              <p v-if="editingJob" class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Repository cannot be changed after creation</p>
             </div>
 
             <!-- Schedule Type -->
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Schedule Type *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Schedule Type *</label>
               <select v-model="jobForm.schedule_type" required class="input w-full">
                 <option value="manual">Manual (run on demand)</option>
                 <option value="daily">Daily</option>
@@ -237,13 +237,13 @@
 
             <!-- Time (for all scheduled types) -->
             <div v-if="jobForm.schedule_type !== 'manual'">
-              <label class="block text-sm font-medium text-gray-700 mb-2">Time *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Time *</label>
               <input v-model="jobForm.schedule_time" type="time" required class="input w-full" />
             </div>
 
             <!-- Days of Week (for weekly) - Multi-select -->
             <div v-if="jobForm.schedule_type === 'weekly'">
-              <label class="block text-sm font-medium text-gray-700 mb-2">Days of Week *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Days of Week *</label>
               <div class="grid grid-cols-7 gap-2">
                 <label v-for="(day, index) in weekDays" :key="index" 
                        class="flex items-center justify-center p-2 border rounded cursor-pointer hover:bg-blue-50"
@@ -255,12 +255,12 @@
                   <span class="text-xs font-medium">{{ day.short }}</span>
                 </label>
               </div>
-              <p class="text-xs text-gray-500 mt-1">Select one or more days for backup</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Select one or more days for backup</p>
             </div>
 
             <!-- Days of Month (for monthly) - Multi-select -->
             <div v-if="jobForm.schedule_type === 'monthly'">
-              <label class="block text-sm font-medium text-gray-700 mb-2">Days of Month *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Days of Month *</label>
               <div class="grid grid-cols-7 gap-2 max-h-48 overflow-y-auto">
                 <label v-for="day in 31" :key="day"
                        class="flex items-center justify-center p-2 border rounded cursor-pointer hover:bg-blue-50 min-w-[40px]"
@@ -272,20 +272,20 @@
                   <span class="text-xs font-medium">{{ day }}</span>
                 </label>
               </div>
-              <p class="text-xs text-gray-500 mt-1">Select one or more days. If day doesn't exist in month, last day will be used</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 dark:text-gray-500 dark:text-gray-400 mt-1">Select one or more days. If day doesn't exist in month, last day will be used</p>
             </div>
 
             <!-- Notifications -->
             <div class="border-t pt-4">
-              <label class="block text-sm font-medium text-gray-700 mb-3">Notifications</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Notifications</label>
               <div class="space-y-2">
                 <div class="flex items-center">
                   <input v-model="jobForm.notify_on_success" type="checkbox" id="notify-success" class="mr-2" />
-                  <label for="notify-success" class="text-sm text-gray-700">Send notification on successful backup</label>
+                  <label for="notify-success" class="text-sm text-gray-700 dark:text-gray-300">Send notification on successful backup</label>
                 </div>
                 <div class="flex items-center">
                   <input v-model="jobForm.notify_on_failure" type="checkbox" id="notify-failure" class="mr-2" />
-                  <label for="notify-failure" class="text-sm text-gray-700">Send notification on failed backup</label>
+                  <label for="notify-failure" class="text-sm text-gray-700 dark:text-gray-300">Send notification on failed backup</label>
                 </div>
               </div>
             </div>
@@ -294,7 +294,7 @@
             <div class="border-t pt-4">
               <div class="flex items-center">
                 <input v-model="jobForm.enabled" type="checkbox" id="job-enabled" class="mr-2" />
-                <label for="job-enabled" class="text-sm font-medium text-gray-700">Enable this job</label>
+                <label for="job-enabled" class="text-sm font-medium text-gray-700 dark:text-gray-300">Enable this job</label>
               </div>
             </div>
 

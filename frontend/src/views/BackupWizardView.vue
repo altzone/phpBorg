@@ -2,8 +2,8 @@
   <div class="backup-wizard">
     <!-- Header -->
     <div class="mb-8">
-      <h1 class="text-3xl font-bold text-gray-900">Backup Configuration Wizard</h1>
-      <p class="mt-2 text-gray-600">Step-by-step configuration for professional backup setup</p>
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Backup Configuration Wizard</h1>
+      <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Step-by-step configuration for professional backup setup</p>
     </div>
 
     <!-- Progress Bar -->
@@ -26,7 +26,7 @@
             class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all"
             :class="{
               'bg-primary-600 text-white': index <= currentStep,
-              'bg-gray-200 text-gray-600': index > currentStep,
+              'bg-gray-200 text-gray-600 dark:text-gray-400 dark:text-gray-500': index > currentStep,
               'ring-4 ring-primary-200': index === currentStep
             }"
           >
@@ -36,7 +36,7 @@
             <span v-else>{{ index + 1 }}</span>
           </div>
           <span class="mt-2 text-xs text-center max-w-[100px]" 
-                :class="index <= currentStep ? 'text-gray-900 font-medium' : 'text-gray-500'">
+                :class="index <= currentStep ? 'text-gray-900 dark:text-gray-100 dark:text-gray-100 font-medium' : 'text-gray-500 dark:text-gray-400 dark:text-gray-500 dark:text-gray-500 dark:text-gray-400'">
             {{ step.label }}
           </span>
         </div>
@@ -46,15 +46,15 @@
     <!-- Step Content -->
     <div class="card">
       <div class="mb-6">
-        <h2 class="text-xl font-semibold text-gray-900">{{ steps[currentStep].title }}</h2>
-        <p class="text-gray-600 mt-1">{{ steps[currentStep].description }}</p>
+        <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ steps[currentStep].title }}</h2>
+        <p class="text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">{{ steps[currentStep].description }}</p>
       </div>
 
       <div class="wizard-content">
         <!-- Step 1: Server Selection -->
         <div v-if="currentStep === 0" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Select Server</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Server</label>
             <select v-model="wizardData.serverId" class="input w-full" @change="onServerChange">
               <option value="">-- Select a server --</option>
               <option v-for="server in servers" :key="server.id" :value="server.id">
@@ -86,10 +86,10 @@
             <label 
               v-for="type in backupTypes" 
               :key="type.id"
-              class="relative flex flex-col items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+              class="relative flex flex-col items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors"
               :class="{
                 'border-primary-500 bg-primary-50': wizardData.backupType === type.id,
-                'border-gray-200': wizardData.backupType !== type.id
+                'border-gray-200 dark:border-gray-700': wizardData.backupType !== type.id
               }"
             >
               <input 
@@ -100,8 +100,8 @@
               />
               <div class="text-3xl mb-2">{{ type.icon }}</div>
               <div class="text-center">
-                <div class="font-semibold text-gray-900">{{ type.name }}</div>
-                <div class="text-xs text-gray-600 mt-1">{{ type.description }}</div>
+                <div class="font-semibold text-gray-900 dark:text-gray-100">{{ type.name }}</div>
+                <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">{{ type.description }}</div>
               </div>
               <div v-if="wizardData.backupType === type.id" 
                    class="absolute top-2 right-2 w-5 h-5 bg-primary-600 rounded-full flex items-center justify-center">
@@ -118,7 +118,7 @@
           <!-- Files Configuration -->
           <div v-if="wizardData.backupType === 'files'">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Paths to Backup</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Paths to Backup</label>
               <div class="space-y-2">
                 <div v-for="(path, index) in wizardData.sourceConfig.paths" :key="index" class="flex gap-2">
                   <input 
@@ -134,14 +134,14 @@
             </div>
             
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Exclude Patterns (optional)</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Exclude Patterns (optional)</label>
               <textarea 
                 v-model="wizardData.sourceConfig.excludePatterns" 
                 rows="3" 
                 class="input w-full"
                 placeholder="*.log&#10;/tmp/*&#10;cache/"
               ></textarea>
-              <p class="text-xs text-gray-500 mt-1">One pattern per line</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">One pattern per line</p>
             </div>
           </div>
 
@@ -150,7 +150,7 @@
             <div class="space-y-4">
               <div>
                 <label class="flex items-center justify-between mb-2">
-                  <span class="text-sm font-medium text-gray-700">Database Credentials</span>
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Database Credentials</span>
                   <button @click="detectMySQLCredentials" class="text-sm text-primary-600 hover:text-primary-700">
                     Auto-detect
                   </button>
@@ -158,26 +158,26 @@
                 
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <label class="block text-xs text-gray-600 mb-1">Host</label>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">Host</label>
                     <input v-model="wizardData.sourceConfig.host" type="text" class="input w-full" placeholder="localhost" />
                   </div>
                   <div>
-                    <label class="block text-xs text-gray-600 mb-1">Port</label>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">Port</label>
                     <input v-model="wizardData.sourceConfig.port" type="number" class="input w-full" placeholder="3306" />
                   </div>
                   <div>
-                    <label class="block text-xs text-gray-600 mb-1">Username</label>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">Username</label>
                     <input v-model="wizardData.sourceConfig.username" type="text" class="input w-full" />
                   </div>
                   <div>
-                    <label class="block text-xs text-gray-600 mb-1">Password</label>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">Password</label>
                     <input v-model="wizardData.sourceConfig.password" type="password" class="input w-full" />
                   </div>
                 </div>
               </div>
               
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Databases to Backup</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Databases to Backup</label>
                 <div class="flex items-center gap-4">
                   <label class="flex items-center">
                     <input type="radio" v-model="wizardData.sourceConfig.databaseSelection" value="all" class="mr-2" />
@@ -196,12 +196,12 @@
                     class="input w-full" 
                     placeholder="db1, db2, db3"
                   />
-                  <p class="text-xs text-gray-500 mt-1">Comma-separated list of database names</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Comma-separated list of database names</p>
                 </div>
               </div>
 
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Backup Options</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Backup Options</label>
                 <div class="space-y-2">
                   <label class="flex items-center">
                     <input type="checkbox" v-model="wizardData.sourceConfig.singleTransaction" class="mr-2" />
@@ -227,7 +227,7 @@
           <!-- PostgreSQL Configuration -->
           <div v-else-if="wizardData.backupType === 'postgresql'">
             <!-- Similar to MySQL but with PostgreSQL-specific options -->
-            <p class="text-gray-600">PostgreSQL configuration...</p>
+            <p class="text-gray-600 dark:text-gray-400 dark:text-gray-500">PostgreSQL configuration...</p>
           </div>
 
           <!-- Full System Backup Configuration -->
@@ -250,8 +250,8 @@
 
               <!-- Backup Scope -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Backup Scope</label>
-                <div class="bg-gray-50 p-3 rounded-lg">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Backup Scope</label>
+                <div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
                   <div class="flex items-center mb-2">
                     <svg class="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
                       <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
@@ -281,10 +281,10 @@
 
               <!-- Standard Exclusions -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Standard Exclusions (Always Applied)</label>
-                <div class="bg-gray-50 p-3 rounded-lg">
-                  <div class="space-y-1 font-mono text-xs text-gray-600">
-                    <div class="text-gray-700 font-semibold mb-2"># Critical system directories</div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Standard Exclusions (Always Applied)</label>
+                <div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                  <div class="space-y-1 font-mono text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
+                    <div class="text-gray-700 dark:text-gray-300 font-semibold mb-2"># Critical system directories</div>
                     <div>/proc/*</div>
                     <div>/sys/*</div>
                     <div>/dev/*</div>
@@ -293,19 +293,19 @@
                     <div>/var/tmp/*</div>
                     <div>/mnt/*</div>
                     <div>/media/*</div>
-                    <div class="text-gray-700 font-semibold mt-3 mb-2"># Swap files</div>
+                    <div class="text-gray-700 dark:text-gray-300 font-semibold mt-3 mb-2"># Swap files</div>
                     <div>/swapfile</div>
                     <div>*.swp</div>
                     <div>*.tmp</div>
                     <div>*~</div>
                   </div>
                 </div>
-                <p class="text-xs text-gray-500 mt-2">These exclusions are always applied to prevent backing up system runtime files.</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-2">These exclusions are always applied to prevent backing up system runtime files.</p>
               </div>
 
               <!-- Optional Exclusions -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Optional Exclusions</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Optional Exclusions</label>
                 <div class="space-y-3">
                   <!-- Docker -->
                   <div class="p-3 border rounded-lg">
@@ -313,10 +313,10 @@
                       <input type="checkbox" v-model="wizardData.sourceConfig.excludeDocker" class="mt-1 mr-3" checked />
                       <div class="flex-1">
                         <div class="font-medium text-sm">Docker & Container Data</div>
-                        <div class="text-xs text-gray-600 mt-1">
+                        <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">
                           Excludes: /var/lib/docker/*, /var/lib/containerd/*, /var/lib/lxc/*
                         </div>
-                        <div class="text-xs text-gray-500 mt-1">
+                        <div class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
                           Container data should be backed up using container-specific tools for consistency.
                         </div>
                       </div>
@@ -329,10 +329,10 @@
                       <input type="checkbox" v-model="wizardData.sourceConfig.excludeDatabaseData" class="mt-1 mr-3" checked />
                       <div class="flex-1">
                         <div class="font-medium text-sm">Database Data Files</div>
-                        <div class="text-xs text-gray-600 mt-1">
+                        <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">
                           Excludes: /var/lib/mysql/*, /var/lib/postgresql/*, /var/lib/mongodb/*
                         </div>
-                        <div class="text-xs text-gray-500 mt-1">
+                        <div class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
                           Database files should be backed up using dumps for consistency. Use dedicated database backup instead.
                         </div>
                       </div>
@@ -345,10 +345,10 @@
                       <input type="checkbox" v-model="wizardData.sourceConfig.excludeVMs" class="mt-1 mr-3" checked />
                       <div class="flex-1">
                         <div class="font-medium text-sm">Virtual Machine Images</div>
-                        <div class="text-xs text-gray-600 mt-1">
+                        <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">
                           Excludes: /var/lib/libvirt/*, *.qcow2, *.vmdk, *.vdi, /var/lib/vz/*
                         </div>
-                        <div class="text-xs text-gray-500 mt-1">
+                        <div class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
                           VM images are large and should be backed up while powered off or using VM snapshots.
                         </div>
                       </div>
@@ -361,10 +361,10 @@
                       <input type="checkbox" v-model="wizardData.sourceConfig.excludeLogs" class="mt-1 mr-3" checked />
                       <div class="flex-1">
                         <div class="font-medium text-sm">Log Files</div>
-                        <div class="text-xs text-gray-600 mt-1">
+                        <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">
                           Excludes: /var/log/*, *.log, *.log.*, /var/spool/mail/*
                         </div>
-                        <div class="text-xs text-gray-500 mt-1">
+                        <div class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
                           Logs can be large and are usually not needed for system restoration.
                         </div>
                       </div>
@@ -377,10 +377,10 @@
                       <input type="checkbox" v-model="wizardData.sourceConfig.excludeCaches" class="mt-1 mr-3" checked />
                       <div class="flex-1">
                         <div class="font-medium text-sm">Cache Directories</div>
-                        <div class="text-xs text-gray-600 mt-1">
+                        <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">
                           Excludes: /var/cache/*, */.cache/*, /var/lib/apt/lists/*, */node_modules/*
                         </div>
-                        <div class="text-xs text-gray-500 mt-1">
+                        <div class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
                           Caches can be regenerated and excluding them saves significant space.
                         </div>
                       </div>
@@ -393,10 +393,10 @@
                       <input type="checkbox" v-model="wizardData.sourceConfig.excludeDownloads" class="mt-1 mr-3" />
                       <div class="flex-1">
                         <div class="font-medium text-sm">Downloads & Trash</div>
-                        <div class="text-xs text-gray-600 mt-1">
+                        <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">
                           Excludes: */Downloads/*, */.Trash/*, */Trash/*, */.local/share/Trash/*
                         </div>
-                        <div class="text-xs text-gray-500 mt-1">
+                        <div class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
                           Temporary user files that are typically not important for backup.
                         </div>
                       </div>
@@ -409,10 +409,10 @@
                       <input type="checkbox" v-model="wizardData.sourceConfig.excludeBuildArtifacts" class="mt-1 mr-3" />
                       <div class="flex-1">
                         <div class="font-medium text-sm">Build Artifacts & Dependencies</div>
-                        <div class="text-xs text-gray-600 mt-1">
+                        <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">
                           Excludes: */target/*, */dist/*, */build/*, */.gradle/*, */.m2/*, */vendor/*
                         </div>
-                        <div class="text-xs text-gray-500 mt-1">
+                        <div class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
                           Development build outputs and downloaded dependencies that can be regenerated.
                         </div>
                       </div>
@@ -423,7 +423,7 @@
 
               <!-- Custom Exclusions -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Additional Exclusions (Optional)</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Additional Exclusions (Optional)</label>
                 
                 <!-- Input to add new exclusions -->
                 <div class="flex gap-2 mb-3">
@@ -436,7 +436,7 @@
                       placeholder="Enter path or pattern (e.g., /backup/*, *.bak, /var/www/*/cache/)"
                     />
                     <div class="absolute inset-y-0 right-2 flex items-center pointer-events-none">
-                      <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg class="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
@@ -452,13 +452,13 @@
 
                 <!-- Quick add buttons for common patterns -->
                 <div class="mb-3">
-                  <p class="text-xs text-gray-600 mb-2">Quick add:</p>
+                  <p class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-2">Quick add:</p>
                   <div class="flex flex-wrap gap-2">
                     <button 
                       v-for="pattern in quickExclusionPatterns" 
                       :key="pattern.value"
                       @click="newExclusionPattern = pattern.value; addCustomExclusion()"
-                      class="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
+                      class="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:text-gray-300 rounded-md transition-colors"
                       :title="pattern.description"
                     >
                       {{ pattern.label }}
@@ -467,17 +467,17 @@
                 </div>
 
                 <!-- Display custom exclusions as tags -->
-                <div v-if="customExclusions.length > 0" class="bg-gray-50 p-3 rounded-lg">
+                <div v-if="customExclusions.length > 0" class="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
                   <div class="flex flex-wrap gap-2">
                     <div 
                       v-for="(exclusion, index) in customExclusions" 
                       :key="index"
-                      class="group inline-flex items-center bg-white border border-gray-300 rounded-full px-3 py-1 text-sm"
+                      class="group inline-flex items-center bg-white border border-gray-300 dark:border-gray-600 rounded-full px-3 py-1 text-sm"
                     >
-                      <span class="font-mono text-gray-700">{{ exclusion }}</span>
+                      <span class="font-mono text-gray-700 dark:text-gray-300">{{ exclusion }}</span>
                       <button 
                         @click="removeCustomExclusion(index)"
-                        class="ml-2 text-gray-400 hover:text-red-500 transition-colors"
+                        class="ml-2 text-gray-400 dark:text-gray-500 hover:text-red-500 transition-colors"
                         title="Remove"
                       >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -486,20 +486,20 @@
                       </button>
                     </div>
                   </div>
-                  <p class="text-xs text-gray-500 mt-2">{{ customExclusions.length }} custom exclusion{{ customExclusions.length !== 1 ? 's' : '' }} added</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 dark:text-gray-500 dark:text-gray-400 mt-2">{{ customExclusions.length }} custom exclusion{{ customExclusions.length !== 1 ? 's' : '' }} added</p>
                 </div>
-                <div v-else class="text-sm text-gray-500 italic">
+                <div v-else class="text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500 italic">
                   No custom exclusions added yet
                 </div>
                 
-                <p class="text-xs text-gray-500 mt-2">
+                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-2">
                   Use * for wildcards, ** for recursive matching. Examples: *.bak, /home/*/.config/**, /var/www/*/temp/
                 </p>
               </div>
 
               <!-- Backup Options -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Options</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Options</label>
                 <div class="space-y-2">
                   <label class="flex items-center">
                     <input type="checkbox" v-model="wizardData.sourceConfig.oneFileSystem" class="mr-2" checked />
@@ -526,33 +526,33 @@
         <!-- Step 4: Snapshot Strategy -->
         <div v-else-if="currentStep === 3" class="space-y-4">
           <!-- Show different content based on backup type -->
-          <div v-if="!needsSnapshot()" class="p-6 bg-gray-50 rounded-lg text-center">
-            <svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div v-if="!needsSnapshot()" class="p-6 bg-gray-50 dark:bg-gray-800 rounded-lg text-center">
+            <svg class="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <h3 class="text-lg font-medium text-gray-900 mb-2">Snapshot Not Required</h3>
-            <p class="text-gray-600 max-w-md mx-auto">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Snapshot Not Required</h3>
+            <p class="text-gray-600 dark:text-gray-400 dark:text-gray-500 max-w-md mx-auto">
               File and folder backups don't require filesystem snapshots. Borg will handle file consistency during the backup process.
             </p>
-            <p class="text-sm text-gray-500 mt-4">
+            <p class="text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-4">
               This step is automatically skipped for file-based backups.
             </p>
           </div>
           
           <div v-else-if="loadingCapabilities" class="text-center py-8">
-            <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-200 border-t-primary-600"></div>
-            <p class="mt-2 text-gray-600">Detecting snapshot capabilities on {{ selectedServer?.name }}...</p>
-            <p v-if="progressMessage" class="mt-2 text-sm text-gray-500">{{ progressMessage }}</p>
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-200 dark:border-gray-700 border-t-primary-600"></div>
+            <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Detecting snapshot capabilities on {{ selectedServer?.name }}...</p>
+            <p v-if="progressMessage" class="mt-2 text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500">{{ progressMessage }}</p>
           </div>
           
           <div v-else>
             <div v-if="snapshotCapabilities.length > 0">
-              <label class="block text-sm font-medium text-gray-700 mb-2">Available Snapshot Methods</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Available Snapshot Methods</label>
               <div class="space-y-2">
                 <label 
                   v-for="cap in snapshotCapabilities" 
                   :key="cap.type"
-                  class="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
+                  class="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800"
                   :class="{ 'border-primary-500 bg-primary-50': wizardData.snapshotMethod === cap.type }"
                 >
                   <input 
@@ -563,19 +563,19 @@
                   />
                   <div class="ml-3 flex-1">
                     <div class="font-medium">{{ cap.name }}</div>
-                    <div class="text-sm text-gray-600">{{ cap.description }}</div>
-                    <div v-if="cap.details" class="text-xs text-gray-500 mt-1">
+                    <div class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ cap.description }}</div>
+                    <div v-if="cap.details" class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
                       {{ cap.details }}
                     </div>
                   </div>
                 </label>
                 
-                <label class="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
+                <label class="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800"
                        :class="{ 'border-primary-500 bg-primary-50': wizardData.snapshotMethod === 'none' }">
                   <input type="radio" value="none" v-model="wizardData.snapshotMethod" class="mt-1" />
                   <div class="ml-3">
                     <div class="font-medium">No Snapshot</div>
-                    <div class="text-sm text-gray-600">Proceed without filesystem snapshot</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500">Proceed without filesystem snapshot</div>
                   </div>
                 </label>
               </div>
@@ -621,11 +621,11 @@
               </div>
               
               <!-- Option to proceed without snapshot -->
-              <label class="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50 border-primary-500 bg-primary-50">
+              <label class="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 border-primary-500 bg-primary-50">
                 <input type="radio" value="none" v-model="wizardData.snapshotMethod" checked class="mt-1" />
                 <div class="ml-3">
                   <div class="font-medium">Continue Without Snapshot</div>
-                  <div class="text-sm text-gray-600">Proceed with backup without filesystem snapshot</div>
+                  <div class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500">Proceed with backup without filesystem snapshot</div>
                 </div>
               </label>
             </div>
@@ -635,12 +635,12 @@
         <!-- Step 5: Storage Pool -->
         <div v-else-if="currentStep === 4" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Select Storage Pool</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Storage Pool</label>
             <div class="space-y-2">
               <label 
                 v-for="pool in storagePools" 
                 :key="pool.id"
-                class="flex items-start p-4 border rounded-lg cursor-pointer hover:bg-gray-50"
+                class="flex items-start p-4 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800"
                 :class="{ 'border-primary-500 bg-primary-50': wizardData.storagePoolId === pool.id }"
               >
                 <input 
@@ -654,9 +654,9 @@
                     <div class="font-medium">{{ pool.name }}</div>
                     <span v-if="pool.default_pool" class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Default</span>
                   </div>
-                  <div class="text-sm text-gray-600">{{ pool.path }}</div>
+                  <div class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ pool.path }}</div>
                   <div class="mt-2">
-                    <div class="flex justify-between text-xs text-gray-500">
+                    <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">
                       <span>Used: {{ formatBytes(pool.capacity_used) }}</span>
                       <span>Total: {{ formatBytes(pool.capacity_total) }}</span>
                     </div>
@@ -676,18 +676,18 @@
         <!-- Step 6: Repository Setup -->
         <div v-else-if="currentStep === 5" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Repository Name</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Repository Name</label>
             <input 
               v-model="wizardData.repositoryName" 
               type="text" 
               class="input w-full"
               :placeholder="`${selectedServer?.name}-${wizardData.backupType}`"
             />
-            <p class="text-xs text-gray-500 mt-1">A unique name for this repository</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">A unique name for this repository</p>
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Encryption</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Encryption</label>
             <select v-model="wizardData.encryption" class="input w-full">
               <option value="repokey-blake2">Repokey Blake2 (Recommended)</option>
               <option value="repokey">Repokey SHA256</option>
@@ -698,7 +698,7 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Compression</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Compression</label>
             <select v-model="wizardData.compression" class="input w-full">
               <option value="lz4">LZ4 (Fast)</option>
               <option value="zstd">Zstandard (Balanced)</option>
@@ -709,14 +709,14 @@
           </div>
 
           <div v-if="wizardData.encryption !== 'none'">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Passphrase (Optional)</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Passphrase (Optional)</label>
             <input 
               v-model="wizardData.passphrase" 
               type="password" 
               class="input w-full"
               placeholder="Leave empty to auto-generate a secure passphrase"
             />
-            <p class="text-xs text-gray-500 mt-1">
+            <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
               <span v-if="!wizardData.passphrase">A secure passphrase will be automatically generated if not provided.</span>
               <span v-else>Store this passphrase securely - it cannot be recovered!</span>
             </p>
@@ -746,10 +746,10 @@
             <!-- Daily -->
             <div class="flex items-center justify-between space-x-4">
               <div class="flex-1">
-                <label class="block text-sm font-semibold text-gray-900 mb-1">
+                <label class="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
                   Daily Backups
                 </label>
-                <p class="text-xs text-gray-600">
+                <p class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
                   Keep last N daily backups
                 </p>
               </div>
@@ -766,19 +766,19 @@
                   type="number"
                   min="0"
                   max="365"
-                  class="w-20 px-3 py-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  class="w-20 px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
-                <span class="text-sm font-medium text-gray-700 w-12">days</span>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-12">days</span>
               </div>
             </div>
 
             <!-- Weekly -->
             <div class="flex items-center justify-between space-x-4">
               <div class="flex-1">
-                <label class="block text-sm font-semibold text-gray-900 mb-1">
+                <label class="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
                   Weekly Backups
                 </label>
-                <p class="text-xs text-gray-600">
+                <p class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
                   Keep last N weekly backups
                 </p>
               </div>
@@ -795,19 +795,19 @@
                   type="number"
                   min="0"
                   max="52"
-                  class="w-20 px-3 py-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  class="w-20 px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
-                <span class="text-sm font-medium text-gray-700 w-12">weeks</span>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-12">weeks</span>
               </div>
             </div>
 
             <!-- Monthly -->
             <div class="flex items-center justify-between space-x-4">
               <div class="flex-1">
-                <label class="block text-sm font-semibold text-gray-900 mb-1">
+                <label class="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
                   Monthly Backups
                 </label>
-                <p class="text-xs text-gray-600">
+                <p class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
                   Keep last N monthly backups
                 </p>
               </div>
@@ -824,19 +824,19 @@
                   type="number"
                   min="0"
                   max="60"
-                  class="w-20 px-3 py-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  class="w-20 px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
-                <span class="text-sm font-medium text-gray-700 w-12">months</span>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-12">months</span>
               </div>
             </div>
 
             <!-- Yearly -->
             <div class="flex items-center justify-between space-x-4">
               <div class="flex-1">
-                <label class="block text-sm font-semibold text-gray-900 mb-1">
+                <label class="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
                   Yearly Backups
                 </label>
-                <p class="text-xs text-gray-600">
+                <p class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
                   Keep last N yearly backups (0 = disabled)
                 </p>
               </div>
@@ -853,32 +853,32 @@
                   type="number"
                   min="0"
                   max="10"
-                  class="w-20 px-3 py-2 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  class="w-20 px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
-                <span class="text-sm font-medium text-gray-700 w-12">years</span>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-12">years</span>
               </div>
             </div>
           </div>
 
           <!-- Preview -->
-          <div class="rounded-lg bg-gray-50 border border-gray-200 p-4">
-            <h4 class="text-sm font-semibold text-gray-900 mb-3">Policy Preview</h4>
-            <div class="space-y-2 text-sm text-gray-700">
+          <div class="rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Policy Preview</h4>
+            <div class="space-y-2 text-sm text-gray-700 dark:text-gray-300">
               <div v-if="wizardData.retention.keepDaily > 0" class="flex items-center justify-between">
                 <span>Last <strong>{{ wizardData.retention.keepDaily }}</strong> daily backups</span>
-                <span class="text-xs text-gray-500">≈ {{ Math.ceil(wizardData.retention.keepDaily) }} days</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">≈ {{ Math.ceil(wizardData.retention.keepDaily) }} days</span>
               </div>
               <div v-if="wizardData.retention.keepWeekly > 0" class="flex items-center justify-between">
                 <span>Last <strong>{{ wizardData.retention.keepWeekly }}</strong> weekly backups</span>
-                <span class="text-xs text-gray-500">≈ {{ Math.ceil(wizardData.retention.keepWeekly * 7 / 30) }} months</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">≈ {{ Math.ceil(wizardData.retention.keepWeekly * 7 / 30) }} months</span>
               </div>
               <div v-if="wizardData.retention.keepMonthly > 0" class="flex items-center justify-between">
                 <span>Last <strong>{{ wizardData.retention.keepMonthly }}</strong> monthly backups</span>
-                <span class="text-xs text-gray-500">≈ {{ Math.ceil(wizardData.retention.keepMonthly / 12) }} years</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">≈ {{ Math.ceil(wizardData.retention.keepMonthly / 12) }} years</span>
               </div>
               <div v-if="wizardData.retention.keepYearly > 0" class="flex items-center justify-between">
                 <span>Last <strong>{{ wizardData.retention.keepYearly }}</strong> yearly backups</span>
-                <span class="text-xs text-gray-500">{{ wizardData.retention.keepYearly }} years</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">{{ wizardData.retention.keepYearly }} years</span>
               </div>
               <div v-if="totalRetentionPeriods === 0" class="text-amber-600 font-medium">
                 ⚠️ At least one retention value must be greater than 0
@@ -890,7 +890,7 @@
         <!-- Step 8: Schedule -->
         <div v-else-if="currentStep === 7" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Backup Schedule</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Backup Schedule</label>
             <select v-model="wizardData.scheduleType" class="input w-full">
               <option value="manual">Manual Only</option>
               <option value="daily">Daily</option>
@@ -900,13 +900,13 @@
           </div>
 
           <div v-if="wizardData.scheduleType !== 'manual'">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Time</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Time</label>
             <input v-model="wizardData.scheduleTime" type="time" class="input w-full" />
           </div>
 
           <!-- Multi-day selection for weekly (reuse from BackupJobsView) -->
           <div v-if="wizardData.scheduleType === 'weekly'">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Days of Week</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Days of Week</label>
             <div class="grid grid-cols-7 gap-2">
               <label v-for="(day, index) in weekDays" :key="index" 
                      class="flex items-center justify-center p-2 border rounded cursor-pointer hover:bg-blue-50"
@@ -922,7 +922,7 @@
 
           <!-- Multi-day selection for monthly -->
           <div v-if="wizardData.scheduleType === 'monthly'">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Days of Month</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Days of Month</label>
             <div class="grid grid-cols-7 gap-2 max-h-48 overflow-y-auto">
               <label v-for="day in 31" :key="day"
                      class="flex items-center justify-center p-2 border rounded cursor-pointer hover:bg-blue-50 min-w-[40px]"
@@ -941,50 +941,50 @@
         <div v-else-if="currentStep === 8" class="space-y-6">
           <div class="space-y-4">
             <div class="border-b pb-4">
-              <h3 class="font-semibold text-gray-900 mb-2">Server & Type</h3>
+              <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">Server & Type</h3>
               <dl class="grid grid-cols-2 gap-2 text-sm">
-                <dt class="text-gray-600">Server:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Server:</dt>
                 <dd class="font-medium">{{ selectedServer?.name }}</dd>
-                <dt class="text-gray-600">Backup Type:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Backup Type:</dt>
                 <dd class="font-medium">{{ wizardData.backupType }}</dd>
-                <dt class="text-gray-600">Snapshot:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Snapshot:</dt>
                 <dd class="font-medium">{{ wizardData.snapshotMethod || 'None' }}</dd>
               </dl>
             </div>
 
             <div class="border-b pb-4">
-              <h3 class="font-semibold text-gray-900 mb-2">Repository Configuration</h3>
+              <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">Repository Configuration</h3>
               <dl class="grid grid-cols-2 gap-2 text-sm">
-                <dt class="text-gray-600">Name:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Name:</dt>
                 <dd class="font-medium">{{ wizardData.repositoryName }}</dd>
-                <dt class="text-gray-600">Storage Pool:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Storage Pool:</dt>
                 <dd class="font-medium">{{ selectedPool?.name }}</dd>
-                <dt class="text-gray-600">Encryption:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Encryption:</dt>
                 <dd class="font-medium">{{ wizardData.encryption }}</dd>
-                <dt class="text-gray-600">Compression:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Compression:</dt>
                 <dd class="font-medium">{{ wizardData.compression }}</dd>
               </dl>
             </div>
 
             <div class="border-b pb-4">
-              <h3 class="font-semibold text-gray-900 mb-2">Retention Policy</h3>
+              <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">Retention Policy</h3>
               <dl class="grid grid-cols-2 gap-2 text-sm">
-                <dt class="text-gray-600">Daily:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Daily:</dt>
                 <dd class="font-medium">{{ wizardData.retention.keepDaily }}</dd>
-                <dt class="text-gray-600">Weekly:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Weekly:</dt>
                 <dd class="font-medium">{{ wizardData.retention.keepWeekly }}</dd>
-                <dt class="text-gray-600">Monthly:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Monthly:</dt>
                 <dd class="font-medium">{{ wizardData.retention.keepMonthly }}</dd>
-                <dt class="text-gray-600">Yearly:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Yearly:</dt>
                 <dd class="font-medium">{{ wizardData.retention.keepYearly }}</dd>
               </dl>
             </div>
 
             <div>
-              <h3 class="font-semibold text-gray-900 mb-2">Schedule</h3>
+              <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">Schedule</h3>
               <div class="space-y-1">
                 <p class="text-sm">
-                  <span class="text-gray-600">Type:</span> 
+                  <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Type:</span> 
                   <span class="font-medium capitalize">{{ wizardData.scheduleType }}</span>
                   <span v-if="wizardData.scheduleType !== 'manual'" class="ml-2">
                     at {{ wizardData.scheduleTime }}
@@ -993,7 +993,7 @@
                 
                 <!-- Show selected days for weekly schedule -->
                 <div v-if="wizardData.scheduleType === 'weekly' && wizardData.selectedWeekdays.length > 0" class="text-sm">
-                  <span class="text-gray-600">Days:</span>
+                  <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Days:</span>
                   <span class="font-medium ml-1">
                     {{ wizardData.selectedWeekdays.map(d => weekDays[d-1].short).join(', ') }}
                   </span>
@@ -1001,7 +1001,7 @@
                 
                 <!-- Show selected days for monthly schedule -->
                 <div v-if="wizardData.scheduleType === 'monthly' && wizardData.selectedMonthdays.length > 0" class="text-sm">
-                  <span class="text-gray-600">Days of month:</span>
+                  <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Days of month:</span>
                   <span class="font-medium ml-1">
                     {{ wizardData.selectedMonthdays.sort((a, b) => a - b).join(', ') }}
                   </span>
@@ -1012,7 +1012,7 @@
 
           <div class="flex items-center gap-4 p-4 bg-green-50 rounded-lg">
             <input type="checkbox" v-model="wizardData.runTestBackup" id="test-backup" />
-            <label for="test-backup" class="text-sm text-gray-700">
+            <label for="test-backup" class="text-sm text-gray-700 dark:text-gray-300">
               Run a test backup after creation to verify configuration
             </label>
           </div>
@@ -1097,7 +1097,7 @@
                   <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                   </svg>
-                  <h4 class="font-semibold text-gray-900">Repository Encryption Passphrase</h4>
+                  <h4 class="font-semibold text-gray-900 dark:text-gray-100">Repository Encryption Passphrase</h4>
                 </div>
                 
                 <div class="bg-amber-50 border-2 border-amber-200 rounded-lg p-4">
@@ -1138,26 +1138,26 @@
 
               <!-- Configuration Details -->
               <div class="border-t pt-4">
-                <h4 class="font-medium text-gray-900 mb-2">Configuration Details:</h4>
+                <h4 class="font-medium text-gray-900 dark:text-gray-100 mb-2">Configuration Details:</h4>
                 <dl class="space-y-1 text-sm">
                   <div class="flex justify-between">
-                    <dt class="text-gray-600">Repository ID:</dt>
-                    <dd class="font-medium text-gray-900">#{{ createdIds.repository_id }}</dd>
+                    <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Repository ID:</dt>
+                    <dd class="font-medium text-gray-900 dark:text-gray-100">#{{ createdIds.repository_id }}</dd>
                   </div>
                   <div class="flex justify-between">
-                    <dt class="text-gray-600">Backup Job ID:</dt>
-                    <dd class="font-medium text-gray-900">#{{ createdIds.job_id }}</dd>
+                    <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Backup Job ID:</dt>
+                    <dd class="font-medium text-gray-900 dark:text-gray-100">#{{ createdIds.job_id }}</dd>
                   </div>
                   <div class="flex justify-between">
-                    <dt class="text-gray-600">Source ID:</dt>
-                    <dd class="font-medium text-gray-900">#{{ createdIds.source_id }}</dd>
+                    <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Source ID:</dt>
+                    <dd class="font-medium text-gray-900 dark:text-gray-100">#{{ createdIds.source_id }}</dd>
                   </div>
                 </dl>
               </div>
             </div>
             
             <!-- Footer -->
-            <div class="bg-gray-50 px-6 py-4 rounded-b-xl flex items-center justify-between">
+            <div class="bg-gray-50 dark:bg-gray-800 px-6 py-4 rounded-b-xl flex items-center justify-between">
               <button 
                 @click="goToBackupJobs"
                 class="btn btn-secondary"

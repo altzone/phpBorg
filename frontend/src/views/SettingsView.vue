@@ -2,8 +2,8 @@
   <div>
     <!-- Header -->
     <div class="mb-8">
-      <h1 class="text-3xl font-bold text-gray-900">Settings</h1>
-      <p class="mt-2 text-gray-600">Configure your phpBorg application</p>
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
+      <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Configure your phpBorg application</p>
     </div>
 
     <!-- Error Message -->
@@ -21,7 +21,7 @@
     <!-- Tabs -->
     <div class="card p-0">
       <!-- Tab Headers -->
-      <div class="border-b border-gray-200">
+      <div class="border-b border-gray-200 dark:border-gray-700">
         <nav class="-mb-px flex overflow-x-auto" aria-label="Tabs">
           <button
             v-for="tab in tabs"
@@ -31,7 +31,7 @@
               'whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition-colors',
               activeTab === tab.id
                 ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                : 'border-transparent text-gray-500 dark:text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:border-gray-600'
             ]"
           >
             {{ tab.label }}
@@ -43,14 +43,14 @@
       <div class="p-6">
         <!-- General Settings -->
         <div v-show="activeTab === 'general'">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">General Settings</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">General Settings</h3>
           <form @submit.prevent="saveSettings('general')" class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Application Name</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Application Name</label>
               <input v-model="generalForm['app.name']" type="text" class="input w-full" required />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Timezone</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Timezone</label>
               <select v-model="generalForm['app.timezone']" class="input w-full">
                 <option value="UTC">UTC</option>
                 <option value="Europe/Paris">Europe/Paris</option>
@@ -59,7 +59,7 @@
               </select>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Language</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Language</label>
               <select v-model="generalForm['app.language']" class="input w-full">
                 <option value="en">English</option>
                 <option value="fr">Français</option>
@@ -75,24 +75,24 @@
 
         <!-- Email/SMTP Settings -->
         <div v-show="activeTab === 'email'">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Email / SMTP Settings</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Email / SMTP Settings</h3>
           <form @submit.prevent="saveSettings('email')" class="space-y-4">
             <div class="flex items-center">
               <input v-model="emailForm['smtp.enabled']" type="checkbox" class="mr-2" />
-              <label class="text-sm font-medium text-gray-700">Enable SMTP Notifications</label>
+              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Enable SMTP Notifications</label>
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">SMTP Host</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">SMTP Host</label>
                 <input v-model="emailForm['smtp.host']" type="text" class="input w-full" placeholder="smtp.example.com" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">SMTP Port</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">SMTP Port</label>
                 <input v-model.number="emailForm['smtp.port']" type="number" class="input w-full" placeholder="587" />
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Encryption</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Encryption</label>
               <select v-model="emailForm['smtp.encryption']" class="input w-full">
                 <option value="tls">TLS</option>
                 <option value="ssl">SSL</option>
@@ -101,21 +101,21 @@
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">SMTP Username</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">SMTP Username</label>
                 <input v-model="emailForm['smtp.username']" type="text" class="input w-full" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">SMTP Password</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">SMTP Password</label>
                 <input v-model="emailForm['smtp.password']" type="password" class="input w-full" />
               </div>
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">From Email</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">From Email</label>
                 <input v-model="emailForm['smtp.from_email']" type="email" class="input w-full" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">From Name</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">From Name</label>
                 <input v-model="emailForm['smtp.from_name']" type="text" class="input w-full" />
               </div>
             </div>
@@ -135,31 +135,31 @@
 
         <!-- Backup Defaults -->
         <div v-show="activeTab === 'backup'">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Backup Default Settings</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Backup Default Settings</h3>
           <form @submit.prevent="saveSettings('backup')" class="space-y-4">
-            <p class="text-sm text-gray-600 mb-4">Default retention policy for new repositories</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-4">Default retention policy for new repositories</p>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Daily Backups</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Daily Backups</label>
                 <input v-model.number="backupForm['backup.retention.daily']" type="number" min="0" max="365" class="input w-full" />
-                <p class="text-xs text-gray-500 mt-1">Number of daily backups to keep (0-365)</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Number of daily backups to keep (0-365)</p>
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Weekly Backups</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Weekly Backups</label>
                 <input v-model.number="backupForm['backup.retention.weekly']" type="number" min="0" max="52" class="input w-full" />
-                <p class="text-xs text-gray-500 mt-1">Number of weekly backups to keep (0-52)</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Number of weekly backups to keep (0-52)</p>
               </div>
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Monthly Backups</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Monthly Backups</label>
                 <input v-model.number="backupForm['backup.retention.monthly']" type="number" min="0" max="60" class="input w-full" />
-                <p class="text-xs text-gray-500 mt-1">Number of monthly backups to keep (0-60)</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Number of monthly backups to keep (0-60)</p>
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Yearly Backups</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Yearly Backups</label>
                 <input v-model.number="backupForm['backup.retention.yearly']" type="number" min="0" max="10" class="input w-full" />
-                <p class="text-xs text-gray-500 mt-1">Number of yearly backups to keep (0-10)</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Number of yearly backups to keep (0-10)</p>
               </div>
             </div>
             <div class="flex justify-end">
@@ -172,15 +172,15 @@
 
         <!-- Borg Settings -->
         <div v-show="activeTab === 'borg'">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Borg Settings</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Borg Settings</h3>
           <form @submit.prevent="saveSettings('borg')" class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Default Repository Path</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Default Repository Path</label>
               <input v-model="borgForm['borg.default_path']" type="text" class="input w-full" placeholder="/backup/borg" />
-              <p class="text-xs text-gray-500 mt-1">Base path for borg repositories</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Base path for borg repositories</p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Default Compression</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Default Compression</label>
               <select v-model="borgForm['borg.compression']" class="input w-full">
                 <option value="none">None</option>
                 <option value="lz4">LZ4 (fast)</option>
@@ -190,7 +190,7 @@
               </select>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Default Encryption</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Default Encryption</label>
               <select v-model="borgForm['borg.encryption']" class="input w-full">
                 <option value="repokey-blake2">Repokey BLAKE2</option>
                 <option value="repokey">Repokey (AES-CTR)</option>
@@ -199,9 +199,9 @@
               </select>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Rate Limit (KB/s)</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Rate Limit (KB/s)</label>
               <input v-model.number="borgForm['borg.ratelimit']" type="number" min="0" class="input w-full" placeholder="0" />
-              <p class="text-xs text-gray-500 mt-1">0 = unlimited</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">0 = unlimited</p>
             </div>
             <div class="flex justify-end">
               <button type="submit" class="btn btn-primary" :disabled="settingsStore.loading">
@@ -213,29 +213,29 @@
 
         <!-- Security Settings -->
         <div v-show="activeTab === 'security'">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Security Settings</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Security Settings</h3>
           <form @submit.prevent="saveSettings('security')" class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Access Token TTL (seconds)</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Access Token TTL (seconds)</label>
                 <input v-model.number="securityForm['security.jwt.access_ttl']" type="number" min="300" class="input w-full" />
-                <p class="text-xs text-gray-500 mt-1">Default: 3600 = 1 hour</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Default: 3600 = 1 hour</p>
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Refresh Token TTL (seconds)</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Refresh Token TTL (seconds)</label>
                 <input v-model.number="securityForm['security.jwt.refresh_ttl']" type="number" min="3600" class="input w-full" />
-                <p class="text-xs text-gray-500 mt-1">Default: 2592000 = 30 days</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Default: 2592000 = 30 days</p>
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Session Timeout (seconds)</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Session Timeout (seconds)</label>
               <input v-model.number="securityForm['security.session_timeout']" type="number" min="300" class="input w-full" />
-              <p class="text-xs text-gray-500 mt-1">Default: 1800 = 30 minutes</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Default: 1800 = 30 minutes</p>
             </div>
             <div class="space-y-2">
               <div class="flex items-center">
                 <input v-model="securityForm['security.force_https']" type="checkbox" class="mr-2" />
-                <label class="text-sm font-medium text-gray-700">Force HTTPS Connections</label>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Force HTTPS Connections</label>
               </div>
             </div>
             <div class="flex justify-end">
@@ -248,20 +248,20 @@
 
         <!-- Network Settings -->
         <div v-show="activeTab === 'network'">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Network Settings</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Network Settings</h3>
           <form @submit.prevent="saveSettings('network')" class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">External IP Address</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">External IP Address</label>
                 <input v-model="networkForm['network.external_ip']" type="text" class="input w-full" placeholder="192.168.1.100" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Internal IP Address</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Internal IP Address</label>
                 <input v-model="networkForm['network.internal_ip']" type="text" class="input w-full" placeholder="10.0.0.100" />
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">API Server Port</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">API Server Port</label>
               <input v-model.number="networkForm['network.api_port']" type="number" min="1" max="65535" class="input w-full" />
             </div>
             <div class="flex justify-end">
@@ -274,14 +274,14 @@
 
         <!-- System Settings -->
         <div v-show="activeTab === 'system'">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">System Settings</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">System Settings</h3>
           <form @submit.prevent="saveSettings('system')" class="space-y-4">
             <!-- Logging Settings -->
             <div class="border-b pb-4 mb-4">
-              <h4 class="text-md font-semibold text-gray-800 mb-3">Logging Configuration</h4>
+              <h4 class="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">Logging Configuration</h4>
               <div class="space-y-4">
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-2">Log File Path</label>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Log File Path</label>
                   <input 
                     v-model="systemForm['log_path']" 
                     type="text" 
@@ -289,11 +289,11 @@
                     placeholder="/var/log/phpborg.log"
                     required 
                   />
-                  <p class="text-xs text-gray-500 mt-1">Full path to the application log file</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Full path to the application log file</p>
                 </div>
                 
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-2">Log Level</label>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Log Level</label>
                   <select v-model="systemForm['log_level']" class="input w-full">
                     <option value="debug">Debug - All messages including debug info</option>
                     <option value="info">Info - Informational messages and above</option>
@@ -301,14 +301,14 @@
                     <option value="error">Error - Errors and critical only</option>
                     <option value="critical">Critical - Critical errors only</option>
                   </select>
-                  <p class="text-xs text-gray-500 mt-1">Minimum severity level to log</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Minimum severity level to log</p>
                 </div>
 
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-2">Log Rotation</label>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Log Rotation</label>
                   <div class="grid grid-cols-2 gap-4">
                     <div>
-                      <label class="block text-xs text-gray-600 mb-1">Max File Size (MB)</label>
+                      <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">Max File Size (MB)</label>
                       <input 
                         v-model.number="systemForm['log_max_size']" 
                         type="number" 
@@ -318,7 +318,7 @@
                       />
                     </div>
                     <div>
-                      <label class="block text-xs text-gray-600 mb-1">Files to Keep</label>
+                      <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">Files to Keep</label>
                       <input 
                         v-model.number="systemForm['log_max_files']" 
                         type="number" 
@@ -328,23 +328,23 @@
                       />
                     </div>
                   </div>
-                  <p class="text-xs text-gray-500 mt-1">Automatic log rotation settings</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Automatic log rotation settings</p>
                 </div>
               </div>
             </div>
 
             <!-- Temporary Files -->
             <div>
-              <h4 class="text-md font-semibold text-gray-800 mb-3">Temporary Files</h4>
+              <h4 class="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">Temporary Files</h4>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Temp Directory</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Temp Directory</label>
                 <input 
                   v-model="systemForm['temp_path']" 
                   type="text" 
                   class="input w-full" 
                   placeholder="/tmp/phpborg"
                 />
-                <p class="text-xs text-gray-500 mt-1">Directory for temporary files during backup operations</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Directory for temporary files during backup operations</p>
               </div>
             </div>
 
@@ -359,11 +359,11 @@
     </div>
 
     <!-- Test Email Modal -->
-    <div v-if="showTestEmailModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="closeTestEmailModal">
+    <div v-if="showTestEmailModal" class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="closeTestEmailModal">
       <div class="relative top-20 mx-auto p-5 border w-[500px] shadow-lg rounded-md bg-white">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-medium text-gray-900">Send Test Email</h3>
-          <button @click="closeTestEmailModal" class="text-gray-400 hover:text-gray-500">
+          <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Send Test Email</h3>
+          <button @click="closeTestEmailModal" class="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:text-gray-400">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -381,7 +381,7 @@
         <form @submit.prevent="sendTestEmail">
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Recipient Email *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Recipient Email *</label>
               <input
                 v-model="testEmailForm.to"
                 type="email"
@@ -389,7 +389,7 @@
                 placeholder="your.email@example.com"
                 required
               />
-              <p class="text-xs text-gray-500 mt-1">Enter the email address where you want to receive the test message</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Enter the email address where you want to receive the test message</p>
             </div>
           </div>
 

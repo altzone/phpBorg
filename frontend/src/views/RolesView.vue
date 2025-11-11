@@ -3,8 +3,8 @@
     <!-- Header -->
     <div class="flex justify-between items-center mb-8">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900">Roles & Permissions</h1>
-        <p class="mt-2 text-gray-600">Configure permissions for each role</p>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Roles & Permissions</h1>
+        <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Configure permissions for each role</p>
       </div>
     </div>
 
@@ -45,8 +45,8 @@
     <!-- Loading State -->
     <div v-if="roleStore.loading && !roleStore.roles.length" class="card">
       <div class="text-center py-12">
-        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-primary-600"></div>
-        <p class="mt-4 text-gray-600">Loading roles...</p>
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 dark:border-gray-700 border-t-primary-600"></div>
+        <p class="mt-4 text-gray-600 dark:text-gray-400 dark:text-gray-500">Loading roles...</p>
       </div>
     </div>
 
@@ -56,10 +56,10 @@
         <!-- Role Header -->
         <div class="flex justify-between items-center mb-6 pb-4 border-b">
           <div>
-            <h2 class="text-xl font-semibold text-gray-900">
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
               {{ getRoleDisplayName(role.name) }}
             </h2>
-            <p class="text-sm text-gray-600 mt-1">
+            <p class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">
               {{ role.enabled_permissions || 0 }} of {{ role.total_permissions || 0 }} permissions enabled
             </p>
           </div>
@@ -80,24 +80,24 @@
             :key="module"
             class="border-b pb-4 last:border-b-0"
           >
-            <h3 class="text-lg font-medium text-gray-900 mb-3">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-3">
               {{ roleStore.getModuleLabel(module) }}
             </h3>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               <div
                 v-for="permission in permissions"
                 :key="permission"
-                class="flex items-center p-3 bg-gray-50 rounded hover:bg-gray-100"
+                class="flex items-center p-3 bg-gray-50 dark:bg-gray-800 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 <input
                   v-model="permissionsForms[role.name][permission]"
                   type="checkbox"
                   :id="`${role.name}-${permission}`"
-                  class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                  class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 rounded"
                 />
                 <label
                   :for="`${role.name}-${permission}`"
-                  class="ml-3 text-sm text-gray-700 cursor-pointer"
+                  class="ml-3 text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
                 >
                   {{ roleStore.getPermissionLabel(permission) }}
                 </label>
@@ -161,9 +161,9 @@ function getRoleBadgeClass(roleName) {
   const classes = {
     ROLE_ADMIN: 'bg-red-100 text-red-800',
     ROLE_OPERATOR: 'bg-blue-100 text-blue-800',
-    ROLE_USER: 'bg-gray-100 text-gray-800',
+    ROLE_USER: 'bg-gray-100 text-gray-800 dark:text-gray-200',
   }
-  return classes[roleName] || 'bg-gray-100 text-gray-800'
+  return classes[roleName] || 'bg-gray-100 text-gray-800 dark:text-gray-200'
 }
 
 function getGroupedPermissions(permissions) {

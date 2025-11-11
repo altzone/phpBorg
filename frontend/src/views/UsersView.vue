@@ -3,8 +3,8 @@
     <!-- Header -->
     <div class="flex justify-between items-center mb-8">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900">Users</h1>
-        <p class="mt-2 text-gray-600">Manage application users and their roles</p>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Users</h1>
+        <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Manage application users and their roles</p>
       </div>
       <button
         v-if="authStore.isAdmin"
@@ -31,7 +31,7 @@
     <div class="card mb-6">
       <div class="flex gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Role</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by Role</label>
           <select v-model="filterRole" class="input">
             <option value="">All Roles</option>
             <option value="ROLE_ADMIN">Admin</option>
@@ -40,7 +40,7 @@
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Status</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by Status</label>
           <select v-model="filterStatus" class="input">
             <option value="">All</option>
             <option value="active">Active</option>
@@ -53,8 +53,8 @@
     <!-- Loading State -->
     <div v-if="userStore.loading && !userStore.users.length" class="card">
       <div class="text-center py-12">
-        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-primary-600"></div>
-        <p class="mt-4 text-gray-600">Loading users...</p>
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 dark:border-gray-700 border-t-primary-600"></div>
+        <p class="mt-4 text-gray-600 dark:text-gray-400 dark:text-gray-500">Loading users...</p>
       </div>
     </div>
 
@@ -62,23 +62,23 @@
     <div v-else class="card">
       <div class="overflow-x-auto">
         <table class="w-full">
-          <thead class="bg-gray-50 border-b">
+          <thead class="bg-gray-50 dark:bg-gray-800 border-b">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Username</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Roles</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Login</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase">Username</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase">Email</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase">Roles</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase">Status</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase">Last Login</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-            <tr v-for="user in filteredUsers" :key="user.id" class="hover:bg-gray-50">
+          <tbody class="bg-white divide-y divide-gray-200 dark:divide-gray-700">
+            <tr v-for="user in filteredUsers" :key="user.id" class="hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800">
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">{{ user.username }}</div>
+                <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ user.username }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-900">{{ user.email }}</div>
+                <div class="text-sm text-gray-900 dark:text-gray-100">{{ user.email }}</div>
               </td>
               <td class="px-6 py-4">
                 <div class="flex flex-wrap gap-1">
@@ -98,13 +98,13 @@
                     'px-2 py-1 text-xs font-semibold rounded',
                     user.active
                       ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-800'
+                      : 'bg-gray-100 text-gray-800 dark:text-gray-200'
                   ]"
                 >
                   {{ user.active ? 'Active' : 'Inactive' }}
                 </span>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500">
                 {{ user.last_login_at ? formatDate(user.last_login_at) : 'Never' }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -137,13 +137,13 @@
     </div>
 
     <!-- User Modal -->
-    <div v-if="showUserModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="closeUserModal">
+    <div v-if="showUserModal" class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="closeUserModal">
       <div class="relative top-20 mx-auto p-5 border w-[600px] shadow-lg rounded-md bg-white">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-medium text-gray-900">
+          <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">
             {{ editingUser ? 'Edit User' : 'Create User' }}
           </h3>
-          <button @click="closeUserModal" class="text-gray-400 hover:text-gray-500">
+          <button @click="closeUserModal" class="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:text-gray-400">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -153,38 +153,38 @@
         <form @submit.prevent="saveUser">
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Username *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Username *</label>
               <input v-model="userForm.username" type="text" class="input w-full" required minlength="3" maxlength="50" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email *</label>
               <input v-model="userForm.email" type="email" class="input w-full" required />
             </div>
             <div v-if="!editingUser">
-              <label class="block text-sm font-medium text-gray-700 mb-2">Password *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Password *</label>
               <input v-model="userForm.password" type="password" class="input w-full" required minlength="8" />
-              <p class="text-xs text-gray-500 mt-1">Minimum 8 characters</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Minimum 8 characters</p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Roles *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Roles *</label>
               <div class="space-y-2">
                 <div class="flex items-center">
                   <input v-model="userForm.roles" type="checkbox" value="ROLE_ADMIN" class="mr-2" />
-                  <label class="text-sm text-gray-700">Admin - Full access</label>
+                  <label class="text-sm text-gray-700 dark:text-gray-300">Admin - Full access</label>
                 </div>
                 <div class="flex items-center">
                   <input v-model="userForm.roles" type="checkbox" value="ROLE_OPERATOR" class="mr-2" />
-                  <label class="text-sm text-gray-700">Operator - Can manage backups and servers</label>
+                  <label class="text-sm text-gray-700 dark:text-gray-300">Operator - Can manage backups and servers</label>
                 </div>
                 <div class="flex items-center">
                   <input v-model="userForm.roles" type="checkbox" value="ROLE_USER" class="mr-2" />
-                  <label class="text-sm text-gray-700">User - Read-only access</label>
+                  <label class="text-sm text-gray-700 dark:text-gray-300">User - Read-only access</label>
                 </div>
               </div>
             </div>
             <div class="flex items-center">
               <input v-model="userForm.active" type="checkbox" class="mr-2" />
-              <label class="text-sm font-medium text-gray-700">Active</label>
+              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Active</label>
             </div>
           </div>
 
@@ -201,13 +201,13 @@
     </div>
 
     <!-- Password Reset Modal -->
-    <div v-if="showPasswordModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="closePasswordModal">
+    <div v-if="showPasswordModal" class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="closePasswordModal">
       <div class="relative top-20 mx-auto p-5 border w-[500px] shadow-lg rounded-md bg-white">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-medium text-gray-900">
+          <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">
             Reset Password - {{ passwordUser?.username }}
           </h3>
-          <button @click="closePasswordModal" class="text-gray-400 hover:text-gray-500">
+          <button @click="closePasswordModal" class="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:text-gray-400">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -217,12 +217,12 @@
         <form @submit.prevent="resetPassword">
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">New Password *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">New Password *</label>
               <input v-model="newPassword" type="password" class="input w-full" required minlength="8" />
-              <p class="text-xs text-gray-500 mt-1">Minimum 8 characters</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Minimum 8 characters</p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Confirm Password *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Confirm Password *</label>
               <input v-model="confirmPassword" type="password" class="input w-full" required minlength="8" />
             </div>
           </div>
@@ -302,9 +302,9 @@ function getRoleBadgeClass(role) {
   const classes = {
     ROLE_ADMIN: 'bg-red-100 text-red-800',
     ROLE_OPERATOR: 'bg-blue-100 text-blue-800',
-    ROLE_USER: 'bg-gray-100 text-gray-800',
+    ROLE_USER: 'bg-gray-100 text-gray-800 dark:text-gray-200',
   }
-  return classes[role] || 'bg-gray-100 text-gray-800'
+  return classes[role] || 'bg-gray-100 text-gray-800 dark:text-gray-200'
 }
 
 function openUserModal(user = null) {

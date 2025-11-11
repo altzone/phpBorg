@@ -9,7 +9,7 @@
 
       <!-- Login Card -->
       <div class="card">
-        <h2 class="text-2xl font-bold text-gray-900 mb-6">Sign In</h2>
+        <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Sign In</h2>
 
         <!-- Error Message -->
         <div v-if="authStore.error" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -19,7 +19,7 @@
         <!-- Login Form -->
         <form @submit.prevent="handleLogin">
           <div class="mb-4">
-            <label for="username" class="block text-sm font-medium text-gray-700 mb-2">
+            <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Username
             </label>
             <input
@@ -34,7 +34,7 @@
           </div>
 
           <div class="mb-6">
-            <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
+            <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Password
             </label>
             <input
@@ -58,10 +58,10 @@
         </form>
 
         <!-- Default Credentials Info -->
-        <div class="mt-6 p-3 bg-gray-50 rounded-lg">
-          <p class="text-xs text-gray-600 font-medium mb-1">Default credentials:</p>
-          <p class="text-xs text-gray-500">Username: <code class="bg-gray-200 px-1 rounded">admin</code></p>
-          <p class="text-xs text-gray-500">Password: <code class="bg-gray-200 px-1 rounded">admin123</code></p>
+        <div class="mt-6 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <p class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 font-medium mb-1">Default credentials:</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">Username: <code class="bg-gray-200 px-1 rounded">admin</code></p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">Password: <code class="bg-gray-200 px-1 rounded">admin123</code></p>
         </div>
       </div>
 
