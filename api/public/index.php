@@ -84,6 +84,7 @@ try {
     $router->post('/backups/:id/unmount', BackupController::class, 'unmount', requireAuth: true);
     $router->get('/backups/:id/browse', BackupController::class, 'browse', requireAuth: true);
     $router->get('/backups/:id/download', BackupController::class, 'download', requireAuth: true);
+    $router->get('/backups/:id/preview', BackupController::class, 'preview', requireAuth: true);
 
     // ===========================================
     // Backup Job Routes (Protected)

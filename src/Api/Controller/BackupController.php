@@ -657,6 +657,125 @@ class BackupController extends BaseController
     }
 
     /**
+     * Preview file from mounted archive
+     */
+    public function preview(): void
+    {
+        try {
+            $backupId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
+            $relativePath = $_GET['path'] ?? '';
+
+            if ($backupId <= 0) {
+                $this->error('Invalid backup ID', 400, 'INVALID_BACKUP_ID');
+                return;
+            }
+
+            if (empty($relativePath)) {
+                $this->error('Path parameter is required', 400, 'MISSING_PATH');
+                return;
+            }
+
+            // Get mount info
+            $mount = $this->mountRepo->findByArchiveId($backupId);
+            if (!$mount || $mount->status !== 'mounted') {
+                $this->error('Archive is not mounted', 400, 'NOT_MOUNTED');
+                return;
+            }
+
+            // Update last access time
+            $this->mountRepo->updateLastAccessByArchiveId($backupId);
+
+            // Security: Validate and sanitize path
+            $relativePath = $this->sanitizePath($relativePath);
+            $fullPath = rtrim($mount->mountPath, '/') . '/' . ltrim($relativePath, '/');
+
+            // Normalize the path to remove any ./ or ../ segments
+            $normalizedPath = $this->normalizePath($fullPath);
+
+            // Ensure path is within mount directory
+            $mountPath = rtrim($mount->mountPath, '/');
+            if (strpos($normalizedPath, $mountPath) !== 0) {
+                $this->error('Invalid path', 400, 'INVALID_PATH');
+                return;
+            }
+
+            // Check if file exists and is a file
+            if (!file_exists($normalizedPath)) {
+                $this->error('File not found', 404, 'FILE_NOT_FOUND');
+                return;
+            }
+
+            if (!is_file($normalizedPath)) {
+                $this->error('Path is not a file', 400, 'NOT_A_FILE');
+                return;
+            }
+
+            // Get file info
+            $filename = basename($normalizedPath);
+            $filesize = filesize($normalizedPath);
+            $mimeType = mime_content_type($normalizedPath) ?: 'application/octet-stream';
+
+            // Determine if file is previewable
+            $isImage = str_starts_with($mimeType, 'image/');
+            $isText = str_starts_with($mimeType, 'text/') ||
+                      in_array($mimeType, [
+                          'application/json',
+                          'application/xml',
+                          'application/javascript',
+                          'application/x-httpd-php',
+                          'application/x-sh',
+                      ]);
+
+            // Check file size limit for text files (2MB max)
+            $maxTextSize = 2 * 1024 * 1024;
+
+            if ($isImage) {
+                // Stream image directly with inline disposition
+                header('Content-Type: ' . $mimeType);
+                header('Content-Disposition: inline; filename="' . addslashes($filename) . '"');
+                header('Content-Length: ' . $filesize);
+                header('Cache-Control: public, max-age=3600');
+
+                readfile($normalizedPath);
+                exit;
+
+            } elseif ($isText && $filesize <= $maxTextSize) {
+                // Read text content and return as JSON
+                $content = file_get_contents($normalizedPath);
+
+                if ($content === false) {
+                    $this->error('Failed to read file', 500, 'FILE_READ_ERROR');
+                    return;
+                }
+
+                // Detect encoding and convert to UTF-8 if needed
+                $encoding = mb_detect_encoding($content, ['UTF-8', 'ISO-8859-1', 'Windows-1252'], true);
+                if ($encoding && $encoding !== 'UTF-8') {
+                    $content = mb_convert_encoding($content, 'UTF-8', $encoding);
+                }
+
+                $this->success([
+                    'type' => 'text',
+                    'content' => $content,
+                    'filename' => $filename,
+                    'size' => $filesize,
+                    'mime_type' => $mimeType,
+                ]);
+
+            } else {
+                // File is not previewable or too large
+                $reason = $filesize > $maxTextSize ? 'File too large for preview' : 'File type not supported';
+                $this->error($reason, 400, 'NOT_PREVIEWABLE');
+            }
+
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'PREVIEW_ERROR');
+        } catch (\Exception $e) {
+            $this->error('Failed to preview file: ' . $e->getMessage(), 500, 'PREVIEW_ERROR');
+        }
+    }
+
+    /**
      * Sanitize path to prevent directory traversal attacks
      */
     private function sanitizePath(string $path): string
