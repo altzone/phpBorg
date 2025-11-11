@@ -188,12 +188,26 @@ final class Application
         );
     }
 
+    public function getServerStatsRepository(): ServerStatsRepository
+    {
+        return $this->getService(ServerStatsRepository::class, fn() =>
+            new ServerStatsRepository($this->connection)
+        );
+    }
+
     // Services
 
     public function getSshExecutor(): SshExecutor
     {
         return $this->getService(SshExecutor::class, fn() =>
             new SshExecutor($this->logger)
+        );
+    }
+
+    public function getServerStatsCollector(): ServerStatsCollector
+    {
+        return $this->getService(ServerStatsCollector::class, fn() =>
+            new ServerStatsCollector($this->getSshExecutor(), $this->logger)
         );
     }
 

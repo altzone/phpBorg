@@ -61,6 +61,7 @@ try {
     $router->put('/servers/:id', ServerController::class, 'update', requireAuth: true);
     $router->delete('/servers/:id', ServerController::class, 'delete', requireAuth: true);
     $router->get('/servers/:id/repositories', ServerController::class, 'repositories', requireAuth: true);
+    $router->post('/servers/:id/collect-stats', ServerController::class, 'collectStats', requireAuth: true);
 
     // ===========================================
     // Job Queue Routes (Protected)

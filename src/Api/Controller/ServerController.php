@@ -9,6 +9,7 @@ use PhpBorg\Exception\PhpBorgException;
 use PhpBorg\Service\Server\ServerManager;
 use PhpBorg\Service\Queue\JobQueue;
 use PhpBorg\Repository\ArchiveRepository;
+use PhpBorg\Repository\ServerStatsRepository;
 
 /**
  * Server management API controller
@@ -18,36 +19,72 @@ class ServerController extends BaseController
     private readonly ServerManager $serverManager;
     private readonly JobQueue $jobQueue;
     private readonly ArchiveRepository $archiveRepository;
+    private readonly ServerStatsRepository $statsRepository;
 
     public function __construct(Application $app)
     {
         $this->serverManager = $app->getServerManager();
         $this->jobQueue = $app->getJobQueue();
         $this->archiveRepository = new ArchiveRepository($app->getConnection());
+        $this->statsRepository = $app->getServerStatsRepository();
     }
 
     /**
      * GET /api/servers
-     * List all servers
+     * List all servers with their latest stats
      */
     public function list(): void
     {
         try {
             $servers = $this->serverManager->getAllServers();
 
+            // Get latest stats for all servers
+            $serverIds = array_map(fn($server) => $server->id, $servers);
+            $statsMap = [];
+
+            if (!empty($serverIds)) {
+                $statsMap = $this->statsRepository->getLatestStatsForServers($serverIds);
+            }
+
             $this->success([
-                'servers' => array_map(fn($server) => [
-                    'id' => $server->id,
-                    'name' => $server->name,
-                    'hostname' => $server->host,  // Database field is 'host'
-                    'port' => $server->port,
-                    'username' => 'root',  // Not stored in DB yet
-                    'backupType' => $server->backupType,
-                    'description' => null,  // Not stored in DB yet
-                    'active' => $server->active,
-                    'created_at' => $server->createdAt?->format('Y-m-d H:i:s'),
-                    'updated_at' => $server->updatedAt?->format('Y-m-d H:i:s'),
-                ], $servers),
+                'servers' => array_map(function($server) use ($statsMap) {
+                    $stats = $statsMap[$server->id] ?? null;
+
+                    return [
+                        'id' => $server->id,
+                        'name' => $server->name,
+                        'hostname' => $server->host,  // Database field is 'host'
+                        'port' => $server->port,
+                        'username' => 'root',  // Not stored in DB yet
+                        'backupType' => $server->backupType,
+                        'description' => null,  // Not stored in DB yet
+                        'active' => $server->active,
+                        'created_at' => $server->createdAt?->format('Y-m-d H:i:s'),
+                        'updated_at' => $server->updatedAt?->format('Y-m-d H:i:s'),
+                        // Add server stats
+                        'stats' => $stats ? [
+                            'os_distribution' => $stats['os_distribution'],
+                            'os_version' => $stats['os_version'],
+                            'kernel_version' => $stats['kernel_version'],
+                            'hostname' => $stats['hostname'],
+                            'architecture' => $stats['architecture'],
+                            'cpu_cores' => $stats['cpu_cores'],
+                            'cpu_model' => $stats['cpu_model'],
+                            'cpu_load_1' => $stats['cpu_load_1'],
+                            'cpu_usage_percent' => $stats['cpu_usage_percent'],
+                            'memory_total_mb' => $stats['memory_total_mb'],
+                            'memory_used_mb' => $stats['memory_used_mb'],
+                            'memory_percent' => $stats['memory_percent'],
+                            'disk_total_gb' => $stats['disk_total_gb'],
+                            'disk_used_gb' => $stats['disk_used_gb'],
+                            'disk_percent' => $stats['disk_percent'],
+                            'uptime_seconds' => $stats['uptime_seconds'],
+                            'uptime_human' => $stats['uptime_human'],
+                            'ip_address' => $stats['ip_address'],
+                            'collected_at' => $stats['collected_at'],
+                        ] : null,
+                    ];
+                }, $servers),
                 'total' => count($servers),
             ]);
         } catch (PhpBorgException $e) {
@@ -376,6 +413,58 @@ class ServerController extends BaseController
             ]);
         } catch (PhpBorgException $e) {
             $this->error($e->getMessage(), 500, 'REPOSITORIES_ERROR');
+        }
+    }
+
+    /**
+     * POST /api/servers/:id/collect-stats
+     * Trigger stats collection for a server
+     */
+    public function collectStats(): void
+    {
+        try {
+            $serverId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
+
+            if ($serverId <= 0) {
+                $this->error('Invalid server ID', 400, 'INVALID_SERVER_ID');
+                return;
+            }
+
+            // Check server exists
+            $server = $this->serverManager->getServerById($serverId);
+            if (!$server) {
+                $this->error('Server not found', 404, 'SERVER_NOT_FOUND');
+                return;
+            }
+
+            if (!$server->active) {
+                $this->error('Cannot collect stats from inactive server', 400, 'SERVER_INACTIVE');
+                return;
+            }
+
+            // Get current user
+            $user = $_SERVER['USER'] ?? null;
+
+            // Create stats collection job
+            $jobId = $this->jobQueue->push(
+                'server_stats_collect',
+                [
+                    'server_id' => $serverId,
+                    'server_name' => $server->name,
+                ],
+                'default',
+                1, // Priority
+                $user?->id
+            );
+
+            $this->success([
+                'job_id' => $jobId,
+                'server_id' => $serverId,
+                'server_name' => $server->name,
+                'message' => 'Stats collection job queued'
+            ], 'Stats collection started');
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'STATS_COLLECTION_ERROR');
         }
     }
 }

@@ -10,6 +10,7 @@ use PhpBorg\Service\Queue\Handlers\ArchiveMountHandler;
 use PhpBorg\Service\Queue\Handlers\BackupCreateHandler;
 use PhpBorg\Service\Queue\Handlers\CapabilitiesDetectionHandler;
 use PhpBorg\Service\Queue\Handlers\ServerSetupHandler;
+use PhpBorg\Service\Queue\Handlers\ServerStatsCollectHandler;
 use PhpBorg\Service\Queue\Handlers\TestJobHandler;
 use PhpBorg\Service\Queue\Worker;
 use Symfony\Component\Console\Command\Command;
@@ -94,6 +95,13 @@ final class WorkerStartCommand extends Command
             $this->app->getArchiveRepository(),
             $this->app->getArchiveMountRepository(),
             $this->app->getBorgRepositoryRepository(),
+            $logger
+        ));
+
+        $worker->registerHandler('server_stats_collect', new ServerStatsCollectHandler(
+            $this->app->getServerRepository(),
+            $this->app->getServerStatsRepository(),
+            $this->app->getServerStatsCollector(),
             $logger
         ));
 
