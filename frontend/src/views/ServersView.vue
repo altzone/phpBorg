@@ -133,6 +133,127 @@
             </div>
           </div>
 
+          <!-- System Stats -->
+          <div v-if="server.stats" class="space-y-2 mb-4 p-3 bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-700/30 dark:to-blue-900/10 rounded-lg border border-gray-200 dark:border-gray-600">
+            <div class="flex items-center justify-between text-xs mb-2">
+              <span class="font-semibold text-gray-700 dark:text-gray-300">System Info</span>
+              <button
+                @click.stop="refreshStats(server.id)"
+                class="text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 transition-colors"
+                title="Refresh stats"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- OS -->
+            <div class="flex items-center gap-2 text-xs">
+              <svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+              </svg>
+              <span class="text-gray-700 dark:text-gray-300">
+                {{ server.stats.os_distribution }} {{ server.stats.os_version }}
+              </span>
+            </div>
+
+            <!-- CPU -->
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2">
+                <svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+                <span class="text-gray-700 dark:text-gray-300">
+                  CPU: {{ server.stats.cpu_cores }} cores
+                </span>
+              </div>
+              <span class="font-medium" :class="getCpuColor(server.stats.cpu_usage_percent)">
+                {{ server.stats.cpu_usage_percent?.toFixed(1) }}%
+              </span>
+            </div>
+
+            <!-- Memory -->
+            <div class="text-xs">
+              <div class="flex items-center justify-between mb-1">
+                <div class="flex items-center gap-2">
+                  <svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7c-2 0-3 1-3 3z" />
+                  </svg>
+                  <span class="text-gray-700 dark:text-gray-300">RAM</span>
+                </div>
+                <span class="font-medium" :class="getMemoryColor(server.stats.memory_percent)">
+                  {{ server.stats.memory_percent?.toFixed(0) }}%
+                </span>
+              </div>
+              <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                <div
+                  class="h-1.5 rounded-full transition-all"
+                  :class="getMemoryColorBg(server.stats.memory_percent)"
+                  :style="{ width: `${server.stats.memory_percent}%` }"
+                ></div>
+              </div>
+              <div class="flex justify-between mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+                <span>{{ formatBytes(server.stats.memory_used_mb * 1024 * 1024) }}</span>
+                <span>{{ formatBytes(server.stats.memory_total_mb * 1024 * 1024) }}</span>
+              </div>
+            </div>
+
+            <!-- Disk -->
+            <div class="text-xs">
+              <div class="flex items-center justify-between mb-1">
+                <div class="flex items-center gap-2">
+                  <svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+                  </svg>
+                  <span class="text-gray-700 dark:text-gray-300">Disk</span>
+                </div>
+                <span class="font-medium" :class="getDiskColor(server.stats.disk_percent)">
+                  {{ server.stats.disk_percent?.toFixed(0) }}%
+                </span>
+              </div>
+              <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                <div
+                  class="h-1.5 rounded-full transition-all"
+                  :class="getDiskColorBg(server.stats.disk_percent)"
+                  :style="{ width: `${server.stats.disk_percent}%` }"
+                ></div>
+              </div>
+              <div class="flex justify-between mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+                <span>{{ server.stats.disk_used_gb?.toFixed(1) }} GB</span>
+                <span>{{ server.stats.disk_total_gb?.toFixed(1) }} GB</span>
+              </div>
+            </div>
+
+            <!-- Uptime -->
+            <div class="flex items-center gap-2 text-xs">
+              <svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span class="text-gray-700 dark:text-gray-300">
+                Uptime: {{ server.stats.uptime_human }}
+              </span>
+            </div>
+          </div>
+
+          <!-- No stats available -->
+          <div v-else class="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-start gap-2">
+                <svg class="w-4 h-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p class="text-xs text-yellow-800 dark:text-yellow-200">No stats yet</p>
+              </div>
+              <button
+                @click.stop="refreshStats(server.id)"
+                class="text-xs text-yellow-700 dark:text-yellow-300 hover:text-yellow-900 dark:hover:text-yellow-100 font-medium whitespace-nowrap"
+              >
+                Collect now
+              </button>
+            </div>
+          </div>
+
           <!-- Footer Info -->
           <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 pt-3 border-t border-gray-200 dark:border-gray-700">
             <div class="flex items-center gap-1">
@@ -265,5 +386,59 @@ function formatDate(dateString) {
   if (days < 30) return `${Math.floor(days / 7)} weeks ago`
   if (days < 365) return `${Math.floor(days / 30)} months ago`
   return `${Math.floor(days / 365)} years ago`
+}
+
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
+}
+
+async function refreshStats(serverId) {
+  try {
+    await serverStore.collectStats(serverId)
+    // Refresh the server list to get updated stats
+    await serverStore.fetchServers()
+  } catch (err) {
+    // Error is handled by store
+  }
+}
+
+// Color helpers for stats
+function getCpuColor(percent) {
+  if (!percent) return 'text-gray-500 dark:text-gray-400'
+  if (percent < 50) return 'text-green-600 dark:text-green-400'
+  if (percent < 80) return 'text-yellow-600 dark:text-yellow-400'
+  return 'text-red-600 dark:text-red-400'
+}
+
+function getMemoryColor(percent) {
+  if (!percent) return 'text-gray-500 dark:text-gray-400'
+  if (percent < 70) return 'text-green-600 dark:text-green-400'
+  if (percent < 85) return 'text-yellow-600 dark:text-yellow-400'
+  return 'text-red-600 dark:text-red-400'
+}
+
+function getMemoryColorBg(percent) {
+  if (!percent) return 'bg-gray-400'
+  if (percent < 70) return 'bg-green-500'
+  if (percent < 85) return 'bg-yellow-500'
+  return 'bg-red-500'
+}
+
+function getDiskColor(percent) {
+  if (!percent) return 'text-gray-500 dark:text-gray-400'
+  if (percent < 70) return 'text-green-600 dark:text-green-400'
+  if (percent < 85) return 'text-yellow-600 dark:text-yellow-400'
+  return 'text-red-600 dark:text-red-400'
+}
+
+function getDiskColorBg(percent) {
+  if (!percent) return 'bg-gray-400'
+  if (percent < 70) return 'bg-green-500'
+  if (percent < 85) return 'bg-yellow-500'
+  return 'bg-red-500'
 }
 </script>

@@ -48,4 +48,12 @@ export const serverService = {
     const response = await api.get(`/servers/${id}/repositories`)
     return response.data.data
   },
+
+  /**
+   * Trigger stats collection for a server
+   */
+  async collectStats(id) {
+    const response = await api.post(`/servers/${id}/collect-stats`)
+    return response.data.data
+  },
 }

@@ -105,6 +105,20 @@ export const useServerStore = defineStore('server', () => {
     }
   }
 
+  async function collectStats(id) {
+    try {
+      loading.value = true
+      error.value = null
+      const data = await serverService.collectStats(id)
+      return data
+    } catch (err) {
+      error.value = err.response?.data?.error?.message || 'Failed to collect server stats'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   function clearError() {
     error.value = null
   }
@@ -121,6 +135,7 @@ export const useServerStore = defineStore('server', () => {
     createServer,
     updateServer,
     deleteServer,
+    collectStats,
     clearError,
   }
 })
