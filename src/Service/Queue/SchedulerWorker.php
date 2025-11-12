@@ -107,11 +107,10 @@ final class SchedulerWorker
                         payload: [
                             'backup_job_id' => $job->id,
                             'repository_id' => $job->repositoryId,
-                            'source_id' => $job->sourceId,
                             'scheduled' => true,
                         ],
                         queue: 'default',
-                        priority: $this->mapPriority($job->priority ?? 'normal'),
+                        priority: 3, // Normal priority for scheduled jobs
                         userId: null // Scheduled jobs have no user
                     );
 

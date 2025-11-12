@@ -11,7 +11,7 @@ WorkingDirectory=/opt/newphpborg/phpBorg
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # Main scheduler command
-ExecStart=/usr/bin/php /opt/newphpborg/phpBorg/bin/console scheduler:start
+ExecStart=/usr/bin/php /opt/newphpborg/phpBorg/bin/phpborg scheduler:start
 
 # Restart policy
 Restart=always
@@ -29,9 +29,6 @@ SyslogIdentifier=phpborg-scheduler
 # Security hardening
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/newphpborg/phpBorg/var /tmp
 
 [Install]
 WantedBy=multi-user.target
