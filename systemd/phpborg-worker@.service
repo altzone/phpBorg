@@ -28,9 +28,5 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=phpborg-worker-%i
 
-# Security hardening
-NoNewPrivileges=true
-PrivateTmp=true
-
 [Install]
 WantedBy=phpborg-workers.target
