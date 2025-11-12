@@ -79,6 +79,12 @@ const router = createRouter({
           component: () => import('@/views/StoragePoolsView.vue'),
           meta: { requiresAuth: true },
         },
+        {
+          path: 'workers',
+          name: 'workers',
+          component: () => import('@/views/WorkersView.vue'),
+          meta: { requiresRole: 'ROLE_ADMIN' },
+        },
       ],
     },
   ],

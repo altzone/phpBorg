@@ -18,10 +18,17 @@ phpBorg est un système de backup d'entreprise moderne comparable à Veeam/Acron
 - **Router** pour navigation SPA
 - **Services** pour communication API
 
-### Worker System
-- Worker background traite les jobs de backup/suppression/setup serveur
-- Handlers : `BackupCreateHandler`, `ArchiveDeleteHandler`, `ServerSetupHandler`
-- Logs détaillés et suivi de progression en temps réel
+### Worker System (Architecture Professionnelle)
+- **SchedulerWorker** : Daemon léger qui vérifie les schedules (60s) et collecte stats (15min)
+- **Worker Pool** : 4 workers en parallèle via systemd (@1, @2, @3, @4) pour traiter jobs simultanés
+- **Job Queue** : Redis avec opérations atomiques pour distribution des jobs
+- **Handlers** : `BackupCreateHandler`, `ArchiveDeleteHandler`, `ServerSetupHandler`, `ServerStatsCollectHandler`, `StoragePoolAnalyzeHandler`
+- **Systemd Services** :
+  - `phpborg-scheduler.service` - Scheduler unique
+  - `phpborg-worker@.service` - Template pour pool instances
+  - `phpborg-workers.target` - Gestion groupe de workers
+- **Logs** : journalctl avec rotation automatique
+- **Sudoers** : Permissions configurées pour gestion via web interface
 
 ## 🚀 Fonctionnalités Récentes
 
@@ -66,6 +73,26 @@ phpBorg est un système de backup d'entreprise moderne comparable à Veeam/Acron
   - Uptime: secondes + format humain + boot time
 - **Collecte** : Manuelle via bouton "Refresh" ou "Collect now"
 
+### ✅ Gestion des Workers (Worker Pool Management)
+- **API Controller** : `WorkerController` - Gestion systemd services via API
+- **API Endpoints** :
+  - `GET /api/workers` - Liste tous les workers (scheduler + pool)
+  - `GET /api/workers/:name` - Détails d'un worker spécifique
+  - `POST /api/workers/:name/start` - Démarrer un worker
+  - `POST /api/workers/:name/stop` - Arrêter un worker
+  - `POST /api/workers/:name/restart` - Redémarrer un worker
+  - `GET /api/workers/:name/logs` - Récupérer les logs (journalctl)
+- **Frontend** : `/frontend/src/views/WorkersView.vue`
+  - Cartes pour chaque worker avec status en temps réel
+  - Indicateurs: active/inactive, PID, Memory, CPU, Uptime
+  - Boutons Start/Stop/Restart par worker
+  - Modal logs avec filtres (lines, since) et refresh
+- **Services/Stores** :
+  - `/frontend/src/services/workers.js` - API calls
+  - `/frontend/src/stores/workers.js` - Store Pinia
+- **Sécurité** : Admin only (ROLE_ADMIN required)
+- **Sudoers** : `/etc/sudoers.d/phpborg-workers` - NOPASSWD pour systemctl/journalctl
+
 ## 🔧 Configuration
 
 ### Base de données
@@ -78,11 +105,18 @@ DB_PASSWORD=4Re2q(kyjTwA2]FF
 
 ### Commandes importantes
 ```bash
-# Démarrer le worker
-php bin/console worker:start
+# Gestion des services systemd
+sudo systemctl status phpborg-scheduler
+sudo systemctl status phpborg-worker@1
+sudo systemctl restart phpborg-worker@{1..4}
+sudo systemctl stop phpborg-workers.target  # Arrête tous les workers
 
-# Redémarrer après modifications handlers
-pkill -f "worker:start" && php bin/console worker:start
+# Voir les logs
+sudo journalctl -u phpborg-scheduler -f
+sudo journalctl -u phpborg-worker@1 -f --since "1 hour ago"
+
+# Installation/Réinstallation des services
+sudo bash bin/install-services.sh 4
 
 # Frontend dev
 cd frontend && npm run dev
@@ -95,13 +129,17 @@ cd frontend && npm run dev
 - `/src/Service/Queue/Handlers/ArchiveDeleteHandler.php` - Suppression archives
 - `/src/Service/Queue/Handlers/ServerSetupHandler.php` - Setup serveurs SSH
 - `/src/Service/Queue/Handlers/ServerStatsCollectHandler.php` - Collecte stats système
+- `/src/Service/Queue/Handlers/StoragePoolAnalyzeHandler.php` - Analyse storage pools
+- `/src/Service/Queue/SchedulerWorker.php` - Scheduler daemon pour schedules + stats
 - `/src/Command/WorkerStartCommand.php` - Enregistrement des handlers
+- `/src/Command/SchedulerStartCommand.php` - Commande scheduler daemon
 
 ### API Controllers
 - `/src/Api/Controller/BackupJobController.php` - CRUD jobs programmés + run()
 - `/src/Api/Controller/BackupController.php` - CRUD archives + delete via job
 - `/src/Api/Controller/BackupWizardController.php` - Wizard création backup
 - `/src/Api/Controller/ServerController.php` - CRUD serveurs + collectStats()
+- `/src/Api/Controller/WorkerController.php` - Gestion workers (start/stop/restart/logs)
 
 ### Repositories
 - `/src/Repository/ArchiveRepository.php` - avec findAllWithDetails()
@@ -118,10 +156,20 @@ cd frontend && npm run dev
 - `/frontend/src/views/BackupJobsView.vue` - Liste jobs + Run Now
 - `/frontend/src/views/BackupsView.vue` - Liste archives + suppression
 - `/frontend/src/views/ServersView.vue` - Liste serveurs + stats accordéon
+- `/frontend/src/views/WorkersView.vue` - Gestion workers + modal logs
 - `/frontend/src/stores/backups.js` - Store Pinia backups
 - `/frontend/src/stores/server.js` - Store Pinia serveurs + collectStats()
+- `/frontend/src/stores/workers.js` - Store Pinia workers
 - `/frontend/src/services/backups.js` - API calls backups
 - `/frontend/src/services/server.js` - API calls serveurs
+- `/frontend/src/services/workers.js` - API calls workers
+
+### Systemd Services
+- `/systemd/phpborg-scheduler.service` - Service scheduler unique
+- `/systemd/phpborg-worker@.service` - Template service pour worker pool
+- `/systemd/phpborg-workers.target` - Target pour gestion groupe
+- `/bin/install-services.sh` - Script installation automatique
+- `/docs/sudoers-phpborg-workers` - Configuration sudoers
 
 ## 🐛 Debugging
 
@@ -168,17 +216,23 @@ tail -f /var/log/phpborg_new.log
 - ✅ Dark mode complet (Tailwind class-based)
 - ✅ Statistiques système temps réel (OS, CPU, RAM, Disk, Uptime)
 - ✅ Accordéon UI pour stats serveurs
+- ✅ Worker Pool Architecture (Scheduler + 4 Workers parallèles)
+- ✅ Gestion Workers via Dashboard (Start/Stop/Restart/Logs)
+- ✅ Collecte automatique stats (serveurs + storage pools) toutes les 15min
 
-**Dernière session** : Implémentation système de statistiques serveurs (81b8efb)
-- Migration table `server_stats` avec 29 colonnes de métriques
-- Handler `ServerStatsCollectHandler` avec collecte SSH
-- API endpoint `POST /api/servers/:id/collect-stats`
-- Frontend: accordéon dans cartes serveurs avec indicateurs colorés
-- Corrections: imports manquants + colonnes manquantes (migration 015b)
+**Dernière session** : Implémentation Worker Pool + Dashboard Management
+- Architecture scheduler/worker pool professionnelle avec systemd
+- SchedulerWorker: vérifie schedules (60s) + collecte stats (15min)
+- Worker Pool: 4 instances parallèles pour jobs simultanés
+- WorkerController API: gestion complète workers (start/stop/restart/logs)
+- WorkersView frontend: cartes workers + modal logs en direct
+- StoragePoolAnalyzeHandler: collecte stats storage pools
+- Systemd services + sudoers configuration
+- Routes API + stores Pinia + integration navigation
 
 **Prochaines étapes possibles** :
-- Collecte automatique périodique des stats (cron job toutes les 5-15min)
 - Restore d'archives avec browse de fichiers
-- Gestion de la rétention automatique
-- Graphiques historiques des stats serveurs
+- Graphiques historiques des stats (CPU/RAM/Disk évolution)
+- Gestion de la rétention automatique (vérifier prune avant backup)
 - Alertes sur seuils critiques (CPU/RAM/Disk)
+- Dashboard metrics amélioré

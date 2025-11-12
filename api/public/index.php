@@ -31,6 +31,7 @@ use PhpBorg\Api\Controller\ServerController;
 use PhpBorg\Api\Controller\SettingsController;
 use PhpBorg\Api\Controller\StoragePoolController;
 use PhpBorg\Api\Controller\UserController;
+use PhpBorg\Api\Controller\WorkerController;
 
 try {
     // Initialize application
@@ -190,6 +191,16 @@ try {
     $router->post('/backup-wizard/test-db-connection', BackupWizardController::class, 'testDatabaseConnection', requireAuth: true);
     $router->post('/backup-wizard/create-backup-chain', BackupWizardController::class, 'createBackupChain', requireAuth: true);
     $router->get('/backup-wizard/templates', BackupWizardController::class, 'templates', requireAuth: true);
+
+    // ===========================================
+    // Worker Management Routes (Protected - Admin only)
+    // ===========================================
+    $router->get('/workers', WorkerController::class, 'list', requireAuth: true);
+    $router->get('/workers/:name', WorkerController::class, 'show', requireAuth: true);
+    $router->post('/workers/:name/start', WorkerController::class, 'start', requireAuth: true);
+    $router->post('/workers/:name/stop', WorkerController::class, 'stop', requireAuth: true);
+    $router->post('/workers/:name/restart', WorkerController::class, 'restart', requireAuth: true);
+    $router->get('/workers/:name/logs', WorkerController::class, 'logs', requireAuth: true);
 
     // ===========================================
     // Future Routes (To be implemented)
