@@ -1,0 +1,37 @@
+[Unit]
+Description=phpBorg Scheduler Worker - Handles backup schedules and periodic stats collection
+After=network.target redis-server.service mariadb.service
+Wants=redis-server.service mariadb.service
+
+[Service]
+Type=simple
+User=phpborg
+Group=phpborg
+WorkingDirectory=/opt/newphpborg/phpBorg
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Main scheduler command
+ExecStart=/usr/bin/php /opt/newphpborg/phpBorg/bin/console scheduler:start
+
+# Restart policy
+Restart=always
+RestartSec=5
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=50%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=phpborg-scheduler
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/newphpborg/phpBorg/var /tmp
+
+[Install]
+WantedBy=multi-user.target

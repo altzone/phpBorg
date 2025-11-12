@@ -10,6 +10,7 @@ use PhpBorg\Logger\FileLogger;
 use PhpBorg\Logger\LoggerInterface;
 use PhpBorg\Repository\ArchiveRepository;
 use PhpBorg\Repository\ArchiveMountRepository;
+use PhpBorg\Repository\BackupJobRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\DatabaseInfoRepository;
 use PhpBorg\Repository\JobRepository;
@@ -17,6 +18,7 @@ use PhpBorg\Repository\RefreshTokenRepository;
 use PhpBorg\Repository\ReportRepository;
 use PhpBorg\Repository\ServerRepository;
 use PhpBorg\Repository\ServerStatsRepository;
+use PhpBorg\Repository\StoragePoolRepository;
 use PhpBorg\Repository\UserRepository;
 use PhpBorg\Service\Auth\AuthService;
 use PhpBorg\Service\Auth\JWTService;
@@ -345,6 +347,20 @@ final class Application
                 $this->getJobRepository(),
                 $this->logger
             )
+        );
+    }
+
+    public function getBackupJobRepository(): BackupJobRepository
+    {
+        return $this->getService(BackupJobRepository::class, fn() =>
+            new BackupJobRepository($this->connection)
+        );
+    }
+
+    public function getStoragePoolRepository(): StoragePoolRepository
+    {
+        return $this->getService(StoragePoolRepository::class, fn() =>
+            new StoragePoolRepository($this->connection)
         );
     }
 

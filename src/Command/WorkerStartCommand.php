@@ -11,6 +11,7 @@ use PhpBorg\Service\Queue\Handlers\BackupCreateHandler;
 use PhpBorg\Service\Queue\Handlers\CapabilitiesDetectionHandler;
 use PhpBorg\Service\Queue\Handlers\ServerSetupHandler;
 use PhpBorg\Service\Queue\Handlers\ServerStatsCollectHandler;
+use PhpBorg\Service\Queue\Handlers\StoragePoolAnalyzeHandler;
 use PhpBorg\Service\Queue\Handlers\TestJobHandler;
 use PhpBorg\Service\Queue\Worker;
 use Symfony\Component\Console\Command\Command;
@@ -102,6 +103,11 @@ final class WorkerStartCommand extends Command
             $this->app->getServerRepository(),
             $this->app->getServerStatsRepository(),
             $this->app->getServerStatsCollector(),
+            $logger
+        ));
+
+        $worker->registerHandler('storage_pool_analyze', new StoragePoolAnalyzeHandler(
+            $this->app->getStoragePoolRepository(),
             $logger
         ));
 

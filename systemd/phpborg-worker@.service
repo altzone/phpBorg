@@ -1,0 +1,39 @@
+[Unit]
+Description=phpBorg Backup Worker #%i - Executes backup and maintenance jobs
+After=network.target redis-server.service mariadb.service phpborg-scheduler.service
+Wants=redis-server.service mariadb.service
+PartOf=phpborg-workers.target
+
+[Service]
+Type=simple
+User=phpborg
+Group=phpborg
+WorkingDirectory=/opt/newphpborg/phpBorg
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="WORKER_ID=%i"
+
+# Main worker command
+ExecStart=/usr/bin/php /opt/newphpborg/phpBorg/bin/console worker:start --queue=default
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Resource limits (per worker)
+MemoryMax=2G
+CPUQuota=100%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=phpborg-worker-%i
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/newphpborg/phpBorg/var /tmp /opt/backups /var/log
+
+[Install]
+WantedBy=phpborg-workers.target

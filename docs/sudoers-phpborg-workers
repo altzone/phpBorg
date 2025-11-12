@@ -1,0 +1,51 @@
+# /etc/sudoers.d/phpborg-workers
+# Permissions for web user (www-data/phpborg) to manage phpBorg worker services
+# Installation: sudo cp docs/sudoers-phpborg-workers /etc/sudoers.d/phpborg-workers
+#               sudo chmod 440 /etc/sudoers.d/phpborg-workers
+
+# Allow phpborg user to manage scheduler service
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-scheduler
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl start phpborg-scheduler
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl stop phpborg-scheduler
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl restart phpborg-scheduler
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl is-active phpborg-scheduler
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl is-enabled phpborg-scheduler
+
+# Allow phpborg user to manage worker pool instances (with @1, @2, @3, @4)
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-worker@*
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl start phpborg-worker@*
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl stop phpborg-worker@*
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl restart phpborg-worker@*
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl is-active phpborg-worker@*
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl is-enabled phpborg-worker@*
+
+# Allow phpborg user to read logs via journalctl
+phpborg ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-scheduler --no-pager -n *
+phpborg ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-scheduler --no-pager --since *
+phpborg ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-worker@* --no-pager -n *
+phpborg ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-worker@* --no-pager --since *
+
+# Allow phpborg user to list all phpborg services
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl list-units phpborg-* --no-pager
+
+# If your web server runs as www-data, also add these lines:
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-scheduler
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl start phpborg-scheduler
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop phpborg-scheduler
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl restart phpborg-scheduler
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl is-active phpborg-scheduler
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl is-enabled phpborg-scheduler
+
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-worker@*
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl start phpborg-worker@*
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop phpborg-worker@*
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl restart phpborg-worker@*
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl is-active phpborg-worker@*
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl is-enabled phpborg-worker@*
+
+www-data ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-scheduler --no-pager -n *
+www-data ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-scheduler --no-pager --since *
+www-data ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-worker@* --no-pager -n *
+www-data ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-worker@* --no-pager --since *
+
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl list-units phpborg-* --no-pager

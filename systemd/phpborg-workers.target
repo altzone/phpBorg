@@ -1,0 +1,6 @@
+[Unit]
+Description=phpBorg Worker Pool - All backup worker instances
+After=phpborg-scheduler.service
+
+[Install]
+WantedBy=multi-user.target

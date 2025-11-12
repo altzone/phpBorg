@@ -61,6 +61,7 @@ use PhpBorg\Command\ListCommand;
 use PhpBorg\Command\ListServersCommand;
 use PhpBorg\Command\MountCommand;
 use PhpBorg\Command\PruneCommand;
+use PhpBorg\Command\SchedulerStartCommand;
 use PhpBorg\Command\SetupCommand;
 use PhpBorg\Command\SyncArchivesCommand;
 use PhpBorg\Command\WorkerStartCommand;
@@ -122,6 +123,7 @@ try {
 
         // Worker commands
         $console->add(new WorkerStartCommand($app));
+        $console->add(new SchedulerStartCommand($app));
     }
 
     // Run console application

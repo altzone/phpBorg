@@ -329,4 +329,53 @@ final class BackupJobRepository
         // For now, return null and implement later
         return null;
     }
+
+    /**
+     * Find all enabled backup jobs that are due to run
+     *
+     * @return array<BackupJob>
+     */
+    public function findDueJobs(): array
+    {
+        $now = date('Y-m-d H:i:s');
+
+        $sql = 'SELECT * FROM backup_jobs
+                WHERE enabled = 1
+                AND schedule_type != ?
+                AND (next_run_at IS NULL OR next_run_at <= ?)
+                ORDER BY priority DESC, next_run_at ASC';
+
+        $rows = $this->connection->fetchAll($sql, ['manual', $now]);
+
+        return array_map(fn($row) => BackupJob::fromDatabase($row), $rows);
+    }
+
+    /**
+     * Update last_run_at and recalculate next_run_at for a backup job
+     */
+    public function updateLastRun(int $jobId): void
+    {
+        $now = new DateTimeImmutable();
+
+        // Get current job to recalculate next run
+        $job = $this->findById($jobId);
+        if (!$job) {
+            return;
+        }
+
+        $nextRun = $this->calculateNextRun($job);
+        $nextRunStr = $nextRun ? $nextRun->format('Y-m-d H:i:s') : null;
+
+        $sql = 'UPDATE backup_jobs
+                SET last_run_at = ?,
+                    next_run_at = ?,
+                    total_runs = total_runs + 1
+                WHERE id = ?';
+
+        $this->connection->executeUpdate($sql, [
+            $now->format('Y-m-d H:i:s'),
+            $nextRunStr,
+            $jobId
+        ]);
+    }
 }
