@@ -12,6 +12,7 @@ use PhpBorg\Service\Backup\BackupService;
 use PhpBorg\Service\Queue\JobQueue;
 use PhpBorg\Service\Repository\EncryptionService;
 use PhpBorg\Service\Server\ServerManager;
+use PhpBorg\Service\Email\BackupNotificationService;
 
 /**
  * Handler for backup creation jobs
@@ -28,7 +29,8 @@ final class BackupCreateHandler implements JobHandlerInterface
         private readonly BorgRepositoryRepository $repoRepo,
         private readonly EncryptionService $encryption,
         private readonly Configuration $config,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly BackupNotificationService $notificationService
     ) {
     }
 
@@ -106,10 +108,41 @@ final class BackupCreateHandler implements JobHandlerInterface
             $archiveName = $result['archiveName'] ?? 'unknown';
             $queue->updateProgress($job->id, 100, "Backup completed: {$archiveName}");
 
+            // Send success notification if backup job ID is provided
+            if ($backupJobId) {
+                try {
+                    $stats = $result['stats'] ?? [];
+                    $this->notificationService->sendSuccessNotification(
+                        $backupJobId,
+                        $server->name,
+                        $archiveName,
+                        $stats
+                    );
+                } catch (\Exception $notifEx) {
+                    // Log but don't fail the backup if notification fails
+                    $this->logger->error("Failed to send success notification: {$notifEx->getMessage()}", 'JOB');
+                }
+            }
+
             return "Backup '{$archiveName}' for server '{$server->name}' completed successfully";
 
         } catch (\Exception $e) {
             $this->logger->error("Backup failed: {$e->getMessage()}", 'JOB');
+
+            // Send failure notification if backup job ID is provided
+            if ($backupJobId) {
+                try {
+                    $this->notificationService->sendFailureNotification(
+                        $backupJobId,
+                        $server->name ?? 'Unknown Server',
+                        $e->getMessage()
+                    );
+                } catch (\Exception $notifEx) {
+                    // Log but don't fail the backup if notification fails
+                    $this->logger->error("Failed to send failure notification: {$notifEx->getMessage()}", 'JOB');
+                }
+            }
+
             throw new \Exception("Backup failed: {$e->getMessage()}");
         }
     }

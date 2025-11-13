@@ -372,6 +372,28 @@ final class Application
         );
     }
 
+    public function getEmailService(): \PhpBorg\Service\Email\EmailService
+    {
+        return $this->getService(\PhpBorg\Service\Email\EmailService::class, fn() =>
+            new \PhpBorg\Service\Email\EmailService(
+                $this->getSettingRepository(),
+                $this->logger
+            )
+        );
+    }
+
+    public function getBackupNotificationService(): \PhpBorg\Service\Email\BackupNotificationService
+    {
+        return $this->getService(\PhpBorg\Service\Email\BackupNotificationService::class, fn() =>
+            new \PhpBorg\Service\Email\BackupNotificationService(
+                $this->getEmailService(),
+                $this->getBackupJobRepository(),
+                $this->getSettingRepository(),
+                $this->logger
+            )
+        );
+    }
+
     /**
      * Cleanup resources
      */

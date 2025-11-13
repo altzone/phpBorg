@@ -16,7 +16,7 @@
     >
       <!-- Logo -->
       <div class="h-16 flex items-center justify-between px-6 border-b border-gray-200 dark:border-gray-700">
-        <h1 class="text-xl font-bold text-primary-600 dark:text-primary-400">phpBorg</h1>
+        <h1 class="text-xl font-bold text-primary-600 dark:text-primary-400">{{ appName }}</h1>
         <button
           @click="mobileMenuOpen = false"
           class="lg:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
@@ -252,16 +252,22 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { useSettingsStore } from '@/stores/settings'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 
 const { t } = useI18n()
 const router = useRouter()
 const authStore = useAuthStore()
+const settingsStore = useSettingsStore()
 const mobileMenuOpen = ref(false)
+
+const appName = computed(() => {
+  return settingsStore.settings?.general?.['app.name'] || 'phpBorg'
+})
 
 const userInitials = computed(() => {
   const username = authStore.user?.username || 'U'
@@ -279,6 +285,13 @@ const handleLogout = async () => {
   await authStore.logout()
   router.push('/login')
 }
+
+// Load settings on mount
+onMounted(() => {
+  if (Object.keys(settingsStore.settings).length === 0) {
+    settingsStore.fetchSettings()
+  }
+})
 </script>
 
 <style scoped>

@@ -88,7 +88,8 @@ final class WorkerStartCommand extends Command
             $this->app->getBorgRepositoryRepository(),
             $this->app->getEncryptionService(),
             $this->app->getConfig(),
-            $logger
+            $logger,
+            $this->app->getBackupNotificationService()
         ));
 
         $worker->registerHandler('capabilities_detection', new CapabilitiesDetectionHandler(
