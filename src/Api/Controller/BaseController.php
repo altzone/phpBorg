@@ -34,14 +34,20 @@ abstract class BaseController
     /**
      * Send error response
      */
-    protected function error(string $message, int $statusCode = 400, ?string $code = null): void
+    protected function error(string $message, int $statusCode = 400, ?string $code = null, ?array $data = null): void
     {
+        $errorResponse = [
+            'message' => $message,
+            'code' => $code,
+        ];
+
+        if ($data !== null) {
+            $errorResponse['data'] = $data;
+        }
+
         $this->json([
             'success' => false,
-            'error' => [
-                'message' => $message,
-                'code' => $code,
-            ],
+            'error' => $errorResponse,
         ], $statusCode);
     }
 

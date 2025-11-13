@@ -41,6 +41,11 @@ const router = createRouter({
           component: () => import('@/views/ArchiveBrowserView.vue'),
         },
         {
+          path: 'restore-wizard',
+          name: 'restore-wizard',
+          component: () => import('@/views/RestoreWizardView.vue'),
+        },
+        {
           path: 'backup-jobs',
           name: 'backup-jobs',
           component: () => import('@/views/BackupJobsView.vue'),
@@ -72,6 +77,12 @@ const router = createRouter({
           name: 'roles',
           component: () => import('@/views/RolesView.vue'),
           meta: { requiresRole: 'ROLE_ADMIN' },
+        },
+        {
+          path: 'repositories',
+          name: 'repositories',
+          component: () => import('@/views/RepositoriesView.vue'),
+          meta: { requiresAuth: true },
         },
         {
           path: 'storage-pools',

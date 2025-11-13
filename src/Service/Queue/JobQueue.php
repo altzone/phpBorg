@@ -166,9 +166,9 @@ final class JobQueue
     /**
      * Mark job as running
      */
-    public function markRunning(int $jobId): void
+    public function markRunning(int $jobId, ?string $workerId = null): void
     {
-        $this->jobRepository->updateStatus($jobId, 'running');
+        $this->jobRepository->updateStatus($jobId, 'running', null, $workerId);
         $this->logger->info("Job #{$jobId} marked as running", 'QUEUE');
     }
 

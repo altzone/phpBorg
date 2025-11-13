@@ -50,6 +50,10 @@ class ServerController extends BaseController
                 'servers' => array_map(function($server) use ($statsMap) {
                     $stats = $statsMap[$server->id] ?? null;
 
+                    // Get repository count for this server
+                    $repositories = $this->serverManager->getRepositoriesForServer($server->id);
+                    $repositoryCount = count($repositories);
+
                     return [
                         'id' => $server->id,
                         'name' => $server->name,
@@ -59,6 +63,7 @@ class ServerController extends BaseController
                         'backupType' => $server->backupType,
                         'description' => null,  // Not stored in DB yet
                         'active' => $server->active,
+                        'repository_count' => $repositoryCount,
                         'created_at' => $server->createdAt?->format('Y-m-d H:i:s'),
                         'updated_at' => $server->updatedAt?->format('Y-m-d H:i:s'),
                         // Add server stats
@@ -399,16 +404,57 @@ class ServerController extends BaseController
             }
 
             $repositories = $this->serverManager->getRepositoriesForServer($serverId);
+            $archiveRepo = $this->archiveRepository;
 
             $this->success([
-                'repositories' => array_map(fn($repo) => [
-                    'id' => $repo->id,
-                    'server_id' => $repo->serverId,
-                    'type' => $repo->type,
-                    'repo_path' => $repo->repoPath,
-                    'compression' => $repo->compression,
-                    'created_at' => $repo->createdAt?->format('Y-m-d H:i:s'),
-                ], $repositories),
+                'repositories' => array_map(function($repo) use ($archiveRepo) {
+                    // Extract name from path (last segment)
+                    $pathParts = explode('/', trim($repo->repoPath, '/'));
+                    $name = end($pathParts) ?: 'Repository #' . $repo->id;
+
+                    // Get archives for this repo
+                    $archives = $archiveRepo->findByRepositoryId($repo->repoId);
+                    $archiveCount = count($archives);
+
+                    // Get last backup date
+                    $lastBackup = null;
+                    if ($archiveCount > 0) {
+                        // Archives are ordered by end date DESC
+                        $lastBackup = $archives[0]->end->format('Y-m-d H:i:s');
+                    }
+
+                    return [
+                        'id' => $repo->id,
+                        'server_id' => $repo->serverId,
+                        'repo_id' => $repo->repoId,
+                        'name' => $name,
+                        'type' => $repo->type,
+                        'repo_path' => $repo->repoPath,
+                        'backup_path' => $repo->backupPath,
+                        'compression' => $repo->compression,
+                        'encryption' => $repo->encryption,
+                        'archive_count' => $archiveCount,
+                        'last_backup_at' => $lastBackup,
+                        'size' => $repo->size,
+                        'deduplicated_size' => $repo->deduplicatedSize,
+                        'created_at' => $repo->modified->format('Y-m-d H:i:s'),
+                        // Retention policy
+                        'retention' => [
+                            'keep_daily' => $repo->keepDaily,
+                            'keep_weekly' => $repo->keepWeekly,
+                            'keep_monthly' => $repo->keepMonthly,
+                            'keep_yearly' => $repo->keepYearly,
+                        ],
+                        // Statistics
+                        'stats' => [
+                            'size' => $repo->size,
+                            'compressed_size' => $repo->compressedSize,
+                            'deduplicated_size' => $repo->deduplicatedSize,
+                            'total_unique_chunks' => $repo->totalUniqueChunks,
+                            'total_chunks' => $repo->totalChunks,
+                        ],
+                    ];
+                }, $repositories),
                 'total' => count($repositories),
             ]);
         } catch (PhpBorgException $e) {

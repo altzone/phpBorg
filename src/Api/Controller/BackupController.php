@@ -462,6 +462,16 @@ class BackupController extends BaseController
                 return;
             }
 
+            // Check if mount point is actually accessible (FUSE mount may be dead)
+            $mountPath = rtrim($mount->mountPath, '/');
+            if (!$this->isMountAccessible($mountPath)) {
+                // Mount is dead, clean it up
+                $this->logger->warning("Mount point {$mountPath} is not accessible, cleaning up", 'BROWSE');
+                $this->mountRepo->deleteByArchiveId($backupId);
+                $this->error('Mount has expired or is no longer accessible. Please mount the archive again.', 410, 'MOUNT_EXPIRED');
+                return;
+            }
+
             // Update last access time
             $this->mountRepo->updateLastAccessByArchiveId($backupId);
 
@@ -961,6 +971,30 @@ class BackupController extends BaseController
         } catch (PhpBorgException $e) {
             $this->error($e->getMessage(), 500, 'RESTORE_ERROR');
         }
+    }
+
+    /**
+     * Check if a FUSE mount point is accessible
+     * Returns false if mount is dead (Transport endpoint is not connected)
+     */
+    private function isMountAccessible(string $mountPath): bool
+    {
+        // Try to access the mount point
+        // If FUSE mount is dead, this will fail with "Transport endpoint is not connected"
+        $output = [];
+        $returnCode = 0;
+
+        // Use ls command to test accessibility without PHP warnings
+        exec("ls " . escapeshellarg($mountPath) . " 2>&1", $output, $returnCode);
+
+        // Check if the output contains the telltale sign of a dead FUSE mount
+        $outputStr = implode("\n", $output);
+        if (strpos($outputStr, 'Transport endpoint is not connected') !== false) {
+            return false;
+        }
+
+        // Return code 0 means accessible
+        return $returnCode === 0;
     }
 
     /**

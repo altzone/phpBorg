@@ -6,6 +6,7 @@ namespace PhpBorg\Api\Controller;
 
 use PhpBorg\Application;
 use PhpBorg\Exception\PhpBorgException;
+use PhpBorg\Repository\JobRepository;
 
 /**
  * Worker management API controller
@@ -13,9 +14,11 @@ use PhpBorg\Exception\PhpBorgException;
  */
 class WorkerController extends BaseController
 {
+    private readonly JobRepository $jobRepository;
+
     public function __construct(Application $app)
     {
-        // No specific dependencies needed
+        $this->jobRepository = $app->getJobRepository();
     }
 
     /**
@@ -243,17 +246,49 @@ class WorkerController extends BaseController
         $uptime = null;
 
         foreach ($statusOutput as $line) {
-            if (preg_match('/Memory:\s*([\d.]+[A-Z]+)/', $line, $matches)) {
+            // Parse Memory (handles both "10.4M" and "10.4M (max: 512.0M...)")
+            if (preg_match('/Memory:\s*([\d.]+[KMGT]?B?)/', $line, $matches)) {
                 $memory = $matches[1];
             }
+            // Parse CPU (handles "104ms" format)
             if (preg_match('/CPU:\s*([\d.]+[a-z]+)/', $line, $matches)) {
                 $cpu = $matches[1];
             }
+            // Parse Main PID
             if (preg_match('/Main PID:\s*(\d+)/', $line, $matches)) {
                 $pid = (int)$matches[1];
             }
-            if (preg_match('/Active:\s*active[^;]+;\s*(.+)$/', $line, $matches)) {
-                $uptime = trim($matches[1]);
+            // Parse Active/Uptime
+            if (preg_match('/Active:\s*active\s*\(running\)\s*since\s+(.+);\s*(.+)$/', $line, $matches)) {
+                $uptime = trim($matches[2]);
+            }
+        }
+
+        // Get current running job for worker pool instances
+        $currentJob = null;
+        if (strpos($serviceName, 'phpborg-worker@') === 0) {
+            try {
+                // Extract worker number from service name (e.g., phpborg-worker@2 -> WORKER #2)
+                preg_match('/phpborg-worker@(\d+)/', $serviceName, $matches);
+                if (isset($matches[1])) {
+                    $workerTag = "WORKER #{$matches[1]}";
+
+                    // Find job with matching worker_id
+                    $runningJobs = $this->jobRepository->findByStatus('running');
+                    foreach ($runningJobs as $job) {
+                        if ($job->workerId === $workerTag) {
+                            $currentJob = [
+                                'id' => $job->id,
+                                'type' => $job->type,
+                                'description' => $job->payload['description'] ?? $job->type,
+                                'progress' => $job->progress,
+                            ];
+                            break;
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // Silently fail - current_job will be null
             }
         }
 
@@ -266,6 +301,7 @@ class WorkerController extends BaseController
             'cpu' => $cpu,
             'pid' => $pid,
             'uptime' => $uptime,
+            'current_job' => $currentJob,
         ];
     }
 

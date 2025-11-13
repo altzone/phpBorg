@@ -3,15 +3,15 @@
     <!-- Header -->
     <div class="flex justify-between items-center mb-8">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Backup Jobs</h1>
-        <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Schedule automatic backups for your repositories</p>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ $t('backup_jobs.title') }}</h1>
+        <p class="mt-2 text-gray-600 dark:text-gray-400">{{ $t('backup_jobs.subtitle') }}</p>
       </div>
-      <button @click="openJobModal()" class="btn btn-primary">
+      <RouterLink to="/backup-wizard" class="btn btn-primary">
         <svg class="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        Create Backup Job
-      </button>
+        {{ $t('backup_jobs.new_wizard') }}
+      </RouterLink>
     </div>
 
     <!-- Error Message -->
@@ -27,7 +27,7 @@
     </div>
 
     <!-- Info Card -->
-    <div class="card mb-6 bg-blue-50 border-blue-200">
+    <div class="card mb-6 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
       <div class="flex">
         <div class="flex-shrink-0">
           <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
@@ -35,14 +35,14 @@
           </svg>
         </div>
         <div class="ml-3">
-          <h3 class="text-sm font-medium text-blue-800">About Backup Jobs</h3>
-          <div class="mt-2 text-sm text-blue-700">
-            <p>Backup jobs allow you to schedule automatic backups for your repositories. Configure when and how often backups should run.</p>
+          <h3 class="text-sm font-medium text-blue-800 dark:text-blue-300">{{ $t('backup_jobs.about_title') }}</h3>
+          <div class="mt-2 text-sm text-blue-700 dark:text-blue-400">
+            <p>{{ $t('backup_jobs.about_description') }}</p>
             <ul class="list-disc pl-5 mt-2 space-y-1">
-              <li><strong>Manual:</strong> Backups are triggered manually only</li>
-              <li><strong>Daily:</strong> Runs every day at a specified time</li>
-              <li><strong>Weekly:</strong> Runs once per week on a specific day</li>
-              <li><strong>Monthly:</strong> Runs once per month on a specific day</li>
+              <li>{{ $t('backup_jobs.about_manual') }}</li>
+              <li>{{ $t('backup_jobs.about_daily') }}</li>
+              <li>{{ $t('backup_jobs.about_weekly') }}</li>
+              <li>{{ $t('backup_jobs.about_monthly') }}</li>
             </ul>
           </div>
         </div>
@@ -53,7 +53,7 @@
     <div v-if="loading" class="card">
       <div class="text-center py-12">
         <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 dark:border-gray-700 border-t-primary-600"></div>
-        <p class="mt-4 text-gray-600 dark:text-gray-400 dark:text-gray-500">Loading backup jobs...</p>
+        <p class="mt-4 text-gray-600 dark:text-gray-400">{{ $t('backup_jobs.loading') }}</p>
       </div>
     </div>
 
@@ -66,58 +66,58 @@
             <span
               :class="[
                 'px-2 py-1 text-xs font-semibold rounded',
-                job.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800 dark:text-gray-200'
+                job.enabled ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
               ]"
             >
-              {{ job.enabled ? 'Enabled' : 'Disabled' }}
+              {{ job.enabled ? $t('backup_jobs.enabled') : $t('backup_jobs.disabled') }}
             </span>
             <span
               v-if="job.schedule_type !== 'manual'"
-              class="px-2 py-1 text-xs font-semibold bg-blue-100 text-blue-800 rounded"
+              class="px-2 py-1 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 rounded"
             >
-              Scheduled
+              {{ $t('backup_jobs.scheduled') }}
             </span>
           </div>
         </div>
 
         <!-- Repository Info -->
-        <div v-if="job.repository" class="mb-3 p-2 bg-gray-50 dark:bg-gray-800 rounded text-sm">
-          <div class="font-medium text-gray-700 dark:text-gray-300">Repository:</div>
-          <div class="text-gray-600 dark:text-gray-400 dark:text-gray-500 dark:text-gray-500 dark:text-gray-400">{{ job.repository.type || 'Backup' }} @ {{ job.repository.repo_path }}</div>
+        <div v-if="job.repository" class="mb-3 p-2 bg-gray-50 dark:bg-gray-700 rounded text-sm">
+          <div class="font-medium text-gray-700 dark:text-gray-300">{{ $t('backup_jobs.repository') }}:</div>
+          <div class="text-gray-600 dark:text-gray-400">{{ job.repository.type || 'Backup' }} @ {{ job.repository.repo_path }}</div>
         </div>
 
         <!-- Schedule Info -->
         <div class="space-y-2 mb-4">
           <div class="flex justify-between text-sm">
-            <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Schedule:</span>
+            <span class="text-gray-600 dark:text-gray-400">{{ $t('backup_jobs.schedule') }}:</span>
             <span class="font-semibold text-gray-900 dark:text-gray-100">
               {{ job.schedule_description }}
               <!-- Show indicator if multi-selection -->
-              <span v-if="job.selected_weekdays && job.selected_weekdays.length > 1" 
-                    class="ml-1 text-xs text-blue-600" 
-                    :title="`Selected days: ${job.selected_weekdays.map(d => weekDays[d-1].full).join(', ')}`">
-                ({{ job.selected_weekdays.length }} days)
+              <span v-if="job.selected_weekdays && job.selected_weekdays.length > 1"
+                    class="ml-1 text-xs text-blue-600 dark:text-blue-400"
+                    :title="$t('backup_jobs.selected_days_tooltip', { days: job.selected_weekdays.map(d => weekDays[d-1].full).join(', ') })">
+                {{ $t('backup_jobs.days_count', { count: job.selected_weekdays.length }) }}
               </span>
-              <span v-else-if="job.selected_monthdays && job.selected_monthdays.length > 1" 
-                    class="ml-1 text-xs text-blue-600"
-                    :title="`Selected days: ${job.selected_monthdays.join(', ')}`">
-                ({{ job.selected_monthdays.length }} days)
+              <span v-else-if="job.selected_monthdays && job.selected_monthdays.length > 1"
+                    class="ml-1 text-xs text-blue-600 dark:text-blue-400"
+                    :title="$t('backup_jobs.selected_days_tooltip', { days: job.selected_monthdays.join(', ') })">
+                {{ $t('backup_jobs.days_count', { count: job.selected_monthdays.length }) }}
               </span>
             </span>
           </div>
 
           <div v-if="job.next_run_at" class="flex justify-between text-sm">
-            <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Next Run:</span>
-            <span class="font-semibold text-blue-700">{{ formatDateTime(job.next_run_at) }}</span>
+            <span class="text-gray-600 dark:text-gray-400">{{ $t('backup_jobs.next_run') }}:</span>
+            <span class="font-semibold text-blue-700 dark:text-blue-400">{{ formatDateTime(job.next_run_at) }}</span>
           </div>
 
           <div v-if="job.last_run_at" class="flex justify-between text-sm">
-            <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Last Run:</span>
+            <span class="text-gray-600 dark:text-gray-400">{{ $t('backup_jobs.last_run') }}:</span>
             <span :class="[
               'font-semibold',
-              job.last_status === 'success' ? 'text-green-700' :
-              job.last_status === 'failure' ? 'text-red-700' :
-              job.last_status === 'running' ? 'text-blue-700' : 'text-gray-700 dark:text-gray-300'
+              job.last_status === 'success' ? 'text-green-700 dark:text-green-400' :
+              job.last_status === 'failure' ? 'text-red-700 dark:text-red-400' :
+              job.last_status === 'running' ? 'text-blue-700 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'
             ]">
               {{ formatDateTime(job.last_run_at) }}
               <span v-if="job.last_status === 'success'">✓</span>
@@ -127,32 +127,32 @@
           </div>
 
           <!-- Notifications -->
-          <div class="flex gap-4 text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-2">
+          <div class="flex gap-4 text-xs text-gray-600 dark:text-gray-400 mt-2">
             <span v-if="job.notify_on_success" class="flex items-center gap-1">
-              <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+              <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
                 <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
               </svg>
-              Notify on success
+              {{ $t('backup_jobs.notify_on_success') }}
             </span>
             <span v-if="job.notify_on_failure" class="flex items-center gap-1">
-              <svg class="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+              <svg class="w-4 h-4 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
                 <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
               </svg>
-              Notify on failure
+              {{ $t('backup_jobs.notify_on_failure') }}
             </span>
           </div>
         </div>
 
         <!-- Actions -->
-        <div class="flex gap-2 pt-4 border-t">
+        <div class="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
           <button
             @click="runJobNow(job)"
             class="btn btn-primary flex-1 text-sm"
             :disabled="runningJobs.includes(job.id)"
           >
-            {{ runningJobs.includes(job.id) ? 'Running...' : 'Run Now' }}
+            {{ runningJobs.includes(job.id) ? $t('backup_jobs.running') : $t('backup_jobs.run_now') }}
           </button>
           <button
             @click="toggleJob(job)"
@@ -161,16 +161,16 @@
               job.enabled ? 'btn-secondary' : 'btn-primary'
             ]"
           >
-            {{ job.enabled ? 'Disable' : 'Enable' }}
+            {{ job.enabled ? $t('backup_jobs.disable') : $t('backup_jobs.enable') }}
           </button>
           <button @click="openJobModal(job)" class="btn btn-secondary flex-1 text-sm">
-            Edit
+            {{ $t('common.edit') }}
           </button>
           <button
             @click="deleteJob(job)"
-            class="btn btn-secondary flex-1 text-sm text-red-600 hover:bg-red-50"
+            class="btn btn-secondary flex-1 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
           >
-            Delete
+            {{ $t('common.delete') }}
           </button>
         </div>
       </div>
@@ -181,24 +181,24 @@
       <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
-      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No backup jobs</h3>
-      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500">Get started by creating a new backup job.</p>
+      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">{{ $t('backup_jobs.no_jobs') }}</h3>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $t('backup_jobs.get_started') }}</p>
       <div class="mt-6">
         <button @click="openJobModal()" class="btn btn-primary">
-          Create Backup Job
+          {{ $t('backup_jobs.create_job') }}
         </button>
       </div>
     </div>
 
     <!-- Create/Edit Modal -->
-    <div v-if="showJobModal" class="fixed inset-0 bg-gray-50 dark:bg-gray-8000 bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div v-if="showJobModal" class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div class="p-6">
           <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {{ editingJob ? 'Edit Backup Job' : 'Create Backup Job' }}
+              {{ editingJob ? $t('backup_jobs.edit_job') : $t('backup_jobs.create_job') }}
             </h2>
-            <button @click="closeJobModal" class="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400">
+            <button @click="closeJobModal" class="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -208,103 +208,103 @@
           <form @submit.prevent="saveJob" class="space-y-4">
             <!-- Job Name -->
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Job Name *</label>
-              <input v-model="jobForm.name" type="text" required class="input w-full" placeholder="e.g., MySQL Daily Backup" />
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_jobs.job_name') }} *</label>
+              <input v-model="jobForm.name" type="text" required class="input w-full" :placeholder="$t('backup_jobs.job_name_placeholder')" />
             </div>
 
             <!-- Repository Selection -->
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Repository *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_jobs.repository') }} *</label>
               <select v-model="jobForm.repository_id" required class="input w-full" :disabled="editingJob">
-                <option value="">Select a repository</option>
+                <option value="">{{ $t('backup_jobs.repository_select') }}</option>
                 <option v-for="repo in repositories" :key="repo.id" :value="repo.id">
                   {{ repo.type || 'Backup' }} - {{ repo.repo_path }}
                 </option>
               </select>
-              <p v-if="editingJob" class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Repository cannot be changed after creation</p>
+              <p v-if="editingJob" class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('backup_jobs.repository_locked') }}</p>
             </div>
 
             <!-- Schedule Type -->
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Schedule Type *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_jobs.schedule_type') }} *</label>
               <select v-model="jobForm.schedule_type" required class="input w-full">
-                <option value="manual">Manual (run on demand)</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
+                <option value="manual">{{ $t('backup_jobs.schedule_manual') }}</option>
+                <option value="daily">{{ $t('backup_jobs.schedule_daily') }}</option>
+                <option value="weekly">{{ $t('backup_jobs.schedule_weekly') }}</option>
+                <option value="monthly">{{ $t('backup_jobs.schedule_monthly') }}</option>
               </select>
             </div>
 
             <!-- Time (for all scheduled types) -->
             <div v-if="jobForm.schedule_type !== 'manual'">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Time *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_jobs.time') }} *</label>
               <input v-model="jobForm.schedule_time" type="time" required class="input w-full" />
             </div>
 
             <!-- Days of Week (for weekly) - Multi-select -->
             <div v-if="jobForm.schedule_type === 'weekly'">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Days of Week *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_jobs.days_of_week') }} *</label>
               <div class="grid grid-cols-7 gap-2">
-                <label v-for="(day, index) in weekDays" :key="index" 
-                       class="flex items-center justify-center p-2 border rounded cursor-pointer hover:bg-blue-50"
-                       :class="{ 'bg-blue-100 border-blue-500': jobForm.selected_weekdays.includes(index + 1) }">
-                  <input type="checkbox" 
-                         :value="index + 1" 
+                <label v-for="(day, index) in weekDays" :key="index"
+                       class="flex items-center justify-center p-2 border rounded cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 dark:border-gray-600"
+                       :class="{ 'bg-blue-100 border-blue-500 dark:bg-blue-900/30 dark:border-blue-500': jobForm.selected_weekdays.includes(index + 1) }">
+                  <input type="checkbox"
+                         :value="index + 1"
                          v-model="jobForm.selected_weekdays"
                          class="sr-only" />
                   <span class="text-xs font-medium">{{ day.short }}</span>
                 </label>
               </div>
-              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Select one or more days for backup</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('backup_jobs.select_one_or_more') }}</p>
             </div>
 
             <!-- Days of Month (for monthly) - Multi-select -->
             <div v-if="jobForm.schedule_type === 'monthly'">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Days of Month *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_jobs.days_of_month') }} *</label>
               <div class="grid grid-cols-7 gap-2 max-h-48 overflow-y-auto">
                 <label v-for="day in 31" :key="day"
-                       class="flex items-center justify-center p-2 border rounded cursor-pointer hover:bg-blue-50 min-w-[40px]"
-                       :class="{ 'bg-blue-100 border-blue-500': jobForm.selected_monthdays.includes(day) }">
-                  <input type="checkbox" 
-                         :value="day" 
+                       class="flex items-center justify-center p-2 border rounded cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 min-w-[40px] dark:border-gray-600"
+                       :class="{ 'bg-blue-100 border-blue-500 dark:bg-blue-900/30 dark:border-blue-500': jobForm.selected_monthdays.includes(day) }">
+                  <input type="checkbox"
+                         :value="day"
                          v-model="jobForm.selected_monthdays"
                          class="sr-only" />
                   <span class="text-xs font-medium">{{ day }}</span>
                 </label>
               </div>
-              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 dark:text-gray-500 dark:text-gray-400 mt-1">Select one or more days. If day doesn't exist in month, last day will be used</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('backup_jobs.month_last_day_note') }}</p>
             </div>
 
             <!-- Notifications -->
-            <div class="border-t pt-4">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Notifications</label>
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{{ $t('backup_jobs.notifications') }}</label>
               <div class="space-y-2">
                 <div class="flex items-center">
                   <input v-model="jobForm.notify_on_success" type="checkbox" id="notify-success" class="mr-2" />
-                  <label for="notify-success" class="text-sm text-gray-700 dark:text-gray-300">Send notification on successful backup</label>
+                  <label for="notify-success" class="text-sm text-gray-700 dark:text-gray-300">{{ $t('backup_jobs.send_notification_success') }}</label>
                 </div>
                 <div class="flex items-center">
                   <input v-model="jobForm.notify_on_failure" type="checkbox" id="notify-failure" class="mr-2" />
-                  <label for="notify-failure" class="text-sm text-gray-700 dark:text-gray-300">Send notification on failed backup</label>
+                  <label for="notify-failure" class="text-sm text-gray-700 dark:text-gray-300">{{ $t('backup_jobs.send_notification_failure') }}</label>
                 </div>
               </div>
             </div>
 
             <!-- Enabled -->
-            <div class="border-t pt-4">
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
               <div class="flex items-center">
                 <input v-model="jobForm.enabled" type="checkbox" id="job-enabled" class="mr-2" />
-                <label for="job-enabled" class="text-sm font-medium text-gray-700 dark:text-gray-300">Enable this job</label>
+                <label for="job-enabled" class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('backup_jobs.enable_job') }}</label>
               </div>
             </div>
 
             <!-- Actions -->
             <div class="flex gap-3 pt-4">
               <button type="button" @click="closeJobModal" class="btn btn-secondary flex-1">
-                Cancel
+                {{ $t('common.cancel') }}
               </button>
               <button type="submit" :disabled="saving" class="btn btn-primary flex-1">
-                {{ saving ? 'Saving...' : (editingJob ? 'Update Job' : 'Create Job') }}
+                {{ saving ? $t('backup_jobs.saving') : (editingJob ? $t('backup_jobs.update') : $t('backup_jobs.create') ) }}
               </button>
             </div>
           </form>
@@ -315,9 +315,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { backupJobsService } from '../services/backupJobs'
 import { repositoryService } from '../services/repository'
+
+const { t } = useI18n()
 
 const backupJobs = ref([])
 const repositories = ref([])
@@ -342,16 +345,16 @@ const jobForm = ref({
   notify_on_failure: true,
 })
 
-// Week days configuration
-const weekDays = [
-  { short: 'Mon', full: 'Monday' },
-  { short: 'Tue', full: 'Tuesday' },
-  { short: 'Wed', full: 'Wednesday' },
-  { short: 'Thu', full: 'Thursday' },
-  { short: 'Fri', full: 'Friday' },
-  { short: 'Sat', full: 'Saturday' },
-  { short: 'Sun', full: 'Sunday' }
-]
+// Week days configuration - use computed for i18n
+const weekDays = computed(() => [
+  { short: t('backup_jobs.weekdays.mon'), full: t('backup_jobs.weekdays.monday') },
+  { short: t('backup_jobs.weekdays.tue'), full: t('backup_jobs.weekdays.tuesday') },
+  { short: t('backup_jobs.weekdays.wed'), full: t('backup_jobs.weekdays.wednesday') },
+  { short: t('backup_jobs.weekdays.thu'), full: t('backup_jobs.weekdays.thursday') },
+  { short: t('backup_jobs.weekdays.fri'), full: t('backup_jobs.weekdays.friday') },
+  { short: t('backup_jobs.weekdays.sat'), full: t('backup_jobs.weekdays.saturday') },
+  { short: t('backup_jobs.weekdays.sun'), full: t('backup_jobs.weekdays.sunday') }
+])
 
 onMounted(async () => {
   await loadBackupJobs()
@@ -365,7 +368,7 @@ async function loadBackupJobs() {
     const data = await backupJobsService.getBackupJobs()
     backupJobs.value = data.backup_jobs || []
   } catch (err) {
-    error.value = err.response?.data?.error?.message || 'Failed to load backup jobs'
+    error.value = err.response?.data?.error?.message || t('backup_jobs.error_failed_to_load')
   } finally {
     loading.value = false
   }
@@ -437,12 +440,12 @@ async function saveJob() {
 
     // Validate at least one day is selected
     if (jobForm.value.schedule_type === 'weekly' && jobForm.value.selected_weekdays.length === 0) {
-      error.value = 'Please select at least one weekday'
+      error.value = t('backup_jobs.error_at_least_one_weekday')
       saving.value = false
       return
     }
     if (jobForm.value.schedule_type === 'monthly' && jobForm.value.selected_monthdays.length === 0) {
-      error.value = 'Please select at least one day of month'
+      error.value = t('backup_jobs.error_at_least_one_monthday')
       saving.value = false
       return
     }
@@ -489,7 +492,7 @@ async function saveJob() {
     closeJobModal()
     await loadBackupJobs()
   } catch (err) {
-    error.value = err.response?.data?.error?.message || 'Failed to save backup job'
+    error.value = err.response?.data?.error?.message || t('backup_jobs.error_failed_to_save')
   } finally {
     saving.value = false
   }
@@ -501,12 +504,12 @@ async function toggleJob(job) {
     await backupJobsService.toggleBackupJob(job.id)
     await loadBackupJobs()
   } catch (err) {
-    error.value = err.response?.data?.error?.message || 'Failed to toggle backup job'
+    error.value = err.response?.data?.error?.message || t('backup_jobs.error_failed_to_toggle')
   }
 }
 
 async function deleteJob(job) {
-  if (!confirm(`Are you sure you want to delete "${job.name}"?`)) {
+  if (!confirm(t('backup_jobs.delete_confirm', { name: job.name }))) {
     return
   }
 
@@ -515,7 +518,7 @@ async function deleteJob(job) {
     await backupJobsService.deleteBackupJob(job.id)
     await loadBackupJobs()
   } catch (err) {
-    error.value = err.response?.data?.error?.message || 'Failed to delete backup job'
+    error.value = err.response?.data?.error?.message || t('backup_jobs.error_failed_to_delete')
   }
 }
 
@@ -523,17 +526,17 @@ async function runJobNow(job) {
   try {
     error.value = null
     runningJobs.value.push(job.id)
-    
+
     // Call the API to run the job immediately
     await backupJobsService.runBackupJob(job.id)
-    
+
     // Show success message (you could add a toast notification here)
-    alert(`Backup job "${job.name}" has been queued for immediate execution`)
-    
+    alert(t('backup_jobs.success_job_queued', { name: job.name }))
+
     // Reload to get updated status
     await loadBackupJobs()
   } catch (err) {
-    error.value = err.response?.data?.error?.message || 'Failed to run backup job'
+    error.value = err.response?.data?.error?.message || t('backup_jobs.error_failed_to_run')
   } finally {
     // Remove from running jobs after a delay
     setTimeout(() => {
@@ -546,7 +549,7 @@ async function runJobNow(job) {
 }
 
 function formatDateTime(dateString) {
-  if (!dateString) return 'Never'
+  if (!dateString) return t('repositories.never')
   const date = new Date(dateString)
   return date.toLocaleString()
 }

@@ -5,6 +5,8 @@
 
 # Allow phpborg user to manage scheduler service
 phpborg ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-scheduler
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-scheduler --no-pager
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-scheduler --no-pager -l
 phpborg ALL=(ALL) NOPASSWD: /bin/systemctl start phpborg-scheduler
 phpborg ALL=(ALL) NOPASSWD: /bin/systemctl stop phpborg-scheduler
 phpborg ALL=(ALL) NOPASSWD: /bin/systemctl restart phpborg-scheduler
@@ -13,6 +15,8 @@ phpborg ALL=(ALL) NOPASSWD: /bin/systemctl is-enabled phpborg-scheduler
 
 # Allow phpborg user to manage worker pool instances (with @1, @2, @3, @4)
 phpborg ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-worker@*
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-worker@* --no-pager
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-worker@* --no-pager -l
 phpborg ALL=(ALL) NOPASSWD: /bin/systemctl start phpborg-worker@*
 phpborg ALL=(ALL) NOPASSWD: /bin/systemctl stop phpborg-worker@*
 phpborg ALL=(ALL) NOPASSWD: /bin/systemctl restart phpborg-worker@*
@@ -30,6 +34,8 @@ phpborg ALL=(ALL) NOPASSWD: /bin/systemctl list-units phpborg-* --no-pager
 
 # If your web server runs as www-data, also add these lines:
 www-data ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-scheduler
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-scheduler --no-pager
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-scheduler --no-pager -l
 www-data ALL=(ALL) NOPASSWD: /bin/systemctl start phpborg-scheduler
 www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop phpborg-scheduler
 www-data ALL=(ALL) NOPASSWD: /bin/systemctl restart phpborg-scheduler
@@ -37,6 +43,8 @@ www-data ALL=(ALL) NOPASSWD: /bin/systemctl is-active phpborg-scheduler
 www-data ALL=(ALL) NOPASSWD: /bin/systemctl is-enabled phpborg-scheduler
 
 www-data ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-worker@*
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-worker@* --no-pager
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-worker@* --no-pager -l
 www-data ALL=(ALL) NOPASSWD: /bin/systemctl start phpborg-worker@*
 www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop phpborg-worker@*
 www-data ALL=(ALL) NOPASSWD: /bin/systemctl restart phpborg-worker@*

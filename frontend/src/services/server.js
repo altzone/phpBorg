@@ -4,9 +4,16 @@ export const serverService = {
   /**
    * Get all servers
    */
-  async getServers() {
+  async list() {
     const response = await api.get('/servers')
-    return response.data.data
+    return response.data.data?.servers || response.data.servers || []
+  },
+
+  /**
+   * Get all servers (alias for backward compatibility)
+   */
+  async getServers() {
+    return this.list()
   },
 
   /**

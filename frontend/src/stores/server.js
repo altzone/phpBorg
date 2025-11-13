@@ -15,7 +15,8 @@ export const useServerStore = defineStore('server', () => {
       loading.value = true
       error.value = null
       const data = await serverService.getServers()
-      servers.value = data.servers || []
+      // getServers() now returns array directly, not {servers: []}
+      servers.value = Array.isArray(data) ? data : (data.servers || [])
       return true
     } catch (err) {
       error.value = err.response?.data?.error?.message || 'Failed to fetch servers'

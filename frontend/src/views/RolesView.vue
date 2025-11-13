@@ -3,8 +3,8 @@
     <!-- Header -->
     <div class="flex justify-between items-center mb-8">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Roles & Permissions</h1>
-        <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Configure permissions for each role</p>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ $t('roles.title') }}</h1>
+        <p class="mt-2 text-gray-600 dark:text-gray-400">{{ $t('roles.subtitle') }}</p>
       </div>
     </div>
 
@@ -123,8 +123,10 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoleStore } from '@/stores/role'
 
+const { t } = useI18n()
 const roleStore = useRoleStore()
 
 const permissionsForms = reactive({})

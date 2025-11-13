@@ -94,6 +94,21 @@ export const backupService = {
   },
 
   /**
+   * Get mount job status
+   * @param {number} id - Backup ID
+   * @returns {Promise<Object>}
+   */
+  async getMountJob(id) {
+    // Get the mount job for this archive
+    const backup = await this.get(id)
+    if (backup.mount_job_id) {
+      const response = await api.get(`/jobs/${backup.mount_job_id}`)
+      return response.data.data?.job || response.data.job
+    }
+    return { status: 'unknown' }
+  },
+
+  /**
    * Browse files in a mounted archive
    * @param {number} id - Backup ID
    * @param {string} path - Path to browse (default: '/')

@@ -3,16 +3,15 @@
     <!-- Header -->
     <div class="flex justify-between items-center mb-8">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Backups</h1>
-        <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Browse and manage backup archives</p>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ $t('backups.title') }}</h1>
+        <p class="mt-2 text-gray-600 dark:text-gray-400">{{ $t('backups.subtitle') }}</p>
       </div>
-      <button
-        v-if="authStore.isAdmin || authStore.isOperator"
-        @click="showCreateModal = true"
-        class="btn btn-primary"
-      >
-        + Create Backup
-      </button>
+      <RouterLink to="/restore-wizard" class="btn btn-primary">
+        <svg class="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+        </svg>
+        {{ $t('backups.browse_restore_wizard') }}
+      </RouterLink>
     </div>
 
     <!-- Error Message -->
@@ -30,23 +29,23 @@
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       <div class="card bg-blue-50">
-        <div class="text-sm text-blue-600 mb-1">Total Backups</div>
+        <div class="text-sm text-blue-600 mb-1">{{ $t('backups.total_backups') }}</div>
         <div class="text-2xl font-bold text-blue-900">{{ backupStore.stats.total_backups }}</div>
       </div>
       <div class="card bg-green-50">
-        <div class="text-sm text-green-600 mb-1">Total Size</div>
+        <div class="text-sm text-green-600 mb-1">{{ $t('backups.total_size') }}</div>
         <div class="text-2xl font-bold text-green-900">{{ formatBytes(backupStore.stats.total_original_size) }}</div>
-        <div class="text-xs text-green-600 mt-1">Original</div>
+        <div class="text-xs text-green-600 mt-1">{{ $t('backups.original') }}</div>
       </div>
       <div class="card bg-purple-50">
-        <div class="text-sm text-purple-600 mb-1">Compression</div>
+        <div class="text-sm text-purple-600 mb-1">{{ $t('backups.compression') }}</div>
         <div class="text-2xl font-bold text-purple-900">{{ backupStore.stats.compression_ratio }}%</div>
-        <div class="text-xs text-purple-600 mt-1">{{ formatBytes(backupStore.stats.total_compressed_size) }} saved</div>
+        <div class="text-xs text-purple-600 mt-1">{{ formatBytes(backupStore.stats.total_compressed_size) }} {{ $t('backups.saved') }}</div>
       </div>
       <div class="card bg-orange-50">
-        <div class="text-sm text-orange-600 mb-1">Deduplication</div>
+        <div class="text-sm text-orange-600 mb-1">{{ $t('backups.deduplication') }}</div>
         <div class="text-2xl font-bold text-orange-900">{{ backupStore.stats.deduplication_ratio }}%</div>
-        <div class="text-xs text-orange-600 mt-1">{{ formatBytes(backupStore.stats.total_deduplicated_size) }} stored</div>
+        <div class="text-xs text-orange-600 mt-1">{{ formatBytes(backupStore.stats.total_deduplicated_size) }} {{ $t('backups.stored') }}</div>
       </div>
     </div>
 
@@ -54,7 +53,7 @@
     <div v-if="backupStore.loading && !backupStore.backups.length" class="card">
       <div class="text-center py-12">
         <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 dark:border-gray-700 border-t-primary-600"></div>
-        <p class="mt-4 text-gray-600 dark:text-gray-400 dark:text-gray-500">Loading backups...</p>
+        <p class="mt-4 text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backups.loading_backups') }}</p>
       </div>
     </div>
 
@@ -64,15 +63,8 @@
         <svg class="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
         </svg>
-        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No backups yet</h3>
-        <p class="text-sm mb-4">Create your first backup to get started</p>
-        <button
-          v-if="authStore.isAdmin || authStore.isOperator"
-          @click="showCreateModal = true"
-          class="btn btn-primary"
-        >
-          + Create Backup
-        </button>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">{{ $t('backups.no_backups') }}</h3>
+        <p class="text-sm">{{ $t('backups.no_backups_msg') }}</p>
       </div>
     </div>
 
@@ -90,7 +82,7 @@
             v-model="searchQuery"
             type="text"
             class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            placeholder="Rechercher par nom d'archive, serveur, ou type..."
+            :placeholder="$t('backups.search_placeholder')"
           >
         </div>
       </div>
@@ -101,7 +93,7 @@
             <tr>
               <th @click="sortBy('server_name')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center gap-1">
-                  Serveur
+                  {{ $t('backups.server') }}
                   <svg v-if="sortColumn === 'server_name'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
                   </svg>
@@ -109,7 +101,7 @@
               </th>
               <th @click="sortBy('repository_type')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center gap-1">
-                  Storage Pool
+                  {{ $t('backups.storage_pool') }}
                   <svg v-if="sortColumn === 'repository_type'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
                   </svg>
@@ -117,7 +109,7 @@
               </th>
               <th @click="sortBy('name')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center gap-1">
-                  Archive
+                  {{ $t('backups.archive') }}
                   <svg v-if="sortColumn === 'name'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
                   </svg>
@@ -125,7 +117,7 @@
               </th>
               <th @click="sortBy('end')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center gap-1">
-                  Date
+                  {{ $t('backups.date') }}
                   <svg v-if="sortColumn === 'end'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
                   </svg>
@@ -133,7 +125,7 @@
               </th>
               <th @click="sortBy('original_size')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center gap-1">
-                  Taille
+                  {{ $t('backups.size') }}
                   <svg v-if="sortColumn === 'original_size'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
                   </svg>
@@ -141,14 +133,14 @@
               </th>
               <th @click="sortBy('files_count')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
                 <div class="flex items-center gap-1">
-                  Fichiers
+                  {{ $t('backups.files') }}
                   <svg v-if="sortColumn === 'files_count'" class="w-4 h-4" :class="{'rotate-180': sortDirection === 'desc'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
                   </svg>
                 </div>
               </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider">Stats</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider" v-if="authStore.isAdmin">Actions</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ $t('backups.stats') }}</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase tracking-wider" v-if="authStore.isAdmin">{{ $t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200 dark:divide-gray-700">
@@ -167,36 +159,36 @@
                   <span
                     v-if="backup.mount_status === 'mounted'"
                     class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"
-                    title="Archive is currently mounted"
+                    :title="$t('backups.mounted_tooltip')"
                   >
                     <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                     </svg>
-                    Mounted
+                    {{ $t('backups.mounted') }}
                   </span>
                   <span
                     v-else-if="backup.mount_status === 'mounting'"
                     class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
-                    title="Archive is being mounted"
+                    :title="$t('backups.mounting_tooltip')"
                   >
                     <svg class="w-3 h-3 mr-1 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    Mounting...
+                    {{ $t('backups.mounting') }}
                   </span>
                   <span
                     v-else-if="backup.mount_status === 'unmounting'"
                     class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800"
-                    title="Archive is being unmounted"
+                    :title="$t('backups.unmounting_tooltip')"
                   >
-                    Unmounting...
+                    {{ $t('backups.unmounting') }}
                   </span>
                   <span
                     v-else-if="backup.mount_status === 'error'"
                     class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800"
-                    title="Mount error"
+                    :title="$t('backups.mount_error_tooltip')"
                   >
-                    Error
+                    {{ $t('backups.mount_error') }}
                   </span>
                 </div>
               </td>
@@ -213,8 +205,8 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
-                  <div>Compression: <span class="font-medium">{{ backup.compression_ratio }}%</span></div>
-                  <div>Dedup: <span class="font-medium">{{ backup.deduplication_ratio }}%</span></div>
+                  <div>{{ $t('backups.compression_stats') }}: <span class="font-medium">{{ backup.compression_ratio }}%</span></div>
+                  <div>{{ $t('backups.dedup_stats') }}: <span class="font-medium">{{ backup.deduplication_ratio }}%</span></div>
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" v-if="authStore.isAdmin">
@@ -222,7 +214,7 @@
                   <button
                     @click="handleBrowse(backup)"
                     class="text-primary-600 hover:text-primary-900"
-                    title="Browse files"
+                    :title="$t('backups.browse_files')"
                   >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -231,7 +223,7 @@
                   <button
                     @click="confirmDelete(backup)"
                     class="text-red-600 hover:text-red-900"
-                    title="Delete backup"
+                    :title="$t('backups.delete_backup')"
                   >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -246,93 +238,47 @@
 
       <!-- Results count -->
       <div v-if="searchQuery" class="mt-4 text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500">
-        {{ filteredAndSortedBackups.length }} résultat(s) trouvé(s)
-      </div>
-    </div>
-
-    <!-- Create Backup Modal -->
-    <div v-if="showCreateModal" class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="showCreateModal = false">
-      <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Create Backup</h3>
-          <button @click="showCreateModal = false" class="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:text-gray-400">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <form @submit.prevent="handleCreateBackup">
-          <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Server</label>
-            <select v-model="createForm.server_id" required class="input w-full">
-              <option value="">Select a server...</option>
-              <option v-for="server in serverStore.servers" :key="server.id" :value="server.id">
-                {{ server.name }} ({{ server.hostname }})
-              </option>
-            </select>
-          </div>
-
-          <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Backup Type</label>
-            <select v-model="createForm.type" required class="input w-full">
-              <option value="backup">Filesystem</option>
-              <option value="mysql">MySQL</option>
-              <option value="postgres">PostgreSQL</option>
-              <option value="mongodb">MongoDB</option>
-              <option value="elasticsearch">Elasticsearch</option>
-            </select>
-          </div>
-
-          <div class="flex gap-3">
-            <button type="button" @click="showCreateModal = false" class="btn btn-secondary flex-1">
-              Cancel
-            </button>
-            <button type="submit" class="btn btn-primary flex-1">
-              Create Backup
-            </button>
-          </div>
-        </form>
+        {{ $t('backups.results_found', { count: filteredAndSortedBackups.length }) }}
       </div>
     </div>
 
     <!-- Delete Confirmation Modal -->
     <div v-if="showDeleteModal" class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="showDeleteModal = false">
-      <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+      <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Delete Backup</h3>
-          <button @click="showDeleteModal = false" class="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:text-gray-400">
+          <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ $t('backups.delete_modal.title') }}</h3>
+          <button @click="showDeleteModal = false" class="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-400">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <div class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-6">
+        <div class="text-sm text-gray-600 dark:text-gray-400 mb-6">
           <p class="mb-3">
-            Êtes-vous sûr de vouloir supprimer cette archive de backup ?
+            {{ $t('backups.delete_modal.question') }}
           </p>
-          <div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg mb-3">
-            <p><strong>Archive :</strong> {{ backupToDelete?.name }}</p>
-            <p><strong>Serveur :</strong> {{ backupToDelete?.server_name }}</p>
-            <p><strong>Type :</strong> {{ backupToDelete?.repository_type }}</p>
+          <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg mb-3">
+            <p><strong>{{ $t('backups.delete_modal.archive') }}</strong> {{ backupToDelete?.name }}</p>
+            <p><strong>{{ $t('backups.delete_modal.server') }}</strong> {{ backupToDelete?.server_name }}</p>
+            <p><strong>{{ $t('backups.delete_modal.type') }}</strong> {{ backupToDelete?.repository_type }}</p>
           </div>
-          <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-            <p class="text-yellow-800 font-medium mb-1">⚠️ Attention :</p>
-            <p class="text-yellow-700 text-xs">
-              • Cette action est <strong>irréversible</strong><br>
-              • L'archive sera supprimée définitivement du repository Borg<br>
-              • La suppression sera effectuée par le worker en arrière-plan
+          <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+            <p class="text-yellow-800 dark:text-yellow-300 font-medium mb-1">{{ $t('backups.delete_modal.warning_title') }}</p>
+            <p class="text-yellow-700 dark:text-yellow-400 text-xs">
+              • <span v-html="$t('backups.delete_modal.warning_irreversible')"></span><br>
+              • {{ $t('backups.delete_modal.warning_permanent') }}<br>
+              • {{ $t('backups.delete_modal.warning_background') }}
             </p>
           </div>
         </div>
 
         <div class="flex gap-3">
           <button @click="showDeleteModal = false" class="btn btn-secondary flex-1">
-            Cancel
+            {{ $t('backups.delete_modal.cancel') }}
           </button>
-          <button @click="handleDelete" class="btn bg-red-50 text-red-700 hover:bg-red-100 flex-1">
-            Delete
+          <button @click="handleDelete" class="btn bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50 flex-1">
+            {{ $t('backups.delete_modal.delete') }}
           </button>
         </div>
       </div>
@@ -341,24 +287,22 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useBackupStore } from '@/stores/backups'
 import { useServerStore } from '@/stores/server'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const authStore = useAuthStore()
 const backupStore = useBackupStore()
 const serverStore = useServerStore()
 
-const showCreateModal = ref(false)
 const showDeleteModal = ref(false)
 const backupToDelete = ref(null)
-const createForm = ref({
-  server_id: '',
-  type: 'backup'
-})
 
 // Search and sort
 const searchQuery = ref('')
@@ -412,6 +356,28 @@ function sortBy(column) {
   }
 }
 
+// Auto-refresh when there are mount/unmount operations in progress
+const hasPendingMountOperations = computed(() => {
+  return backupStore.backups.some(backup =>
+    backup.mount_status === 'mounting' || backup.mount_status === 'unmounting'
+  )
+})
+
+let refreshInterval = null
+
+watch(hasPendingMountOperations, (hasPending) => {
+  if (hasPending && !refreshInterval) {
+    // Start polling every 2 seconds
+    refreshInterval = setInterval(async () => {
+      await backupStore.fetchBackups({ limit: 100 })
+    }, 2000)
+  } else if (!hasPending && refreshInterval) {
+    // Stop polling when no operations are pending
+    clearInterval(refreshInterval)
+    refreshInterval = null
+  }
+}, { immediate: true })
+
 onMounted(async () => {
   await Promise.all([
     backupStore.fetchBackups({ limit: 100 }),
@@ -420,22 +386,12 @@ onMounted(async () => {
   ])
 })
 
-async function handleCreateBackup() {
-  try {
-    const result = await backupStore.createBackup({
-      server_id: parseInt(createForm.value.server_id),
-      type: createForm.value.type
-    })
-
-    showCreateModal.value = false
-    createForm.value = { server_id: '', type: 'backup' }
-
-    // Redirect to jobs page to monitor progress
-    router.push('/jobs')
-  } catch (err) {
-    // Error already handled by store
+onBeforeUnmount(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+    refreshInterval = null
   }
-}
+})
 
 function confirmDelete(backup) {
   backupToDelete.value = backup
@@ -452,7 +408,8 @@ async function handleDelete() {
       backupToDelete.value = null
 
       // Show success message with job info
-      alert(`✅ Suppression programmée avec succès !\n\nL'archive "${result.archive_name}" va être supprimée par le worker.\n\nJob ID: ${result.job_id}\n\nVous pouvez suivre le progrès dans la section Jobs.`)
+      const message = `${t('backups.delete_success.title')}\n\n${t('backups.delete_success.message', { name: result.archive_name })}\n\n${t('backups.delete_success.job_id', { id: result.job_id })}\n\n${t('backups.delete_success.monitor')}`
+      alert(message)
 
       // Optionally redirect to jobs page to monitor progress
       // router.push('/jobs')

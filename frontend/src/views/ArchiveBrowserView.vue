@@ -10,7 +10,7 @@
             class="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
           >
             <ArrowLeft :size="20" />
-            <span class="font-medium">Back to Backups</span>
+            <span class="font-medium">{{ $t('archive_browser.back_to_backups') }}</span>
           </button>
 
           <div class="flex items-center gap-3">
@@ -21,12 +21,12 @@
                 class="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg transition-colors font-medium border border-green-200"
               >
                 <Download :size="18" />
-                Restore ({{ selectedItems.length }})
+                {{ $t('archive_browser.restore_selected', { count: selectedItems.length }) }}
               </button>
               <button
                 @click="clearSelection"
                 class="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm"
-                title="Clear selection"
+                :title="$t('archive_browser.clear_selection')"
               >
                 <X :size="18" />
               </button>
@@ -40,7 +40,7 @@
                   'p-2 rounded transition-all',
                   viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'
                 ]"
-                title="Grid view"
+                :title="$t('archive_browser.grid_view')"
               >
                 <Grid3x3 :size="18" :class="viewMode === 'grid' ? 'text-primary-600' : 'text-gray-600'" />
               </button>
@@ -50,7 +50,7 @@
                   'p-2 rounded transition-all',
                   viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'
                 ]"
-                title="List view"
+                :title="$t('archive_browser.list_view')"
               >
                 <List :size="18" :class="viewMode === 'list' ? 'text-primary-600' : 'text-gray-600'" />
               </button>
@@ -62,7 +62,7 @@
               class="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg transition-colors font-medium"
             >
               <Power :size="18" />
-              {{ unmounting ? 'Unmounting...' : 'Unmount' }}
+              {{ unmounting ? $t('archive_browser.unmounting') : $t('archive_browser.unmount') }}
             </button>
           </div>
         </div>
@@ -84,7 +84,7 @@
               @click="navigateToPath('/')"
               class="text-primary-600 hover:text-primary-800 font-medium transition-colors"
             >
-              Root
+              {{ $t('archive_browser.root') }}
             </button>
             <template v-for="(segment, index) in pathSegments" :key="index">
               <ChevronRight :size="14" class="text-gray-400" />
@@ -106,7 +106,7 @@
             <input
               v-model="searchQuery"
               type="text"
-              placeholder="Search in current directory..."
+              :placeholder="$t('archive_browser.search_placeholder')"
               class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
           </div>
@@ -119,8 +119,8 @@
       <!-- Mounting State -->
       <div v-if="mounting" class="flex flex-col items-center justify-center py-32">
         <Loader2 :size="48" class="text-primary-600 animate-spin mb-4" />
-        <p class="text-lg text-gray-700 font-medium">Mounting archive...</p>
-        <p class="text-sm text-gray-500 mt-2">This may take a few moments</p>
+        <p class="text-lg text-gray-700 font-medium">{{ $t('archive_browser.mounting_archive') }}</p>
+        <p class="text-sm text-gray-500 mt-2">{{ $t('archive_browser.mounting_wait') }}</p>
       </div>
 
       <!-- Error State -->
@@ -128,7 +128,7 @@
         <div class="flex items-start gap-3">
           <AlertCircle :size="24" class="text-red-600 flex-shrink-0 mt-1" />
           <div class="flex-1">
-            <h3 class="text-lg font-semibold text-red-900 mb-1">Error</h3>
+            <h3 class="text-lg font-semibold text-red-900 mb-1">{{ $t('archive_browser.error') }}</h3>
             <p class="text-red-700">{{ error }}</p>
           </div>
           <button @click="$router.back()" class="text-red-600 hover:text-red-800">
@@ -147,7 +147,7 @@
         <!-- Empty Directory -->
         <div v-else-if="!filteredItems.length" class="flex flex-col items-center justify-center py-32 text-gray-500">
           <FolderOpen :size="64" class="mb-4 text-gray-300" />
-          <p class="text-lg font-medium">{{ searchQuery ? 'No files match your search' : 'This directory is empty' }}</p>
+          <p class="text-lg font-medium">{{ searchQuery ? $t('archive_browser.no_files_search') : $t('archive_browser.empty_directory') }}</p>
         </div>
 
         <!-- Grid View -->
@@ -166,7 +166,7 @@
             <button
               @click.stop="toggleSelection(item)"
               class="absolute top-2 left-2 z-10"
-              :title="isSelected(item) ? 'Deselect' : 'Select for restore'"
+              :title="isSelected(item) ? $t('archive_browser.deselect') : $t('archive_browser.select_for_restore')"
             >
               <CheckSquare v-if="isSelected(item)" :size="20" class="text-green-600" />
               <Square v-else :size="20" class="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -194,14 +194,14 @@
               <button
                 @click.stop="handlePreview(item)"
                 class="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700"
-                title="Preview"
+                :title="$t('archive_browser.preview')"
               >
                 <Eye :size="16" />
               </button>
               <button
                 @click.stop="handleDownload(item)"
                 class="bg-primary-600 text-white p-2 rounded-lg hover:bg-primary-700"
-                title="Download"
+                :title="$t('archive_browser.download')"
               >
                 <Download :size="16" />
               </button>
@@ -218,7 +218,7 @@
                   <button
                     @click="toggleSelectAll"
                     class="hover:bg-gray-100 p-1 rounded transition-colors"
-                    :title="selectedItems.length === filteredItems.length ? 'Deselect all' : 'Select all'"
+                    :title="selectedItems.length === filteredItems.length ? $t('archive_browser.deselect_all') : $t('archive_browser.select_all')"
                   >
                     <CheckSquare v-if="selectedItems.length > 0 && selectedItems.length === filteredItems.length" :size="18" class="text-green-600" />
                     <Square v-else :size="18" class="text-gray-400" />
@@ -226,7 +226,7 @@
                 </th>
                 <th @click="sortBy('name')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
                   <div class="flex items-center gap-2">
-                    Name
+                    {{ $t('archive_browser.name') }}
                     <ChevronsUpDown v-if="sortColumn !== 'name'" :size="14" class="text-gray-400" />
                     <ChevronUp v-else-if="sortDirection === 'asc'" :size="14" class="text-primary-600" />
                     <ChevronDown v-else :size="14" class="text-primary-600" />
@@ -234,7 +234,7 @@
                 </th>
                 <th @click="sortBy('size')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
                   <div class="flex items-center gap-2">
-                    Size
+                    {{ $t('archive_browser.size') }}
                     <ChevronsUpDown v-if="sortColumn !== 'size'" :size="14" class="text-gray-400" />
                     <ChevronUp v-else-if="sortDirection === 'asc'" :size="14" class="text-primary-600" />
                     <ChevronDown v-else :size="14" class="text-primary-600" />
@@ -242,7 +242,7 @@
                 </th>
                 <th @click="sortBy('modified')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
                   <div class="flex items-center gap-2">
-                    Modified
+                    {{ $t('archive_browser.modified') }}
                     <ChevronsUpDown v-if="sortColumn !== 'modified'" :size="14" class="text-gray-400" />
                     <ChevronUp v-else-if="sortDirection === 'asc'" :size="14" class="text-primary-600" />
                     <ChevronDown v-else :size="14" class="text-primary-600" />
@@ -265,7 +265,7 @@
                   <button
                     @click.stop="toggleSelection(item)"
                     class="hover:bg-gray-100 p-1 rounded transition-colors"
-                    :title="isSelected(item) ? 'Deselect' : 'Select for restore'"
+                    :title="isSelected(item) ? $t('archive_browser.deselect') : $t('archive_browser.select_for_restore')"
                   >
                     <CheckSquare v-if="isSelected(item)" :size="18" class="text-green-600" />
                     <Square v-else :size="18" class="text-gray-400" />
@@ -335,7 +335,7 @@
           <div class="flex items-center justify-between text-white">
             <h3 class="text-lg font-semibold flex items-center gap-2">
               <Power :size="20" />
-              Unmount Archive
+              {{ $t('archive_browser.unmount_modal.title') }}
             </h3>
             <button @click="showUnmountModal = false" class="hover:bg-red-700 rounded-lg p-1 transition-colors">
               <X :size="20" />
@@ -345,27 +345,25 @@
 
         <div class="p-6">
           <p class="text-gray-700 mb-4">
-            Are you sure you want to unmount this archive?
+            {{ $t('archive_browser.unmount_modal.warning') }}
           </p>
           <div class="bg-gray-50 rounded-lg p-4 mb-4">
-            <p class="text-sm"><strong>Archive:</strong> {{ archiveName }}</p>
+            <p class="text-sm"><strong>{{ $t('archive_browser.unmount_modal.archive_label') }}</strong> {{ archiveName }}</p>
           </div>
           <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-            <p class="font-medium mb-1">ℹ️ Information:</p>
+            <p class="font-medium mb-1">{{ $t('archive_browser.unmount_modal.info_title') }}</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-              <li>The unmount will be performed in the background</li>
-              <li>You will be redirected to the backups list</li>
-              <li>You can remount the archive at any time</li>
+              <li v-for="(item, index) in $tm('archive_browser.unmount_modal.info_items')" :key="index">{{ item }}</li>
             </ul>
           </div>
         </div>
 
         <div class="bg-gray-50 px-6 py-4 flex gap-3">
           <button @click="showUnmountModal = false" class="flex-1 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium">
-            Cancel
+            {{ $t('archive_browser.unmount_modal.cancel') }}
           </button>
           <button @click="confirmUnmount" :disabled="unmounting" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50">
-            {{ unmounting ? 'Unmounting...' : 'Unmount' }}
+            {{ unmounting ? $t('archive_browser.unmounting') : $t('archive_browser.unmount_modal.confirm') }}
           </button>
         </div>
       </div>
@@ -379,7 +377,7 @@
           <div class="flex items-center justify-between text-white">
             <h3 class="text-lg font-semibold flex items-center gap-2">
               <Eye :size="20" />
-              File Preview
+              {{ $t('archive_browser.preview_modal.title') }}
             </h3>
             <button @click="showPreview = false" class="hover:bg-blue-700 rounded-lg p-1 transition-colors">
               <X :size="20" />
@@ -397,7 +395,7 @@
           <div v-if="previewLoading" class="flex items-center justify-center h-full min-h-[400px]">
             <div class="text-center">
               <Loader2 :size="48" class="animate-spin text-blue-600 mx-auto mb-4" />
-              <p class="text-gray-600">Loading preview...</p>
+              <p class="text-gray-600">{{ $t('archive_browser.preview_modal.loading') }}</p>
             </div>
           </div>
 
@@ -405,7 +403,7 @@
           <div v-else-if="previewError" class="flex items-center justify-center h-full min-h-[400px]">
             <div class="text-center">
               <AlertCircle :size="48" class="text-red-600 mx-auto mb-4" />
-              <p class="text-gray-800 font-medium mb-2">Cannot preview this file</p>
+              <p class="text-gray-800 font-medium mb-2">{{ $t('archive_browser.preview_modal.cannot_preview') }}</p>
               <p class="text-gray-600 text-sm">{{ previewError }}</p>
             </div>
           </div>
@@ -430,7 +428,7 @@
         <!-- Footer -->
         <div class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex gap-3 justify-end">
           <button @click="showPreview = false" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium">
-            Close
+            {{ $t('archive_browser.preview_modal.close') }}
           </button>
           <button
             v-if="previewFile"
@@ -438,7 +436,7 @@
             class="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
           >
             <Download :size="16" />
-            Download
+            {{ $t('archive_browser.preview_modal.download') }}
           </button>
         </div>
       </div>
@@ -460,6 +458,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { backupService } from '@/services/backups'
 import { jobService } from '@/services/jobs'
 import hljs from 'highlight.js'
@@ -478,6 +477,7 @@ import {
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 
 const archiveId = parseInt(route.params.id)
 const archiveName = ref(route.query.name || '')
@@ -525,18 +525,18 @@ const pollMountStatus = async (jobId) => {
       }
 
       if (job.status === 'failed') {
-        throw new Error(job.error || 'Mount job failed')
+        throw new Error(job.error || t('archive_browser.errors.mount_failed'))
       }
 
-      if (attempts < maxAttempts && (job.status === 'pending' || job.status === 'processing')) {
+      if (attempts < maxAttempts && (job.status === 'pending' || job.status === 'running')) {
         attempts++
         setTimeout(poll, 1000)
       } else if (attempts >= maxAttempts) {
-        throw new Error('Mount timeout - archive took too long to mount')
+        throw new Error(t('archive_browser.errors.mount_timeout'))
       }
     } catch (err) {
       mounting.value = false
-      error.value = err.message || 'Failed to check mount status'
+      error.value = err.message || t('archive_browser.errors.mount_status_failed')
     }
   }
 
@@ -559,7 +559,7 @@ const mountArchive = async () => {
     }
   } catch (err) {
     mounting.value = false
-    error.value = err.response?.data?.error?.message || err.message || 'Failed to mount archive'
+    error.value = err.response?.data?.error?.message || err.message || t('archive_browser.errors.mount_failed')
   }
 }
 
@@ -573,7 +573,20 @@ const loadDirectory = async (path) => {
     currentPath.value = result.path
     items.value = result.items
   } catch (err) {
-    error.value = err.response?.data?.error?.message || err.message || 'Failed to load directory'
+    const errorCode = err.response?.data?.error?.code
+    const errorMessage = err.response?.data?.error?.message || err.message || 'Failed to load directory'
+
+    // If mount has expired, automatically remount
+    if (errorCode === 'MOUNT_EXPIRED') {
+      error.value = t('archive_browser.errors.mount_expired')
+      items.value = []
+      loading.value = false
+      // Automatically remount
+      await mountArchive()
+      return
+    }
+
+    error.value = errorMessage
     items.value = []
   } finally {
     loading.value = false
@@ -587,9 +600,10 @@ const confirmUnmount = async () => {
 
   try {
     await backupService.unmount(archiveId)
+    unmounting.value = false
     router.push('/backups')
   } catch (err) {
-    error.value = err.response?.data?.error?.message || err.message || 'Failed to unmount archive'
+    error.value = err.response?.data?.error?.message || err.message || t('archive_browser.errors.unmount_failed')
     unmounting.value = false
   }
 }
@@ -626,7 +640,7 @@ const handleDownload = async (item) => {
     window.URL.revokeObjectURL(url)
     document.body.removeChild(a)
   } catch (err) {
-    error.value = 'Failed to download file: ' + (err.response?.data?.error?.message || err.message || 'Unknown error')
+    error.value = t('archive_browser.errors.download_failed') + ': ' + (err.response?.data?.error?.message || err.message)
   }
 }
 
@@ -724,11 +738,11 @@ const handlePreview = async (item) => {
           language: language
         }
       } else {
-        previewError.value = 'Preview not available for this file type'
+        previewError.value = t('archive_browser.preview_modal.cannot_preview')
       }
     }
   } catch (err) {
-    previewError.value = err.response?.data?.error?.message || 'Failed to load preview'
+    previewError.value = err.response?.data?.error?.message || t('archive_browser.preview_modal.error')
   } finally {
     previewLoading.value = false
   }

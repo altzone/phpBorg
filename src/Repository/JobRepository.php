@@ -103,7 +103,7 @@ final class JobRepository
     /**
      * Update job status
      */
-    public function updateStatus(int $id, string $status, ?string $error = null): void
+    public function updateStatus(int $id, string $status, ?string $error = null, ?string $workerId = null): void
     {
         $fields = ['status = ?'];
         $params = [$status];
@@ -111,9 +111,17 @@ final class JobRepository
         if ($status === 'running') {
             $fields[] = 'started_at = ?';
             $params[] = (new DateTime())->format('Y-m-d H:i:s');
+
+            if ($workerId !== null) {
+                $fields[] = 'worker_id = ?';
+                $params[] = $workerId;
+            }
         } elseif (in_array($status, ['completed', 'failed', 'cancelled'])) {
             $fields[] = 'completed_at = ?';
             $params[] = (new DateTime())->format('Y-m-d H:i:s');
+
+            // Clear worker_id when job finishes
+            $fields[] = 'worker_id = NULL';
         }
 
         if ($error !== null) {
@@ -221,6 +229,7 @@ final class JobRepository
             type: $row['type'],
             payload: json_decode($row['payload'], true) ?? [],
             status: $row['status'],
+            workerId: $row['worker_id'] ?? null,
             progress: (int) $row['progress'],
             attempts: (int) $row['attempts'],
             maxAttempts: (int) $row['max_attempts'],

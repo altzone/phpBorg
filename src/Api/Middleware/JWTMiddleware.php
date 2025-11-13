@@ -92,13 +92,20 @@ final class JWTMiddleware
 
     /**
      * Get bearer token from request
+     * Checks Authorization header first, then falls back to query parameter for SSE
      */
     private function getBearerToken(): ?string
     {
+        // First, try Authorization header
         $headers = $this->getAuthorizationHeader();
 
         if ($headers !== null && preg_match('/Bearer\s+(.*)$/i', $headers, $matches)) {
             return $matches[1];
+        }
+
+        // Fallback to query parameter (for SSE EventSource which can't send custom headers)
+        if (isset($_GET['token'])) {
+            return $_GET['token'];
         }
 
         return null;

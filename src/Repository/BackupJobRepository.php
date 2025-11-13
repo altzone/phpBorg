@@ -363,8 +363,14 @@ final class BackupJobRepository
             return;
         }
 
-        $nextRun = $this->calculateNextRun($job);
-        $nextRunStr = $nextRun ? $nextRun->format('Y-m-d H:i:s') : null;
+        // Calculate next run using job properties
+        $nextRunStr = $this->calculateNextRun(
+            $job->scheduleType,
+            $job->scheduleTime,
+            $job->scheduleDayOfWeek,
+            $job->scheduleDayOfMonth,
+            $job->cronExpression
+        );
 
         $sql = 'UPDATE backup_jobs
                 SET last_run_at = ?,

@@ -10,6 +10,7 @@ use PhpBorg\Service\Queue\Handlers\ArchiveMountHandler;
 use PhpBorg\Service\Queue\Handlers\ArchiveRestoreHandler;
 use PhpBorg\Service\Queue\Handlers\BackupCreateHandler;
 use PhpBorg\Service\Queue\Handlers\CapabilitiesDetectionHandler;
+use PhpBorg\Service\Queue\Handlers\RepositoryDeleteHandler;
 use PhpBorg\Service\Queue\Handlers\ServerSetupHandler;
 use PhpBorg\Service\Queue\Handlers\ServerStatsCollectHandler;
 use PhpBorg\Service\Queue\Handlers\StoragePoolAnalyzeHandler;
@@ -42,15 +43,26 @@ final class WorkerStartCommand extends Command
                 InputOption::VALUE_OPTIONAL,
                 'Queue name to process',
                 'default'
+            )
+            ->addOption(
+                'worker-id',
+                null,
+                InputOption::VALUE_OPTIONAL,
+                'Worker ID (for logging)',
+                null
             );
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $queueName = $input->getOption('queue');
+        $workerId = $input->getOption('worker-id');
 
         $output->writeln('<info>Starting phpBorg worker...</info>');
         $output->writeln("Queue: {$queueName}");
+        if ($workerId) {
+            $output->writeln("Worker ID: {$workerId}");
+        }
         $output->writeln('');
 
         // Get services from DI container
@@ -58,7 +70,7 @@ final class WorkerStartCommand extends Command
         $logger = $this->app->getLogger();
 
         // Create worker
-        $worker = new Worker($jobQueue, $logger);
+        $worker = new Worker($jobQueue, $logger, $workerId);
 
         // Register job handlers
         $worker->registerHandler('test_job', new TestJobHandler());
@@ -118,6 +130,14 @@ final class WorkerStartCommand extends Command
 
         $worker->registerHandler('storage_pool_analyze', new StoragePoolAnalyzeHandler(
             $this->app->getStoragePoolRepository(),
+            $logger
+        ));
+
+        $worker->registerHandler('repository_delete', new RepositoryDeleteHandler(
+            $this->app->getBorgRepositoryRepository(),
+            $this->app->getArchiveRepository(),
+            $this->app->getArchiveMountRepository(),
+            $this->app->getBackupJobRepository(),
             $logger
         ));
 

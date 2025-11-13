@@ -13,7 +13,7 @@ Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="WORKER_ID=%i"
 
 # Main worker command
-ExecStart=/usr/bin/php /opt/newphpborg/phpBorg/bin/phpborg worker:start --queue=default
+ExecStart=/usr/bin/php /opt/newphpborg/phpBorg/bin/phpborg worker:start --queue=default --worker-id=%i
 
 # Restart policy
 Restart=always

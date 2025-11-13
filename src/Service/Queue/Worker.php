@@ -20,10 +20,16 @@ final class Worker
     /** @var array<string, JobHandlerInterface> */
     private array $handlers = [];
 
+    private readonly string $workerTag;
+
     public function __construct(
         private readonly JobQueue $queue,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        ?string $workerId = null
     ) {
+        // Create worker tag for logging
+        $this->workerTag = $workerId ? "WORKER #{$workerId}" : 'WORKER';
+
         // Register signal handlers for graceful shutdown
         if (function_exists('pcntl_signal')) {
             pcntl_signal(SIGTERM, [$this, 'stop']);
@@ -37,7 +43,7 @@ final class Worker
     public function registerHandler(string $jobType, JobHandlerInterface $handler): void
     {
         $this->handlers[$jobType] = $handler;
-        $this->logger->info("Handler registered for job type: {$jobType}", 'WORKER');
+        $this->logger->info("Handler registered for job type: {$jobType}", $this->workerTag);
     }
 
     /**
@@ -45,7 +51,7 @@ final class Worker
      */
     public function start(string $queueName = 'default'): void
     {
-        $this->logger->info("Worker started for queue: {$queueName}", 'WORKER');
+        $this->logger->info("Worker started for queue: {$queueName}", $this->workerTag);
 
         while (!$this->shouldStop) {
             try {
@@ -64,12 +70,12 @@ final class Worker
                 $this->processJob($job);
 
             } catch (Throwable $e) {
-                $this->logger->error("Worker error: {$e->getMessage()}", 'WORKER');
+                $this->logger->error("Worker error: {$e->getMessage()}", $this->workerTag);
                 sleep(1); // Brief pause before continuing
             }
         }
 
-        $this->logger->info('Worker stopped', 'WORKER');
+        $this->logger->info('Worker stopped', $this->workerTag);
     }
 
     /**
@@ -77,24 +83,24 @@ final class Worker
      */
     private function processJob(Job $job): void
     {
-        $this->logger->info("Processing job #{$job->id} ({$job->type})", 'WORKER');
+        $this->logger->info("Processing job #{$job->id} ({$job->type})", $this->workerTag);
 
         // Check if job is already finished
         if ($job->isFinished()) {
-            $this->logger->warning("Job #{$job->id} is already finished, skipping", 'WORKER');
+            $this->logger->warning("Job #{$job->id} is already finished, skipping", $this->workerTag);
             return;
         }
 
         // Check if handler exists
         if (!isset($this->handlers[$job->type])) {
             $error = "No handler registered for job type: {$job->type}";
-            $this->logger->error($error, 'WORKER');
+            $this->logger->error($error, $this->workerTag);
             $this->queue->markFailed($job->id, $error);
             return;
         }
 
         // Mark job as running
-        $this->queue->markRunning($job->id);
+        $this->queue->markRunning($job->id, $this->workerTag);
 
         try {
             // Execute job handler
@@ -104,18 +110,18 @@ final class Worker
             // Mark job as completed
             $this->queue->markCompleted($job->id, $result);
 
-            $this->logger->info("Job #{$job->id} completed successfully", 'WORKER');
+            $this->logger->info("Job #{$job->id} completed successfully", $this->workerTag);
 
         } catch (Throwable $e) {
             $error = $e->getMessage();
-            $this->logger->error("Job #{$job->id} failed: {$error}", 'WORKER');
+            $this->logger->error("Job #{$job->id} failed: {$error}", $this->workerTag);
 
             // Mark job as failed
             $this->queue->markFailed($job->id, $error);
 
             // Retry if possible
             if ($job->canRetry()) {
-                $this->logger->info("Job #{$job->id} will be retried", 'WORKER');
+                $this->logger->info("Job #{$job->id} will be retried", $this->workerTag);
                 $this->queue->retry($job->id);
             }
         }
@@ -126,7 +132,7 @@ final class Worker
      */
     public function stop(): void
     {
-        $this->logger->info('Worker stop signal received', 'WORKER');
+        $this->logger->info('Worker stop signal received', $this->workerTag);
         $this->shouldStop = true;
     }
 

@@ -3,15 +3,15 @@
     <!-- Header -->
     <div class="flex justify-between items-center mb-8">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Servers</h1>
-        <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Manage your backup servers</p>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ $t('servers.title') }}</h1>
+        <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('servers.subtitle') }}</p>
       </div>
       <button
         v-if="authStore.isAdmin"
         @click="showCreateModal = true"
         class="btn btn-primary"
       >
-        + Add Server
+        {{ $t('servers.add_server') }}
       </button>
     </div>
 
@@ -31,7 +31,7 @@
     <div v-if="serverStore.loading && !serverStore.servers.length" class="card">
       <div class="text-center py-12">
         <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 dark:border-gray-700 border-t-primary-600"></div>
-        <p class="mt-4 text-gray-600 dark:text-gray-400 dark:text-gray-500">Loading servers...</p>
+        <p class="mt-4 text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('servers.loading_servers') }}</p>
       </div>
     </div>
 
@@ -41,14 +41,14 @@
         <svg class="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
         </svg>
-        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No servers yet</h3>
-        <p class="text-sm mb-4">Get started by adding your first backup server</p>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">{{ $t('servers.no_servers') }}</h3>
+        <p class="text-sm mb-4">{{ $t('servers.get_started') }}</p>
         <button
           v-if="authStore.isAdmin"
           @click="showCreateModal = true"
           class="btn btn-primary"
         >
-          + Add Server
+          {{ $t('servers.add_server') }}
         </button>
       </div>
     </div>
@@ -102,7 +102,7 @@
                       ? 'text-green-700 dark:text-green-400'
                       : 'text-gray-500 dark:text-gray-400'
                   ]">
-                    {{ server.active ? 'Online' : 'Offline' }}
+                    {{ server.active ? $t('servers.online') : $t('servers.offline') }}
                   </span>
                 </div>
               </div>
@@ -151,7 +151,7 @@
                   >
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                   </svg>
-                  <span class="font-semibold text-gray-700 dark:text-gray-300">System Info</span>
+                  <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $t('servers.system_stats') }}</span>
                   <span class="text-gray-600 dark:text-gray-400">
                     {{ server.stats.os_distribution }} {{ server.stats.os_version }}
                   </span>
@@ -200,7 +200,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
               </svg>
               <span class="text-gray-700 dark:text-gray-300">
-                Architecture: {{ server.stats.architecture || 'N/A' }}
+                {{ $t('servers.architecture') }}: {{ server.stats.architecture || 'N/A' }}
               </span>
             </div>
 
@@ -211,7 +211,7 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                 </svg>
                 <span class="text-gray-700 dark:text-gray-300">
-                  CPU: {{ server.stats.cpu_cores }} cores
+                  {{ $t('servers.cpu') }}: {{ server.stats.cpu_cores }} {{ $t('servers.cores') }}
                 </span>
               </div>
               <span class="font-medium" :class="getCpuColor(server.stats.cpu_usage_percent)">
@@ -226,7 +226,7 @@
                   <svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7c-2 0-3 1-3 3z" />
                   </svg>
-                  <span class="text-gray-700 dark:text-gray-300">RAM</span>
+                  <span class="text-gray-700 dark:text-gray-300">{{ $t('servers.memory') }}</span>
                 </div>
                 <span class="font-medium" :class="getMemoryColor(server.stats.memory_percent)">
                   {{ server.stats.memory_percent?.toFixed(0) }}%
@@ -252,7 +252,7 @@
                   <svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
                   </svg>
-                  <span class="text-gray-700 dark:text-gray-300">Disk</span>
+                  <span class="text-gray-700 dark:text-gray-300">{{ $t('servers.disk') }}</span>
                 </div>
                 <span class="font-medium" :class="getDiskColor(server.stats.disk_percent)">
                   {{ server.stats.disk_percent?.toFixed(0) }}%
@@ -277,7 +277,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span class="text-gray-700 dark:text-gray-300">
-                Uptime: {{ server.stats.uptime_human }}
+                {{ $t('servers.uptime') }}: {{ server.stats.uptime_human }}
               </span>
             </div>
             </div>
@@ -290,13 +290,13 @@
                 <svg class="w-4 h-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p class="text-xs text-yellow-800 dark:text-yellow-200">No stats yet</p>
+                <p class="text-xs text-yellow-800 dark:text-yellow-200">{{ $t('servers.no_stats') }}</p>
               </div>
               <button
                 @click.stop="refreshStats(server.id)"
                 class="text-xs text-yellow-700 dark:text-yellow-300 hover:text-yellow-900 dark:hover:text-yellow-100 font-medium whitespace-nowrap"
               >
-                Collect now
+                {{ $t('servers.collect_stats') }}
               </button>
             </div>
           </div>
@@ -310,7 +310,7 @@
               <span>{{ formatDate(server.created_at) }}</span>
             </div>
             <span class="text-primary-600 dark:text-primary-400 font-medium group-hover:translate-x-1 transition-transform">
-              View details →
+              {{ $t('servers.view_details') }} →
             </span>
           </div>
         </div>
@@ -324,13 +324,13 @@
             @click.stop="editServer(server)"
             class="flex-1 px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors shadow-lg"
           >
-            Edit
+            {{ $t('common.edit') }}
           </button>
           <button
             @click.stop="confirmDelete(server)"
             class="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors shadow-lg"
           >
-            Delete
+            {{ $t('common.delete') }}
           </button>
         </div>
       </div>

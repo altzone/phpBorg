@@ -127,8 +127,9 @@ class JobController extends BaseController
     public function stats(): void
     {
         try {
-            $stats = $this->jobQueue->getStats();
-            $this->success(['stats' => $stats]);
+            $allStats = $this->jobQueue->getStats();
+            // Frontend expects flat stats object with total, pending, running, etc.
+            $this->success(['stats' => $allStats['database']]);
         } catch (PhpBorgException $e) {
             $this->error($e->getMessage(), 500, 'STATS_ERROR');
         }

@@ -2,8 +2,8 @@
   <div>
     <!-- Header -->
     <div class="mb-8">
-      <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
-      <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Configure your phpBorg application</p>
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ $t('settings.title') }}</h1>
+      <p class="mt-2 text-gray-600 dark:text-gray-400">{{ $t('settings.subtitle') }}</p>
     </div>
 
     <!-- Error Message -->
@@ -43,14 +43,14 @@
       <div class="p-6">
         <!-- General Settings -->
         <div v-show="activeTab === 'general'">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">General Settings</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ $t('settings.general.title') }}</h3>
           <form @submit.prevent="saveSettings('general')" class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Application Name</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.general.app_name') }}</label>
               <input v-model="generalForm['app.name']" type="text" class="input w-full" required />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Timezone</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.general.timezone') }}</label>
               <select v-model="generalForm['app.timezone']" class="input w-full">
                 <option value="UTC">UTC</option>
                 <option value="Europe/Paris">Europe/Paris</option>
@@ -59,7 +59,7 @@
               </select>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Language</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.general.language') }}</label>
               <select v-model="generalForm['app.language']" class="input w-full">
                 <option value="en">English</option>
                 <option value="fr">Français</option>
@@ -67,7 +67,7 @@
             </div>
             <div class="flex justify-end">
               <button type="submit" class="btn btn-primary" :disabled="settingsStore.loading">
-                Save General Settings
+                {{ $t('settings.general.save') }}
               </button>
             </div>
           </form>
@@ -75,24 +75,24 @@
 
         <!-- Email/SMTP Settings -->
         <div v-show="activeTab === 'email'">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Email / SMTP Settings</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ $t('settings.email.title') }}</h3>
           <form @submit.prevent="saveSettings('email')" class="space-y-4">
             <div class="flex items-center">
               <input v-model="emailForm['smtp.enabled']" type="checkbox" class="mr-2" />
-              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Enable SMTP Notifications</label>
+              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('settings.email.enable') }}</label>
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">SMTP Host</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.email.host') }}</label>
                 <input v-model="emailForm['smtp.host']" type="text" class="input w-full" placeholder="smtp.example.com" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">SMTP Port</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.email.port') }}</label>
                 <input v-model.number="emailForm['smtp.port']" type="number" class="input w-full" placeholder="587" />
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Encryption</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.email.encryption') }}</label>
               <select v-model="emailForm['smtp.encryption']" class="input w-full">
                 <option value="tls">TLS</option>
                 <option value="ssl">SSL</option>
@@ -101,21 +101,21 @@
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">SMTP Username</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.email.username') }}</label>
                 <input v-model="emailForm['smtp.username']" type="text" class="input w-full" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">SMTP Password</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.email.password') }}</label>
                 <input v-model="emailForm['smtp.password']" type="password" class="input w-full" />
               </div>
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">From Email</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.email.from_email') }}</label>
                 <input v-model="emailForm['smtp.from_email']" type="email" class="input w-full" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">From Name</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.email.from_name') }}</label>
                 <input v-model="emailForm['smtp.from_name']" type="text" class="input w-full" />
               </div>
             </div>
@@ -124,10 +124,10 @@
                 <svg class="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                Test Email
+                {{ $t('settings.email.test') }}
               </button>
               <button type="submit" class="btn btn-primary" :disabled="settingsStore.loading">
-                Save Email Settings
+                {{ $t('settings.email.save') }}
               </button>
             </div>
           </form>
@@ -135,36 +135,36 @@
 
         <!-- Backup Defaults -->
         <div v-show="activeTab === 'backup'">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Backup Default Settings</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ $t('settings.backup.title') }}</h3>
           <form @submit.prevent="saveSettings('backup')" class="space-y-4">
-            <p class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-4">Default retention policy for new repositories</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">{{ $t('settings.backup.description') }}</p>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Daily Backups</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.backup.daily') }}</label>
                 <input v-model.number="backupForm['backup.retention.daily']" type="number" min="0" max="365" class="input w-full" />
-                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Number of daily backups to keep (0-365)</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.backup.daily_help') }}</p>
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Weekly Backups</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.backup.weekly') }}</label>
                 <input v-model.number="backupForm['backup.retention.weekly']" type="number" min="0" max="52" class="input w-full" />
-                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Number of weekly backups to keep (0-52)</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.backup.weekly_help') }}</p>
               </div>
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Monthly Backups</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.backup.monthly') }}</label>
                 <input v-model.number="backupForm['backup.retention.monthly']" type="number" min="0" max="60" class="input w-full" />
-                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Number of monthly backups to keep (0-60)</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.backup.monthly_help') }}</p>
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Yearly Backups</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.backup.yearly') }}</label>
                 <input v-model.number="backupForm['backup.retention.yearly']" type="number" min="0" max="10" class="input w-full" />
-                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Number of yearly backups to keep (0-10)</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.backup.yearly_help') }}</p>
               </div>
             </div>
             <div class="flex justify-end">
               <button type="submit" class="btn btn-primary" :disabled="settingsStore.loading">
-                Save Backup Settings
+                {{ $t('settings.backup.save') }}
               </button>
             </div>
           </form>
@@ -172,15 +172,15 @@
 
         <!-- Borg Settings -->
         <div v-show="activeTab === 'borg'">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Borg Settings</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ $t('settings.borg.title') }}</h3>
           <form @submit.prevent="saveSettings('borg')" class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Default Repository Path</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.borg.default_path') }}</label>
               <input v-model="borgForm['borg.default_path']" type="text" class="input w-full" placeholder="/backup/borg" />
-              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Base path for borg repositories</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.borg.default_path_help') }}</p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Default Compression</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.borg.compression') }}</label>
               <select v-model="borgForm['borg.compression']" class="input w-full">
                 <option value="none">None</option>
                 <option value="lz4">LZ4 (fast)</option>
@@ -190,7 +190,7 @@
               </select>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Default Encryption</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.borg.encryption') }}</label>
               <select v-model="borgForm['borg.encryption']" class="input w-full">
                 <option value="repokey-blake2">Repokey BLAKE2</option>
                 <option value="repokey">Repokey (AES-CTR)</option>
@@ -199,13 +199,13 @@
               </select>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Rate Limit (KB/s)</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.borg.ratelimit') }}</label>
               <input v-model.number="borgForm['borg.ratelimit']" type="number" min="0" class="input w-full" placeholder="0" />
-              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">0 = unlimited</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.borg.ratelimit_help') }}</p>
             </div>
             <div class="flex justify-end">
               <button type="submit" class="btn btn-primary" :disabled="settingsStore.loading">
-                Save Borg Settings
+                {{ $t('settings.borg.save') }}
               </button>
             </div>
           </form>
@@ -213,34 +213,34 @@
 
         <!-- Security Settings -->
         <div v-show="activeTab === 'security'">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Security Settings</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ $t('settings.security.title') }}</h3>
           <form @submit.prevent="saveSettings('security')" class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Access Token TTL (seconds)</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.security.access_ttl') }}</label>
                 <input v-model.number="securityForm['security.jwt.access_ttl']" type="number" min="300" class="input w-full" />
-                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Default: 3600 = 1 hour</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.security.access_ttl_help') }}</p>
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Refresh Token TTL (seconds)</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.security.refresh_ttl') }}</label>
                 <input v-model.number="securityForm['security.jwt.refresh_ttl']" type="number" min="3600" class="input w-full" />
-                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Default: 2592000 = 30 days</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.security.refresh_ttl_help') }}</p>
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Session Timeout (seconds)</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.security.session_timeout') }}</label>
               <input v-model.number="securityForm['security.session_timeout']" type="number" min="300" class="input w-full" />
-              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Default: 1800 = 30 minutes</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.security.session_timeout_help') }}</p>
             </div>
             <div class="space-y-2">
               <div class="flex items-center">
                 <input v-model="securityForm['security.force_https']" type="checkbox" class="mr-2" />
-                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Force HTTPS Connections</label>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('settings.security.force_https') }}</label>
               </div>
             </div>
             <div class="flex justify-end">
               <button type="submit" class="btn btn-primary" :disabled="settingsStore.loading">
-                Save Security Settings
+                {{ $t('settings.security.save') }}
               </button>
             </div>
           </form>
@@ -248,25 +248,25 @@
 
         <!-- Network Settings -->
         <div v-show="activeTab === 'network'">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Network Settings</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ $t('settings.network.title') }}</h3>
           <form @submit.prevent="saveSettings('network')" class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">External IP Address</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.network.external_ip') }}</label>
                 <input v-model="networkForm['network.external_ip']" type="text" class="input w-full" placeholder="192.168.1.100" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Internal IP Address</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.network.internal_ip') }}</label>
                 <input v-model="networkForm['network.internal_ip']" type="text" class="input w-full" placeholder="10.0.0.100" />
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">API Server Port</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.network.api_port') }}</label>
               <input v-model.number="networkForm['network.api_port']" type="number" min="1" max="65535" class="input w-full" />
             </div>
             <div class="flex justify-end">
               <button type="submit" class="btn btn-primary" :disabled="settingsStore.loading">
-                Save Network Settings
+                {{ $t('settings.network.save') }}
               </button>
             </div>
           </form>
@@ -274,85 +274,85 @@
 
         <!-- System Settings -->
         <div v-show="activeTab === 'system'">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">System Settings</h3>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ $t('settings.system.title') }}</h3>
           <form @submit.prevent="saveSettings('system')" class="space-y-4">
             <!-- Logging Settings -->
-            <div class="border-b pb-4 mb-4">
-              <h4 class="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">Logging Configuration</h4>
+            <div class="border-b dark:border-gray-700 pb-4 mb-4">
+              <h4 class="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">{{ $t('settings.system.logging_title') }}</h4>
               <div class="space-y-4">
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Log File Path</label>
-                  <input 
-                    v-model="systemForm['log_path']" 
-                    type="text" 
-                    class="input w-full" 
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.system.log_path') }}</label>
+                  <input
+                    v-model="systemForm['log_path']"
+                    type="text"
+                    class="input w-full"
                     placeholder="/var/log/phpborg.log"
-                    required 
+                    required
                   />
-                  <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Full path to the application log file</p>
-                </div>
-                
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Log Level</label>
-                  <select v-model="systemForm['log_level']" class="input w-full">
-                    <option value="debug">Debug - All messages including debug info</option>
-                    <option value="info">Info - Informational messages and above</option>
-                    <option value="warning">Warning - Warnings and errors only</option>
-                    <option value="error">Error - Errors and critical only</option>
-                    <option value="critical">Critical - Critical errors only</option>
-                  </select>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Minimum severity level to log</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.system.log_path_help') }}</p>
                 </div>
 
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Log Rotation</label>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.system.log_level') }}</label>
+                  <select v-model="systemForm['log_level']" class="input w-full">
+                    <option value="debug">{{ $t('settings.system.log_level_debug') }}</option>
+                    <option value="info">{{ $t('settings.system.log_level_info') }}</option>
+                    <option value="warning">{{ $t('settings.system.log_level_warning') }}</option>
+                    <option value="error">{{ $t('settings.system.log_level_error') }}</option>
+                    <option value="critical">{{ $t('settings.system.log_level_critical') }}</option>
+                  </select>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.system.log_level_help') }}</p>
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.system.log_rotation') }}</label>
                   <div class="grid grid-cols-2 gap-4">
                     <div>
-                      <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">Max File Size (MB)</label>
-                      <input 
-                        v-model.number="systemForm['log_max_size']" 
-                        type="number" 
-                        min="1" 
-                        class="input w-full" 
+                      <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">{{ $t('settings.system.log_max_size') }}</label>
+                      <input
+                        v-model.number="systemForm['log_max_size']"
+                        type="number"
+                        min="1"
+                        class="input w-full"
                         placeholder="100"
                       />
                     </div>
                     <div>
-                      <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">Files to Keep</label>
-                      <input 
-                        v-model.number="systemForm['log_max_files']" 
-                        type="number" 
-                        min="1" 
-                        class="input w-full" 
+                      <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">{{ $t('settings.system.log_max_files') }}</label>
+                      <input
+                        v-model.number="systemForm['log_max_files']"
+                        type="number"
+                        min="1"
+                        class="input w-full"
                         placeholder="10"
                       />
                     </div>
                   </div>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Automatic log rotation settings</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.system.log_rotation_help') }}</p>
                 </div>
               </div>
             </div>
 
             <!-- Temporary Files -->
-            <div class="border-b pb-4 mb-4">
-              <h4 class="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">Temporary Files</h4>
+            <div class="border-b dark:border-gray-700 pb-4 mb-4">
+              <h4 class="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">{{ $t('settings.system.temp_title') }}</h4>
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Temp Directory</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.system.temp_path') }}</label>
                 <input
                   v-model="systemForm['temp_path']"
                   type="text"
                   class="input w-full"
                   placeholder="/tmp/phpborg"
                 />
-                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Directory for temporary files during backup operations</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.system.temp_path_help') }}</p>
               </div>
             </div>
 
             <!-- Statistics Collection -->
             <div>
-              <h4 class="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">Statistics Collection</h4>
+              <h4 class="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">{{ $t('settings.system.stats_title') }}</h4>
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Collection Interval (seconds)</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.system.stats_interval') }}</label>
                 <input
                   v-model.number="systemForm['system.stats_collection_interval']"
                   type="number"
@@ -361,12 +361,12 @@
                   class="input w-full"
                   placeholder="900"
                 />
-                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
-                  Intervalle de collecte automatique des statistiques pour les serveurs et storage pools (minimum: 60 secondes, recommandé: 900 secondes = 15 minutes)
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {{ $t('settings.system.stats_interval_help') }}
                 </p>
                 <div class="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                   <p class="text-xs text-blue-900 dark:text-blue-200">
-                    <strong>Note:</strong> Après modification, redémarrez le scheduler depuis la page Workers pour appliquer la nouvelle valeur.
+                    <strong>Note:</strong> {{ $t('settings.system.stats_note') }}
                   </p>
                 </div>
               </div>
@@ -374,7 +374,7 @@
 
             <div class="flex justify-end">
               <button type="submit" class="btn btn-primary" :disabled="settingsStore.loading">
-                Save System Settings
+                {{ $t('settings.system.save') }}
               </button>
             </div>
           </form>
@@ -384,10 +384,10 @@
 
     <!-- Test Email Modal -->
     <div v-if="showTestEmailModal" class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="closeTestEmailModal">
-      <div class="relative top-20 mx-auto p-5 border w-[500px] shadow-lg rounded-md bg-white">
+      <div class="relative top-20 mx-auto p-5 border w-[500px] shadow-lg rounded-md bg-white dark:bg-gray-800">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Send Test Email</h3>
-          <button @click="closeTestEmailModal" class="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:text-gray-400">
+          <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.email.test_modal_title') }}</h3>
+          <button @click="closeTestEmailModal" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -397,7 +397,7 @@
         <!-- Success/Error Message -->
         <div v-if="testEmailMessage" :class="[
           'mb-4 p-3 rounded-lg',
-          testEmailSuccess ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+          testEmailSuccess ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300'
         ]">
           <p class="text-sm">{{ testEmailMessage }}</p>
         </div>
@@ -405,25 +405,25 @@
         <form @submit.prevent="sendTestEmail">
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Recipient Email *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.email.test_recipient') }}</label>
               <input
                 v-model="testEmailForm.to"
                 type="email"
                 class="input w-full"
-                placeholder="your.email@example.com"
+                :placeholder="$t('settings.email.test_placeholder')"
                 required
               />
-              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Enter the email address where you want to receive the test message</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.email.test_help') }}</p>
             </div>
           </div>
 
           <div class="flex gap-3 mt-6">
             <button type="button" @click="closeTestEmailModal" class="btn btn-secondary flex-1">
-              Cancel
+              {{ $t('settings.email.test_cancel') }}
             </button>
             <button type="submit" class="btn btn-primary flex-1" :disabled="testEmailLoading">
-              <span v-if="testEmailLoading">Sending...</span>
-              <span v-else>Send Test Email</span>
+              <span v-if="testEmailLoading">{{ $t('settings.email.test_sending') }}</span>
+              <span v-else>{{ $t('settings.email.test_send') }}</span>
             </button>
           </div>
         </form>
@@ -433,10 +433,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/settings'
 import { emailService } from '@/services/email'
 
+const { t } = useI18n()
 const settingsStore = useSettingsStore()
 
 const activeTab = ref('general')
@@ -450,15 +452,15 @@ const testEmailForm = reactive({
   to: '',
 })
 
-const tabs = [
-  { id: 'general', label: 'General' },
-  { id: 'email', label: 'Email / SMTP' },
-  { id: 'backup', label: 'Backup Defaults' },
-  { id: 'borg', label: 'Borg' },
-  { id: 'security', label: 'Security' },
-  { id: 'network', label: 'Network' },
-  { id: 'system', label: 'System' },
-]
+const tabs = computed(() => [
+  { id: 'general', label: t('settings.tabs.general') },
+  { id: 'email', label: t('settings.tabs.email') },
+  { id: 'backup', label: t('settings.tabs.backup') },
+  { id: 'borg', label: t('settings.tabs.borg') },
+  { id: 'security', label: t('settings.tabs.security') },
+  { id: 'network', label: t('settings.tabs.network') },
+  { id: 'system', label: t('settings.tabs.system') },
+])
 
 const generalForm = reactive({})
 const emailForm = reactive({})
@@ -504,7 +506,7 @@ async function saveSettings(category) {
     }[category]
 
     await settingsStore.updateCategorySettings(category, formData)
-    alert('Settings saved successfully!')
+    alert(t('settings.save_success'))
   } catch (err) {
     // Error handled by store
   }
@@ -532,7 +534,7 @@ async function sendTestEmail() {
   try {
     const result = await emailService.sendTestEmail(testEmailForm.to)
     testEmailSuccess.value = true
-    testEmailMessage.value = result.message || 'Test email sent successfully!'
+    testEmailMessage.value = result.message || t('settings.email.test_success')
 
     // Auto-close modal after 3 seconds on success
     setTimeout(() => {
@@ -540,7 +542,7 @@ async function sendTestEmail() {
     }, 3000)
   } catch (error) {
     testEmailSuccess.value = false
-    testEmailMessage.value = error.response?.data?.error || 'Failed to send test email. Please check your SMTP settings.'
+    testEmailMessage.value = error.response?.data?.error || t('settings.email.test_error')
   } finally {
     testEmailLoading.value = false
   }

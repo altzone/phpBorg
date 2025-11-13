@@ -3,15 +3,15 @@
     <!-- Header -->
     <div class="flex justify-between items-center mb-8">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Users</h1>
-        <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Manage application users and their roles</p>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ $t('users.title') }}</h1>
+        <p class="mt-2 text-gray-600 dark:text-gray-400">{{ $t('users.subtitle') }}</p>
       </div>
       <button
         v-if="authStore.isAdmin"
         @click="openUserModal()"
         class="btn btn-primary"
       >
-        + Create User
+        {{ $t('users.create_user') }}
       </button>
     </div>
 
@@ -31,20 +31,20 @@
     <div class="card mb-6">
       <div class="flex gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by Role</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('users.filter_role') }}</label>
           <select v-model="filterRole" class="input">
-            <option value="">All Roles</option>
+            <option value="">{{ $t('users.all_roles') }}</option>
             <option value="ROLE_ADMIN">Admin</option>
             <option value="ROLE_OPERATOR">Operator</option>
             <option value="ROLE_USER">User</option>
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by Status</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('users.filter_status') }}</label>
           <select v-model="filterStatus" class="input">
-            <option value="">All</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
+            <option value="">{{ $t('users.all_status') }}</option>
+            <option value="active">{{ $t('users.active') }}</option>
+            <option value="inactive">{{ $t('users.inactive') }}</option>
           </select>
         </div>
       </div>
@@ -54,7 +54,7 @@
     <div v-if="userStore.loading && !userStore.users.length" class="card">
       <div class="text-center py-12">
         <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 dark:border-gray-700 border-t-primary-600"></div>
-        <p class="mt-4 text-gray-600 dark:text-gray-400 dark:text-gray-500">Loading users...</p>
+        <p class="mt-4 text-gray-600 dark:text-gray-400">{{ $t('users.loading') }}</p>
       </div>
     </div>
 
@@ -64,12 +64,12 @@
         <table class="w-full">
           <thead class="bg-gray-50 dark:bg-gray-800 border-b">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase">Username</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase">Email</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase">Roles</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase">Status</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase">Last Login</th>
-              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-500 uppercase">Actions</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ $t('users.table.username') }}</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ $t('users.table.email') }}</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ $t('users.table.roles') }}</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ $t('users.table.status') }}</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ $t('users.table.last_login') }}</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ $t('users.table.actions') }}</th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200 dark:divide-gray-700">
@@ -97,36 +97,36 @@
                   :class="[
                     'px-2 py-1 text-xs font-semibold rounded',
                     user.active
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-800 dark:text-gray-200'
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                      : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
                   ]"
                 >
-                  {{ user.active ? 'Active' : 'Inactive' }}
+                  {{ user.active ? $t('users.active') : $t('users.inactive') }}
                 </span>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500">
-                {{ user.last_login_at ? formatDate(user.last_login_at) : 'Never' }}
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                {{ user.last_login_at ? formatDate(user.last_login_at) : $t('users.never') }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <div class="flex justify-end gap-2">
                   <button
                     @click="openUserModal(user)"
-                    class="text-primary-600 hover:text-primary-900"
+                    class="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300"
                   >
-                    Edit
+                    {{ $t('users.edit') }}
                   </button>
                   <button
                     @click="openPasswordModal(user)"
-                    class="text-yellow-600 hover:text-yellow-900"
+                    class="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300"
                   >
-                    Reset Password
+                    {{ $t('users.reset_password') }}
                   </button>
                   <button
                     @click="confirmDelete(user)"
-                    class="text-red-600 hover:text-red-900"
+                    class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
                     :disabled="user.id === authStore.user?.id"
                   >
-                    Delete
+                    {{ $t('users.delete') }}
                   </button>
                 </div>
               </td>
@@ -138,12 +138,12 @@
 
     <!-- User Modal -->
     <div v-if="showUserModal" class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="closeUserModal">
-      <div class="relative top-20 mx-auto p-5 border w-[600px] shadow-lg rounded-md bg-white">
+      <div class="relative top-20 mx-auto p-5 border w-[600px] shadow-lg rounded-md bg-white dark:bg-gray-800">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">
-            {{ editingUser ? 'Edit User' : 'Create User' }}
+            {{ editingUser ? $t('users.modal_title_edit') : $t('users.modal_title_create') }}
           </h3>
-          <button @click="closeUserModal" class="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:text-gray-400">
+          <button @click="closeUserModal" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -153,47 +153,47 @@
         <form @submit.prevent="saveUser">
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Username *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('users.username_label') }}</label>
               <input v-model="userForm.username" type="text" class="input w-full" required minlength="3" maxlength="50" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('users.email_label') }}</label>
               <input v-model="userForm.email" type="email" class="input w-full" required />
             </div>
             <div v-if="!editingUser">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Password *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('users.password_label') }}</label>
               <input v-model="userForm.password" type="password" class="input w-full" required minlength="8" />
-              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Minimum 8 characters</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('users.password_help') }}</p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Roles *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('users.roles_label') }}</label>
               <div class="space-y-2">
                 <div class="flex items-center">
                   <input v-model="userForm.roles" type="checkbox" value="ROLE_ADMIN" class="mr-2" />
-                  <label class="text-sm text-gray-700 dark:text-gray-300">Admin - Full access</label>
+                  <label class="text-sm text-gray-700 dark:text-gray-300">{{ $t('users.role_admin_desc') }}</label>
                 </div>
                 <div class="flex items-center">
                   <input v-model="userForm.roles" type="checkbox" value="ROLE_OPERATOR" class="mr-2" />
-                  <label class="text-sm text-gray-700 dark:text-gray-300">Operator - Can manage backups and servers</label>
+                  <label class="text-sm text-gray-700 dark:text-gray-300">{{ $t('users.role_operator_desc') }}</label>
                 </div>
                 <div class="flex items-center">
                   <input v-model="userForm.roles" type="checkbox" value="ROLE_USER" class="mr-2" />
-                  <label class="text-sm text-gray-700 dark:text-gray-300">User - Read-only access</label>
+                  <label class="text-sm text-gray-700 dark:text-gray-300">{{ $t('users.role_user_desc') }}</label>
                 </div>
               </div>
             </div>
             <div class="flex items-center">
               <input v-model="userForm.active" type="checkbox" class="mr-2" />
-              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Active</label>
+              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('users.active_label') }}</label>
             </div>
           </div>
 
           <div class="flex gap-3 mt-6">
             <button type="button" @click="closeUserModal" class="btn btn-secondary flex-1">
-              Cancel
+              {{ $t('users.cancel') }}
             </button>
             <button type="submit" class="btn btn-primary flex-1" :disabled="userStore.loading">
-              {{ editingUser ? 'Update' : 'Create' }}
+              {{ editingUser ? $t('users.update') : $t('users.create') }}
             </button>
           </div>
         </form>
@@ -202,12 +202,12 @@
 
     <!-- Password Reset Modal -->
     <div v-if="showPasswordModal" class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="closePasswordModal">
-      <div class="relative top-20 mx-auto p-5 border w-[500px] shadow-lg rounded-md bg-white">
+      <div class="relative top-20 mx-auto p-5 border w-[500px] shadow-lg rounded-md bg-white dark:bg-gray-800">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">
-            Reset Password - {{ passwordUser?.username }}
+            {{ $t('users.password_modal_title') }} - {{ passwordUser?.username }}
           </h3>
-          <button @click="closePasswordModal" class="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:text-gray-400">
+          <button @click="closePasswordModal" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -217,22 +217,22 @@
         <form @submit.prevent="resetPassword">
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">New Password *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('users.new_password') }}</label>
               <input v-model="newPassword" type="password" class="input w-full" required minlength="8" />
-              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Minimum 8 characters</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('users.password_help') }}</p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Confirm Password *</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('users.confirm_password') }}</label>
               <input v-model="confirmPassword" type="password" class="input w-full" required minlength="8" />
             </div>
           </div>
 
           <div class="flex gap-3 mt-6">
             <button type="button" @click="closePasswordModal" class="btn btn-secondary flex-1">
-              Cancel
+              {{ $t('users.cancel') }}
             </button>
             <button type="submit" class="btn btn-primary flex-1" :disabled="userStore.loading">
-              Reset Password
+              {{ $t('users.reset_password_button') }}
             </button>
           </div>
         </form>
@@ -243,9 +243,11 @@
 
 <script setup>
 import { ref, computed, onMounted, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
 import { useAuthStore } from '@/stores/auth'
 
+const { t } = useI18n()
 const userStore = useUserStore()
 const authStore = useAuthStore()
 
@@ -333,7 +335,7 @@ function closeUserModal() {
 async function saveUser() {
   try {
     if (userForm.roles.length === 0) {
-      alert('Please select at least one role')
+      alert(t('users.role_required'))
       return
     }
 
@@ -376,13 +378,13 @@ function closePasswordModal() {
 
 async function resetPassword() {
   if (newPassword.value !== confirmPassword.value) {
-    alert('Passwords do not match')
+    alert(t('users.passwords_mismatch'))
     return
   }
 
   try {
     await userStore.resetPassword(passwordUser.value.id, newPassword.value)
-    alert('Password reset successfully')
+    alert(t('users.password_reset_success'))
     closePasswordModal()
   } catch (err) {
     // Error handled by store
@@ -391,11 +393,11 @@ async function resetPassword() {
 
 async function confirmDelete(user) {
   if (user.id === authStore.user?.id) {
-    alert('You cannot delete your own account')
+    alert(t('users.delete_self_error'))
     return
   }
 
-  if (!confirm(`Are you sure you want to delete user "${user.username}"?`)) {
+  if (!confirm(t('users.delete_confirm', { username: user.username }))) {
     return
   }
 
@@ -407,9 +409,9 @@ async function confirmDelete(user) {
 }
 
 function formatDate(dateString) {
-  if (!dateString) return 'Never'
+  if (!dateString) return t('users.never')
   const date = new Date(dateString)
-  return date.toLocaleString('en-US', {
+  return date.toLocaleString('fr-FR', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

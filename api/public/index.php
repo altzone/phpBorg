@@ -32,6 +32,7 @@ use PhpBorg\Api\Controller\SettingsController;
 use PhpBorg\Api\Controller\StoragePoolController;
 use PhpBorg\Api\Controller\UserController;
 use PhpBorg\Api\Controller\WorkerController;
+use PhpBorg\Api\Controller\WorkerStreamController;
 
 try {
     // Initialize application
@@ -136,6 +137,7 @@ try {
     $router->get('/repositories/:id', RepositoryController::class, 'show', requireAuth: true);
     $router->get('/repositories/:id/backup-jobs', BackupJobController::class, 'listByRepository', requireAuth: true);
     $router->put('/repositories/:id/retention', RepositoryController::class, 'updateRetention', requireAuth: true);
+    $router->delete('/repositories/:id', RepositoryController::class, 'delete', requireAuth: true);
 
     // ===========================================
     // Dashboard Routes (Protected)
@@ -197,6 +199,7 @@ try {
     // Worker Management Routes (Protected - Admin only)
     // ===========================================
     $router->get('/workers', WorkerController::class, 'list', requireAuth: true);
+    $router->get('/workers/stream', WorkerStreamController::class, 'stream', requireAuth: true);
     $router->get('/workers/:name', WorkerController::class, 'show', requireAuth: true);
     $router->post('/workers/:name/start', WorkerController::class, 'start', requireAuth: true);
     $router->post('/workers/:name/stop', WorkerController::class, 'stop', requireAuth: true);
