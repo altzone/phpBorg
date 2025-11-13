@@ -91,7 +91,7 @@
           <div class="flex justify-between text-sm">
             <span class="text-gray-600 dark:text-gray-400">{{ $t('backup_jobs.schedule') }}:</span>
             <span class="font-semibold text-gray-900 dark:text-gray-100">
-              {{ job.schedule_description }}
+              {{ formatScheduleDescription(job) }}
               <!-- Show indicator if multi-selection -->
               <span v-if="job.selected_weekdays && job.selected_weekdays.length > 1"
                     class="ml-1 text-xs text-blue-600 dark:text-blue-400"
@@ -355,6 +355,24 @@ const weekDays = computed(() => [
   { short: t('backup_jobs.weekdays.sat'), full: t('backup_jobs.weekdays.saturday') },
   { short: t('backup_jobs.weekdays.sun'), full: t('backup_jobs.weekdays.sunday') }
 ])
+
+// Format schedule description with translations
+function formatScheduleDescription(job) {
+  if (job.schedule_type === 'manual') {
+    return t('backup_jobs.schedule_manual')
+  }
+
+  const scheduleTypes = {
+    'daily': t('backup_wizard.schedule_types.daily'),
+    'weekly': t('backup_wizard.schedule_types.weekly'),
+    'monthly': t('backup_wizard.schedule_types.monthly')
+  }
+
+  const typeName = scheduleTypes[job.schedule_type] || job.schedule_type
+  const time = job.schedule_time || ''
+
+  return `${typeName.charAt(0).toUpperCase() + typeName.slice(1)} ${t('backup_wizard.review.schedule_at')} ${time}`
+}
 
 onMounted(async () => {
   await loadBackupJobs()
