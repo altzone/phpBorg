@@ -18,6 +18,7 @@ use PhpBorg\Repository\RefreshTokenRepository;
 use PhpBorg\Repository\ReportRepository;
 use PhpBorg\Repository\ServerRepository;
 use PhpBorg\Repository\ServerStatsRepository;
+use PhpBorg\Repository\SettingRepository;
 use PhpBorg\Repository\StoragePoolRepository;
 use PhpBorg\Repository\UserRepository;
 use PhpBorg\Service\Auth\AuthService;
@@ -196,6 +197,13 @@ final class Application
     {
         return $this->getService(ServerStatsRepository::class, fn() =>
             new ServerStatsRepository($this->connection)
+        );
+    }
+
+    public function getSettingRepository(): SettingRepository
+    {
+        return $this->getService(SettingRepository::class, fn() =>
+            new SettingRepository($this->connection)
         );
     }
 

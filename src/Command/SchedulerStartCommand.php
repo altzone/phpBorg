@@ -38,6 +38,7 @@ final class SchedulerStartCommand extends Command
         $jobRepository = $this->app->getBackupJobRepository();
         $serverRepository = $this->app->getServerRepository();
         $storagePoolRepository = $this->app->getStoragePoolRepository();
+        $settingRepository = $this->app->getSettingRepository();
         $logger = $this->app->getLogger();
 
         // Create scheduler worker
@@ -46,6 +47,7 @@ final class SchedulerStartCommand extends Command
             $jobRepository,
             $serverRepository,
             $storagePoolRepository,
+            $settingRepository,
             $logger
         );
 

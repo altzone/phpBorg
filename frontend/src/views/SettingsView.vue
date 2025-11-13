@@ -334,17 +334,41 @@
             </div>
 
             <!-- Temporary Files -->
-            <div>
+            <div class="border-b pb-4 mb-4">
               <h4 class="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">Temporary Files</h4>
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Temp Directory</label>
-                <input 
-                  v-model="systemForm['temp_path']" 
-                  type="text" 
-                  class="input w-full" 
+                <input
+                  v-model="systemForm['temp_path']"
+                  type="text"
+                  class="input w-full"
                   placeholder="/tmp/phpborg"
                 />
                 <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Directory for temporary files during backup operations</p>
+              </div>
+            </div>
+
+            <!-- Statistics Collection -->
+            <div>
+              <h4 class="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">Statistics Collection</h4>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Collection Interval (seconds)</label>
+                <input
+                  v-model.number="systemForm['system.stats_collection_interval']"
+                  type="number"
+                  min="60"
+                  step="60"
+                  class="input w-full"
+                  placeholder="900"
+                />
+                <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
+                  Intervalle de collecte automatique des statistiques pour les serveurs et storage pools (minimum: 60 secondes, recommandé: 900 secondes = 15 minutes)
+                </p>
+                <div class="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <p class="text-xs text-blue-900 dark:text-blue-200">
+                    <strong>Note:</strong> Après modification, redémarrez le scheduler depuis la page Workers pour appliquer la nouvelle valeur.
+                  </p>
+                </div>
               </div>
             </div>
 

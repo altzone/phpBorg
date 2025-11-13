@@ -7,6 +7,7 @@ namespace PhpBorg\Service\Queue;
 use PhpBorg\Logger\LoggerInterface;
 use PhpBorg\Repository\BackupJobRepository;
 use PhpBorg\Repository\ServerRepository;
+use PhpBorg\Repository\SettingRepository;
 use PhpBorg\Repository\StoragePoolRepository;
 use DateTimeImmutable;
 use Throwable;
@@ -14,27 +15,31 @@ use Throwable;
 /**
  * Scheduler worker - Handles periodic tasks:
  * - Check backup schedules every 60 seconds
- * - Collect server stats every 15 minutes
- * - Collect storage pool stats every 15 minutes
+ * - Collect server stats (interval configurable in settings)
+ * - Collect storage pool stats (interval configurable in settings)
  */
 final class SchedulerWorker
 {
     private bool $shouldStop = false;
     private int $lastStatsCollection = 0;
+    private int $statsCollectionInterval = 900; // Default: 15 minutes
 
     // Check schedules every 60 seconds
     private const SCHEDULE_CHECK_INTERVAL = 60;
 
-    // Collect stats every 15 minutes (900 seconds)
-    private const STATS_COLLECTION_INTERVAL = 900;
+    // Default stats collection interval (15 minutes = 900 seconds)
+    private const DEFAULT_STATS_COLLECTION_INTERVAL = 900;
 
     public function __construct(
         private readonly JobQueue $queue,
         private readonly BackupJobRepository $jobRepository,
         private readonly ServerRepository $serverRepository,
         private readonly StoragePoolRepository $storagePoolRepository,
+        private readonly SettingRepository $settingRepository,
         private readonly LoggerInterface $logger
     ) {
+        // Load stats collection interval from settings
+        $this->loadStatsInterval();
         // Register signal handlers for graceful shutdown
         if (function_exists('pcntl_signal')) {
             pcntl_signal(SIGTERM, [$this, 'stop']);
@@ -66,8 +71,8 @@ final class SchedulerWorker
                     $lastScheduleCheck = $now;
                 }
 
-                // Collect stats every 15 minutes
-                if ($now - $this->lastStatsCollection >= self::STATS_COLLECTION_INTERVAL) {
+                // Collect stats based on configured interval
+                if ($now - $this->lastStatsCollection >= $this->statsCollectionInterval) {
                     $this->collectStats();
                     $this->lastStatsCollection = $now;
                 }
@@ -110,8 +115,8 @@ final class SchedulerWorker
                             'scheduled' => true,
                         ],
                         queue: 'default',
-                        priority: 3, // Normal priority for scheduled jobs
-                        userId: null // Scheduled jobs have no user
+                        maxAttempts: 3,
+                        createdBy: null // Scheduled jobs have no user
                     );
 
                     $this->logger->info(
@@ -144,7 +149,7 @@ final class SchedulerWorker
 
         try {
             // Collect server stats
-            $servers = $this->serverRepository->findActive();
+            $servers = $this->serverRepository->findAllActive();
 
             foreach ($servers as $server) {
                 try {
@@ -156,8 +161,8 @@ final class SchedulerWorker
                             'scheduled' => true,
                         ],
                         queue: 'default',
-                        priority: 1, // Low priority
-                        userId: null
+                        maxAttempts: 2,
+                        createdBy: null
                     );
 
                     $this->logger->debug(
@@ -187,8 +192,8 @@ final class SchedulerWorker
                             'scheduled' => true,
                         ],
                         queue: 'default',
-                        priority: 1, // Low priority
-                        userId: null
+                        maxAttempts: 2,
+                        createdBy: null
                     );
 
                     $this->logger->debug(
@@ -247,5 +252,41 @@ final class SchedulerWorker
     public function shouldStop(): bool
     {
         return $this->shouldStop;
+    }
+
+    /**
+     * Load stats collection interval from settings
+     */
+    private function loadStatsInterval(): void
+    {
+        try {
+            $setting = $this->settingRepository->findByKey('system.stats_collection_interval');
+
+            if ($setting !== null) {
+                $value = (int) $setting->value;
+                // Ensure minimum interval of 60 seconds
+                $this->statsCollectionInterval = max(60, $value);
+
+                $this->logger->info(
+                    sprintf('Stats collection interval set to %d seconds (%d minutes)',
+                        $this->statsCollectionInterval,
+                        round($this->statsCollectionInterval / 60)
+                    ),
+                    'SCHEDULER'
+                );
+            } else {
+                $this->statsCollectionInterval = self::DEFAULT_STATS_COLLECTION_INTERVAL;
+                $this->logger->warning(
+                    'Stats collection interval setting not found, using default: ' . self::DEFAULT_STATS_COLLECTION_INTERVAL . ' seconds',
+                    'SCHEDULER'
+                );
+            }
+        } catch (Throwable $e) {
+            $this->statsCollectionInterval = self::DEFAULT_STATS_COLLECTION_INTERVAL;
+            $this->logger->error(
+                'Failed to load stats collection interval setting: ' . $e->getMessage(),
+                'SCHEDULER'
+            );
+        }
     }
 }
