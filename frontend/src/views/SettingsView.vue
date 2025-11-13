@@ -65,6 +65,11 @@
                 <option value="fr">Français</option>
               </select>
             </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.general.notification_email') }}</label>
+              <input v-model="generalForm['notification.email']" type="email" class="input w-full" placeholder="admin@example.com" />
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.general.notification_email_help') }}</p>
+            </div>
             <div class="flex justify-end">
               <button type="submit" class="btn btn-primary" :disabled="settingsStore.loading">
                 {{ $t('settings.general.save') }}

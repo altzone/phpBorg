@@ -634,6 +634,8 @@
       "app_name": "Nom de l'application",
       "timezone": "Fuseau horaire",
       "language": "Langue",
+      "notification_email": "Email de notification",
+      "notification_email_help": "Adresse email pour recevoir les notifications de sauvegarde",
       "save": "Enregistrer les paramètres généraux"
     },
     "email": {

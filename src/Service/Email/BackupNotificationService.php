@@ -435,13 +435,24 @@ TEXT;
     }
 
     /**
-     * Get notification email address
-     * TODO: Add notification_email field to backup_jobs table
+     * Get notification email address from settings
      */
     private function getNotificationEmail(): ?string
     {
-        // For now, use the SMTP from_email as the notification recipient
-        // In the future, this should be configurable per backup job
+        // Get notification email from settings
+        $generalSettings = $this->settingRepository->findByCategory('general');
+
+        foreach ($generalSettings as $setting) {
+            if ($setting->key === 'notification.email') {
+                $email = $setting->value ?? null;
+                if ($email && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    return $email;
+                }
+            }
+        }
+
+        // Fallback to SMTP from_email if not configured
+        $this->logger->warning('notification.email not configured in settings. Using SMTP from_email as fallback.', 'EMAIL');
         return $this->emailService->getFromEmail();
     }
 

@@ -634,6 +634,8 @@
       "app_name": "Application Name",
       "timezone": "Timezone",
       "language": "Language",
+      "notification_email": "Notification Email",
+      "notification_email_help": "Email address to receive backup notifications",
       "save": "Save General Settings"
     },
     "email": {
