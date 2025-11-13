@@ -219,20 +219,46 @@ tail -f /var/log/phpborg_new.log
 - ✅ Worker Pool Architecture (Scheduler + 4 Workers parallèles)
 - ✅ Gestion Workers via Dashboard (Start/Stop/Restart/Logs)
 - ✅ Collecte automatique stats (serveurs + storage pools) toutes les 15min
+- ✅ Internationalisation complète (i18n) français/anglais
+- ✅ Notifications email avec templates HTML professionnels
+- ✅ Nom d'application dynamique depuis settings
 
-**Dernière session** : Implémentation Worker Pool + Dashboard Management
-- Architecture scheduler/worker pool professionnelle avec systemd
-- SchedulerWorker: vérifie schedules (60s) + collecte stats (15min)
-- Worker Pool: 4 instances parallèles pour jobs simultanés
-- WorkerController API: gestion complète workers (start/stop/restart/logs)
-- WorkersView frontend: cartes workers + modal logs en direct
-- StoragePoolAnalyzeHandler: collecte stats storage pools
-- Systemd services + sudoers configuration
-- Routes API + stores Pinia + integration navigation
+**Dernière session** : Internationalisation & Notifications Email
+- **i18n (vue-i18n v9)** : Implémentation complète français/anglais
+  - BackupWizard: traduction des 9 steps (serveur, type, source, snapshot, storage, repo, retention, schedule, review)
+  - BackupJobs: traduction des types de schedule (daily → quotidien)
+  - LanguageSwitcher: composant de changement de langue dans le menu
+  - Support des computed properties pour traductions réactives
+  - Fix des sections JSON dupliquées (retention, review)
+
+- **Système de Notifications Email** :
+  - `EmailService`: Service SMTP générique avec PHPMailer
+  - `BackupNotificationService`: Notifications backup avec templates HTML
+  - Templates professionnels: gradient colors, badges, tableaux de statistiques
+  - Emails de succès: durée, tailles (original/compressé/dédupliqué), nb fichiers
+  - Emails d'échec: détails erreur + suggestions de résolution
+  - Setting `notification.email` configurable dans Settings > General
+  - Respect des flags `notify_on_success` et `notify_on_failure` des backup jobs
+  - Intégration automatique dans `BackupCreateHandler`
+  - Utilise `app.name` depuis settings dans les emails
+
+- **Améliorations UI** :
+  - Nom d'app dynamique dans le menu (depuis Settings > General > App name)
+  - Fix computed property accessors (.value en JavaScript, pas en template)
+  - Traduction cohérente des schedules dans toutes les vues
+
+**Commits de la session** :
+1. `5ce272f` - feat: Complete French/English i18n implementation for backup wizard
+2. `240581f` - feat: Add i18n integration, restore wizard, and various improvements
+3. `6707871` - feat: Add email notifications for backup jobs with beautiful HTML templates
+4. `689d9d2` - fix: Translate schedule types in backup jobs list (daily → quotidien)
+5. `a24dc87` - fix: Use correct camelCase property names in BackupNotificationService
+6. `f9e7a7f` - feat: Add configurable notification email setting
 
 **Prochaines étapes possibles** :
+- Finaliser l'internationalisation des autres vues (Servers, Workers, Dashboard, etc.)
 - Restore d'archives avec browse de fichiers
 - Graphiques historiques des stats (CPU/RAM/Disk évolution)
-- Gestion de la rétention automatique (vérifier prune avant backup)
+- Gestion de la rétention automatique (prune)
 - Alertes sur seuils critiques (CPU/RAM/Disk)
-- Dashboard metrics amélioré
+- Email digest quotidien/hebdomadaire des backups
