@@ -14,6 +14,24 @@
           </button>
 
           <div class="flex items-center gap-3">
+            <!-- Restore Selected Button -->
+            <div v-if="selectedItems.length > 0" class="flex items-center gap-2">
+              <button
+                @click="showRestoreWizard = true"
+                class="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg transition-colors font-medium border border-green-200"
+              >
+                <Download :size="18" />
+                Restore ({{ selectedItems.length }})
+              </button>
+              <button
+                @click="clearSelection"
+                class="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm"
+                title="Clear selection"
+              >
+                <X :size="18" />
+              </button>
+            </div>
+
             <!-- View Toggle -->
             <div class="flex items-center bg-gray-100 rounded-lg p-1">
               <button
@@ -139,8 +157,21 @@
             :key="item.name"
             @click="handleItemClick(item)"
             @dblclick="item.type === 'directory' ? navigateToPath(item.path) : null"
-            class="group relative bg-white rounded-lg p-4 border-2 border-gray-200 hover:border-primary-400 hover:shadow-lg transition-all cursor-pointer"
+            :class="[
+              'group relative bg-white rounded-lg p-4 border-2 transition-all cursor-pointer',
+              isSelected(item) ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-primary-400 hover:shadow-lg'
+            ]"
           >
+            <!-- Selection Checkbox -->
+            <button
+              @click.stop="toggleSelection(item)"
+              class="absolute top-2 left-2 z-10"
+              :title="isSelected(item) ? 'Deselect' : 'Select for restore'"
+            >
+              <CheckSquare v-if="isSelected(item)" :size="20" class="text-green-600" />
+              <Square v-else :size="20" class="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </button>
+
             <!-- Icon -->
             <div class="flex flex-col items-center">
               <div class="mb-3 transition-transform group-hover:scale-110">
@@ -183,6 +214,16 @@
           <table class="w-full">
             <thead class="bg-gray-50 border-b border-gray-200">
               <tr>
+                <th class="px-4 py-3 w-12">
+                  <button
+                    @click="toggleSelectAll"
+                    class="hover:bg-gray-100 p-1 rounded transition-colors"
+                    :title="selectedItems.length === filteredItems.length ? 'Deselect all' : 'Select all'"
+                  >
+                    <CheckSquare v-if="selectedItems.length > 0 && selectedItems.length === filteredItems.length" :size="18" class="text-green-600" />
+                    <Square v-else :size="18" class="text-gray-400" />
+                  </button>
+                </th>
                 <th @click="sortBy('name')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
                   <div class="flex items-center gap-2">
                     Name
@@ -215,8 +256,21 @@
                 v-for="item in filteredItems"
                 :key="item.name"
                 @click="handleItemClick(item)"
-                class="hover:bg-gray-50 transition-colors cursor-pointer"
+                :class="[
+                  'transition-colors cursor-pointer',
+                  isSelected(item) ? 'bg-green-50' : 'hover:bg-gray-50'
+                ]"
               >
+                <td class="px-4 py-4">
+                  <button
+                    @click.stop="toggleSelection(item)"
+                    class="hover:bg-gray-100 p-1 rounded transition-colors"
+                    :title="isSelected(item) ? 'Deselect' : 'Select for restore'"
+                  >
+                    <CheckSquare v-if="isSelected(item)" :size="18" class="text-green-600" />
+                    <Square v-else :size="18" class="text-gray-400" />
+                  </button>
+                </td>
                 <td class="px-6 py-4">
                   <div class="flex items-center gap-3">
                     <component :is="getFileIcon(item)" :size="24" :class="getFileIconColor(item)" />
@@ -389,6 +443,17 @@
         </div>
       </div>
     </div>
+
+    <!-- Restore Wizard Modal -->
+    <RestoreWizard
+      v-if="showRestoreWizard"
+      :show="showRestoreWizard"
+      :archive-id="archiveId"
+      :archive-name="archiveName"
+      :selected-files="selectedItems.map(item => item.path)"
+      @close="showRestoreWizard = false"
+      @success="handleRestoreStarted"
+    />
   </div>
 </template>
 
@@ -400,12 +465,15 @@ import { jobService } from '@/services/jobs'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
 
+// Components
+import RestoreWizard from '@/components/RestoreWizard.vue'
+
 // Lucide Icons
 import {
   ArrowLeft, HardDrive, Folder, FolderOpen, ChevronRight, Search, Grid3x3, List,
   Power, X, Download, Loader2, AlertCircle, FileText, File, FileImage, FileVideo,
   FileAudio, FileArchive, FileCode, FileSpreadsheet, Database, Link, Settings,
-  ChevronUp, ChevronDown, ChevronsUpDown, Eye
+  ChevronUp, ChevronDown, ChevronsUpDown, Eye, CheckSquare, Square
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -436,6 +504,10 @@ const searchQuery = ref('')
 // Sort state
 const sortColumn = ref('name')
 const sortDirection = ref('asc')
+
+// Selection & Restore state
+const selectedItems = ref([])
+const showRestoreWizard = ref(false)
 
 // Poll job until mount is complete
 const pollMountStatus = async (jobId) => {
@@ -806,6 +878,50 @@ const formatDate = (dateString) => {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+// Selection functions
+const isSelected = (item) => {
+  return selectedItems.value.some(selected => selected.path === item.path)
+}
+
+const toggleSelection = (item) => {
+  const index = selectedItems.value.findIndex(selected => selected.path === item.path)
+
+  if (index > -1) {
+    // Item is selected, remove it
+    selectedItems.value.splice(index, 1)
+  } else {
+    // Item is not selected, add it
+    selectedItems.value.push(item)
+  }
+}
+
+const clearSelection = () => {
+  selectedItems.value = []
+}
+
+const toggleSelectAll = () => {
+  if (selectedItems.value.length === filteredItems.value.length) {
+    // All selected, deselect all
+    clearSelection()
+  } else {
+    // Not all selected, select all
+    selectedItems.value = [...filteredItems.value]
+  }
+}
+
+const handleRestoreStarted = (result) => {
+  // Clear selection
+  clearSelection()
+
+  // Close wizard (déjà fait par le wizard lui-même)
+  showRestoreWizard.value = false
+
+  // Navigate to jobs page to show progress
+  if (result.job_id) {
+    router.push({ name: 'jobs', query: { highlight: result.job_id } })
+  }
 }
 
 onMounted(() => {

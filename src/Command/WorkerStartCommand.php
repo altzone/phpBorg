@@ -102,9 +102,9 @@ final class WorkerStartCommand extends Command
 
         $worker->registerHandler('archive_restore', new ArchiveRestoreHandler(
             $this->app->getArchiveRepository(),
-            $this->app->getArchiveMountRepository(),
             $this->app->getBorgRepositoryRepository(),
             $this->app->getServerRepository(),
+            $this->app->getSettingRepository(),
             $this->app->getSshExecutor(),
             $logger
         ));

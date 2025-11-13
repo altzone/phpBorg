@@ -7,29 +7,24 @@ namespace PhpBorg\Service\Queue\Handlers;
 use PhpBorg\Entity\Job;
 use PhpBorg\Logger\LoggerInterface;
 use PhpBorg\Repository\ArchiveRepository;
-use PhpBorg\Repository\ArchiveMountRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\ServerRepository;
+use PhpBorg\Repository\SettingRepository;
 use PhpBorg\Service\Queue\JobQueue;
 use PhpBorg\Service\Server\SshExecutor;
-use Symfony\Component\Process\Process;
 use Exception;
 
 /**
  * Handler for archive restore jobs
- * Responsibilities:
- * - Restore files/directories from mounted archive to destination server
- * - Support multiple restore modes: in-place, alternate, suffix
- * - Use rsync over SSH for efficient transfer
- * - Track progress and provide detailed logging
+ * Uses borg extract directly on client server for efficient restoration
  */
 final class ArchiveRestoreHandler implements JobHandlerInterface
 {
     public function __construct(
         private readonly ArchiveRepository $archiveRepo,
-        private readonly ArchiveMountRepository $mountRepo,
         private readonly BorgRepositoryRepository $repositoryRepo,
         private readonly ServerRepository $serverRepo,
+        private readonly SettingRepository $settingRepo,
         private readonly SshExecutor $sshExecutor,
         private readonly LoggerInterface $logger
     ) {
@@ -46,9 +41,9 @@ final class ArchiveRestoreHandler implements JobHandlerInterface
         $archiveId = $payload['archive_id'] ?? null;
         $serverId = $payload['server_id'] ?? null;
         $files = $payload['files'] ?? [];
-        $restoreMode = $payload['restore_mode'] ?? 'alternate'; // in_place | alternate | suffix
+        $restoreMode = $payload['restore_mode'] ?? 'alternate';
         $destination = $payload['destination'] ?? null;
-        $overwriteMode = $payload['overwrite_mode'] ?? 'newer'; // always | newer | never | rename
+        $overwriteMode = $payload['overwrite_mode'] ?? 'newer';
         $preservePermissions = $payload['preserve_permissions'] ?? true;
         $preserveOwner = $payload['preserve_owner'] ?? true;
         $verifyChecksums = $payload['verify_checksums'] ?? false;
@@ -80,7 +75,7 @@ final class ArchiveRestoreHandler implements JobHandlerInterface
     }
 
     /**
-     * Execute the restore operation
+     * Execute the restore using borg extract on client server
      */
     private function executeRestore(
         Job $job,
@@ -96,331 +91,237 @@ final class ArchiveRestoreHandler implements JobHandlerInterface
         bool $verifyChecksums,
         bool $dryRun
     ): string {
-        $this->logger->info("Starting restore for archive #{$archiveId} to server #{$serverId}", 'RESTORE');
-        $queue->updateProgress($job->id, 5, "Initializing restore...");
+        $queue->updateProgress($job->id, 5, 'Preparing restore...');
 
-        // Step 1: Validate archive is mounted
-        $queue->updateProgress($job->id, 10, "Checking archive mount status...");
-        $mount = $this->mountRepo->findByArchiveId($archiveId);
-
-        if (!$mount || $mount->status !== 'mounted') {
-            throw new Exception("Archive must be mounted before restore. Please mount the archive first.");
-        }
-
-        $mountPath = $mount->mountPath;
-        $this->logger->info("Archive mounted at: {$mountPath}", 'RESTORE');
-
-        // Step 2: Get archive and server info
-        $queue->updateProgress($job->id, 15, "Loading archive and server information...");
+        // 1. Get archive information
         $archive = $this->archiveRepo->findById($archiveId);
         if (!$archive) {
-            throw new Exception("Archive #{$archiveId} not found");
+            throw new Exception("Archive not found: {$archiveId}");
         }
 
+        $queue->updateProgress($job->id, 10, 'Loading repository information...');
+
+        // 2. Get repository information (includes passphrase)
+        $repository = $this->repositoryRepo->findByRepoId($archive->repoId);
+        if (!$repository) {
+            throw new Exception("Repository not found: {$archive->repoId}");
+        }
+
+        $queue->updateProgress($job->id, 15, 'Loading server information...');
+
+        // 3. Get destination server information
         $server = $this->serverRepo->findById($serverId);
         if (!$server) {
-            throw new Exception("Server #{$serverId} not found");
+            throw new Exception("Server not found: {$serverId}");
         }
 
-        $this->logger->info("Restoring to server: {$server->name} ({$server->hostname})", 'RESTORE');
+        $queue->updateProgress($job->id, 20, 'Testing SSH connectivity...');
 
-        // Step 3: Test SSH connectivity
-        $queue->updateProgress($job->id, 20, "Testing SSH connection to destination server...");
-        if (!$this->sshExecutor->testConnection($server)) {
-            throw new Exception("Cannot connect to destination server via SSH");
+        // 4. Test SSH connectivity
+        $testResult = $this->sshExecutor->execute($server, 'echo "SSH OK"');
+        if ($testResult['exitCode'] !== 0 || strpos($testResult['stdout'], 'SSH OK') === false) {
+            throw new Exception("SSH connection to {$server->name} failed");
         }
 
-        // Step 4: Determine destination path
-        $queue->updateProgress($job->id, 25, "Determining destination path...");
-        $destinationPath = $this->determineDestinationPath(
+        $this->logger->info("SSH connection to {$server->name} successful", 'RESTORE');
+
+        $queue->updateProgress($job->id, 25, 'Determining restore destination...');
+
+        // 5. Determine working directory based on restore mode
+        $workingDir = $this->getWorkingDirectory($restoreMode, $destination);
+
+        $queue->updateProgress($job->id, 30, 'Preparing borg extract command...');
+
+        // 6. Build environment variables for borg
+        $borgRepo = $this->getBorgRepoUrl($repository, $server);
+        $passphrase = $repository->passphrase; // Already decoded by FROM_BASE64 in SQL query
+
+        // 7. Build the borg extract command
+        $command = $this->buildBorgExtractCommand(
+            $borgRepo,
+            $passphrase,
+            $archive->name, // Archive name
+            $files,
+            $workingDir,
             $restoreMode,
-            $destination,
-            $files[0] ?? '/'
-        );
-
-        $this->logger->info("Destination path: {$destinationPath}", 'RESTORE');
-
-        // Step 5: Validate destination (space, permissions, etc.)
-        $queue->updateProgress($job->id, 30, "Validating destination...");
-        $this->validateDestination($server, $destinationPath, $files);
-
-        // Step 6: Create files list for rsync
-        $queue->updateProgress($job->id, 35, "Preparing file list...");
-        $filesListPath = $this->createFilesList($files);
-
-        // Step 7: Build rsync command
-        $queue->updateProgress($job->id, 40, "Building restore command...");
-        $rsyncCommand = $this->buildRsyncCommand(
-            $mountPath,
-            $server,
-            $destinationPath,
-            $filesListPath,
-            $restoreMode,
-            $overwriteMode,
             $preservePermissions,
             $preserveOwner,
             $dryRun
         );
 
-        $this->logger->info("Rsync command prepared" . ($dryRun ? " (DRY RUN)" : ""), 'RESTORE');
+        $queue->updateProgress($job->id, 40, 'Executing restore on destination server...');
 
-        // Step 8: Execute rsync
-        $queue->updateProgress($job->id, 50, $dryRun ? "Simulating restore (dry run)..." : "Restoring files...");
-        $result = $this->executeRsync($rsyncCommand, $job, $queue);
+        $this->logger->info("Executing restore: {$command}", 'RESTORE');
 
-        // Step 9: Verify if requested
-        if ($verifyChecksums && !$dryRun) {
-            $queue->updateProgress($job->id, 90, "Verifying restored files...");
-            $this->verifyRestored($server, $files, $destinationPath);
+        // 8. Execute borg extract on destination server
+        try {
+            $result = $this->sshExecutor->execute($server, $command, timeout: 7200); // 2 hour timeout
+
+            if ($result['exitCode'] !== 0) {
+                throw new Exception("Borg extract failed with exit code {$result['exitCode']}: {$result['stderr']}");
+            }
+
+            $queue->updateProgress($job->id, 90, 'Restore completed, verifying...');
+
+            $this->logger->info("Restore output:\n{$result['stdout']}", 'RESTORE');
+
+            // 9. Verify restoration
+            $filesCount = count($files);
+            $queue->updateProgress($job->id, 95, "Successfully restored {$filesCount} items");
+
+            // 10. Apply suffix mode if needed (rename after extraction)
+            if ($restoreMode === 'suffix') {
+                $queue->updateProgress($job->id, 97, 'Applying timestamp suffix...');
+                $this->applySuffixMode($server, $files, $workingDir);
+            }
+
+            $queue->updateProgress($job->id, 100, 'Restore completed successfully');
+
+            $message = sprintf(
+                "Successfully restored %d items to %s:%s in %s mode",
+                $filesCount,
+                $server->name,
+                $workingDir,
+                $restoreMode
+            );
+
+            if ($dryRun) {
+                $message = "[DRY RUN] " . $message;
+            }
+
+            return $message;
+
+        } catch (Exception $e) {
+            throw new Exception("Borg extract failed: {$e->getMessage()}");
         }
-
-        // Step 10: Cleanup
-        $queue->updateProgress($job->id, 95, "Cleaning up...");
-        if (file_exists($filesListPath)) {
-            unlink($filesListPath);
-        }
-
-        $queue->updateProgress($job->id, 100, "Restore completed successfully.");
-
-        $filesCount = count($files);
-        $message = $dryRun
-            ? "Dry run completed: {$filesCount} files would be restored to {$server->name}:{$destinationPath}"
-            : "Successfully restored {$filesCount} files to {$server->name}:{$destinationPath}";
-
-        $this->logger->info($message, 'RESTORE');
-
-        return $message . "\n\n" . $result;
     }
 
     /**
-     * Determine the final destination path based on restore mode
+     * Get working directory based on restore mode
      */
-    private function determineDestinationPath(string $restoreMode, ?string $customDest, string $firstFile): string
+    private function getWorkingDirectory(string $restoreMode, ?string $destination): string
     {
         switch ($restoreMode) {
             case 'in_place':
-                // Restore to original location
-                return '/';
+                return '/'; // Extract to root, files go to original location
 
             case 'alternate':
-                // Restore to custom location
-                if (!$customDest) {
-                    throw new Exception("Alternate location requires a destination path");
+                if (!$destination) {
+                    throw new Exception('Destination path required for alternate restore mode');
                 }
-                return rtrim($customDest, '/') . '/';
+                return rtrim($destination, '/');
 
             case 'suffix':
-                // Restore to original location with suffix
-                return '/';
+                // For suffix mode, extract to temp location first
+                return '/tmp/restore-' . date('YmdHis');
 
             default:
-                throw new Exception("Unknown restore mode: {$restoreMode}");
+                throw new Exception("Invalid restore mode: {$restoreMode}");
         }
     }
 
     /**
-     * Validate destination (space, permissions, etc.)
+     * Build Borg repository URL for SSH access
      */
-    private function validateDestination($server, string $destination, array $files): void
+    private function getBorgRepoUrl(object $repository, object $server): string
     {
-        // Check if destination directory exists or can be created
-        $checkCommand = sprintf(
-            'test -d %s || mkdir -p %s',
-            escapeshellarg($destination),
-            escapeshellarg($destination)
-        );
-
-        $result = $this->sshExecutor->execute($server, $checkCommand, 30);
-
-        if ($result['exitCode'] !== 0) {
-            throw new Exception("Cannot access or create destination directory: {$destination}");
+        // Determine phpborg server host based on backup type
+        if (strtolower($server->backupType) === 'internal') {
+            // Use internal IP from settings for internal backups
+            $internalIpSetting = $this->settingRepo->findByKey('network.internal_ip');
+            $phpborgHost = $internalIpSetting ? $internalIpSetting->value : gethostname();
+        } else {
+            // Use hostname for external backups
+            $phpborgHost = gethostname();
         }
 
-        // Check write permissions
-        $writeTestCommand = sprintf(
-            'test -w %s',
-            escapeshellarg($destination)
+        return sprintf(
+            'ssh://phpborg@%s%s',
+            $phpborgHost,
+            $repository->repoPath
         );
-
-        $result = $this->sshExecutor->execute($server, $writeTestCommand, 10);
-
-        if ($result['exitCode'] !== 0) {
-            throw new Exception("No write permission on destination: {$destination}");
-        }
-
-        $this->logger->debug("Destination validation passed", 'RESTORE');
     }
 
     /**
-     * Create temporary file with list of files to restore
+     * Build borg extract command with all options
      */
-    private function createFilesList(array $files): string
-    {
-        $tmpFile = tempnam(sys_get_temp_dir(), 'phpborg_restore_');
-
-        $content = '';
-        foreach ($files as $file) {
-            // Remove leading slash for rsync --files-from
-            $file = ltrim($file, '/');
-            $content .= $file . "\n";
-        }
-
-        file_put_contents($tmpFile, $content);
-
-        $this->logger->debug("Created files list: {$tmpFile} (" . count($files) . " files)", 'RESTORE');
-
-        return $tmpFile;
-    }
-
-    /**
-     * Build rsync command with all options
-     */
-    private function buildRsyncCommand(
-        string $sourcePath,
-        $server,
-        string $destination,
-        string $filesListPath,
+    private function buildBorgExtractCommand(
+        string $borgRepo,
+        string $passphrase,
+        string $archiveName,
+        array $files,
+        string $workingDir,
         string $restoreMode,
-        string $overwriteMode,
         bool $preservePermissions,
         bool $preserveOwner,
         bool $dryRun
-    ): array {
-        $rsyncOptions = [
-            '-a', // archive mode (recursive, preserve permissions, times, etc.)
-            '-v', // verbose
-            '-z', // compress during transfer
-            '--progress', // show progress
-            '--stats', // show transfer stats
-            '--files-from=' . $filesListPath, // read file list from file
-        ];
+    ): string {
+        // Encode passphrase in base64 to safely pass through shell
+        // Then decode it on the remote side
+        $passphraseB64 = base64_encode($passphrase);
 
-        // Dry run mode
+        // Build file paths list (remove leading slashes for borg)
+        $filePaths = array_map(function($path) {
+            return ltrim($path, '/');
+        }, $files);
+
+        $filesList = implode(' ', array_map('escapeshellarg', $filePaths));
+
+        // Build borg options
+        $borgOptions = ['--list', '--progress'];
+
         if ($dryRun) {
-            $rsyncOptions[] = '--dry-run';
+            $borgOptions[] = '--dry-run';
         }
 
-        // Overwrite mode
-        switch ($overwriteMode) {
-            case 'newer':
-                $rsyncOptions[] = '--update'; // skip files that are newer on the receiver
-                break;
-
-            case 'never':
-                $rsyncOptions[] = '--ignore-existing'; // skip updating files that exist on receiver
-                break;
-
-            case 'rename':
-                $rsyncOptions[] = '--backup'; // backup existing files
-                $rsyncOptions[] = '--suffix=.before-restore'; // suffix for backed up files
-                break;
-
-            case 'always':
-            default:
-                // No special option - always overwrite
-                break;
-        }
-
-        // Suffix mode: add timestamp suffix to restored files
-        if ($restoreMode === 'suffix') {
-            $suffix = '.restored-' . date('YmdHis');
-            $rsyncOptions[] = '--suffix=' . $suffix;
-        }
-
-        // Preserve permissions
-        if (!$preservePermissions) {
-            $rsyncOptions[] = '--no-perms';
-            $rsyncOptions[] = '--no-owner';
-            $rsyncOptions[] = '--no-group';
-        }
-
-        if (!$preserveOwner) {
-            $rsyncOptions[] = '--no-owner';
-            $rsyncOptions[] = '--no-group';
-        }
-
-        // SSH options
-        $sshOptions = sprintf(
-            '-e "ssh -i /root/.ssh/id_rsa -o StrictHostKeyChecking=no -o BatchMode=yes -p %d"',
-            $server->port
-        );
+        $optionsStr = implode(' ', $borgOptions);
 
         // Build full command
-        // rsync [options] source/ user@host:destination/
-        $command = array_merge(
-            ['rsync'],
-            $rsyncOptions,
-            [$sshOptions],
-            [$sourcePath . '/'], // source with trailing slash
-            [sprintf('%s@%s:%s', $server->username ?? 'root', $server->hostname, $destination)]
+        // Use base64 decode to safely handle passphrase with special characters
+        $command = sprintf(
+            'export BORG_REPO=%s && ' .
+            'export BORG_PASSPHRASE=$(echo %s | base64 -d) && ' .
+            'export BORG_RSH="ssh -i /root/.ssh/phpborg_backup -o StrictHostKeyChecking=no" && ' .
+            'mkdir -p %s && cd %s && ' .
+            'borg extract %s ::%s %s 2>&1',
+            escapeshellarg($borgRepo),
+            escapeshellarg($passphraseB64),
+            escapeshellarg($workingDir),
+            escapeshellarg($workingDir),
+            $optionsStr,
+            escapeshellarg($archiveName),
+            $filesList
         );
 
         return $command;
     }
 
     /**
-     * Execute rsync command and track progress
+     * Apply suffix mode by renaming extracted files
      */
-    private function executeRsync(array $command, Job $job, JobQueue $queue): string
+    private function applySuffixMode(object $server, array $files, string $workingDir): void
     {
-        $commandString = implode(' ', array_map('escapeshellarg', $command));
+        $suffix = '.restored-' . date('YmdHis');
 
-        $this->logger->debug("Executing rsync: {$commandString}", 'RESTORE');
+        foreach ($files as $filePath) {
+            $extractedPath = $workingDir . '/' . ltrim($filePath, '/');
+            $newPath = $extractedPath . $suffix;
 
-        $process = new Process($command, null, null, null, 3600); // 1 hour timeout
-        $process->setTimeout(3600);
+            // Move to original location with suffix
+            $originalPath = $filePath . $suffix;
+            $command = sprintf(
+                'if [ -e %s ]; then mv %s %s; fi',
+                escapeshellarg($extractedPath),
+                escapeshellarg($extractedPath),
+                escapeshellarg($originalPath)
+            );
 
-        $output = '';
-        $errorOutput = '';
-
-        $process->run(function ($type, $buffer) use (&$output, &$errorOutput, $job, $queue) {
-            if (Process::ERR === $type) {
-                $errorOutput .= $buffer;
-            } else {
-                $output .= $buffer;
-
-                // Try to parse progress from rsync output
-                // Format: "1,234,567  45%  1.23MB/s    0:00:12"
-                if (preg_match('/(\d+)%/', $buffer, $matches)) {
-                    $percent = (int)$matches[1];
-                    // Map rsync progress (0-100) to job progress (50-90)
-                    $jobProgress = 50 + ($percent * 40 / 100);
-                    $queue->updateProgress($job->id, (int)$jobProgress, "Restoring files... {$percent}%");
-                }
-            }
-        });
-
-        if (!$process->isSuccessful()) {
-            $this->logger->error("Rsync failed: " . $errorOutput, 'RESTORE');
-            throw new Exception("Rsync failed: " . $errorOutput);
-        }
-
-        return $output;
-    }
-
-    /**
-     * Verify restored files by comparing checksums
-     */
-    private function verifyRestored($server, array $files, string $destination): void
-    {
-        $this->logger->info("Verifying restored files...", 'RESTORE');
-
-        // TODO: Implement checksum verification
-        // For now, just check if files exist
-
-        $filesCount = min(count($files), 5); // Check first 5 files
-        for ($i = 0; $i < $filesCount; $i++) {
-            $file = $files[$i];
-            $destFile = rtrim($destination, '/') . '/' . ltrim($file, '/');
-
-            $checkCommand = sprintf('test -e %s', escapeshellarg($destFile));
-            $result = $this->sshExecutor->execute($server, $checkCommand, 10);
-
-            if ($result['exitCode'] !== 0) {
-                $this->logger->warning("Restored file not found: {$destFile}", 'RESTORE');
+            try {
+                $this->sshExecutor->execute($server, $command);
+                $this->logger->info("Applied suffix to {$filePath} -> {$originalPath}", 'RESTORE');
+            } catch (Exception $e) {
+                $this->logger->warning("Failed to apply suffix to {$filePath}: {$e->getMessage()}", 'RESTORE');
             }
         }
-
-        $this->logger->info("Verification completed", 'RESTORE');
     }
 }

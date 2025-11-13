@@ -119,4 +119,34 @@ export const backupService = {
     const encodedPath = encodeURIComponent(path)
     return `${baseUrl}/backups/${id}/download?path=${encodedPath}`
   },
+
+  /**
+   * Restore files from an archive
+   * @param {number} id - Backup ID
+   * @param {Object} restoreData - Restore configuration
+   * @param {number} restoreData.server_id - Destination server ID
+   * @param {Array<string>} restoreData.files - Array of file paths to restore
+   * @param {string} restoreData.restore_mode - 'in_place' | 'alternate' | 'suffix'
+   * @param {string} restoreData.destination - Custom destination path (for alternate mode)
+   * @param {string} restoreData.overwrite_mode - 'always' | 'newer' | 'never' | 'rename'
+   * @param {boolean} restoreData.preserve_permissions - Preserve file permissions
+   * @param {boolean} restoreData.preserve_owner - Preserve file ownership
+   * @param {boolean} restoreData.verify_checksums - Verify after restore
+   * @param {boolean} restoreData.dry_run - Simulate restore without actual changes
+   * @param {boolean} restoreData.confirm_overwrite - Required for in_place mode
+   * @returns {Promise<Object>}
+   */
+  async restore(id, restoreData) {
+    const response = await api.post(`/backups/${id}/restore`, restoreData)
+    return {
+      success: response.data.success,
+      job_id: response.data.data?.job_id,
+      archive_id: response.data.data?.archive_id,
+      server_id: response.data.data?.server_id,
+      files_count: response.data.data?.files_count,
+      restore_mode: response.data.data?.restore_mode,
+      dry_run: response.data.data?.dry_run,
+      message: response.data.message || response.data.data?.message
+    }
+  },
 }
