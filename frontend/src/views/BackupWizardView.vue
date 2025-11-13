@@ -2,21 +2,21 @@
   <div class="backup-wizard">
     <!-- Header -->
     <div class="mb-8">
-      <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Backup Configuration Wizard</h1>
-      <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Step-by-step configuration for professional backup setup</p>
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ $t('backup_wizard.title') }}</h1>
+      <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.subtitle') }}</p>
     </div>
 
     <!-- Progress Bar -->
-    <div class="wizard-progress mb-8">
+    <div v-if="steps" class="wizard-progress mb-8">
       <div class="flex justify-between relative">
         <div class="absolute top-5 left-0 right-0 h-1 bg-gray-200"></div>
-        <div 
+        <div
           class="absolute top-5 left-0 h-1 bg-primary-600 transition-all duration-300"
           :style="{ width: `${(currentStep / (steps.length - 1)) * 100}%` }"
         ></div>
-        
-        <div 
-          v-for="(step, index) in steps" 
+
+        <div
+          v-for="(step, index) in steps"
           :key="index"
           class="relative z-10 flex flex-col items-center"
           :class="{ 'cursor-pointer': index < currentStep }"
@@ -45,7 +45,7 @@
 
     <!-- Step Content -->
     <div class="card">
-      <div class="mb-6">
+      <div v-if="steps && steps[currentStep]" class="mb-6">
         <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ steps[currentStep].title }}</h2>
         <p class="text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">{{ steps[currentStep].description }}</p>
       </div>
@@ -54,26 +54,26 @@
         <!-- Step 1: Server Selection -->
         <div v-if="currentStep === 0" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Server</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.server_select.label') }}</label>
             <select v-model="wizardData.serverId" class="input w-full" @change="onServerChange">
-              <option value="">-- Select a server --</option>
+              <option value="">{{ $t('backup_wizard.server_select.placeholder') }}</option>
               <option v-for="server in servers" :key="server.id" :value="server.id">
                 {{ server.name }} ({{ server.hostname || server.host || '' }})
               </option>
             </select>
           </div>
-          
+
           <div v-if="wizardData.serverId" class="p-4 bg-blue-50 rounded-lg">
             <div class="flex items-start">
               <svg class="w-5 h-5 text-blue-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
               </svg>
               <div class="ml-3">
-                <h3 class="text-sm font-medium text-blue-800">Server Details</h3>
+                <h3 class="text-sm font-medium text-blue-800">{{ $t('backup_wizard.server_select.details') }}</h3>
                 <div class="mt-2 text-sm text-blue-700">
-                  <p>Host: {{ selectedServer?.hostname || selectedServer?.host }}</p>
-                  <p>SSH Port: {{ selectedServer?.port }}</p>
-                  <p v-if="selectedServer?.description">{{ selectedServer.description }}</p>
+                  <p>{{ $t('backup_wizard.server_select.host') }} {{ selectedServer?.hostname || selectedServer?.host }}</p>
+                  <p>{{ $t('backup_wizard.server_select.ssh_port') }} {{ selectedServer?.port }}</p>
+                  <p v-if="selectedServer?.description">{{ $t('backup_wizard.server_select.description') }} {{ selectedServer.description }}</p>
                 </div>
               </div>
             </div>
@@ -118,30 +118,30 @@
           <!-- Files Configuration -->
           <div v-if="wizardData.backupType === 'files'">
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Paths to Backup</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.source_config.paths_label') }}</label>
               <div class="space-y-2">
                 <div v-for="(path, index) in wizardData.sourceConfig.paths" :key="index" class="flex gap-2">
-                  <input 
-                    v-model="wizardData.sourceConfig.paths[index]" 
-                    type="text" 
+                  <input
+                    v-model="wizardData.sourceConfig.paths[index]"
+                    type="text"
                     class="input flex-1"
-                    placeholder="/path/to/backup"
+                    :placeholder="$t('backup_wizard.source_config.paths_placeholder')"
                   />
-                  <button @click="removePath(index)" class="btn btn-secondary">Remove</button>
+                  <button @click="removePath(index)" class="btn btn-secondary">{{ $t('backup_wizard.source_config.remove') }}</button>
                 </div>
-                <button @click="addPath" class="btn btn-primary btn-sm">+ Add Path</button>
+                <button @click="addPath" class="btn btn-primary btn-sm">+ {{ $t('backup_wizard.source_config.add_path') }}</button>
               </div>
             </div>
-            
+
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Exclude Patterns (optional)</label>
-              <textarea 
-                v-model="wizardData.sourceConfig.excludePatterns" 
-                rows="3" 
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.source_config.exclude_label') }}</label>
+              <textarea
+                v-model="wizardData.sourceConfig.excludePatterns"
+                rows="3"
                 class="input w-full"
-                placeholder="*.log&#10;/tmp/*&#10;cache/"
+                :placeholder="$t('backup_wizard.source_config.exclude_placeholder')"
               ></textarea>
-              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">One pattern per line</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">{{ $t('backup_wizard.source_config.exclude_help') }}</p>
             </div>
           </div>
 
@@ -150,74 +150,74 @@
             <div class="space-y-4">
               <div>
                 <label class="flex items-center justify-between mb-2">
-                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Database Credentials</span>
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('backup_wizard.source_config.advanced') }}</span>
                   <button @click="detectMySQLCredentials" class="text-sm text-primary-600 hover:text-primary-700">
                     Auto-detect
                   </button>
                 </label>
-                
+
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">Host</label>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">{{ $t('backup_wizard.source_config.host') }}</label>
                     <input v-model="wizardData.sourceConfig.host" type="text" class="input w-full" placeholder="localhost" />
                   </div>
                   <div>
-                    <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">Port</label>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">{{ $t('backup_wizard.source_config.port') }}</label>
                     <input v-model="wizardData.sourceConfig.port" type="number" class="input w-full" placeholder="3306" />
                   </div>
                   <div>
-                    <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">Username</label>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">{{ $t('backup_wizard.source_config.username') }}</label>
                     <input v-model="wizardData.sourceConfig.username" type="text" class="input w-full" />
                   </div>
                   <div>
-                    <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">Password</label>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">{{ $t('backup_wizard.source_config.password') }}</label>
                     <input v-model="wizardData.sourceConfig.password" type="password" class="input w-full" />
                   </div>
                 </div>
               </div>
               
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Databases to Backup</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.source_config.databases_label') }}</label>
                 <div class="flex items-center gap-4">
                   <label class="flex items-center">
                     <input type="radio" v-model="wizardData.sourceConfig.databaseSelection" value="all" class="mr-2" />
-                    All databases
+                    {{ $t('backup_wizard.source_config.all_databases') }}
                   </label>
                   <label class="flex items-center">
                     <input type="radio" v-model="wizardData.sourceConfig.databaseSelection" value="specific" class="mr-2" />
-                    Specific databases
+                    {{ $t('backup_wizard.source_config.specific_databases') }}
                   </label>
                 </div>
-                
+
                 <div v-if="wizardData.sourceConfig.databaseSelection === 'specific'" class="mt-2">
-                  <input 
-                    v-model="wizardData.sourceConfig.databases" 
-                    type="text" 
-                    class="input w-full" 
-                    placeholder="db1, db2, db3"
+                  <input
+                    v-model="wizardData.sourceConfig.databases"
+                    type="text"
+                    class="input w-full"
+                    :placeholder="$t('backup_wizard.source_config.databases_placeholder')"
                   />
                   <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">Comma-separated list of database names</p>
                 </div>
               </div>
 
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Backup Options</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.source_config.backup_options') }}</label>
                 <div class="space-y-2">
                   <label class="flex items-center">
                     <input type="checkbox" v-model="wizardData.sourceConfig.singleTransaction" class="mr-2" />
-                    Use single transaction (recommended for InnoDB)
+                    {{ $t('backup_wizard.source_config.single_transaction') }}
                   </label>
                   <label class="flex items-center">
                     <input type="checkbox" v-model="wizardData.sourceConfig.routines" class="mr-2" />
-                    Include stored procedures and functions
+                    {{ $t('backup_wizard.source_config.include_routines') }}
                   </label>
                   <label class="flex items-center">
                     <input type="checkbox" v-model="wizardData.sourceConfig.triggers" class="mr-2" />
-                    Include triggers
+                    {{ $t('backup_wizard.source_config.include_triggers') }}
                   </label>
                   <label class="flex items-center">
                     <input type="checkbox" v-model="wizardData.sourceConfig.events" class="mr-2" />
-                    Include scheduled events
+                    {{ $t('backup_wizard.source_config.include_events') }}
                   </label>
                 </div>
               </div>
@@ -240,9 +240,9 @@
                     <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0118 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
                   </svg>
                   <div class="ml-3">
-                    <h3 class="text-sm font-medium text-blue-800">Full System Backup</h3>
+                    <h3 class="text-sm font-medium text-blue-800">{{ $t('backup_wizard.source_config.full_system_backup_title') }}</h3>
                     <p class="mt-1 text-sm text-blue-700">
-                      This will create a complete backup of the system starting from root (/) with intelligent exclusions for temporary and system files.
+                      {{ $t('backup_wizard.source_config.full_system_backup_description') }}
                     </p>
                   </div>
                 </div>
@@ -250,7 +250,7 @@
 
               <!-- Backup Scope -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Backup Scope</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.source_config.backup_scope') }}</label>
                 <div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
                   <div class="flex items-center mb-2">
                     <svg class="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -281,7 +281,7 @@
 
               <!-- Standard Exclusions -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Standard Exclusions (Always Applied)</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.source_config.standard_exclusions') }}</label>
                 <div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
                   <div class="space-y-1 font-mono text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
                     <div class="text-gray-700 dark:text-gray-300 font-semibold mb-2"># Critical system directories</div>
@@ -305,19 +305,19 @@
 
               <!-- Optional Exclusions -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Optional Exclusions</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.source_config.optional_exclusions') }}</label>
                 <div class="space-y-3">
                   <!-- Docker -->
                   <div class="p-3 border rounded-lg">
                     <label class="flex items-start">
                       <input type="checkbox" v-model="wizardData.sourceConfig.excludeDocker" class="mt-1 mr-3" checked />
                       <div class="flex-1">
-                        <div class="font-medium text-sm">Docker & Container Data</div>
+                        <div class="font-medium text-sm">{{ $t('backup_wizard.source_config.exclusions.docker.title') }}</div>
                         <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">
-                          Excludes: /var/lib/docker/*, /var/lib/containerd/*, /var/lib/lxc/*
+                          {{ $t('backup_wizard.source_config.exclusions.docker.paths') }}
                         </div>
                         <div class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
-                          Container data should be backed up using container-specific tools for consistency.
+                          {{ $t('backup_wizard.source_config.exclusions.docker.description') }}
                         </div>
                       </div>
                     </label>
@@ -328,12 +328,12 @@
                     <label class="flex items-start">
                       <input type="checkbox" v-model="wizardData.sourceConfig.excludeDatabaseData" class="mt-1 mr-3" checked />
                       <div class="flex-1">
-                        <div class="font-medium text-sm">Database Data Files</div>
+                        <div class="font-medium text-sm">{{ $t('backup_wizard.source_config.exclusions.database.title') }}</div>
                         <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">
-                          Excludes: /var/lib/mysql/*, /var/lib/postgresql/*, /var/lib/mongodb/*
+                          {{ $t('backup_wizard.source_config.exclusions.database.paths') }}
                         </div>
                         <div class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
-                          Database files should be backed up using dumps for consistency. Use dedicated database backup instead.
+                          {{ $t('backup_wizard.source_config.exclusions.database.description') }}
                         </div>
                       </div>
                     </label>
@@ -344,12 +344,12 @@
                     <label class="flex items-start">
                       <input type="checkbox" v-model="wizardData.sourceConfig.excludeVMs" class="mt-1 mr-3" checked />
                       <div class="flex-1">
-                        <div class="font-medium text-sm">Virtual Machine Images</div>
+                        <div class="font-medium text-sm">{{ $t('backup_wizard.source_config.exclusions.vms.title') }}</div>
                         <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">
-                          Excludes: /var/lib/libvirt/*, *.qcow2, *.vmdk, *.vdi, /var/lib/vz/*
+                          {{ $t('backup_wizard.source_config.exclusions.vms.paths') }}
                         </div>
                         <div class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
-                          VM images are large and should be backed up while powered off or using VM snapshots.
+                          {{ $t('backup_wizard.source_config.exclusions.vms.description') }}
                         </div>
                       </div>
                     </label>
@@ -360,12 +360,12 @@
                     <label class="flex items-start">
                       <input type="checkbox" v-model="wizardData.sourceConfig.excludeLogs" class="mt-1 mr-3" checked />
                       <div class="flex-1">
-                        <div class="font-medium text-sm">Log Files</div>
+                        <div class="font-medium text-sm">{{ $t('backup_wizard.source_config.exclusions.logs.title') }}</div>
                         <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">
-                          Excludes: /var/log/*, *.log, *.log.*, /var/spool/mail/*
+                          {{ $t('backup_wizard.source_config.exclusions.logs.paths') }}
                         </div>
                         <div class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
-                          Logs can be large and are usually not needed for system restoration.
+                          {{ $t('backup_wizard.source_config.exclusions.logs.description') }}
                         </div>
                       </div>
                     </label>
@@ -376,12 +376,12 @@
                     <label class="flex items-start">
                       <input type="checkbox" v-model="wizardData.sourceConfig.excludeCaches" class="mt-1 mr-3" checked />
                       <div class="flex-1">
-                        <div class="font-medium text-sm">Cache Directories</div>
+                        <div class="font-medium text-sm">{{ $t('backup_wizard.source_config.exclusions.caches.title') }}</div>
                         <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">
-                          Excludes: /var/cache/*, */.cache/*, /var/lib/apt/lists/*, */node_modules/*
+                          {{ $t('backup_wizard.source_config.exclusions.caches.paths') }}
                         </div>
                         <div class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
-                          Caches can be regenerated and excluding them saves significant space.
+                          {{ $t('backup_wizard.source_config.exclusions.caches.description') }}
                         </div>
                       </div>
                     </label>
@@ -392,12 +392,12 @@
                     <label class="flex items-start">
                       <input type="checkbox" v-model="wizardData.sourceConfig.excludeDownloads" class="mt-1 mr-3" />
                       <div class="flex-1">
-                        <div class="font-medium text-sm">Downloads & Trash</div>
+                        <div class="font-medium text-sm">{{ $t('backup_wizard.source_config.exclusions.downloads.title') }}</div>
                         <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">
-                          Excludes: */Downloads/*, */.Trash/*, */Trash/*, */.local/share/Trash/*
+                          {{ $t('backup_wizard.source_config.exclusions.downloads.paths') }}
                         </div>
                         <div class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
-                          Temporary user files that are typically not important for backup.
+                          {{ $t('backup_wizard.source_config.exclusions.downloads.description') }}
                         </div>
                       </div>
                     </label>
@@ -408,12 +408,12 @@
                     <label class="flex items-start">
                       <input type="checkbox" v-model="wizardData.sourceConfig.excludeBuildArtifacts" class="mt-1 mr-3" />
                       <div class="flex-1">
-                        <div class="font-medium text-sm">Build Artifacts & Dependencies</div>
+                        <div class="font-medium text-sm">{{ $t('backup_wizard.source_config.exclusions.build.title') }}</div>
                         <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">
-                          Excludes: */target/*, */dist/*, */build/*, */.gradle/*, */.m2/*, */vendor/*
+                          {{ $t('backup_wizard.source_config.exclusions.build.paths') }}
                         </div>
                         <div class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
-                          Development build outputs and downloaded dependencies that can be regenerated.
+                          {{ $t('backup_wizard.source_config.exclusions.build.description') }}
                         </div>
                       </div>
                     </label>
@@ -423,17 +423,17 @@
 
               <!-- Custom Exclusions -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Additional Exclusions (Optional)</label>
-                
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.source_config.additional_exclusions') }}</label>
+
                 <!-- Input to add new exclusions -->
                 <div class="flex gap-2 mb-3">
                   <div class="relative flex-1">
-                    <input 
+                    <input
                       v-model="newExclusionPattern"
                       @keydown.enter="addCustomExclusion"
-                      type="text" 
+                      type="text"
                       class="input w-full pr-10"
-                      placeholder="Enter path or pattern (e.g., /backup/*, *.bak, /var/www/*/cache/)"
+                      :placeholder="$t('backup_wizard.source_config.pattern_placeholder')"
                     />
                     <div class="absolute inset-y-0 right-2 flex items-center pointer-events-none">
                       <svg class="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -441,18 +441,18 @@
                       </svg>
                     </div>
                   </div>
-                  <button 
-                    @click="addCustomExclusion" 
+                  <button
+                    @click="addCustomExclusion"
                     :disabled="!newExclusionPattern.trim()"
                     class="btn btn-primary"
                   >
-                    Add Exclusion
+                    {{ $t('backup_wizard.source_config.add_exclusion') }}
                   </button>
                 </div>
 
                 <!-- Quick add buttons for common patterns -->
                 <div class="mb-3">
-                  <p class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-2">Quick add:</p>
+                  <p class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-2">{{ $t('backup_wizard.source_config.quick_add') }}</p>
                   <div class="flex flex-wrap gap-2">
                     <button 
                       v-for="pattern in quickExclusionPatterns" 
@@ -475,10 +475,10 @@
                       class="group inline-flex items-center bg-white border border-gray-300 dark:border-gray-600 rounded-full px-3 py-1 text-sm"
                     >
                       <span class="font-mono text-gray-700 dark:text-gray-300">{{ exclusion }}</span>
-                      <button 
+                      <button
                         @click="removeCustomExclusion(index)"
                         class="ml-2 text-gray-400 dark:text-gray-500 hover:text-red-500 transition-colors"
-                        title="Remove"
+                        :title="$t('backup_wizard.source_config.remove_exclusion')"
                       >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -486,36 +486,36 @@
                       </button>
                     </div>
                   </div>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 dark:text-gray-500 dark:text-gray-400 mt-2">{{ customExclusions.length }} custom exclusion{{ customExclusions.length !== 1 ? 's' : '' }} added</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 dark:text-gray-500 dark:text-gray-400 mt-2">{{ $t('backup_wizard.source_config.custom_exclusions_count', { count: customExclusions.length }, customExclusions.length) }}</p>
                 </div>
                 <div v-else class="text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500 italic">
-                  No custom exclusions added yet
+                  {{ $t('backup_wizard.source_config.no_custom_exclusions') }}
                 </div>
-                
+
                 <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-2">
-                  Use * for wildcards, ** for recursive matching. Examples: *.bak, /home/*/.config/**, /var/www/*/temp/
+                  {{ $t('backup_wizard.source_config.wildcards_help') }}
                 </p>
               </div>
 
               <!-- Backup Options -->
               <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Options</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.source_config.options_label') }}</label>
                 <div class="space-y-2">
                   <label class="flex items-center">
                     <input type="checkbox" v-model="wizardData.sourceConfig.oneFileSystem" class="mr-2" checked />
-                    <span class="text-sm">Stay on same filesystem (don't cross mount points)</span>
+                    <span class="text-sm">{{ $t('backup_wizard.source_config.one_file_system') }}</span>
                   </label>
                   <label class="flex items-center">
                     <input type="checkbox" v-model="wizardData.sourceConfig.preservePermissions" class="mr-2" checked />
-                    <span class="text-sm">Preserve file permissions and ownership</span>
+                    <span class="text-sm">{{ $t('backup_wizard.source_config.preserve_permissions') }}</span>
                   </label>
                   <label class="flex items-center">
                     <input type="checkbox" v-model="wizardData.sourceConfig.preserveTimestamps" class="mr-2" checked />
-                    <span class="text-sm">Preserve file timestamps</span>
+                    <span class="text-sm">{{ $t('backup_wizard.source_config.preserve_timestamps') }}</span>
                   </label>
                   <label class="flex items-center">
                     <input type="checkbox" v-model="wizardData.sourceConfig.followSymlinks" class="mr-2" />
-                    <span class="text-sm">Follow symbolic links</span>
+                    <span class="text-sm">{{ $t('backup_wizard.source_config.follow_symlinks') }}</span>
                   </label>
                 </div>
               </div>
@@ -635,30 +635,30 @@
         <!-- Step 5: Storage Pool -->
         <div v-else-if="currentStep === 4" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Storage Pool</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.storage_pool.select_label') }}</label>
             <div class="space-y-2">
-              <label 
-                v-for="pool in storagePools" 
+              <label
+                v-for="pool in storagePools"
                 :key="pool.id"
                 class="flex items-start p-4 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800"
                 :class="{ 'border-primary-500 bg-primary-50': wizardData.storagePoolId === pool.id }"
               >
-                <input 
-                  type="radio" 
-                  :value="pool.id" 
+                <input
+                  type="radio"
+                  :value="pool.id"
                   v-model="wizardData.storagePoolId"
                   class="mt-1"
                 />
                 <div class="ml-3 flex-1">
                   <div class="flex items-center justify-between">
                     <div class="font-medium">{{ pool.name }}</div>
-                    <span v-if="pool.default_pool" class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Default</span>
+                    <span v-if="pool.default_pool" class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">{{ $t('backup_wizard.storage_pool.default_badge') }}</span>
                   </div>
                   <div class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ pool.path }}</div>
                   <div class="mt-2">
                     <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">
-                      <span>Used: {{ formatBytes(pool.capacity_used) }}</span>
-                      <span>Total: {{ formatBytes(pool.capacity_total) }}</span>
+                      <span>{{ $t('backup_wizard.storage_pool.used') }} {{ formatBytes(pool.capacity_used) }}</span>
+                      <span>{{ $t('backup_wizard.storage_pool.total') }} {{ formatBytes(pool.capacity_total) }}</span>
                     </div>
                     <div class="mt-1 h-2 bg-gray-200 rounded-full overflow-hidden">
                       <div 
@@ -676,49 +676,49 @@
         <!-- Step 6: Repository Setup -->
         <div v-else-if="currentStep === 5" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Repository Name</label>
-            <input 
-              v-model="wizardData.repositoryName" 
-              type="text" 
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.repository.name_label') }}</label>
+            <input
+              v-model="wizardData.repositoryName"
+              type="text"
               class="input w-full"
               :placeholder="`${selectedServer?.name}-${wizardData.backupType}`"
             />
-            <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">A unique name for this repository</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">{{ $t('backup_wizard.repository.name_help') }}</p>
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Encryption</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.repository.encryption_label') }}</label>
             <select v-model="wizardData.encryption" class="input w-full">
-              <option value="repokey-blake2">Repokey Blake2 (Recommended)</option>
-              <option value="repokey">Repokey SHA256</option>
-              <option value="keyfile-blake2">Keyfile Blake2</option>
-              <option value="keyfile">Keyfile SHA256</option>
-              <option value="none">No Encryption</option>
+              <option value="repokey-blake2">{{ $t('backup_wizard.repository.encryption_options.repokey_blake2') }}</option>
+              <option value="repokey">{{ $t('backup_wizard.repository.encryption_options.repokey') }}</option>
+              <option value="keyfile-blake2">{{ $t('backup_wizard.repository.encryption_options.keyfile_blake2') }}</option>
+              <option value="keyfile">{{ $t('backup_wizard.repository.encryption_options.keyfile') }}</option>
+              <option value="none">{{ $t('backup_wizard.repository.encryption_options.none') }}</option>
             </select>
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Compression</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.repository.compression_label') }}</label>
             <select v-model="wizardData.compression" class="input w-full">
-              <option value="lz4">LZ4 (Fast)</option>
-              <option value="zstd">Zstandard (Balanced)</option>
-              <option value="zstd,3">Zstandard Level 3 (Better compression)</option>
-              <option value="zlib">Zlib (Compatible)</option>
-              <option value="none">No Compression</option>
+              <option value="lz4">{{ $t('backup_wizard.repository.compression_options.lz4') }}</option>
+              <option value="zstd">{{ $t('backup_wizard.repository.compression_options.zstd') }}</option>
+              <option value="zstd,3">{{ $t('backup_wizard.repository.compression_options.zstd_3') }}</option>
+              <option value="zlib">{{ $t('backup_wizard.repository.compression_options.zlib') }}</option>
+              <option value="none">{{ $t('backup_wizard.repository.compression_options.none') }}</option>
             </select>
           </div>
 
           <div v-if="wizardData.encryption !== 'none'">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Passphrase (Optional)</label>
-            <input 
-              v-model="wizardData.passphrase" 
-              type="password" 
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.repository.passphrase_label') }}</label>
+            <input
+              v-model="wizardData.passphrase"
+              type="password"
               class="input w-full"
-              placeholder="Leave empty to auto-generate a secure passphrase"
+              :placeholder="$t('backup_wizard.repository.passphrase_placeholder')"
             />
             <p class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
-              <span v-if="!wizardData.passphrase">A secure passphrase will be automatically generated if not provided.</span>
-              <span v-else>Store this passphrase securely - it cannot be recovered!</span>
+              <span v-if="!wizardData.passphrase">{{ $t('backup_wizard.repository.passphrase_help_auto') }}</span>
+              <span v-else>{{ $t('backup_wizard.repository.passphrase_help_manual') }}</span>
             </p>
           </div>
         </div>
@@ -732,10 +732,9 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <div class="text-sm text-blue-900">
-                <p class="font-medium mb-1">Retention Policy Explained</p>
+                <p class="font-medium mb-1">{{ $t('backup_wizard.retention.info_title') }}</p>
                 <p class="text-blue-800">
-                  Borg will keep the specified number of backups for each period.
-                  Set to 0 to disable a period. At least one value must be greater than 0.
+                  {{ $t('backup_wizard.retention.info_description') }}
                 </p>
               </div>
             </div>
@@ -747,10 +746,10 @@
             <div class="flex items-center justify-between space-x-4">
               <div class="flex-1">
                 <label class="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
-                  Daily Backups
+                  {{ $t('backup_wizard.retention.daily_label') }}
                 </label>
                 <p class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
-                  Keep last N daily backups
+                  {{ $t('backup_wizard.retention.daily_help') }}
                 </p>
               </div>
               <div class="flex items-center space-x-3">
@@ -768,7 +767,7 @@
                   max="365"
                   class="w-20 px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-12">days</span>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-12">{{ $t('backup_wizard.retention.unit_days') }}</span>
               </div>
             </div>
 
@@ -776,10 +775,10 @@
             <div class="flex items-center justify-between space-x-4">
               <div class="flex-1">
                 <label class="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
-                  Weekly Backups
+                  {{ $t('backup_wizard.retention.weekly_label') }}
                 </label>
                 <p class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
-                  Keep last N weekly backups
+                  {{ $t('backup_wizard.retention.weekly_help') }}
                 </p>
               </div>
               <div class="flex items-center space-x-3">
@@ -797,7 +796,7 @@
                   max="52"
                   class="w-20 px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-12">weeks</span>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-12">{{ $t('backup_wizard.retention.unit_weeks') }}</span>
               </div>
             </div>
 
@@ -805,10 +804,10 @@
             <div class="flex items-center justify-between space-x-4">
               <div class="flex-1">
                 <label class="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
-                  Monthly Backups
+                  {{ $t('backup_wizard.retention.monthly_label') }}
                 </label>
                 <p class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
-                  Keep last N monthly backups
+                  {{ $t('backup_wizard.retention.monthly_help') }}
                 </p>
               </div>
               <div class="flex items-center space-x-3">
@@ -826,7 +825,7 @@
                   max="60"
                   class="w-20 px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-12">months</span>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-12">{{ $t('backup_wizard.retention.unit_months') }}</span>
               </div>
             </div>
 
@@ -834,10 +833,10 @@
             <div class="flex items-center justify-between space-x-4">
               <div class="flex-1">
                 <label class="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
-                  Yearly Backups
+                  {{ $t('backup_wizard.retention.yearly_label') }}
                 </label>
                 <p class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
-                  Keep last N yearly backups (0 = disabled)
+                  {{ $t('backup_wizard.retention.yearly_help') }}
                 </p>
               </div>
               <div class="flex items-center space-x-3">
@@ -855,33 +854,33 @@
                   max="10"
                   class="w-20 px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-12">years</span>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-12">{{ $t('backup_wizard.retention.unit_years') }}</span>
               </div>
             </div>
           </div>
 
           <!-- Preview -->
           <div class="rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
-            <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Policy Preview</h4>
+            <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">{{ $t('backup_wizard.retention.preview_title') }}</h4>
             <div class="space-y-2 text-sm text-gray-700 dark:text-gray-300">
               <div v-if="wizardData.retention.keepDaily > 0" class="flex items-center justify-between">
-                <span>Last <strong>{{ wizardData.retention.keepDaily }}</strong> daily backups</span>
-                <span class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">≈ {{ Math.ceil(wizardData.retention.keepDaily) }} days</span>
+                <span>{{ $t('backup_wizard.retention.preview_last') }} <strong>{{ wizardData.retention.keepDaily }}</strong> {{ $t('backup_wizard.retention.preview_daily') }}</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">≈ {{ Math.ceil(wizardData.retention.keepDaily) }} {{ $t('backup_wizard.retention.preview_days') }}</span>
               </div>
               <div v-if="wizardData.retention.keepWeekly > 0" class="flex items-center justify-between">
-                <span>Last <strong>{{ wizardData.retention.keepWeekly }}</strong> weekly backups</span>
-                <span class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">≈ {{ Math.ceil(wizardData.retention.keepWeekly * 7 / 30) }} months</span>
+                <span>{{ $t('backup_wizard.retention.preview_last') }} <strong>{{ wizardData.retention.keepWeekly }}</strong> {{ $t('backup_wizard.retention.preview_weekly') }}</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">≈ {{ Math.ceil(wizardData.retention.keepWeekly * 7 / 30) }} {{ $t('backup_wizard.retention.preview_months') }}</span>
               </div>
               <div v-if="wizardData.retention.keepMonthly > 0" class="flex items-center justify-between">
-                <span>Last <strong>{{ wizardData.retention.keepMonthly }}</strong> monthly backups</span>
-                <span class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">≈ {{ Math.ceil(wizardData.retention.keepMonthly / 12) }} years</span>
+                <span>{{ $t('backup_wizard.retention.preview_last') }} <strong>{{ wizardData.retention.keepMonthly }}</strong> {{ $t('backup_wizard.retention.preview_monthly') }}</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">≈ {{ Math.ceil(wizardData.retention.keepMonthly / 12) }} {{ $t('backup_wizard.retention.preview_years') }}</span>
               </div>
               <div v-if="wizardData.retention.keepYearly > 0" class="flex items-center justify-between">
-                <span>Last <strong>{{ wizardData.retention.keepYearly }}</strong> yearly backups</span>
-                <span class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">{{ wizardData.retention.keepYearly }} years</span>
+                <span>{{ $t('backup_wizard.retention.preview_last') }} <strong>{{ wizardData.retention.keepYearly }}</strong> {{ $t('backup_wizard.retention.preview_yearly') }}</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">{{ wizardData.retention.keepYearly }} {{ $t('backup_wizard.retention.preview_years') }}</span>
               </div>
               <div v-if="totalRetentionPeriods === 0" class="text-amber-600 font-medium">
-                ⚠️ At least one retention value must be greater than 0
+                {{ $t('backup_wizard.retention.preview_warning') }}
               </div>
             </div>
           </div>
@@ -890,29 +889,29 @@
         <!-- Step 8: Schedule -->
         <div v-else-if="currentStep === 7" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Backup Schedule</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.schedule_step.schedule_label') }}</label>
             <select v-model="wizardData.scheduleType" class="input w-full">
-              <option value="manual">Manual Only</option>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
+              <option value="manual">{{ $t('backup_wizard.schedule_step.schedule_options.manual') }}</option>
+              <option value="daily">{{ $t('backup_wizard.schedule_step.schedule_options.daily') }}</option>
+              <option value="weekly">{{ $t('backup_wizard.schedule_step.schedule_options.weekly') }}</option>
+              <option value="monthly">{{ $t('backup_wizard.schedule_step.schedule_options.monthly') }}</option>
             </select>
           </div>
 
           <div v-if="wizardData.scheduleType !== 'manual'">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Time</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.schedule_step.time_label') }}</label>
             <input v-model="wizardData.scheduleTime" type="time" class="input w-full" />
           </div>
 
           <!-- Multi-day selection for weekly (reuse from BackupJobsView) -->
           <div v-if="wizardData.scheduleType === 'weekly'">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Days of Week</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.schedule_step.days_of_week') }}</label>
             <div class="grid grid-cols-7 gap-2">
-              <label v-for="(day, index) in weekDays" :key="index" 
+              <label v-for="(day, index) in weekDays" :key="index"
                      class="flex items-center justify-center p-2 border rounded cursor-pointer hover:bg-blue-50"
                      :class="{ 'bg-blue-100 border-blue-500': wizardData.selectedWeekdays.includes(index + 1) }">
-                <input type="checkbox" 
-                       :value="index + 1" 
+                <input type="checkbox"
+                       :value="index + 1"
                        v-model="wizardData.selectedWeekdays"
                        class="sr-only" />
                 <span class="text-xs font-medium">{{ day.short }}</span>
@@ -922,13 +921,13 @@
 
           <!-- Multi-day selection for monthly -->
           <div v-if="wizardData.scheduleType === 'monthly'">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Days of Month</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.schedule_step.days_of_month') }}</label>
             <div class="grid grid-cols-7 gap-2 max-h-48 overflow-y-auto">
               <label v-for="day in 31" :key="day"
                      class="flex items-center justify-center p-2 border rounded cursor-pointer hover:bg-blue-50 min-w-[40px]"
                      :class="{ 'bg-blue-100 border-blue-500': wizardData.selectedMonthdays.includes(day) }">
-                <input type="checkbox" 
-                       :value="day" 
+                <input type="checkbox"
+                       :value="day"
                        v-model="wizardData.selectedMonthdays"
                        class="sr-only" />
                 <span class="text-xs font-medium">{{ day }}</span>
@@ -941,67 +940,67 @@
         <div v-else-if="currentStep === 8" class="space-y-6">
           <div class="space-y-4">
             <div class="border-b pb-4">
-              <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">Server & Type</h3>
+              <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ $t('backup_wizard.review.server_type_title') }}</h3>
               <dl class="grid grid-cols-2 gap-2 text-sm">
-                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Server:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.review.server_label') }}</dt>
                 <dd class="font-medium">{{ selectedServer?.name }}</dd>
-                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Backup Type:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.review.backup_type_label') }}</dt>
                 <dd class="font-medium">{{ wizardData.backupType }}</dd>
-                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Snapshot:</dt>
-                <dd class="font-medium">{{ wizardData.snapshotMethod || 'None' }}</dd>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.review.snapshot_label') }}</dt>
+                <dd class="font-medium">{{ wizardData.snapshotMethod || $t('backup_wizard.review.none') }}</dd>
               </dl>
             </div>
 
             <div class="border-b pb-4">
-              <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">Repository Configuration</h3>
+              <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ $t('backup_wizard.review.repository_title') }}</h3>
               <dl class="grid grid-cols-2 gap-2 text-sm">
-                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Name:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.review.name_label') }}</dt>
                 <dd class="font-medium">{{ wizardData.repositoryName }}</dd>
-                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Storage Pool:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.review.storage_pool_label') }}</dt>
                 <dd class="font-medium">{{ selectedPool?.name }}</dd>
-                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Encryption:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.review.encryption_label') }}</dt>
                 <dd class="font-medium">{{ wizardData.encryption }}</dd>
-                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Compression:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.review.compression_label') }}</dt>
                 <dd class="font-medium">{{ wizardData.compression }}</dd>
               </dl>
             </div>
 
             <div class="border-b pb-4">
-              <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">Retention Policy</h3>
+              <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ $t('backup_wizard.review.retention_title') }}</h3>
               <dl class="grid grid-cols-2 gap-2 text-sm">
-                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Daily:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.review.daily_label') }}</dt>
                 <dd class="font-medium">{{ wizardData.retention.keepDaily }}</dd>
-                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Weekly:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.review.weekly_label') }}</dt>
                 <dd class="font-medium">{{ wizardData.retention.keepWeekly }}</dd>
-                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Monthly:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.review.monthly_label') }}</dt>
                 <dd class="font-medium">{{ wizardData.retention.keepMonthly }}</dd>
-                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Yearly:</dt>
+                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.review.yearly_label') }}</dt>
                 <dd class="font-medium">{{ wizardData.retention.keepYearly }}</dd>
               </dl>
             </div>
 
             <div>
-              <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">Schedule</h3>
+              <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ $t('backup_wizard.review.schedule_title') }}</h3>
               <div class="space-y-1">
                 <p class="text-sm">
-                  <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Type:</span> 
-                  <span class="font-medium capitalize">{{ wizardData.scheduleType }}</span>
-                  <span v-if="wizardData.scheduleType !== 'manual'" class="ml-2">
-                    at {{ wizardData.scheduleTime }}
+                  <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.review.schedule_type') }}</span>
+                  <span class="font-medium">{{ $t('backup_wizard.schedule_types.' + wizardData.scheduleType) }}</span>
+                  <span v-if="wizardData.scheduleType !== 'manual'">
+                    {{ $t('backup_wizard.review.schedule_at') }} {{ wizardData.scheduleTime }}
                   </span>
                 </p>
-                
+
                 <!-- Show selected days for weekly schedule -->
                 <div v-if="wizardData.scheduleType === 'weekly' && wizardData.selectedWeekdays.length > 0" class="text-sm">
-                  <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Days:</span>
+                  <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.review.schedule_days') }}</span>
                   <span class="font-medium ml-1">
-                    {{ wizardData.selectedWeekdays.map(d => weekDays[d-1].short).join(', ') }}
+                    {{ wizardData.selectedWeekdays.map(d => weekDays.value[d-1].short).join(', ') }}
                   </span>
                 </div>
-                
+
                 <!-- Show selected days for monthly schedule -->
                 <div v-if="wizardData.scheduleType === 'monthly' && wizardData.selectedMonthdays.length > 0" class="text-sm">
-                  <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">Days of month:</span>
+                  <span class="text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.review.schedule_days_of_month') }}</span>
                   <span class="font-medium ml-1">
                     {{ wizardData.selectedMonthdays.sort((a, b) => a - b).join(', ') }}
                   </span>
@@ -1013,7 +1012,7 @@
           <div class="flex items-center gap-4 p-4 bg-green-50 rounded-lg">
             <input type="checkbox" v-model="wizardData.runTestBackup" id="test-backup" />
             <label for="test-backup" class="text-sm text-gray-700 dark:text-gray-300">
-              Run a test backup after creation to verify configuration
+              {{ $t('backup_wizard.review.test_backup_label') }}
             </label>
           </div>
         </div>
@@ -1022,39 +1021,39 @@
 
     <!-- Navigation -->
     <div class="flex justify-between mt-8">
-      <button 
-        @click="previousStep" 
+      <button
+        @click="previousStep"
         :disabled="currentStep === 0"
         class="btn btn-secondary"
       >
-        Previous
+        {{ $t('backup_wizard.buttons.previous') }}
       </button>
 
-      <div class="flex gap-3">
-        <button 
+      <div v-if="steps" class="flex gap-3">
+        <button
           v-if="currentStep === steps.length - 1"
-          @click="saveAsTemplate" 
+          @click="saveAsTemplate"
           class="btn btn-outline"
         >
-          Save as Template
+          {{ $t('backup_wizard.review.save_template') }}
         </button>
 
-        <button 
+        <button
           v-if="currentStep < steps.length - 1"
-          @click="nextStep" 
+          @click="nextStep"
           :disabled="!isCurrentStepValid"
           class="btn btn-primary"
         >
-          Next
+          {{ $t('backup_wizard.buttons.next') }}
         </button>
 
-        <button 
+        <button
           v-if="currentStep === steps.length - 1"
-          @click="createBackup" 
+          @click="createBackup"
           :disabled="creating"
           class="btn btn-success"
         >
-          {{ creating ? 'Creating...' : 'Create Backup Configuration' }}
+          {{ creating ? $t('backup_wizard.buttons.creating') : $t('backup_wizard.buttons.create') }}
         </button>
       </div>
     </div>
@@ -1182,24 +1181,26 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { serverService } from '../services/server'
 import { storageService } from '../services/storage'
 import { wizardService } from '../services/wizardService'
 
 const router = useRouter()
+const { t } = useI18n()
 
 // Wizard steps
-const steps = [
-  { label: 'Server', title: 'Select Server', description: 'Choose the server to backup' },
-  { label: 'Type', title: 'Backup Type', description: 'What do you want to backup?' },
-  { label: 'Source', title: 'Source Configuration', description: 'Configure what to backup' },
-  { label: 'Snapshot', title: 'Snapshot Strategy', description: 'Choose snapshot method for consistency' },
-  { label: 'Storage', title: 'Storage Pool', description: 'Where to store the backup' },
-  { label: 'Repository', title: 'Repository Setup', description: 'Configure Borg repository' },
-  { label: 'Retention', title: 'Retention Policy', description: 'How long to keep backups' },
-  { label: 'Schedule', title: 'Schedule', description: 'When to run backups' },
-  { label: 'Review', title: 'Review & Create', description: 'Review configuration' }
-]
+const steps = computed(() => [
+  { label: t('backup_wizard.steps.server.label'), title: t('backup_wizard.steps.server.title'), description: t('backup_wizard.steps.server.description') },
+  { label: t('backup_wizard.steps.type.label'), title: t('backup_wizard.steps.type.title'), description: t('backup_wizard.steps.type.description') },
+  { label: t('backup_wizard.steps.source.label'), title: t('backup_wizard.steps.source.title'), description: t('backup_wizard.steps.source.description') },
+  { label: t('backup_wizard.steps.snapshot.label'), title: t('backup_wizard.steps.snapshot.title'), description: t('backup_wizard.steps.snapshot.description') },
+  { label: t('backup_wizard.steps.storage.label'), title: t('backup_wizard.steps.storage.title'), description: t('backup_wizard.steps.storage.description') },
+  { label: t('backup_wizard.steps.storage.label'), title: t('backup_wizard.steps.storage.title'), description: t('backup_wizard.steps.storage.description') },
+  { label: t('backup_wizard.steps.retention.label'), title: t('backup_wizard.steps.retention.title'), description: t('backup_wizard.steps.retention.description') },
+  { label: t('backup_wizard.steps.schedule.label'), title: t('backup_wizard.steps.schedule.title'), description: t('backup_wizard.steps.schedule.description') },
+  { label: t('backup_wizard.steps.review.label'), title: t('backup_wizard.steps.review.title'), description: t('backup_wizard.steps.review.description') }
+])
 
 const currentStep = ref(0)
 const creating = ref(false)
@@ -1276,25 +1277,25 @@ const wizardData = ref({
 })
 
 // Backup types
-const backupTypes = [
-  { id: 'files', name: 'Files & Folders', icon: '📁', description: 'Backup files and directories' },
-  { id: 'mysql', name: 'MySQL', icon: '🗄️', description: 'MySQL/MariaDB databases' },
-  { id: 'postgresql', name: 'PostgreSQL', icon: '🐘', description: 'PostgreSQL databases' },
-  { id: 'mongodb', name: 'MongoDB', icon: '🍃', description: 'MongoDB databases' },
-  { id: 'docker', name: 'Docker', icon: '🐳', description: 'Docker containers' },
-  { id: 'system', name: 'Full System', icon: '💾', description: 'Complete system backup' }
-]
+const backupTypes = computed(() => [
+  { id: 'files', name: t('backup_wizard.backup_types.files.name'), icon: '📁', description: t('backup_wizard.backup_types.files.description') },
+  { id: 'mysql', name: t('backup_wizard.backup_types.mysql.name'), icon: '🗄️', description: t('backup_wizard.backup_types.mysql.description') },
+  { id: 'postgresql', name: t('backup_wizard.backup_types.postgresql.name'), icon: '🐘', description: t('backup_wizard.backup_types.postgresql.description') },
+  { id: 'mongodb', name: t('backup_wizard.backup_types.mongodb.name'), icon: '🍃', description: t('backup_wizard.backup_types.mongodb.description') },
+  { id: 'docker', name: t('backup_wizard.backup_types.docker.name'), icon: '🐳', description: t('backup_wizard.backup_types.docker.description') },
+  { id: 'system', name: t('backup_wizard.backup_types.system.name'), icon: '💾', description: t('backup_wizard.backup_types.system.description') }
+])
 
 // Week days
-const weekDays = [
-  { short: 'Mon', full: 'Monday' },
-  { short: 'Tue', full: 'Tuesday' },
-  { short: 'Wed', full: 'Wednesday' },
-  { short: 'Thu', full: 'Thursday' },
-  { short: 'Fri', full: 'Friday' },
-  { short: 'Sat', full: 'Saturday' },
-  { short: 'Sun', full: 'Sunday' }
-]
+const weekDays = computed(() => [
+  { short: t('backup_wizard.schedule_step.weekdays.mon.short'), full: t('backup_wizard.schedule_step.weekdays.mon.full') },
+  { short: t('backup_wizard.schedule_step.weekdays.tue.short'), full: t('backup_wizard.schedule_step.weekdays.tue.full') },
+  { short: t('backup_wizard.schedule_step.weekdays.wed.short'), full: t('backup_wizard.schedule_step.weekdays.wed.full') },
+  { short: t('backup_wizard.schedule_step.weekdays.thu.short'), full: t('backup_wizard.schedule_step.weekdays.thu.full') },
+  { short: t('backup_wizard.schedule_step.weekdays.fri.short'), full: t('backup_wizard.schedule_step.weekdays.fri.full') },
+  { short: t('backup_wizard.schedule_step.weekdays.sat.short'), full: t('backup_wizard.schedule_step.weekdays.sat.full') },
+  { short: t('backup_wizard.schedule_step.weekdays.sun.short'), full: t('backup_wizard.schedule_step.weekdays.sun.full') }
+])
 
 // Quick exclusion patterns
 const quickExclusionPatterns = [
@@ -1375,14 +1376,14 @@ function previousStep() {
 }
 
 function nextStep() {
-  if (currentStep.value < steps.length - 1 && isCurrentStepValid.value) {
+  if (currentStep.value < steps.value.length - 1 && isCurrentStepValid.value) {
     currentStep.value++
-    
+
     // Skip snapshot step for file and system backups
     if (currentStep.value === 3 && ['files', 'system'].includes(wizardData.value.backupType)) {
       currentStep.value++ // Skip to storage step
     }
-    
+
     // Trigger actions for specific steps
     if (currentStep.value === 3 && needsSnapshot()) {
       detectSnapshotCapabilities()
