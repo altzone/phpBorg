@@ -43,7 +43,7 @@ final class BackupNotificationService
         }
 
         // Check if success notifications are enabled
-        if (!$job->notify_on_success) {
+        if (!$job->notifyOnSuccess) {
             $this->logger->debug("Success notifications disabled for job #{$backupJobId}", 'EMAIL');
             return;
         }
@@ -104,7 +104,7 @@ final class BackupNotificationService
         }
 
         // Check if failure notifications are enabled
-        if (!$job->notify_on_failure) {
+        if (!$job->notifyOnFailure) {
             $this->logger->debug("Failure notifications disabled for job #{$backupJobId}", 'EMAIL');
             return;
         }
