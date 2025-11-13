@@ -847,6 +847,123 @@ class BackupController extends BaseController
     }
 
     /**
+     * POST /api/backups/:id/restore
+     * Restore files from an archive to destination server
+     *
+     * Required payload:
+     * - server_id: Destination server ID
+     * - files: Array of file paths to restore
+     * - restore_mode: 'in_place' | 'alternate' | 'suffix'
+     * - destination: Custom destination path (required for 'alternate' mode)
+     * - overwrite_mode: 'always' | 'newer' | 'never' | 'rename'
+     * - preserve_permissions: boolean
+     * - preserve_owner: boolean
+     * - verify_checksums: boolean
+     * - dry_run: boolean (optional, simulate restore)
+     */
+    public function restore(): void
+    {
+        try {
+            // Require admin or operator role
+            $currentUser = $_SERVER['USER'] ?? null;
+            if (!$currentUser || !in_array('ROLE_ADMIN', $currentUser->roles) && !in_array('ROLE_OPERATOR', $currentUser->roles)) {
+                $this->error('Admin or Operator role required for restore operations', 403, 'FORBIDDEN');
+                return;
+            }
+
+            $archiveId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
+            if ($archiveId <= 0) {
+                $this->error('Invalid archive ID', 400, 'INVALID_ARCHIVE_ID');
+                return;
+            }
+
+            // Get JSON payload
+            $data = $this->getJsonBody();
+
+            // Validate required fields
+            if (!isset($data['server_id']) || !isset($data['files']) || !isset($data['restore_mode'])) {
+                $this->error('Missing required fields: server_id, files, restore_mode', 400, 'MISSING_FIELDS');
+                return;
+            }
+
+            $serverId = (int) $data['server_id'];
+            $files = $data['files'];
+            $restoreMode = $data['restore_mode'];
+            $destination = $data['destination'] ?? null;
+            $overwriteMode = $data['overwrite_mode'] ?? 'newer';
+            $preservePermissions = $data['preserve_permissions'] ?? true;
+            $preserveOwner = $data['preserve_owner'] ?? true;
+            $verifyChecksums = $data['verify_checksums'] ?? false;
+            $dryRun = $data['dry_run'] ?? false;
+
+            // Validate files array
+            if (!is_array($files) || empty($files)) {
+                $this->error('Files must be a non-empty array', 400, 'INVALID_FILES');
+                return;
+            }
+
+            // Validate restore mode
+            if (!in_array($restoreMode, ['in_place', 'alternate', 'suffix'])) {
+                $this->error('Invalid restore_mode. Must be: in_place, alternate, or suffix', 400, 'INVALID_RESTORE_MODE');
+                return;
+            }
+
+            // Validate alternate mode has destination
+            if ($restoreMode === 'alternate' && empty($destination)) {
+                $this->error('Alternate mode requires a destination path', 400, 'MISSING_DESTINATION');
+                return;
+            }
+
+            // Extra confirmation required for in_place mode
+            if ($restoreMode === 'in_place' && !($data['confirm_overwrite'] ?? false)) {
+                $this->error('In-place restore requires explicit confirmation (confirm_overwrite: true)', 400, 'CONFIRMATION_REQUIRED');
+                return;
+            }
+
+            // Check if archive exists
+            $archive = $this->archiveRepo->findById($archiveId);
+            if (!$archive) {
+                $this->error('Archive not found', 404, 'ARCHIVE_NOT_FOUND');
+                return;
+            }
+
+            // Create restore job
+            $jobId = $this->jobQueue->push(
+                type: 'archive_restore',
+                payload: [
+                    'archive_id' => $archiveId,
+                    'server_id' => $serverId,
+                    'files' => $files,
+                    'restore_mode' => $restoreMode,
+                    'destination' => $destination,
+                    'overwrite_mode' => $overwriteMode,
+                    'preserve_permissions' => $preservePermissions,
+                    'preserve_owner' => $preserveOwner,
+                    'verify_checksums' => $verifyChecksums,
+                    'dry_run' => $dryRun,
+                ],
+                queue: 'default',
+                maxAttempts: 2,
+                createdBy: $currentUser->id ?? null
+            );
+
+            $this->success([
+                'message' => $dryRun
+                    ? 'Restore simulation job created'
+                    : 'Restore job created successfully',
+                'job_id' => $jobId,
+                'archive_id' => $archiveId,
+                'server_id' => $serverId,
+                'files_count' => count($files),
+                'restore_mode' => $restoreMode,
+                'dry_run' => $dryRun,
+            ]);
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'RESTORE_ERROR');
+        }
+    }
+
+    /**
      * Get server ID for a repository (helper)
      * TODO: This should query the repositories table
      */

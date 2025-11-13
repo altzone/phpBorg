@@ -7,6 +7,7 @@ namespace PhpBorg\Command;
 use PhpBorg\Application;
 use PhpBorg\Service\Queue\Handlers\ArchiveDeleteHandler;
 use PhpBorg\Service\Queue\Handlers\ArchiveMountHandler;
+use PhpBorg\Service\Queue\Handlers\ArchiveRestoreHandler;
 use PhpBorg\Service\Queue\Handlers\BackupCreateHandler;
 use PhpBorg\Service\Queue\Handlers\CapabilitiesDetectionHandler;
 use PhpBorg\Service\Queue\Handlers\ServerSetupHandler;
@@ -96,6 +97,15 @@ final class WorkerStartCommand extends Command
             $this->app->getArchiveRepository(),
             $this->app->getArchiveMountRepository(),
             $this->app->getBorgRepositoryRepository(),
+            $logger
+        ));
+
+        $worker->registerHandler('archive_restore', new ArchiveRestoreHandler(
+            $this->app->getArchiveRepository(),
+            $this->app->getArchiveMountRepository(),
+            $this->app->getBorgRepositoryRepository(),
+            $this->app->getServerRepository(),
+            $this->app->getSshExecutor(),
             $logger
         ));
 
