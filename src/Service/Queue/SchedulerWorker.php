@@ -6,6 +6,7 @@ namespace PhpBorg\Service\Queue;
 
 use PhpBorg\Logger\LoggerInterface;
 use PhpBorg\Repository\BackupJobRepository;
+use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\ServerRepository;
 use PhpBorg\Repository\SettingRepository;
 use PhpBorg\Repository\StoragePoolRepository;
@@ -33,6 +34,7 @@ final class SchedulerWorker
     public function __construct(
         private readonly JobQueue $queue,
         private readonly BackupJobRepository $jobRepository,
+        private readonly BorgRepositoryRepository $repositoryRepository,
         private readonly ServerRepository $serverRepository,
         private readonly StoragePoolRepository $storagePoolRepository,
         private readonly SettingRepository $settingRepository,
@@ -106,12 +108,24 @@ final class SchedulerWorker
 
             foreach ($dueJobs as $job) {
                 try {
+                    // Get repository to find server_id
+                    $repository = $this->repositoryRepository->findById($job->repositoryId);
+                    if (!$repository) {
+                        $this->logger->error(
+                            sprintf('Repository #%d not found for backup job #%d', $job->repositoryId, $job->id),
+                            'SCHEDULER'
+                        );
+                        continue;
+                    }
+
                     // Create backup job in queue
                     $jobId = $this->queue->push(
                         type: 'backup_create',
                         payload: [
+                            'server_id' => $repository->serverId,
                             'backup_job_id' => $job->id,
                             'repository_id' => $job->repositoryId,
+                            'type' => $repository->type ?? 'backup',
                             'scheduled' => true,
                         ],
                         queue: 'default',

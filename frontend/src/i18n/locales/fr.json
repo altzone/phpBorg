@@ -365,6 +365,7 @@
     "schedule_weekly": "Hebdomadaire",
     "schedule_monthly": "Mensuelle",
     "time": "Heure",
+    "time_help": "Heure du serveur (les backups s'exécuteront à cette heure dans le fuseau horaire du serveur)",
     "days_of_week": "Jours de la semaine",
     "days_of_month": "Jours du mois",
     "select_one_or_more": "Sélectionnez un ou plusieurs jours pour la sauvegarde",

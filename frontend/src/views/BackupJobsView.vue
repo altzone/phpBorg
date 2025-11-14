@@ -239,6 +239,9 @@
             <div v-if="jobForm.schedule_type !== 'manual'">
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_jobs.time') }} *</label>
               <input v-model="jobForm.schedule_time" type="time" required class="input w-full" />
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                ⏰ {{ $t('backup_jobs.time_help') }}
+              </p>
             </div>
 
             <!-- Days of Week (for weekly) - Multi-select -->
@@ -568,7 +571,17 @@ async function runJobNow(job) {
 
 function formatDateTime(dateString) {
   if (!dateString) return t('repositories.never')
-  const date = new Date(dateString)
-  return date.toLocaleString()
+  // Parse as local server time (add 'T' to force local interpretation, not UTC)
+  const date = new Date(dateString.replace(' ', 'T'))
+  // Format with explicit timezone display
+  return date.toLocaleString('default', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short'
+  })
 }
 </script>

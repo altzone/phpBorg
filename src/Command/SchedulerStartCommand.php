@@ -36,6 +36,7 @@ final class SchedulerStartCommand extends Command
         // Get services from DI container
         $jobQueue = $this->app->getJobQueue();
         $jobRepository = $this->app->getBackupJobRepository();
+        $repositoryRepository = $this->app->getBorgRepositoryRepository();
         $serverRepository = $this->app->getServerRepository();
         $storagePoolRepository = $this->app->getStoragePoolRepository();
         $settingRepository = $this->app->getSettingRepository();
@@ -45,6 +46,7 @@ final class SchedulerStartCommand extends Command
         $scheduler = new SchedulerWorker(
             $jobQueue,
             $jobRepository,
+            $repositoryRepository,
             $serverRepository,
             $storagePoolRepository,
             $settingRepository,
