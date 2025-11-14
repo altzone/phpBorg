@@ -316,6 +316,42 @@
         </div>
       </div>
     </div>
+
+    <!-- Toast Notifications -->
+    <div class="fixed bottom-4 right-4 z-50 space-y-3">
+      <div
+        v-for="toast in toasts"
+        :key="toast.id"
+        :class="[
+          'max-w-md rounded-lg shadow-lg p-4 transform transition-all duration-300',
+          toast.type === 'success' ? 'bg-green-500 text-white' : toast.type === 'warning' ? 'bg-orange-500 text-white' : 'bg-red-500 text-white',
+          'animate-slide-in'
+        ]"
+      >
+        <div class="flex items-start gap-3">
+          <div class="flex-shrink-0">
+            <svg v-if="toast.type === 'success'" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <svg v-else-if="toast.type === 'warning'" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <svg v-else class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold">{{ toast.title }}</p>
+            <p v-if="toast.message" class="text-sm mt-1 opacity-90">{{ toast.message }}</p>
+          </div>
+          <button @click="removeToast(toast.id)" class="flex-shrink-0 hover:opacity-75">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -340,6 +376,26 @@ const repositories = ref([])
 const selectedRepository = ref(null)
 
 const archives = ref([])
+
+// Toast notifications
+const toasts = ref([])
+let toastIdCounter = 0
+
+function showToast(title, message = '', type = 'success', duration = 5000) {
+  const id = ++toastIdCounter
+  toasts.value.push({ id, title, message, type })
+
+  setTimeout(() => {
+    removeToast(id)
+  }, duration)
+}
+
+function removeToast(id) {
+  const index = toasts.value.findIndex(t => t.id === id)
+  if (index > -1) {
+    toasts.value.splice(index, 1)
+  }
+}
 
 // Load servers on mount
 onMounted(async () => {
@@ -400,7 +456,15 @@ async function handleMountAndBrowse(archive) {
 
     // Mount the archive
     archive.mount_status = 'mounting'
-    await backupService.mount(archive.id)
+    const mountResult = await backupService.mount(archive.id)
+
+    // If mount already completed immediately (was cached/already mounted)
+    if (mountResult.status === 'mounted') {
+      router.push(`/backups/${archive.id}/browse`)
+      return
+    }
+
+    const jobId = mountResult.job_id
 
     // Poll for mount completion
     let attempts = 0
@@ -410,16 +474,35 @@ async function handleMountAndBrowse(archive) {
       const job = await backupService.getMountJob(archive.id)
 
       if (job.status === 'completed') {
-        router.push(`/backups/${archive.id}/browse`)
+        archive.mount_status = 'mounted'
+        showToast(
+          t('restore_wizard.mount_success_title') || 'Archive Montée',
+          t('restore_wizard.mount_success_msg') || 'Redirection vers le navigateur...',
+          'success',
+          2000
+        )
+        setTimeout(() => {
+          router.push(`/backups/${archive.id}/browse`)
+        }, 500)
       } else if (job.status === 'failed') {
         archive.mount_status = null
-        alert(t('restore_wizard.mount_failed', { error: job.error || 'Unknown error' }))
-      } else if (attempts < maxAttempts && (job.status === 'pending' || job.status === 'running')) {
+        showToast(
+          t('restore_wizard.mount_failed_title') || 'Échec du Montage',
+          t('restore_wizard.mount_failed', { error: job.error || 'Unknown error' }) || job.error || 'Erreur inconnue',
+          'error',
+          8000
+        )
+      } else if (attempts < maxAttempts && (job.status === 'pending' || job.status === 'running' || job.status === 'unknown')) {
         attempts++
         setTimeout(poll, 1000)
       } else {
         archive.mount_status = null
-        alert(t('restore_wizard.mount_timeout'))
+        showToast(
+          t('restore_wizard.mount_timeout_title') || 'Délai Dépassé',
+          t('restore_wizard.mount_timeout') || 'Le montage prend trop de temps',
+          'warning',
+          8000
+        )
       }
     }
 
@@ -427,13 +510,22 @@ async function handleMountAndBrowse(archive) {
   } catch (err) {
     archive.mount_status = null
     console.error('Mount error:', err)
-    alert(t('restore_wizard.mount_failed', { error: err.response?.data?.error?.message || err.message }))
+    showToast(
+      t('restore_wizard.mount_error_title') || 'Erreur de Montage',
+      err.response?.data?.error?.message || err.message || 'Erreur inconnue',
+      'error',
+      8000
+    )
   }
 }
 
 function handleDirectRestore(archive) {
   // TODO: Open restore modal/wizard
-  alert(t('restore_wizard.direct_restore_msg'))
+  showToast(
+    t('restore_wizard.direct_restore_title') || 'Restauration Directe',
+    t('restore_wizard.direct_restore_msg') || 'Cette fonctionnalité sera bientôt disponible',
+    'warning'
+  )
 }
 
 function formatBytes(bytes) {
