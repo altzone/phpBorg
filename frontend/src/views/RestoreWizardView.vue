@@ -362,6 +362,7 @@ import { useI18n } from 'vue-i18n'
 import { serverService } from '@/services/server'
 import { repositoryService } from '@/services/repository'
 import { backupService } from '@/services/backups'
+import api from '@/services/api'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -466,12 +467,25 @@ async function handleMountAndBrowse(archive) {
 
     const jobId = mountResult.job_id
 
-    // Poll for mount completion
+    if (!jobId) {
+      archive.mount_status = null
+      showToast(
+        t('restore_wizard.mount_error_title') || 'Erreur de Montage',
+        'No job ID returned from mount request',
+        'error',
+        8000
+      )
+      return
+    }
+
+    // Poll for mount completion using the job_id directly
     let attempts = 0
     const maxAttempts = 60
 
     const poll = async () => {
-      const job = await backupService.getMountJob(archive.id)
+      // Poll the job directly using job_id
+      const response = await api.get(`/jobs/${jobId}`)
+      const job = response.data.data?.job || response.data.job
 
       if (job.status === 'completed') {
         archive.mount_status = 'mounted'
@@ -488,11 +502,11 @@ async function handleMountAndBrowse(archive) {
         archive.mount_status = null
         showToast(
           t('restore_wizard.mount_failed_title') || 'Échec du Montage',
-          t('restore_wizard.mount_failed', { error: job.error || 'Unknown error' }) || job.error || 'Erreur inconnue',
+          job.error || t('restore_wizard.mount_failed', { error: 'Unknown error' }) || 'Erreur inconnue',
           'error',
           8000
         )
-      } else if (attempts < maxAttempts && (job.status === 'pending' || job.status === 'running' || job.status === 'unknown')) {
+      } else if (attempts < maxAttempts && (job.status === 'pending' || job.status === 'running')) {
         attempts++
         setTimeout(poll, 1000)
       } else {
