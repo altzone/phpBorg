@@ -164,6 +164,21 @@ final class ServerManager
     }
 
     /**
+     * Archive server (set active=0)
+     */
+    public function archiveServer(int $serverId): void
+    {
+        $this->logger->info("Archiving server ID: {$serverId}", 'SYSTEM');
+
+        $server = $this->serverRepo->findById($serverId);
+        if (!$server) {
+            throw new PhpBorgException("Server not found");
+        }
+
+        $this->serverRepo->setActive($serverId, false);
+    }
+
+    /**
      * Get repositories for a server
      */
     public function getRepositoriesForServer(int $serverId): array

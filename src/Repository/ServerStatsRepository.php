@@ -159,4 +159,17 @@ final class ServerStatsRepository
             [$serverId, $hours, $limit]
         );
     }
+
+    /**
+     * Delete all stats for a server
+     *
+     * @throws DatabaseException
+     */
+    public function deleteByServerId(int $serverId): void
+    {
+        $this->connection->executeUpdate(
+            'DELETE FROM server_stats WHERE server_id = ?',
+            [$serverId]
+        );
+    }
 }

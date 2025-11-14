@@ -384,4 +384,20 @@ final class BackupJobRepository
             $jobId
         ]);
     }
+
+    /**
+     * Delete all backup jobs for a server
+     *
+     * @throws DatabaseException
+     */
+    public function deleteByServerId(int $serverId): void
+    {
+        $this->connection->executeUpdate(
+            'DELETE FROM backup_jobs
+             WHERE repository_id IN (
+                 SELECT id FROM repository WHERE server_id = ?
+             )',
+            [$serverId]
+        );
+    }
 }

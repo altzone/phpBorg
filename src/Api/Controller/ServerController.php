@@ -10,6 +10,9 @@ use PhpBorg\Service\Server\ServerManager;
 use PhpBorg\Service\Queue\JobQueue;
 use PhpBorg\Repository\ArchiveRepository;
 use PhpBorg\Repository\ServerStatsRepository;
+use PhpBorg\Repository\BorgRepositoryRepository;
+use PhpBorg\Repository\BackupJobRepository;
+use PhpBorg\Repository\ServerRepository;
 
 /**
  * Server management API controller
@@ -20,6 +23,9 @@ class ServerController extends BaseController
     private readonly JobQueue $jobQueue;
     private readonly ArchiveRepository $archiveRepository;
     private readonly ServerStatsRepository $statsRepository;
+    private readonly BorgRepositoryRepository $repositoryRepository;
+    private readonly BackupJobRepository $backupJobRepository;
+    private readonly ServerRepository $serverRepository;
 
     public function __construct(Application $app)
     {
@@ -27,6 +33,9 @@ class ServerController extends BaseController
         $this->jobQueue = $app->getJobQueue();
         $this->archiveRepository = new ArchiveRepository($app->getConnection());
         $this->statsRepository = $app->getServerStatsRepository();
+        $this->repositoryRepository = $app->getBorgRepositoryRepository();
+        $this->backupJobRepository = $app->getBackupJobRepository();
+        $this->serverRepository = $app->getServerRepository();
     }
 
     /**
@@ -352,6 +361,7 @@ class ServerController extends BaseController
     /**
      * DELETE /api/servers/:id
      * Delete server
+     * Query param: type=archive|full (default: archive)
      */
     public function delete(): void
     {
@@ -377,15 +387,129 @@ class ServerController extends BaseController
                 return;
             }
 
-            // Delete server
-            $this->serverManager->deleteServer($serverId);
+            // Get delete type from query params
+            $deleteType = $_GET['type'] ?? 'archive';
 
-            $this->success(
-                ['id' => $serverId],
-                'Server deleted successfully'
-            );
+            if ($deleteType === 'archive') {
+                // Archive: Just set active=0 (or add status='archived' if we add that column)
+                $this->serverManager->archiveServer($serverId);
+
+                $this->success(
+                    ['id' => $serverId, 'type' => 'archive'],
+                    'Server archived successfully'
+                );
+            } elseif ($deleteType === 'full') {
+                // Full Delete: rm -rf repos + clean DB + delete server
+
+                // Get all repositories for this server
+                $repositories = $this->serverManager->getRepositoriesForServer($serverId);
+
+                // Delete repository directories from filesystem
+                foreach ($repositories as $repo) {
+                    if (!empty($repo->path) && file_exists($repo->path)) {
+                        // rm -rf the repository directory
+                        $this->recursiveDelete($repo->path);
+                    }
+                }
+
+                // Delete from database in correct order (respect foreign keys)
+                // 1. Delete archives (backups)
+                $this->archiveRepository->deleteByServerId($serverId);
+
+                // 2. Delete backup jobs
+                $this->backupJobRepository->deleteByServerId($serverId);
+
+                // 3. Delete repositories
+                $this->repositoryRepository->deleteByServerId($serverId);
+
+                // 4. Delete server stats
+                $this->statsRepository->deleteByServerId($serverId);
+
+                // 5. Delete server from servers table
+                $this->serverRepository->delete($serverId);
+
+                $this->success(
+                    ['id' => $serverId, 'type' => 'full'],
+                    'Server and all data deleted successfully'
+                );
+            } else {
+                $this->error('Invalid delete type. Use "archive" or "full"', 400, 'INVALID_DELETE_TYPE');
+            }
         } catch (PhpBorgException $e) {
             $this->error($e->getMessage(), 500, 'SERVER_DELETE_ERROR');
+        }
+    }
+
+    /**
+     * Recursively delete a directory
+     */
+    private function recursiveDelete(string $dir): void
+    {
+        if (!file_exists($dir)) {
+            return;
+        }
+
+        if (!is_dir($dir)) {
+            unlink($dir);
+            return;
+        }
+
+        $items = scandir($dir);
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+
+            $path = $dir . DIRECTORY_SEPARATOR . $item;
+            if (is_dir($path)) {
+                $this->recursiveDelete($path);
+            } else {
+                unlink($path);
+            }
+        }
+
+        rmdir($dir);
+    }
+
+    /**
+     * GET /api/servers/:id/delete-stats
+     * Get statistics about what will be deleted (for confirmation)
+     */
+    public function deleteStats(): void
+    {
+        try {
+            $serverId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
+
+            if ($serverId <= 0) {
+                $this->error('Invalid server ID', 400, 'INVALID_SERVER_ID');
+                return;
+            }
+
+            // Get repositories count
+            $repositories = $this->serverManager->getRepositoriesForServer($serverId);
+            $repositoryCount = count($repositories);
+
+            // Get archives count and total size
+            $archiveStats = $this->archiveRepository->getStatsByServerId($serverId);
+            $archiveCount = $archiveStats['count'] ?? 0;
+            $totalSize = $archiveStats['total_deduplicated_size'] ?? 0;
+
+            // Get backup jobs count
+            $backupJobs = 0;
+            foreach ($repositories as $repo) {
+                $jobs = $this->backupJobRepository->findByRepositoryId($repo->id);
+                $backupJobs += count($jobs);
+            }
+
+            $this->success([
+                'repositories' => $repositoryCount,
+                'archives' => $archiveCount,
+                'backup_jobs' => $backupJobs,
+                'total_size_bytes' => $totalSize,
+                'total_size_gb' => round($totalSize / 1024 / 1024 / 1024, 2),
+            ]);
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'DELETE_STATS_ERROR');
         }
     }
 
@@ -511,6 +635,97 @@ class ServerController extends BaseController
             ], 'Stats collection started');
         } catch (PhpBorgException $e) {
             $this->error($e->getMessage(), 500, 'STATS_COLLECTION_ERROR');
+        }
+    }
+
+    /**
+     * GET /api/servers/:id/capabilities
+     * Get server capabilities (databases, snapshots, docker, etc.)
+     */
+    public function capabilities(): void
+    {
+        try {
+            $serverId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
+
+            if ($serverId <= 0) {
+                $this->error('Invalid server ID', 400, 'INVALID_SERVER_ID');
+                return;
+            }
+
+            // Get server with capabilities
+            $server = $this->serverRepository->findById($serverId);
+            if (!$server) {
+                $this->error('Server not found', 404, 'SERVER_NOT_FOUND');
+                return;
+            }
+
+            // Parse capabilities_data JSON
+            $capabilitiesData = null;
+            if ($server->capabilitiesData) {
+                $capabilitiesData = json_decode($server->capabilitiesData, true);
+            }
+
+            $this->success([
+                'server_id' => $serverId,
+                'server_name' => $server->name,
+                'capabilities_detected' => (bool) $server->capabilitiesDetected,
+                'capabilities_detected_at' => $server->capabilitiesDetectedAt?->format('Y-m-d H:i:s'),
+                'capabilities' => $capabilitiesData
+            ]);
+        } catch (\Exception $e) {
+            $this->error($e->getMessage(), 500, 'CAPABILITIES_FETCH_ERROR');
+        }
+    }
+
+    /**
+     * POST /api/servers/:id/detect-capabilities
+     * Trigger capabilities detection job
+     */
+    public function detectCapabilities(): void
+    {
+        try {
+            $serverId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
+
+            if ($serverId <= 0) {
+                $this->error('Invalid server ID', 400, 'INVALID_SERVER_ID');
+                return;
+            }
+
+            // Check server exists
+            $server = $this->serverManager->getServerById($serverId);
+            if (!$server) {
+                $this->error('Server not found', 404, 'SERVER_NOT_FOUND');
+                return;
+            }
+
+            if (!$server->active) {
+                $this->error('Cannot detect capabilities on inactive server', 400, 'SERVER_INACTIVE');
+                return;
+            }
+
+            // Get current user
+            $user = $_SERVER['USER'] ?? null;
+
+            // Create capabilities detection job
+            $jobId = $this->jobQueue->push(
+                'capabilities_detection',
+                [
+                    'server_id' => $serverId,
+                    'server_name' => $server->name,
+                ],
+                'default',
+                1, // Priority
+                $user?->id
+            );
+
+            $this->success([
+                'job_id' => $jobId,
+                'server_id' => $serverId,
+                'server_name' => $server->name,
+                'message' => 'Capabilities detection job queued'
+            ], 'Capabilities detection started');
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'CAPABILITIES_DETECTION_ERROR');
         }
     }
 }

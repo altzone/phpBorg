@@ -33,6 +33,7 @@ class BackupWizardController extends BaseController
     private readonly JobQueue $jobQueue;
     private readonly SshExecutor $sshExecutor;
     private readonly EncryptionService $encryptionService;
+    private readonly DatabaseInfoRepository $databaseInfoRepository;
 
     public function __construct(Application $app)
     {
@@ -47,6 +48,7 @@ class BackupWizardController extends BaseController
         // Use the application's configured logger
         $this->sshExecutor = new SshExecutor($app->getLogger());
         $this->encryptionService = new EncryptionService($app->getConfig());
+        $this->databaseInfoRepository = $app->getDatabaseInfoRepository();
     }
 
     /**
@@ -294,6 +296,9 @@ class BackupWizardController extends BaseController
             ]);
             
             // 2. Create repository
+            // Generate unique repo ID
+            $repoId = uniqid('repo_');
+
             // Get storage pool path and server name
             $storagePoolPath = '/opt/backups'; // Default
             if (isset($data['storage_pool_id'])) {
@@ -302,11 +307,11 @@ class BackupWizardController extends BaseController
                     $storagePoolPath = $pool->path;
                 }
             }
-            
+
             // Get server name for directory structure
             $server = $this->serverRepository->findById((int)$data['server_id']);
             $serverName = $server ? preg_replace('/[^a-zA-Z0-9-_]/', '_', $server->name) : 'unknown';
-            
+
             // Create repository path: <storage_pool>/<server_name>/<repository_name>
             $repoPath = sprintf(
                 '%s/%s/%s',
@@ -314,16 +319,16 @@ class BackupWizardController extends BaseController
                 $serverName,
                 preg_replace('/[^a-zA-Z0-9-_]/', '_', $data['repository_name'])
             );
-            
+
             // Generate passphrase if not provided and encryption is enabled
             $passphrase = $data['passphrase'] ?? '';
             if (empty($passphrase) && ($data['encryption'] ?? 'repokey-blake2') !== 'none') {
                 $passphrase = $this->encryptionService->generatePassphrase();
             }
-            
+
             $repositoryId = $this->repositoryRepository->create(
                 serverId: (int)$data['server_id'],
-                repoId: uniqid('repo_'),
+                repoId: $repoId,
                 type: $data['backup_type'],
                 retention: $data['retention']['keep_daily'] ?? 7, // Legacy retention field
                 encryption: $data['encryption'] ?? 'repokey-blake2',
@@ -352,7 +357,23 @@ class BackupWizardController extends BaseController
                     ]
                 );
             }
-            
+
+            // 2.5. Create DatabaseInfo if this is a database backup
+            $databaseTypes = ['mysql', 'mariadb', 'postgresql', 'postgres', 'mongodb'];
+            if (in_array($data['backup_type'], $databaseTypes)) {
+                $dbInfoId = $this->createDatabaseInfo(
+                    $server,
+                    $data['backup_type'],
+                    $data['source_config'] ?? [],
+                    $repoId
+                );
+
+                // Link DatabaseInfo to repository
+                if ($dbInfoId) {
+                    $this->databaseInfoRepository->updateRepositoryId($dbInfoId, $repoId);
+                }
+            }
+
             // 3. Create backup job
             // Convert time format from HH:MM to HH:MM:SS if needed
             $scheduleTime = null;
@@ -644,7 +665,7 @@ class BackupWizardController extends BaseController
             $result = $this->sshExecutor->execute($server, 'df -h 2>/dev/null', 10);
             $df = $result['stdout'];
             $mounts = [];
-            
+
             if ($df) {
                 $lines = explode("\n", $df);
                 foreach ($lines as $i => $line) {
@@ -662,13 +683,119 @@ class BackupWizardController extends BaseController
                     }
                 }
             }
-            
+
             return [
                 'mounts' => $mounts
             ];
-            
+
         } catch (\Exception $e) {
             return ['mounts' => []];
         }
+    }
+
+    /**
+     * Create DatabaseInfo from server capabilities
+     *
+     * @throws PhpBorgException
+     * @return int DatabaseInfo ID
+     */
+    private function createDatabaseInfo($server, string $backupType, array $sourceConfig, string $repoId): int
+    {
+        // Map backup type to database type in capabilities
+        $dbTypeMap = [
+            'mysql' => 'mysql',
+            'mariadb' => 'mysql',
+            'postgresql' => 'postgresql',
+            'postgres' => 'postgresql',
+            'mongodb' => 'mongodb'
+        ];
+
+        $dbType = $dbTypeMap[$backupType] ?? $backupType;
+
+        // Get server capabilities
+        if (!$server->capabilitiesDetected || !$server->capabilitiesData) {
+            throw new PhpBorgException(
+                "Server capabilities not detected. Please run capability detection first.",
+                400
+            );
+        }
+
+        $capabilities = json_decode($server->capabilitiesData, true);
+        if (!$capabilities || !isset($capabilities['databases'])) {
+            throw new PhpBorgException("Invalid capabilities data", 500);
+        }
+
+        // Find the matching database in capabilities
+        $database = null;
+        foreach ($capabilities['databases'] as $db) {
+            if ($db['type'] === $dbType) {
+                $database = $db;
+                break;
+            }
+        }
+
+        if (!$database) {
+            throw new PhpBorgException(
+                "Database type '{$dbType}' not found in server capabilities",
+                400
+            );
+        }
+
+        // Verify database is snapshot-capable
+        if (!($database['snapshot_capable'] ?? false)) {
+            throw new PhpBorgException(
+                "Database '{$dbType}' is not on a snapshot-capable volume (LVM/Btrfs/ZFS required)",
+                400
+            );
+        }
+
+        // Verify we have required LVM information
+        if (!isset($database['volume']['vg_name']) || !isset($database['volume']['lv_name'])) {
+            throw new PhpBorgException(
+                "LVM volume information not found in capabilities for '{$dbType}'",
+                400
+            );
+        }
+
+        if (!isset($database['datadir'])) {
+            throw new PhpBorgException(
+                "Database datadir not found in capabilities for '{$dbType}'",
+                400
+            );
+        }
+
+        // Extract LVM information from capabilities
+        $vgName = $database['volume']['vg_name'];
+        $lvName = $database['volume']['lv_name'];
+        $lvSize = $database['snapshot_size']['recommended_size'] ?? '10G';
+        $datadir = $database['datadir'];
+
+        // Extract database credentials from source config
+        $dbHost = $sourceConfig['host'] ?? 'localhost';
+        $dbUser = $sourceConfig['username'] ?? '';
+        $dbPassword = $sourceConfig['password'] ?? '';
+
+        // Validate required credentials
+        if (empty($dbUser)) {
+            throw new PhpBorgException(
+                "Database username is required in source configuration",
+                400
+            );
+        }
+
+        // Create DatabaseInfo
+        $dbInfoId = $this->databaseInfoRepository->create(
+            type: $dbType,
+            serverId: $server->id,
+            dbHost: $dbHost,
+            dbUser: $dbUser,
+            dbPassword: $dbPassword,
+            vgName: $vgName,
+            lvmPartition: $lvName,
+            lvSize: $lvSize,
+            dataPath: $datadir
+        );
+
+        return $dbInfoId;
     }
 }

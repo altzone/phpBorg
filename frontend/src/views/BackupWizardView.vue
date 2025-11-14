@@ -83,33 +83,79 @@
         <!-- Step 2: Backup Type -->
         <div v-else-if="currentStep === 1" class="space-y-4">
           <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            <label 
-              v-for="type in backupTypes" 
+            <label
+              v-for="type in backupTypes"
               :key="type.id"
-              class="relative flex flex-col items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors"
+              class="relative flex flex-col items-center p-4 border-2 rounded-lg transition-colors"
               :class="{
-                'border-primary-500 bg-primary-50': wizardData.backupType === type.id,
-                'border-gray-200 dark:border-gray-700': wizardData.backupType !== type.id
+                'border-primary-500 bg-primary-50 dark:bg-primary-900/20': wizardData.backupType === type.id && !type.disabled,
+                'border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700': wizardData.backupType !== type.id && !type.disabled,
+                'border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 opacity-50 cursor-not-allowed': type.disabled
               }"
             >
-              <input 
-                type="radio" 
-                :value="type.id" 
+              <input
+                type="radio"
+                :value="type.id"
                 v-model="wizardData.backupType"
+                :disabled="type.disabled"
                 class="sr-only"
               />
               <div class="text-3xl mb-2">{{ type.icon }}</div>
               <div class="text-center">
                 <div class="font-semibold text-gray-900 dark:text-gray-100">{{ type.name }}</div>
-                <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mt-1">{{ type.description }}</div>
+                <div class="text-xs text-gray-600 dark:text-gray-400 mt-1">{{ type.description }}</div>
+                <div v-if="type.disabled && type.disabledReason" class="mt-2 text-xs text-red-600 dark:text-red-400 font-medium">
+                  ⚠️ {{ type.disabledReason }}
+                </div>
               </div>
-              <div v-if="wizardData.backupType === type.id" 
+              <div v-if="wizardData.backupType === type.id && !type.disabled"
                    class="absolute top-2 right-2 w-5 h-5 bg-primary-600 rounded-full flex items-center justify-center">
                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
                 </svg>
               </div>
+              <div v-if="type.disabled"
+                   class="absolute top-2 right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
+                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
             </label>
+          </div>
+
+          <!-- Warning for databases without snapshot support -->
+          <div v-if="serverCapabilities?.capabilities_detected" class="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div class="flex items-start gap-3">
+              <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div class="flex-1 text-sm">
+                <p class="font-semibold text-blue-900 dark:text-blue-200 mb-1">Database Backup Requirements</p>
+                <p class="text-blue-800 dark:text-blue-300">
+                  Database backups require <strong>atomic snapshot support</strong> (LVM/Btrfs/ZFS) to guarantee data consistency.
+                  Disabled database types are either not running or not on a snapshot-capable volume.
+                </p>
+                <div class="flex items-center gap-3 mt-3">
+                  <button
+                    @click="reloadCapabilities"
+                    :disabled="detectingCapabilities"
+                    class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-800 hover:bg-blue-200 dark:hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <svg v-if="detectingCapabilities" class="animate-spin -ml-0.5 mr-1.5 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <svg v-else class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    {{ detectingCapabilities ? 'Detecting...' : 'Reload Capabilities' }}
+                  </button>
+                  <a :href="`/servers/${wizardData.serverId}/capabilities`" target="_blank" class="text-xs text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-200 underline">
+                    View detailed capabilities →
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -148,6 +194,41 @@
           <!-- MySQL/MariaDB Configuration -->
           <div v-else-if="wizardData.backupType === 'mysql' || wizardData.backupType === 'mariadb'">
             <div class="space-y-4">
+              <!-- Database Information from Capabilities -->
+              <div v-if="getDetectedDatabase('mysql')" class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <div class="flex items-start gap-3">
+                  <svg class="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div class="flex-1 text-sm">
+                    <p class="font-semibold text-green-900 dark:text-green-200 mb-2">{{ $t('backup_wizard.source_config.db_detected_title') }}</p>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-green-800 dark:text-green-300">
+                      <div>
+                        <span class="font-medium">{{ $t('backup_wizard.source_config.db_datadir') }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mysql').datadir }}</span>
+                        <span v-if="getDetectedDatabase('mysql').datadir_confidence === 'high'" class="ml-2 px-1.5 py-0.5 bg-green-600 text-white text-xs rounded">HIGH</span>
+                        <span v-else-if="getDetectedDatabase('mysql').datadir_confidence === 'medium'" class="ml-2 px-1.5 py-0.5 bg-yellow-600 text-white text-xs rounded">MEDIUM</span>
+                      </div>
+                      <div>
+                        <span class="font-medium">{{ $t('backup_wizard.source_config.db_volume') }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mysql').volume?.vg_name }}/{{ getDetectedDatabase('mysql').volume?.lv_name }}</span>
+                      </div>
+                      <div>
+                        <span class="font-medium">{{ $t('backup_wizard.source_config.db_snapshot_size') }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mysql').snapshot_size?.recommended_size || 'N/A' }}</span>
+                      </div>
+                      <div>
+                        <span class="font-medium">{{ $t('backup_wizard.source_config.db_datadir_size') }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mysql').snapshot_size?.datadir_size || 'N/A' }}</span>
+                      </div>
+                    </div>
+                    <p class="text-green-700 dark:text-green-400 mt-2 text-xs">
+                      {{ $t('backup_wizard.source_config.db_snapshot_info') }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label class="flex items-center justify-between mb-2">
                   <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('backup_wizard.source_config.advanced') }}</span>
@@ -226,8 +307,126 @@
 
           <!-- PostgreSQL Configuration -->
           <div v-else-if="wizardData.backupType === 'postgresql'">
-            <!-- Similar to MySQL but with PostgreSQL-specific options -->
-            <p class="text-gray-600 dark:text-gray-400 dark:text-gray-500">PostgreSQL configuration...</p>
+            <div class="space-y-4">
+              <!-- Database Information from Capabilities -->
+              <div v-if="getDetectedDatabase('postgresql')" class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <div class="flex items-start gap-3">
+                  <svg class="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div class="flex-1 text-sm">
+                    <p class="font-semibold text-green-900 dark:text-green-200 mb-2">{{ $t('backup_wizard.source_config.db_detected_title') }}</p>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-green-800 dark:text-green-300">
+                      <div>
+                        <span class="font-medium">{{ $t('backup_wizard.source_config.db_datadir') }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('postgresql').datadir }}</span>
+                        <span v-if="getDetectedDatabase('postgresql').datadir_confidence === 'high'" class="ml-2 px-1.5 py-0.5 bg-green-600 text-white text-xs rounded">HIGH</span>
+                        <span v-else-if="getDetectedDatabase('postgresql').datadir_confidence === 'medium'" class="ml-2 px-1.5 py-0.5 bg-yellow-600 text-white text-xs rounded">MEDIUM</span>
+                      </div>
+                      <div>
+                        <span class="font-medium">{{ $t('backup_wizard.source_config.db_volume') }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('postgresql').volume?.vg_name }}/{{ getDetectedDatabase('postgresql').volume?.lv_name }}</span>
+                      </div>
+                      <div>
+                        <span class="font-medium">{{ $t('backup_wizard.source_config.db_snapshot_size') }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('postgresql').snapshot_size?.recommended_size || 'N/A' }}</span>
+                      </div>
+                      <div>
+                        <span class="font-medium">{{ $t('backup_wizard.source_config.db_datadir_size') }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('postgresql').snapshot_size?.datadir_size || 'N/A' }}</span>
+                      </div>
+                    </div>
+                    <p class="text-green-700 dark:text-green-400 mt-2 text-xs">
+                      {{ $t('backup_wizard.source_config.db_snapshot_info') }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.source_config.db_credentials') }}</label>
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">{{ $t('backup_wizard.source_config.db_host') }}</label>
+                    <input v-model="wizardData.sourceConfig.host" type="text" class="input w-full" placeholder="localhost" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">{{ $t('backup_wizard.source_config.db_port') }}</label>
+                    <input v-model="wizardData.sourceConfig.port" type="number" class="input w-full" placeholder="5432" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">{{ $t('backup_wizard.source_config.db_username') }}</label>
+                    <input v-model="wizardData.sourceConfig.username" type="text" class="input w-full" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">{{ $t('backup_wizard.source_config.db_password') }}</label>
+                    <input v-model="wizardData.sourceConfig.password" type="password" class="input w-full" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MongoDB Configuration -->
+          <div v-else-if="wizardData.backupType === 'mongodb'">
+            <div class="space-y-4">
+              <!-- Database Information from Capabilities -->
+              <div v-if="getDetectedDatabase('mongodb')" class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <div class="flex items-start gap-3">
+                  <svg class="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div class="flex-1 text-sm">
+                    <p class="font-semibold text-green-900 dark:text-green-200 mb-2">{{ $t('backup_wizard.source_config.db_detected_title') }}</p>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-green-800 dark:text-green-300">
+                      <div>
+                        <span class="font-medium">{{ $t('backup_wizard.source_config.db_datadir') }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mongodb').datadir }}</span>
+                        <span v-if="getDetectedDatabase('mongodb').datadir_confidence === 'high'" class="ml-2 px-1.5 py-0.5 bg-green-600 text-white text-xs rounded">HIGH</span>
+                        <span v-else-if="getDetectedDatabase('mongodb').datadir_confidence === 'medium'" class="ml-2 px-1.5 py-0.5 bg-yellow-600 text-white text-xs rounded">MEDIUM</span>
+                      </div>
+                      <div>
+                        <span class="font-medium">{{ $t('backup_wizard.source_config.db_volume') }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mongodb').volume?.vg_name }}/{{ getDetectedDatabase('mongodb').volume?.lv_name }}</span>
+                      </div>
+                      <div>
+                        <span class="font-medium">{{ $t('backup_wizard.source_config.db_snapshot_size') }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mongodb').snapshot_size?.recommended_size || 'N/A' }}</span>
+                      </div>
+                      <div>
+                        <span class="font-medium">{{ $t('backup_wizard.source_config.db_datadir_size') }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mongodb').snapshot_size?.datadir_size || 'N/A' }}</span>
+                      </div>
+                    </div>
+                    <p class="text-green-700 dark:text-green-400 mt-2 text-xs">
+                      {{ $t('backup_wizard.source_config.db_snapshot_info') }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.source_config.db_credentials') }}</label>
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">{{ $t('backup_wizard.source_config.db_host') }}</label>
+                    <input v-model="wizardData.sourceConfig.host" type="text" class="input w-full" placeholder="localhost" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">{{ $t('backup_wizard.source_config.db_port') }}</label>
+                    <input v-model="wizardData.sourceConfig.port" type="number" class="input w-full" placeholder="27017" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">{{ $t('backup_wizard.source_config.db_username') }}</label>
+                    <input v-model="wizardData.sourceConfig.username" type="text" class="input w-full" />
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">{{ $t('backup_wizard.source_config.db_password') }}</label>
+                    <input v-model="wizardData.sourceConfig.password" type="password" class="input w-full" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Full System Backup Configuration -->
@@ -1219,6 +1418,7 @@ const storagePools = ref([])
 const snapshotCapabilities = ref([])
 const serverCapabilities = ref(null)
 const loadingCapabilities = ref(false)
+const detectingCapabilities = ref(false)
 
 // Custom exclusions
 const newExclusionPattern = ref('')
@@ -1276,15 +1476,72 @@ const wizardData = ref({
   runTestBackup: false
 })
 
+// Helper function to get detected database from capabilities
+function getDetectedDatabase(dbType) {
+  if (!serverCapabilities.value?.capabilities?.databases) return null
+
+  const db = serverCapabilities.value.capabilities.databases.find(d => d.type === dbType)
+  return db || null
+}
+
+// Helper function to check if a database type is snapshot-capable
+function isDatabaseSnapshotCapable(dbType) {
+  if (!serverCapabilities.value?.capabilities?.databases) return { capable: true, reason: null }
+
+  const db = serverCapabilities.value.capabilities.databases.find(d => d.type === dbType)
+
+  if (!db) {
+    return { capable: false, reason: 'Database not detected on this server' }
+  }
+
+  if (!db.running) {
+    return { capable: false, reason: 'Database is not running' }
+  }
+
+  if (!db.snapshot_capable) {
+    return { capable: false, reason: 'Database is not on a snapshot-capable volume (LVM/Btrfs/ZFS required)' }
+  }
+
+  return { capable: true, reason: null }
+}
+
 // Backup types
-const backupTypes = computed(() => [
-  { id: 'files', name: t('backup_wizard.backup_types.files.name'), icon: '📁', description: t('backup_wizard.backup_types.files.description') },
-  { id: 'mysql', name: t('backup_wizard.backup_types.mysql.name'), icon: '🗄️', description: t('backup_wizard.backup_types.mysql.description') },
-  { id: 'postgresql', name: t('backup_wizard.backup_types.postgresql.name'), icon: '🐘', description: t('backup_wizard.backup_types.postgresql.description') },
-  { id: 'mongodb', name: t('backup_wizard.backup_types.mongodb.name'), icon: '🍃', description: t('backup_wizard.backup_types.mongodb.description') },
-  { id: 'docker', name: t('backup_wizard.backup_types.docker.name'), icon: '🐳', description: t('backup_wizard.backup_types.docker.description') },
-  { id: 'system', name: t('backup_wizard.backup_types.system.name'), icon: '💾', description: t('backup_wizard.backup_types.system.description') }
-])
+const backupTypes = computed(() => {
+  const types = [
+    { id: 'files', name: t('backup_wizard.backup_types.files.name'), icon: '📁', description: t('backup_wizard.backup_types.files.description'), disabled: false },
+    { id: 'mysql', name: t('backup_wizard.backup_types.mysql.name'), icon: '🗄️', description: t('backup_wizard.backup_types.mysql.description'), disabled: false },
+    { id: 'postgresql', name: t('backup_wizard.backup_types.postgresql.name'), icon: '🐘', description: t('backup_wizard.backup_types.postgresql.description'), disabled: false },
+    { id: 'mongodb', name: t('backup_wizard.backup_types.mongodb.name'), icon: '🍃', description: t('backup_wizard.backup_types.mongodb.description'), disabled: false },
+    { id: 'docker', name: t('backup_wizard.backup_types.docker.name'), icon: '🐳', description: t('backup_wizard.backup_types.docker.description'), disabled: false },
+    { id: 'system', name: t('backup_wizard.backup_types.system.name'), icon: '💾', description: t('backup_wizard.backup_types.system.description'), disabled: false }
+  ]
+
+  // Check database capabilities if server is selected
+  if (serverCapabilities.value?.capabilities_detected) {
+    const mysqlCheck = isDatabaseSnapshotCapable('mysql')
+    const mysqlType = types.find(t => t.id === 'mysql')
+    if (mysqlType) {
+      mysqlType.disabled = !mysqlCheck.capable
+      mysqlType.disabledReason = mysqlCheck.reason
+    }
+
+    const postgresqlCheck = isDatabaseSnapshotCapable('postgresql')
+    const postgresqlType = types.find(t => t.id === 'postgresql')
+    if (postgresqlType) {
+      postgresqlType.disabled = !postgresqlCheck.capable
+      postgresqlType.disabledReason = postgresqlCheck.reason
+    }
+
+    const mongodbCheck = isDatabaseSnapshotCapable('mongodb')
+    const mongodbType = types.find(t => t.id === 'mongodb')
+    if (mongodbType) {
+      mongodbType.disabled = !mongodbCheck.capable
+      mongodbType.disabledReason = mongodbCheck.reason
+    }
+  }
+
+  return types
+})
 
 // Week days
 const weekDays = computed(() => [
@@ -1428,6 +1685,60 @@ async function onServerChange() {
   // Reset dependent fields
   wizardData.value.snapshotMethod = 'none'
   snapshotCapabilities.value = []
+  serverCapabilities.value = null
+
+  // Load server capabilities
+  if (wizardData.value.serverId) {
+    try {
+      loadingCapabilities.value = true
+      const caps = await serverService.getCapabilities(wizardData.value.serverId)
+      serverCapabilities.value = caps
+    } catch (error) {
+      console.error('Failed to load server capabilities:', error)
+    } finally {
+      loadingCapabilities.value = false
+    }
+  }
+}
+
+async function reloadCapabilities() {
+  if (!wizardData.value.serverId) return
+
+  try {
+    detectingCapabilities.value = true
+
+    // Trigger detection job
+    const response = await serverService.detectCapabilities(wizardData.value.serverId)
+    const jobId = response.job_id
+
+    // Poll for job completion
+    const maxAttempts = 30 // 30 seconds max
+    let attempts = 0
+
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      const caps = await serverService.getCapabilities(wizardData.value.serverId)
+
+      // Check if detection is complete (capabilities_detected should be true after job completes)
+      if (caps.capabilities_detected) {
+        serverCapabilities.value = caps
+        break
+      }
+
+      attempts++
+    }
+
+    if (attempts >= maxAttempts) {
+      console.error('Capabilities detection timed out')
+      alert('Capabilities detection timed out. Please try again.')
+    }
+  } catch (error) {
+    console.error('Failed to reload capabilities:', error)
+    alert('Failed to reload capabilities: ' + (error.response?.data?.error || error.message))
+  } finally {
+    detectingCapabilities.value = false
+  }
 }
 
 // Set default exclusions for system backup

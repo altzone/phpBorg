@@ -14,6 +14,7 @@ final readonly class Archive
     public function __construct(
         public int $id,
         public string $repoId,
+        public int $serverId,
         public string $name,
         public string $archiveId,
         public float $duration,
@@ -36,6 +37,7 @@ final readonly class Archive
         return new self(
             id: (int)$row['id'],
             repoId: (string)$row['repo_id'],
+            serverId: (int)$row['server_id'],
             name: (string)$row['nom'],
             archiveId: (string)$row['archive_id'],
             duration: (float)$row['dur'],

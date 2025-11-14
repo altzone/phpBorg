@@ -17,6 +17,9 @@ final readonly class Server
         public string $backupType,
         public string $sshPublicKey,
         public bool $active,
+        public bool $capabilitiesDetected = false,
+        public ?string $capabilitiesData = null,
+        public ?\DateTime $capabilitiesDetectedAt = null,
     ) {
     }
 
@@ -27,6 +30,11 @@ final readonly class Server
      */
     public static function fromDatabase(array $row): self
     {
+        $capabilitiesDetectedAt = null;
+        if (!empty($row['capabilities_detected_at'])) {
+            $capabilitiesDetectedAt = new \DateTime($row['capabilities_detected_at']);
+        }
+
         return new self(
             id: (int)$row['id'],
             name: (string)$row['name'],
@@ -35,6 +43,9 @@ final readonly class Server
             backupType: (string)($row['backuptype'] ?? 'internal'),
             sshPublicKey: (string)$row['ssh_pub_key'],
             active: (bool)$row['active'],
+            capabilitiesDetected: (bool)($row['capabilities_detected'] ?? false),
+            capabilitiesData: $row['capabilities_data'] ?? null,
+            capabilitiesDetectedAt: $capabilitiesDetectedAt,
         );
     }
 
@@ -53,6 +64,9 @@ final readonly class Server
             'backuptype' => $this->backupType,
             'ssh_pub_key' => $this->sshPublicKey,
             'active' => $this->active ? 1 : 0,
+            'capabilities_detected' => $this->capabilitiesDetected ? 1 : 0,
+            'capabilities_data' => $this->capabilitiesData,
+            'capabilities_detected_at' => $this->capabilitiesDetectedAt?->format('Y-m-d H:i:s'),
         ];
     }
 }

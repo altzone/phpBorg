@@ -31,6 +31,11 @@ const router = createRouter({
           component: () => import('@/views/ServerDetailView.vue'),
         },
         {
+          path: 'servers/:id/capabilities',
+          name: 'server-capabilities',
+          component: () => import('@/views/ServerCapabilitiesView.vue'),
+        },
+        {
           path: 'backups',
           name: 'backups',
           component: () => import('@/views/BackupsView.vue'),
@@ -102,7 +107,7 @@ const router = createRouter({
 })
 
 // Navigation guard
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
   // Check if route requires authentication
@@ -115,6 +120,20 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresGuest && authStore.isAuthenticated) {
     next({ name: 'dashboard' })
     return
+  }
+
+  // If authenticated but user data is missing, fetch it
+  if (authStore.isAuthenticated && !authStore.user) {
+    console.log('[Router] User data missing, fetching from API...')
+    try {
+      await authStore.fetchCurrentUser()
+    } catch (err) {
+      console.error('[Router] Failed to fetch user:', err)
+      // If fetch fails, clear tokens and redirect to login
+      authStore.logout()
+      next({ name: 'login', query: { redirect: to.fullPath } })
+      return
+    }
   }
 
   // Check if route requires specific role

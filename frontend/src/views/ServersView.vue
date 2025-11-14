@@ -4,7 +4,7 @@
     <div class="flex justify-between items-center mb-8">
       <div>
         <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ $t('servers.title') }}</h1>
-        <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('servers.subtitle') }}</p>
+        <p class="mt-2 text-gray-600 dark:text-gray-400">{{ $t('servers.subtitle') }}</p>
       </div>
       <button
         v-if="authStore.isAdmin"
@@ -16,10 +16,10 @@
     </div>
 
     <!-- Error Message -->
-    <div v-if="serverStore.error" class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+    <div v-if="serverStore.error" class="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
       <div class="flex justify-between items-start">
-        <p class="text-sm text-red-800">{{ serverStore.error }}</p>
-        <button @click="serverStore.clearError()" class="text-red-500 hover:text-red-700">
+        <p class="text-sm text-red-800 dark:text-red-200">{{ serverStore.error }}</p>
+        <button @click="serverStore.clearError()" class="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -31,13 +31,13 @@
     <div v-if="serverStore.loading && !serverStore.servers.length" class="card">
       <div class="text-center py-12">
         <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 dark:border-gray-700 border-t-primary-600"></div>
-        <p class="mt-4 text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('servers.loading_servers') }}</p>
+        <p class="mt-4 text-gray-600 dark:text-gray-400">{{ $t('servers.loading_servers') }}</p>
       </div>
     </div>
 
     <!-- Empty State -->
     <div v-else-if="!serverStore.servers.length" class="card">
-      <div class="text-center py-16 text-gray-500 dark:text-gray-400 dark:text-gray-500">
+      <div class="text-center py-16 text-gray-500 dark:text-gray-400">
         <svg class="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
         </svg>
@@ -53,285 +53,207 @@
       </div>
     </div>
 
-    <!-- Servers List -->
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div
-        v-for="server in serverStore.servers"
-        :key="server.id"
-        class="group relative bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-primary-400 dark:hover:border-primary-500 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer overflow-hidden"
-        @click="viewServer(server.id)"
-      >
-        <!-- Top colored bar -->
-        <div
-          :class="[
-            'h-2 w-full',
-            server.active
-              ? 'bg-gradient-to-r from-green-400 to-emerald-500'
-              : 'bg-gradient-to-r from-gray-300 to-gray-400 dark:from-gray-600 dark:to-gray-700'
-          ]"
-        ></div>
-
-        <div class="p-6">
-          <!-- Server Icon & Status -->
-          <div class="flex items-start justify-between mb-4">
-            <div class="flex items-center gap-3">
-              <!-- Server Icon with gradient -->
-              <div :class="[
-                'p-3 rounded-lg',
-                server.active
-                  ? 'bg-gradient-to-br from-primary-400 to-primary-600 shadow-lg shadow-primary-500/30'
-                  : 'bg-gradient-to-br from-gray-300 to-gray-500 dark:from-gray-600 dark:to-gray-700'
-              ]">
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-                </svg>
-              </div>
-
-              <div>
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white">{{ server.name }}</h3>
-                <div class="flex items-center gap-1 mt-0.5">
-                  <div :class="[
-                    'w-2 h-2 rounded-full',
-                    server.active
-                      ? 'bg-green-500 animate-pulse'
-                      : 'bg-gray-400 dark:bg-gray-600'
-                  ]"></div>
-                  <span :class="[
-                    'text-xs font-medium',
-                    server.active
-                      ? 'text-green-700 dark:text-green-400'
-                      : 'text-gray-500 dark:text-gray-400'
-                  ]">
-                    {{ server.active ? $t('servers.online') : $t('servers.offline') }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Server Details -->
-          <div class="space-y-3 mb-4">
-            <!-- Hostname -->
-            <div class="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-              <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-              </svg>
-              <span class="text-sm font-mono text-gray-700 dark:text-gray-300">{{ server.hostname }}:{{ server.port }}</span>
-            </div>
-
-            <!-- Username -->
-            <div class="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-              <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              <span class="text-sm text-gray-700 dark:text-gray-300">{{ server.username || 'root' }}</span>
-            </div>
-
-            <!-- Description -->
-            <div v-if="server.description" class="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
-              <p class="text-sm text-blue-900 dark:text-blue-200 line-clamp-2">{{ server.description }}</p>
-            </div>
-          </div>
-
-          <!-- System Stats Accordion -->
-          <div v-if="server.stats" class="mb-4 rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden">
-            <!-- Accordion Header -->
-            <button
-              @click.stop="toggleStatsExpanded(server.id)"
-              class="w-full p-3 bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-700/30 dark:to-blue-900/10 hover:from-gray-100 hover:to-blue-100 dark:hover:from-gray-700/50 dark:hover:to-blue-900/20 transition-colors"
+    <!-- Servers Table -->
+    <div v-else class="card overflow-hidden">
+      <!-- Desktop Table -->
+      <div class="hidden lg:block overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead class="bg-gray-50 dark:bg-gray-800">
+            <tr>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ $t('servers.name') }}
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ $t('servers.hostname') }}
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ $t('servers.username') }}
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ $t('servers.status') }}
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                IP
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ $t('servers.distribution') }}
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ $t('servers.version') }}
+              </th>
+              <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ $t('common.actions') }}
+              </th>
+            </tr>
+          </thead>
+          <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+            <tr
+              v-for="server in serverStore.servers"
+              :key="server.id"
+              @click="viewServer(server.id)"
+              class="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+              :class="{ 'opacity-60': !server.active }"
             >
-              <div class="flex items-center justify-between text-xs">
-                <div class="flex items-center gap-3">
-                  <svg
-                    class="w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform"
-                    :class="{ 'rotate-90': isStatsExpanded(server.id) }"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                  </svg>
-                  <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $t('servers.system_stats') }}</span>
-                  <span class="text-gray-600 dark:text-gray-400">
-                    {{ server.stats.os_distribution }} {{ server.stats.os_version }}
-                  </span>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="flex items-center">
+                  <div :class="[
+                    'p-2 rounded-lg mr-3',
+                    server.active
+                      ? 'bg-gradient-to-br from-primary-400 to-primary-600 shadow-md'
+                      : 'bg-gradient-to-br from-gray-300 to-gray-500 dark:from-gray-600 dark:to-gray-700'
+                  ]">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                    </svg>
+                  </div>
+                  <div class="font-medium text-gray-900 dark:text-gray-100">{{ server.name }}</div>
                 </div>
-                <div class="flex items-center gap-2">
-                  <!-- Quick status indicators -->
-                  <div class="flex items-center gap-1">
-                    <span class="text-[10px] text-gray-500 dark:text-gray-400">CPU</span>
-                    <span :class="getCpuColor(server.stats.cpu_usage_percent)" class="font-medium">
-                      {{ server.stats.cpu_usage_percent?.toFixed(0) }}%
-                    </span>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <span class="text-[10px] text-gray-500 dark:text-gray-400">RAM</span>
-                    <span :class="getMemoryColor(server.stats.memory_percent)" class="font-medium">
-                      {{ server.stats.memory_percent?.toFixed(0) }}%
-                    </span>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <span class="text-[10px] text-gray-500 dark:text-gray-400">Disk</span>
-                    <span :class="getDiskColor(server.stats.disk_percent)" class="font-medium">
-                      {{ server.stats.disk_percent?.toFixed(0) }}%
-                    </span>
-                  </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-900 dark:text-gray-300 font-mono">{{ server.hostname }}:{{ server.port }}</div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-700 dark:text-gray-400">{{ server.username || 'root' }}</div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span :class="[
+                  'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium',
+                  server.active
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                    : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+                ]">
+                  <div :class="[
+                    'w-1.5 h-1.5 rounded-full',
+                    server.active ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
+                  ]"></div>
+                  {{ server.active ? $t('servers.online') : $t('servers.offline') }}
+                </span>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-700 dark:text-gray-400 font-mono">
+                  {{ server.stats?.ip_address || 'N/A' }}
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-900 dark:text-gray-300">
+                  {{ server.stats?.os_distribution || 'N/A' }}
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-700 dark:text-gray-400">
+                  {{ server.stats?.os_version || 'N/A' }}
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <div class="flex items-center justify-end gap-2">
                   <button
-                    @click.stop="refreshStats(server.id)"
-                    class="ml-1 text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 transition-colors"
-                    title="Refresh stats"
+                    v-if="authStore.isAdmin"
+                    @click.stop="editServer(server)"
+                    class="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300"
+                    title="Edit"
                   >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button
+                    v-if="authStore.isAdmin"
+                    @click.stop="confirmDelete(server)"
+                    class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                    title="Delete"
+                  >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                   </button>
                 </div>
-              </div>
-            </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-            <!-- Accordion Content -->
-            <div
-              v-show="isStatsExpanded(server.id)"
-              class="p-3 space-y-2 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700"
-            >
-            <!-- Architecture -->
-            <div class="flex items-center gap-2 text-xs">
-              <svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-              </svg>
-              <span class="text-gray-700 dark:text-gray-300">
-                {{ $t('servers.architecture') }}: {{ server.stats.architecture || 'N/A' }}
-              </span>
-            </div>
-
-            <!-- CPU -->
-            <div class="flex items-center justify-between text-xs">
-              <div class="flex items-center gap-2">
-                <svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+      <!-- Mobile/Tablet Cards (below lg breakpoint) -->
+      <div class="lg:hidden divide-y divide-gray-200 dark:divide-gray-700">
+        <div
+          v-for="server in serverStore.servers"
+          :key="server.id"
+          @click="viewServer(server.id)"
+          class="p-4 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+          :class="{ 'opacity-60': !server.active }"
+        >
+          <!-- Header Row -->
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <div :class="[
+                'p-2 rounded-lg',
+                server.active
+                  ? 'bg-gradient-to-br from-primary-400 to-primary-600 shadow-md'
+                  : 'bg-gradient-to-br from-gray-300 to-gray-500 dark:from-gray-600 dark:to-gray-700'
+              ]">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
                 </svg>
-                <span class="text-gray-700 dark:text-gray-300">
-                  {{ $t('servers.cpu') }}: {{ server.stats.cpu_cores }} {{ $t('servers.cores') }}
+              </div>
+              <div>
+                <h3 class="font-semibold text-gray-900 dark:text-gray-100">{{ server.name }}</h3>
+                <span :class="[
+                  'inline-flex items-center gap-1 text-xs',
+                  server.active
+                    ? 'text-green-600 dark:text-green-400'
+                    : 'text-gray-500 dark:text-gray-400'
+                ]">
+                  <div :class="[
+                    'w-1.5 h-1.5 rounded-full',
+                    server.active ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
+                  ]"></div>
+                  {{ server.active ? $t('servers.online') : $t('servers.offline') }}
                 </span>
               </div>
-              <span class="font-medium" :class="getCpuColor(server.stats.cpu_usage_percent)">
-                {{ server.stats.cpu_usage_percent?.toFixed(1) }}%
-              </span>
             </div>
-
-            <!-- Memory -->
-            <div class="text-xs">
-              <div class="flex items-center justify-between mb-1">
-                <div class="flex items-center gap-2">
-                  <svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7c-2 0-3 1-3 3z" />
-                  </svg>
-                  <span class="text-gray-700 dark:text-gray-300">{{ $t('servers.memory') }}</span>
-                </div>
-                <span class="font-medium" :class="getMemoryColor(server.stats.memory_percent)">
-                  {{ server.stats.memory_percent?.toFixed(0) }}%
-                </span>
-              </div>
-              <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                <div
-                  class="h-1.5 rounded-full transition-all"
-                  :class="getMemoryColorBg(server.stats.memory_percent)"
-                  :style="{ width: `${server.stats.memory_percent}%` }"
-                ></div>
-              </div>
-              <div class="flex justify-between mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
-                <span>{{ formatBytes(server.stats.memory_used_mb * 1024 * 1024) }}</span>
-                <span>{{ formatBytes(server.stats.memory_total_mb * 1024 * 1024) }}</span>
-              </div>
-            </div>
-
-            <!-- Disk -->
-            <div class="text-xs">
-              <div class="flex items-center justify-between mb-1">
-                <div class="flex items-center gap-2">
-                  <svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
-                  </svg>
-                  <span class="text-gray-700 dark:text-gray-300">{{ $t('servers.disk') }}</span>
-                </div>
-                <span class="font-medium" :class="getDiskColor(server.stats.disk_percent)">
-                  {{ server.stats.disk_percent?.toFixed(0) }}%
-                </span>
-              </div>
-              <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                <div
-                  class="h-1.5 rounded-full transition-all"
-                  :class="getDiskColorBg(server.stats.disk_percent)"
-                  :style="{ width: `${server.stats.disk_percent}%` }"
-                ></div>
-              </div>
-              <div class="flex justify-between mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
-                <span>{{ server.stats.disk_used_gb?.toFixed(1) }} GB</span>
-                <span>{{ server.stats.disk_total_gb?.toFixed(1) }} GB</span>
-              </div>
-            </div>
-
-            <!-- Uptime -->
-            <div class="flex items-center gap-2 text-xs">
-              <svg class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span class="text-gray-700 dark:text-gray-300">
-                {{ $t('servers.uptime') }}: {{ server.stats.uptime_human }}
-              </span>
-            </div>
-            </div>
-          </div>
-
-          <!-- No stats available -->
-          <div v-else class="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-            <div class="flex items-start justify-between gap-2">
-              <div class="flex items-start gap-2">
-                <svg class="w-4 h-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p class="text-xs text-yellow-800 dark:text-yellow-200">{{ $t('servers.no_stats') }}</p>
-              </div>
+            <div v-if="authStore.isAdmin" class="flex items-center gap-2">
               <button
-                @click.stop="refreshStats(server.id)"
-                class="text-xs text-yellow-700 dark:text-yellow-300 hover:text-yellow-900 dark:hover:text-yellow-100 font-medium whitespace-nowrap"
+                @click.stop="editServer(server)"
+                class="p-2 text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300"
               >
-                {{ $t('servers.collect_stats') }}
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+              <button
+                @click.stop="confirmDelete(server)"
+                class="p-2 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
               </button>
             </div>
           </div>
 
-          <!-- Footer Info -->
-          <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 pt-3 border-t border-gray-200 dark:border-gray-700">
-            <div class="flex items-center gap-1">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>{{ formatDate(server.created_at) }}</span>
+          <!-- Details Grid -->
+          <div class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ $t('servers.hostname') }}</div>
+              <div class="font-mono text-gray-900 dark:text-gray-300 text-xs">{{ server.hostname }}:{{ server.port }}</div>
             </div>
-            <span class="text-primary-600 dark:text-primary-400 font-medium group-hover:translate-x-1 transition-transform">
-              {{ $t('servers.view_details') }} →
-            </span>
+            <div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ $t('servers.username') }}</div>
+              <div class="text-gray-900 dark:text-gray-300">{{ server.username || 'root' }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">IP</div>
+              <div class="font-mono text-gray-900 dark:text-gray-300 text-xs">{{ server.stats?.ip_address || 'N/A' }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ $t('servers.distribution') }}</div>
+              <div class="text-gray-900 dark:text-gray-300">{{ server.stats?.os_distribution || 'N/A' }}</div>
+            </div>
+            <div class="col-span-2">
+              <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ $t('servers.version') }}</div>
+              <div class="text-gray-900 dark:text-gray-300">{{ server.stats?.os_version || 'N/A' }}</div>
+            </div>
           </div>
-        </div>
-
-        <!-- Actions Overlay (appears on hover) -->
-        <div
-          v-if="authStore.isAdmin"
-          class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white dark:from-gray-800 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex gap-2"
-        >
-          <button
-            @click.stop="editServer(server)"
-            class="flex-1 px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors shadow-lg"
-          >
-            {{ $t('common.edit') }}
-          </button>
-          <button
-            @click.stop="confirmDelete(server)"
-            class="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors shadow-lg"
-          >
-            {{ $t('common.delete') }}
-          </button>
         </div>
       </div>
     </div>
@@ -351,6 +273,42 @@
       @close="showDeleteModal = false"
       @confirm="handleDelete"
     />
+
+    <!-- Toast Notifications -->
+    <div class="fixed bottom-4 right-4 z-50 space-y-3">
+      <div
+        v-for="toast in toasts"
+        :key="toast.id"
+        :class="[
+          'max-w-md rounded-lg shadow-lg p-4 transform transition-all duration-300',
+          toast.type === 'success' ? 'bg-green-500 text-white' : toast.type === 'warning' ? 'bg-orange-500 text-white' : 'bg-red-500 text-white',
+          'animate-slide-in'
+        ]"
+      >
+        <div class="flex items-start gap-3">
+          <div class="flex-shrink-0">
+            <svg v-if="toast.type === 'success'" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <svg v-else-if="toast.type === 'warning'" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <svg v-else class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold">{{ toast.title }}</p>
+            <p v-if="toast.message" class="text-sm mt-1 opacity-90">{{ toast.message }}</p>
+          </div>
+          <button @click="removeToast(toast.id)" class="flex-shrink-0 hover:opacity-75">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -371,7 +329,10 @@ const showEditModal = ref(false)
 const showDeleteModal = ref(false)
 const editingServer = ref(null)
 const deletingServer = ref(null)
-const expandedStatsServers = ref(new Set())
+
+// Toast notifications
+const toasts = ref([])
+let toastIdCounter = 0
 
 onMounted(async () => {
   await serverStore.fetchServers()
@@ -409,96 +370,53 @@ function handleSaved(result) {
   }
 }
 
-async function handleDelete() {
+async function handleDelete(deleteType) {
   if (deletingServer.value) {
+    const serverName = deletingServer.value.name
     try {
-      await serverStore.deleteServer(deletingServer.value.id)
+      await serverStore.deleteServer(deletingServer.value.id, deleteType)
       showDeleteModal.value = false
       deletingServer.value = null
+
+      // Show success toast
+      if (deleteType === 'archive') {
+        showToast(
+          'Serveur archivé',
+          `${serverName} a été archivé avec succès. Les données sont conservées.`,
+          'success'
+        )
+      } else {
+        showToast(
+          'Serveur supprimé',
+          `${serverName} et toutes ses données ont été supprimés définitivement.`,
+          'success'
+        )
+      }
     } catch (err) {
-      // Error is handled by store
+      // Show error toast
+      showToast(
+        'Erreur',
+        err.response?.data?.error?.message || 'Échec de la suppression du serveur',
+        'error',
+        8000
+      )
     }
   }
 }
 
-function formatDate(dateString) {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  const now = new Date()
-  const diff = now - date
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+function showToast(title, message = '', type = 'success', duration = 5000) {
+  const id = ++toastIdCounter
+  toasts.value.push({ id, title, message, type })
 
-  if (days === 0) return 'today'
-  if (days === 1) return 'yesterday'
-  if (days < 7) return `${days} days ago`
-  if (days < 30) return `${Math.floor(days / 7)} weeks ago`
-  if (days < 365) return `${Math.floor(days / 30)} months ago`
-  return `${Math.floor(days / 365)} years ago`
+  setTimeout(() => {
+    removeToast(id)
+  }, duration)
 }
 
-function formatBytes(bytes) {
-  if (!bytes || bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
-}
-
-async function refreshStats(serverId) {
-  try {
-    await serverStore.collectStats(serverId)
-    // Refresh the server list to get updated stats
-    await serverStore.fetchServers()
-  } catch (err) {
-    // Error is handled by store
+function removeToast(id) {
+  const index = toasts.value.findIndex(t => t.id === id)
+  if (index > -1) {
+    toasts.value.splice(index, 1)
   }
-}
-
-// Color helpers for stats
-function getCpuColor(percent) {
-  if (!percent) return 'text-gray-500 dark:text-gray-400'
-  if (percent < 50) return 'text-green-600 dark:text-green-400'
-  if (percent < 80) return 'text-yellow-600 dark:text-yellow-400'
-  return 'text-red-600 dark:text-red-400'
-}
-
-function getMemoryColor(percent) {
-  if (!percent) return 'text-gray-500 dark:text-gray-400'
-  if (percent < 70) return 'text-green-600 dark:text-green-400'
-  if (percent < 85) return 'text-yellow-600 dark:text-yellow-400'
-  return 'text-red-600 dark:text-red-400'
-}
-
-function getMemoryColorBg(percent) {
-  if (!percent) return 'bg-gray-400'
-  if (percent < 70) return 'bg-green-500'
-  if (percent < 85) return 'bg-yellow-500'
-  return 'bg-red-500'
-}
-
-function getDiskColor(percent) {
-  if (!percent) return 'text-gray-500 dark:text-gray-400'
-  if (percent < 70) return 'text-green-600 dark:text-green-400'
-  if (percent < 85) return 'text-yellow-600 dark:text-yellow-400'
-  return 'text-red-600 dark:text-red-400'
-}
-
-function getDiskColorBg(percent) {
-  if (!percent) return 'bg-gray-400'
-  if (percent < 70) return 'bg-green-500'
-  if (percent < 85) return 'bg-yellow-500'
-  return 'bg-red-500'
-}
-
-function toggleStatsExpanded(serverId) {
-  if (expandedStatsServers.value.has(serverId)) {
-    expandedStatsServers.value.delete(serverId)
-  } else {
-    expandedStatsServers.value.add(serverId)
-  }
-}
-
-function isStatsExpanded(serverId) {
-  return expandedStatsServers.value.has(serverId)
 }
 </script>

@@ -243,4 +243,43 @@ final class ArchiveRepository
             'total_deduplicated_size' => (int)($row['total_deduplicated_size'] ?? 0),
         ];
     }
+
+    /**
+     * Delete all archives for a server
+     *
+     * @throws DatabaseException
+     */
+    public function deleteByServerId(int $serverId): void
+    {
+        $this->connection->execute(
+            'DELETE FROM archives WHERE server_id = ?',
+            [$serverId]
+        );
+    }
+
+    /**
+     * Get statistics for archives by server ID (count + sizes)
+     *
+     * @throws DatabaseException
+     */
+    public function getStatsByServerId(int $serverId): array
+    {
+        $row = $this->connection->fetchOne(
+            'SELECT
+                COUNT(*) as count,
+                COALESCE(SUM(osize), 0) as total_original_size,
+                COALESCE(SUM(csize), 0) as total_compressed_size,
+                COALESCE(SUM(dsize), 0) as total_deduplicated_size
+             FROM archives
+             WHERE server_id = ?',
+            [$serverId]
+        );
+
+        return [
+            'count' => (int)($row['count'] ?? 0),
+            'total_original_size' => (int)($row['total_original_size'] ?? 0),
+            'total_compressed_size' => (int)($row['total_compressed_size'] ?? 0),
+            'total_deduplicated_size' => (int)($row['total_deduplicated_size'] ?? 0),
+        ];
+    }
 }

@@ -244,6 +244,7 @@ class BackupController extends BaseController
         return [
             'id' => $archive->id,
             'repo_id' => $archive->repoId,
+            'server_id' => $archive->serverId,
             'name' => $archive->name,
             'archive_id' => $archive->archiveId,
             'duration' => $archive->duration,
@@ -282,6 +283,7 @@ class BackupController extends BaseController
         return [
             'id' => (int)$row['id'],
             'repo_id' => $row['repo_id'],
+            'server_id' => (int)($row['server_id'] ?? 0),
             'name' => $row['nom'],
             'archive_id' => $row['archive_id'],
             'duration' => $duration,

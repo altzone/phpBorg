@@ -403,7 +403,8 @@ onMounted(async () => {
   loading.value = true
   try {
     const result = await serverService.list()
-    servers.value = result
+    // Filter only active servers for restore wizard
+    servers.value = result.filter(s => s.active)
   } catch (err) {
     console.error('Failed to load servers:', err)
   } finally {

@@ -286,7 +286,7 @@ final class Application
 
             $service->registerDatabaseStrategy(
                 new MongoDbBackupStrategy(
-                    $this->getSshExecutor(),
+                    $lvmManager,
                     $this->logger
                 )
             );

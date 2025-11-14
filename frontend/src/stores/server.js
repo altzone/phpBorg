@@ -83,14 +83,19 @@ export const useServerStore = defineStore('server', () => {
     }
   }
 
-  async function deleteServer(id) {
+  async function deleteServer(id, deleteType = 'archive') {
     try {
       loading.value = true
       error.value = null
-      await serverService.deleteServer(id)
+      await serverService.deleteServer(id, deleteType)
 
-      // Remove from list
-      servers.value = servers.value.filter((s) => s.id !== id)
+      if (deleteType === 'archive') {
+        // For archive, refresh the list to show updated status
+        await fetchServers()
+      } else {
+        // For full delete, remove from list
+        servers.value = servers.value.filter((s) => s.id !== id)
+      }
 
       // Clear current server if it's the one being deleted
       if (currentServer.value?.id === id) {

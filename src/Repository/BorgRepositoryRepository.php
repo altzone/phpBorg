@@ -198,4 +198,17 @@ final class BorgRepositoryRepository
             [$id]
         );
     }
+
+    /**
+     * Delete all repositories for a server
+     *
+     * @throws DatabaseException
+     */
+    public function deleteByServerId(int $serverId): void
+    {
+        $this->connection->executeUpdate(
+            'DELETE FROM repository WHERE server_id = ?',
+            [$serverId]
+        );
+    }
 }

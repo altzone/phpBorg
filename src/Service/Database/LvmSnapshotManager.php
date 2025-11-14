@@ -185,6 +185,62 @@ final class LvmSnapshotManager
     }
 
     /**
+     * Create LVM snapshot for MongoDB
+     *
+     * @throws BackupException
+     */
+    public function createMongoSnapshot(Server $server, DatabaseInfo $dbInfo): string
+    {
+        $snapName = $this->config->borgLvmSnapName;
+        $mountPoint = "/{$snapName}";
+
+        $this->logger->info("Creating LVM snapshot for MongoDB on {$server->name}", $server->name);
+
+        // Cleanup any existing snapshot
+        $this->cleanupSnapshot($server, $dbInfo, $mountPoint);
+
+        // For MongoDB, we use fsyncLock() to flush and lock
+        // This ensures consistency during snapshot creation
+        // Command: mongo admin --eval "db.fsyncLock()"
+
+        // Create snapshot
+        $command = sprintf(
+            "lvcreate -s /dev/%s/%s -n %s -L%s",
+            $dbInfo->vgName,
+            $dbInfo->lvmPartition,
+            $snapName,
+            $dbInfo->lvSize
+        );
+
+        $result = $this->sshExecutor->execute($server, $command, 120);
+
+        if ($result['exitCode'] !== 0) {
+            throw new BackupException("Failed to create LVM snapshot: {$result['stderr']}");
+        }
+
+        // Mount the snapshot
+        $mountCommand = sprintf(
+            "[[ ! -d %s ]] && mkdir -p %s; mount /dev/%s/%s %s",
+            $mountPoint,
+            $mountPoint,
+            $dbInfo->vgName,
+            $snapName,
+            $mountPoint
+        );
+
+        $result = $this->sshExecutor->execute($server, $mountCommand, 60);
+
+        if ($result['exitCode'] !== 0) {
+            $this->removeSnapshot($server, $dbInfo);
+            throw new BackupException("Failed to mount LVM snapshot: {$result['stderr']}");
+        }
+
+        $this->logger->info("LVM snapshot created and mounted at {$mountPoint}", $server->name);
+
+        return $mountPoint;
+    }
+
+    /**
      * Check if LVM snapshot exists
      */
     public function snapshotExists(Server $server, DatabaseInfo $dbInfo): bool

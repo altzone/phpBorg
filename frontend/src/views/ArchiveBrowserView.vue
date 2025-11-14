@@ -67,12 +67,46 @@
           </div>
         </div>
 
-        <!-- Archive Info -->
-        <div class="mb-4">
-          <h1 class="text-2xl font-bold text-gray-900 flex items-center gap-3">
-            <HardDrive :size="28" class="text-primary-600" />
-            {{ archiveName }}
-          </h1>
+        <!-- Archive Info & Instructions - 2 columns -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+          <!-- Archive Info Card -->
+          <div class="bg-gradient-to-r from-primary-50 to-blue-50 dark:from-primary-900/20 dark:to-blue-900/20 rounded-lg p-3 border border-primary-100 dark:border-primary-800">
+            <div class="flex items-center gap-2 mb-2">
+              <HardDrive :size="20" class="text-primary-600 dark:text-primary-400 flex-shrink-0" />
+              <h1 class="text-base font-bold text-gray-900 dark:text-white truncate">{{ archiveName }}</h1>
+            </div>
+            <div v-if="archiveDetails" class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+              <div class="truncate">
+                <span class="text-gray-500 dark:text-gray-400">{{ $t('archive_browser.source_server') }}:</span>
+                <span class="ml-1 font-semibold text-gray-900 dark:text-white">{{ serverName }}</span>
+              </div>
+              <div>
+                <span class="text-gray-500 dark:text-gray-400">{{ $t('archive_browser.size') }}:</span>
+                <span class="ml-1 font-semibold text-gray-900 dark:text-white">{{ formatBytes(archiveDetails.original_size) }}</span>
+              </div>
+              <div>
+                <span class="text-gray-500 dark:text-gray-400">{{ $t('archive_browser.date') }}:</span>
+                <span class="ml-1 font-semibold text-gray-900 dark:text-white">{{ formatDate(archiveDetails.start) }}</span>
+              </div>
+              <div>
+                <span class="text-gray-500 dark:text-gray-400">{{ $t('archive_browser.duration') }}:</span>
+                <span class="ml-1 font-semibold text-gray-900 dark:text-white">{{ archiveDetails.duration_formatted }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Instructions Card -->
+          <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+            <div class="flex gap-2">
+              <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+              </svg>
+              <div class="flex-1">
+                <h3 class="text-xs font-semibold text-blue-900 dark:text-blue-200 mb-1">{{ $t('archive_browser.how_to_restore_title') }}</h3>
+                <p class="text-xs text-blue-800 dark:text-blue-300">{{ $t('archive_browser.how_to_restore_description') }}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Breadcrumb & Search -->
@@ -461,6 +495,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { backupService } from '@/services/backups'
 import { jobService } from '@/services/jobs'
+import { serverService } from '@/services/server'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
 
@@ -481,6 +516,8 @@ const { t } = useI18n()
 
 const archiveId = parseInt(route.params.id)
 const archiveName = ref(route.query.name || '')
+const archiveDetails = ref(null)
+const serverName = ref('N/A')
 
 const mounting = ref(false)
 const loading = ref(false)
@@ -938,7 +975,32 @@ const handleRestoreStarted = (result) => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // Load archive details
+  try {
+    archiveDetails.value = await backupService.get(archiveId)
+    if (archiveDetails.value) {
+      if (archiveDetails.value.name) {
+        archiveName.value = archiveDetails.value.name
+      }
+      // Load server name from servers list
+      if (archiveDetails.value.server_id) {
+        try {
+          const servers = await serverService.list()
+          const server = servers.find(s => s.id === archiveDetails.value.server_id)
+          if (server && server.name) {
+            serverName.value = server.name
+          }
+        } catch (err) {
+          console.error('Failed to load server details:', err)
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load archive details:', err)
+  }
+
+  // Mount archive
   mountArchive()
 })
 </script>
