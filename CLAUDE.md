@@ -222,38 +222,60 @@ tail -f /var/log/phpborg_new.log
 - ✅ Internationalisation complète (i18n) français/anglais
 - ✅ Notifications email avec templates HTML professionnels
 - ✅ Nom d'application dynamique depuis settings
+- ✅ Scheduled backups fonctionnels (fix timezone + server_id)
 
-**Dernière session** : Internationalisation & Notifications Email
-- **i18n (vue-i18n v9)** : Implémentation complète français/anglais
-  - BackupWizard: traduction des 9 steps (serveur, type, source, snapshot, storage, repo, retention, schedule, review)
-  - BackupJobs: traduction des types de schedule (daily → quotidien)
-  - LanguageSwitcher: composant de changement de langue dans le menu
-  - Support des computed properties pour traductions réactives
-  - Fix des sections JSON dupliquées (retention, review)
+**Dernière session** : Fix Critique Scheduled Backups (Timezone + server_id)
 
-- **Système de Notifications Email** :
-  - `EmailService`: Service SMTP générique avec PHPMailer
-  - `BackupNotificationService`: Notifications backup avec templates HTML
-  - Templates professionnels: gradient colors, badges, tableaux de statistiques
-  - Emails de succès: durée, tailles (original/compressé/dédupliqué), nb fichiers
-  - Emails d'échec: détails erreur + suggestions de résolution
-  - Setting `notification.email` configurable dans Settings > General
-  - Respect des flags `notify_on_success` et `notify_on_failure` des backup jobs
-  - Intégration automatique dans `BackupCreateHandler`
-  - Utilise `app.name` depuis settings dans les emails
+**PROBLÈME CRITIQUE IDENTIFIÉ** :
+Les backups programmés ne s'exécutaient pas alors que "Run Now" fonctionnait parfaitement.
 
-- **Améliorations UI** :
-  - Nom d'app dynamique dans le menu (depuis Settings > General > App name)
-  - Fix computed property accessors (.value en JavaScript, pas en template)
-  - Traduction cohérente des schedules dans toutes les vues
+**ROOT CAUSES** :
+1. **Timezone Mismatch (1 heure de décalage)** :
+   - PHP utilisait UTC (`APP_TIMEZONE=UTC` dans .env)
+   - MySQL utilisait Europe/Paris (CET, +0100)
+   - Résultat: `findDueJobs()` comparait `next_run_at = 10:41` avec `NOW() = 09:41` (UTC)
+   - Les backups semblaient "dans le futur" alors qu'ils étaient dus
+
+2. **Missing server_id dans payload** :
+   - SchedulerWorker ne récupérait pas le server_id du repository
+   - Erreur: "Missing server_id in job payload" → backup failed silently
+   - "Run Now" l'incluait, d'où la confusion
+
+**SOLUTIONS APPLIQUÉES** :
+1. **Fix Timezone** :
+   - Changé `.env`: `APP_TIMEZONE=UTC` → `APP_TIMEZONE=Europe/Paris`
+   - PHP et MySQL maintenant synchronisés sur Europe/Paris
+   - Scheduler détecte correctement les jobs dus
+
+2. **Fix server_id** :
+   - Ajouté `BorgRepositoryRepository` au SchedulerWorker (constructor injection)
+   - Modified `checkSchedules()`: fetch repository avant de créer job
+   - Extraction `server_id` du repository comme fait dans "Run Now"
+   - Mis à jour `SchedulerStartCommand` pour injecter la dépendance
+
+3. **Debug Logging** :
+   - Ajouté log INFO: "Schedule check: found X due job(s)"
+   - Permet de vérifier que scheduler tourne chaque 60s
+   - Debug facilité pour troubleshooting futur
+
+**TESTS & VALIDATION** :
+```
+[10:48:48] Schedule check: found 1 due job(s)
+[10:48:48] Found 1 due backup job(s)
+[10:48:48] Queued backup job #13 as queue job #614
+```
+✅ Scheduled backups fonctionnent maintenant correctement
+✅ Payload contient server_id + repository_id + type
+✅ Notifications email envoyées correctement
 
 **Commits de la session** :
-1. `5ce272f` - feat: Complete French/English i18n implementation for backup wizard
-2. `240581f` - feat: Add i18n integration, restore wizard, and various improvements
-3. `6707871` - feat: Add email notifications for backup jobs with beautiful HTML templates
-4. `689d9d2` - fix: Translate schedule types in backup jobs list (daily → quotidien)
-5. `a24dc87` - fix: Use correct camelCase property names in BackupNotificationService
-6. `f9e7a7f` - feat: Add configurable notification email setting
+1. `1274c12` - fix: Add server_id to scheduled backup jobs and improve timezone display
+2. `25446e4` - fix: Add debug logging and fix timezone mismatch for scheduled backups
+
+**Session précédente** : Internationalisation & Notifications Email
+- **i18n (vue-i18n v9)** : Implémentation complète français/anglais
+- **Système de Notifications Email** : Templates HTML professionnels avec statistiques
+- **Commits** : `5ce272f`, `240581f`, `6707871`, `689d9d2`, `a24dc87`, `f9e7a7f`
 
 **Prochaines étapes possibles** :
 - Finaliser l'internationalisation des autres vues (Servers, Workers, Dashboard, etc.)
