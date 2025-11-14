@@ -100,6 +100,8 @@ final class SchedulerWorker
             // Get all enabled backup jobs with next_run_at <= NOW
             $dueJobs = $this->jobRepository->findDueJobs();
 
+            $this->logger->info(sprintf('Schedule check: found %d due job(s)', count($dueJobs)), 'SCHEDULER');
+
             if (empty($dueJobs)) {
                 return;
             }
