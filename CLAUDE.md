@@ -223,59 +223,105 @@ tail -f /var/log/phpborg_new.log
 - ✅ Notifications email avec templates HTML professionnels
 - ✅ Nom d'application dynamique depuis settings
 - ✅ Scheduled backups fonctionnels (fix timezone + server_id)
+- ✅ Détection automatique d'authentification MySQL/PostgreSQL
+- ✅ MongoDB LVM snapshot support (atomic backups)
+- ✅ Reload capabilities depuis Backup Wizard
+- ✅ DatabaseInfo auto-création depuis capabilities
 
-**Dernière session** : Fix Critique Scheduled Backups (Timezone + server_id)
+**Dernière session** : Détection Avancée Bases de Données & Snapshots Atomiques
 
-**PROBLÈME CRITIQUE IDENTIFIÉ** :
-Les backups programmés ne s'exécutaient pas alors que "Run Now" fonctionnait parfaitement.
+**OBJECTIFS DE LA SESSION** :
+Améliorer la détection des bases de données avec support automatique des credentials et snapshots LVM atomiques pour MongoDB.
 
-**ROOT CAUSES** :
-1. **Timezone Mismatch (1 heure de décalage)** :
-   - PHP utilisait UTC (`APP_TIMEZONE=UTC` dans .env)
-   - MySQL utilisait Europe/Paris (CET, +0100)
-   - Résultat: `findDueJobs()` comparait `next_run_at = 10:41` avec `NOW() = 09:41` (UTC)
-   - Les backups semblaient "dans le futur" alors qu'ils étaient dus
+**IMPLÉMENTATIONS RÉALISÉES** :
 
-2. **Missing server_id dans payload** :
-   - SchedulerWorker ne récupérait pas le server_id du repository
-   - Erreur: "Missing server_id in job payload" → backup failed silently
-   - "Run Now" l'incluait, d'où la confusion
+1. **Auto-détection Authentification MySQL** :
+   - Méthode `detectMysqlAuth()` dans `CapabilitiesDetectionHandler`
+   - Test 1: `mysql -u root` sans mot de passe
+   - Test 2: Lecture `/etc/mysql/debian.cnf` + extraction credentials
+   - Test 3: Validation des credentials extraits
+   - Retourne: `{method, working, user, password, host, port}`
+   - Facilite wizard backup en pré-remplissant les credentials
 
-**SOLUTIONS APPLIQUÉES** :
-1. **Fix Timezone** :
-   - Changé `.env`: `APP_TIMEZONE=UTC` → `APP_TIMEZONE=Europe/Paris`
-   - PHP et MySQL maintenant synchronisés sur Europe/Paris
-   - Scheduler détecte correctement les jobs dus
+2. **Auto-détection Authentification PostgreSQL** :
+   - Méthode `detectPostgresqlAuth()` dans `CapabilitiesDetectionHandler`
+   - Test 1: Peer auth avec `su - postgres -c "psql -c 'SELECT 1'"`
+   - Test 2: Liste clusters via `pg_lscluster --no-header`
+   - Retourne: `{method, working, peer_auth, clusters[], user, password}`
+   - Clusters avec version, port, status, owner, data_directory
 
-2. **Fix server_id** :
-   - Ajouté `BorgRepositoryRepository` au SchedulerWorker (constructor injection)
-   - Modified `checkSchedules()`: fetch repository avant de créer job
-   - Extraction `server_id` du repository comme fait dans "Run Now"
-   - Mis à jour `SchedulerStartCommand` pour injecter la dépendance
+3. **MongoDB LVM Snapshot Support** :
+   - Ajout `createMongoSnapshot()` dans `LvmSnapshotManager`
+   - Refactoring `MongoDbBackupStrategy` : mongodump → LVM snapshot
+   - Injection `LvmSnapshotManager` dans `Application.php`
+   - MongoDB maintenant au même niveau que MySQL/PostgreSQL (atomic backups)
 
-3. **Debug Logging** :
-   - Ajouté log INFO: "Schedule check: found X due job(s)"
-   - Permet de vérifier que scheduler tourne chaque 60s
-   - Debug facilité pour troubleshooting futur
+4. **DatabaseInfo Auto-création** :
+   - Méthode `createDatabaseInfo()` dans `BackupWizardController`
+   - Extraction automatique depuis capabilities : vg_name, lv_name, lvSize, datadir
+   - Validation `snapshot_capable` avant autorisation backup
+   - Liaison repository via `updateRepositoryId()`
+   - Plus besoin de saisie manuelle des infos LVM
 
-**TESTS & VALIDATION** :
-```
-[10:48:48] Schedule check: found 1 due job(s)
-[10:48:48] Found 1 due backup job(s)
-[10:48:48] Queued backup job #13 as queue job #614
-```
-✅ Scheduled backups fonctionnent maintenant correctement
-✅ Payload contient server_id + repository_id + type
-✅ Notifications email envoyées correctement
+5. **Fix Snapshot Size Structure** :
+   - Changement `snapshot_recommended_size` → `snapshot_size{}`
+   - Structure: `{recommended_size, datadir_size, conservative, aggressive}`
+   - Applied pour MySQL, PostgreSQL, MongoDB
+   - Frontend affiche correctement les tailles (plus de "N/A")
 
-**Commits de la session** :
-1. `1274c12` - fix: Add server_id to scheduled backup jobs and improve timezone display
-2. `25446e4` - fix: Add debug logging and fix timezone mismatch for scheduled backups
+6. **Fix Timeout PostgreSQL** :
+   - Augmentation timeout `du -sb` : 10s → 60s (ligne 399)
+   - Nécessaire pour gros datadirs PostgreSQL
+   - Permet calcul correct de datadir_size
 
-**Session précédente** : Internationalisation & Notifications Email
-- **i18n (vue-i18n v9)** : Implémentation complète français/anglais
-- **Système de Notifications Email** : Templates HTML professionnels avec statistiques
-- **Commits** : `5ce272f`, `240581f`, `6707871`, `689d9d2`, `a24dc87`, `f9e7a7f`
+7. **Bouton Reload Capabilities** :
+   - Ajout bouton "Reload Capabilities" dans BackupWizard Step 2
+   - Fonction `reloadCapabilities()` avec polling job (30s timeout)
+   - Spinner animation pendant détection
+   - Permet refresh après config serveur sans quitter wizard
+
+8. **Détections Supplémentaires** :
+   - Ajout détection Redis complète
+   - Ajout détection environnement Docker (containers, networks, volumes)
+   - Architecture plus complète pour écosystème serveur
+
+**FICHIERS MODIFIÉS** :
+- `src/Service/Queue/Handlers/CapabilitiesDetectionHandler.php` - Détection auth + fixes
+- `src/Service/Database/LvmSnapshotManager.php` - createMongoSnapshot()
+- `src/Service/Database/MongoDbBackupStrategy.php` - Refacto LVM
+- `src/Api/Controller/BackupWizardController.php` - createDatabaseInfo()
+- `src/Application.php` - Injection LvmSnapshotManager
+- `frontend/src/views/BackupWizardView.vue` - Reload button + UI improvements
+- `frontend/src/i18n/locales/en.json` - Traductions DB detection
+- `frontend/src/i18n/locales/fr.json` - Traductions DB detection
+
+**WORKFLOW AMÉLIORÉ** :
+1. User ajoute serveur → Capabilities detection automatique
+2. Detection récupère auth MySQL (root/debian.cnf) et PostgreSQL (peer auth)
+3. Wizard Backup Step 2 affiche databases détectées avec snapshot info
+4. Si config manquante → "Reload Capabilities" sans quitter wizard
+5. Création backup → DatabaseInfo auto-créé depuis capabilities
+6. Backup exécuté → LVM snapshot automatique (MySQL/PostgreSQL/MongoDB)
+
+**COMMIT DE LA SESSION** :
+- `207d3fe` - feat: Enhance database detection with auth auto-detection and reload capabilities
+
+**TESTS RÉALISÉS** :
+- ✅ Trigger detection via API sur serveur "virus"
+- ✅ Capabilities data récupérées avec PostgreSQL + MongoDB
+- ✅ Snapshot sizes affichées correctement
+- ⏸️ Auth detection code présent mais workers non redémarrés (à tester prochaine session)
+
+**NEXT STEPS** :
+- Redémarrer workers pour activer code auth detection
+- Tester auth auto-detection MySQL + PostgreSQL
+- Tester création DatabaseInfo depuis wizard
+- Tester MongoDB LVM snapshot backup complet
+- Utiliser auth détectée pour pré-remplir wizard credentials
+- Afficher clusters PostgreSQL pour sélection multi-instance
+
+**Session précédente** : Fix Critique Scheduled Backups (Timezone + server_id)
+- **Commits** : `1274c12`, `25446e4`
 
 **Prochaines étapes possibles** :
 - Finaliser l'internationalisation des autres vues (Servers, Workers, Dashboard, etc.)
