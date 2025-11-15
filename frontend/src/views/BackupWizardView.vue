@@ -798,8 +798,8 @@
           </div>
         </div>
 
-        <!-- Step 6: Repository Setup -->
-        <div v-else-if="currentStep === 5" class="space-y-4">
+        <!-- Step 5: Repository Setup -->
+        <div v-else-if="currentStep === 4" class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.repository.name_label') }}</label>
             <input
@@ -848,8 +848,8 @@
           </div>
         </div>
 
-        <!-- Step 7: Retention Policy -->
-        <div v-else-if="currentStep === 6" class="space-y-4">
+        <!-- Step 6: Retention Policy -->
+        <div v-else-if="currentStep === 5" class="space-y-4">
           <!-- Info Banner -->
           <div class="rounded-lg bg-blue-50 border border-blue-200 p-4">
             <div class="flex items-start space-x-3">
@@ -1011,8 +1011,8 @@
           </div>
         </div>
 
-        <!-- Step 8: Schedule -->
-        <div v-else-if="currentStep === 7" class="space-y-4">
+        <!-- Step 7: Schedule -->
+        <div v-else-if="currentStep === 6" class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.schedule_step.schedule_label') }}</label>
             <select v-model="wizardData.scheduleType" class="input w-full">
@@ -1061,8 +1061,8 @@
           </div>
         </div>
 
-        <!-- Step 9: Review -->
-        <div v-else-if="currentStep === 8" class="space-y-6">
+        <!-- Step 8: Review -->
+        <div v-else-if="currentStep === 7" class="space-y-6">
           <div class="space-y-4">
             <div class="border-b pb-4">
               <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">{{ $t('backup_wizard.review.server_type_title') }}</h3>
@@ -1071,8 +1071,6 @@
                 <dd class="font-medium">{{ selectedServer?.name }}</dd>
                 <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.review.backup_type_label') }}</dt>
                 <dd class="font-medium">{{ wizardData.backupType }}</dd>
-                <dt class="text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ $t('backup_wizard.review.snapshot_label') }}</dt>
-                <dd class="font-medium">{{ wizardData.snapshotMethod || $t('backup_wizard.review.none') }}</dd>
               </dl>
             </div>
 
@@ -1340,9 +1338,7 @@ const createdIds = ref({
 // Data
 const servers = ref([])
 const storagePools = ref([])
-const snapshotCapabilities = ref([])
 const serverCapabilities = ref(null)
-const loadingCapabilities = ref(false)
 const detectingCapabilities = ref(false)
 
 // Custom exclusions
@@ -1560,22 +1556,7 @@ function previousStep() {
 function nextStep() {
   if (currentStep.value < steps.value.length - 1 && isCurrentStepValid.value) {
     currentStep.value++
-
-    // Skip snapshot step for file and system backups
-    if (currentStep.value === 3 && ['files', 'system'].includes(wizardData.value.backupType)) {
-      currentStep.value++ // Skip to storage step
-    }
-
-    // Trigger actions for specific steps
-    if (currentStep.value === 3 && needsSnapshot()) {
-      detectSnapshotCapabilities()
-    }
   }
-}
-
-function needsSnapshot() {
-  // Snapshot is only useful for databases
-  return ['mysql', 'mariadb', 'postgresql', 'mongodb'].includes(wizardData.value.backupType)
 }
 
 function addPath() {
@@ -1608,20 +1589,15 @@ function updateCustomExclusions() {
 
 async function onServerChange() {
   // Reset dependent fields
-  wizardData.value.snapshotMethod = 'none'
-  snapshotCapabilities.value = []
   serverCapabilities.value = null
 
   // Load server capabilities
   if (wizardData.value.serverId) {
     try {
-      loadingCapabilities.value = true
       const caps = await serverService.getCapabilities(wizardData.value.serverId)
       serverCapabilities.value = caps
     } catch (error) {
       console.error('Failed to load server capabilities:', error)
-    } finally {
-      loadingCapabilities.value = false
     }
   }
 }
@@ -1801,46 +1777,6 @@ async function detectMySQLCredentials() {
     }
   } catch (error) {
     console.error('Failed to detect MySQL credentials:', error)
-  }
-}
-
-const progressMessage = ref('')
-
-async function detectSnapshotCapabilities() {
-  if (!wizardData.value.serverId) return
-  
-  loadingCapabilities.value = true
-  progressMessage.value = 'Initializing detection...'
-  
-  try {
-    const response = await wizardService.getCapabilitiesWithPolling(
-      wizardData.value.serverId,
-      (message, progress) => {
-        progressMessage.value = message || `Progress: ${progress}%`
-      }
-    )
-    
-    // The API returns capabilities data
-    if (response.success && response.data) {
-      snapshotCapabilities.value = response.data.snapshots || []
-      
-      // Store all capabilities for later use
-      serverCapabilities.value = response.data
-      
-      // If we detected capabilities, auto-select the first one
-      if (snapshotCapabilities.value.length > 0 && wizardData.value.snapshotMethod === 'none') {
-        wizardData.value.snapshotMethod = snapshotCapabilities.value[0].type
-      }
-    }
-  } catch (error) {
-    console.error('Failed to detect snapshot capabilities:', error)
-    snapshotCapabilities.value = []
-    // If detection fails, default to no snapshot
-    wizardData.value.snapshotMethod = 'none'
-    alert(`Failed to detect capabilities: ${error.message}`)
-  } finally {
-    loadingCapabilities.value = false
-    progressMessage.value = ''
   }
 }
 
