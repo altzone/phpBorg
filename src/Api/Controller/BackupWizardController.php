@@ -12,6 +12,7 @@ use PhpBorg\Repository\BackupSourceRepository;
 use PhpBorg\Repository\BackupJobRepository;
 use PhpBorg\Repository\BackupScheduleRepository;
 use PhpBorg\Repository\JobRepository;
+use PhpBorg\Repository\DatabaseInfoRepository;
 use PhpBorg\Exception\PhpBorgException;
 use PhpBorg\Service\Server\SshExecutor;
 use PhpBorg\Service\Queue\JobQueue;
