@@ -983,6 +983,13 @@
       "system": { "name": "Système Complet", "description": "Sauvegarde complète du système" },
       "custom": { "name": "Script Personnalisé", "description": "Exécuter un script de sauvegarde personnalisé" }
     },
+    "backup_type": {
+      "db_requirements_title": "Exigences des Sauvegardes de Bases de Données",
+      "db_requirements_desc": "Les sauvegardes de bases de données nécessitent un <strong>support de snapshot atomique</strong> (LVM/Btrfs/ZFS) pour garantir la cohérence des données. Les types de bases de données désactivés ne sont soit pas en cours d'exécution, soit pas sur un volume compatible snapshot.",
+      "reload_detecting": "Détection...",
+      "reload_capabilities": "Recharger les Capacités",
+      "view_capabilities": "Voir les capacités détaillées →"
+    },
     "source_config": {
       "paths_label": "Chemins à Sauvegarder",
       "paths_placeholder": "/chemin/vers/sauvegarde",
@@ -1070,7 +1077,11 @@
       "db_host": "Hôte",
       "db_port": "Port",
       "db_username": "Utilisateur",
-      "db_password": "Mot de passe"
+      "db_password": "Mot de passe",
+      "pg_peer_auth": "Peer Auth",
+      "pg_cluster_select": "Sélectionner le Cluster PostgreSQL",
+      "pg_cluster_help": "Sélectionnez le cluster PostgreSQL à sauvegarder",
+      "pg_cluster_auto": "Cluster auto-détecté"
     },
     "storage_pool": {
       "select_label": "Sélectionner un Pool de Stockage",

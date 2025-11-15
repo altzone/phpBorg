@@ -933,6 +933,13 @@
       "system": { "name": "Full System", "description": "Complete system backup" },
       "custom": { "name": "Custom Script", "description": "Run a custom backup script" }
     },
+    "backup_type": {
+      "db_requirements_title": "Database Backup Requirements",
+      "db_requirements_desc": "Database backups require <strong>atomic snapshot support</strong> (LVM/Btrfs/ZFS) to guarantee data consistency. Disabled database types are either not running or not on a snapshot-capable volume.",
+      "reload_detecting": "Detecting...",
+      "reload_capabilities": "Reload Capabilities",
+      "view_capabilities": "View detailed capabilities →"
+    },
     "source_config": {
       "paths_label": "Paths to Backup",
       "paths_placeholder": "/path/to/backup",
@@ -1020,7 +1027,11 @@
       "db_host": "Host",
       "db_port": "Port",
       "db_username": "Username",
-      "db_password": "Password"
+      "db_password": "Password",
+      "pg_peer_auth": "Peer Auth",
+      "pg_cluster_select": "Select PostgreSQL Cluster",
+      "pg_cluster_help": "Select the PostgreSQL cluster to backup",
+      "pg_cluster_auto": "Auto-detected cluster"
     },
     "storage_pool": {
       "select_label": "Select Storage Pool",

@@ -130,11 +130,8 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <div class="flex-1 text-sm">
-                <p class="font-semibold text-blue-900 dark:text-blue-200 mb-1">Database Backup Requirements</p>
-                <p class="text-blue-800 dark:text-blue-300">
-                  Database backups require <strong>atomic snapshot support</strong> (LVM/Btrfs/ZFS) to guarantee data consistency.
-                  Disabled database types are either not running or not on a snapshot-capable volume.
-                </p>
+                <p class="font-semibold text-blue-900 dark:text-blue-200 mb-1">{{ $t('backup_wizard.backup_type.db_requirements_title') }}</p>
+                <p class="text-blue-800 dark:text-blue-300" v-html="$t('backup_wizard.backup_type.db_requirements_desc')"></p>
                 <div class="flex items-center gap-3 mt-3">
                   <button
                     @click="reloadCapabilities"
@@ -148,10 +145,10 @@
                     <svg v-else class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    {{ detectingCapabilities ? 'Detecting...' : 'Reload Capabilities' }}
+                    {{ detectingCapabilities ? $t('backup_wizard.backup_type.reload_detecting') : $t('backup_wizard.backup_type.reload_capabilities') }}
                   </button>
                   <a :href="`/servers/${wizardData.serverId}/capabilities`" target="_blank" class="text-xs text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-200 underline">
-                    View detailed capabilities →
+                    {{ $t('backup_wizard.backup_type.view_capabilities') }}
                   </a>
                 </div>
               </div>
@@ -315,7 +312,15 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <div class="flex-1 text-sm">
-                    <p class="font-semibold text-green-900 dark:text-green-200 mb-2">{{ $t('backup_wizard.source_config.db_detected_title') }}</p>
+                    <div class="flex items-center justify-between mb-2">
+                      <p class="font-semibold text-green-900 dark:text-green-200">{{ $t('backup_wizard.source_config.db_detected_title') }}</p>
+                      <span v-if="getDetectedDatabase('postgresql').auth?.peer_auth" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-600 text-white">
+                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {{ $t('backup_wizard.source_config.pg_peer_auth') }}
+                      </span>
+                    </div>
                     <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-green-800 dark:text-green-300">
                       <div>
                         <span class="font-medium">{{ $t('backup_wizard.source_config.db_datadir') }}</span>
@@ -343,7 +348,37 @@
                 </div>
               </div>
 
-              <div>
+              <!-- PostgreSQL Cluster Selection (if peer auth and multiple clusters) -->
+              <div v-if="getDetectedDatabase('postgresql')?.auth?.clusters?.length > 1">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {{ $t('backup_wizard.source_config.pg_cluster_select') }}
+                </label>
+                <select v-model="wizardData.sourceConfig.pg_cluster" class="input w-full">
+                  <option v-for="cluster in getDetectedDatabase('postgresql').auth.clusters" :key="`${cluster.version}-${cluster.cluster}`" :value="`${cluster.version}/${cluster.cluster}`">
+                    {{ cluster.version }}/{{ cluster.cluster }} - Port {{ cluster.port }} ({{ cluster.status }})
+                  </option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ $t('backup_wizard.source_config.pg_cluster_help') }}
+                </p>
+              </div>
+
+              <!-- PostgreSQL Cluster Info (if peer auth and single cluster) -->
+              <div v-else-if="getDetectedDatabase('postgresql')?.auth?.clusters?.length === 1" class="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div class="flex items-center gap-2 text-sm text-blue-800 dark:text-blue-300">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span class="font-medium">{{ $t('backup_wizard.source_config.pg_cluster_auto') }}:</span>
+                  <span class="font-mono text-xs">
+                    {{ getDetectedDatabase('postgresql').auth.clusters[0].version }}/{{ getDetectedDatabase('postgresql').auth.clusters[0].cluster }}
+                    (Port {{ getDetectedDatabase('postgresql').auth.clusters[0].port }})
+                  </span>
+                </div>
+              </div>
+
+              <!-- Database Credentials (only if peer auth is NOT working) -->
+              <div v-if="!getDetectedDatabase('postgresql')?.auth?.peer_auth">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.source_config.db_credentials') }}</label>
                 <div class="grid grid-cols-2 gap-4">
                   <div>
@@ -722,117 +757,8 @@
           </div>
         </div>
 
-        <!-- Step 4: Snapshot Strategy -->
+        <!-- Step 4: Storage Pool -->
         <div v-else-if="currentStep === 3" class="space-y-4">
-          <!-- Show different content based on backup type -->
-          <div v-if="!needsSnapshot()" class="p-6 bg-gray-50 dark:bg-gray-800 rounded-lg text-center">
-            <svg class="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Snapshot Not Required</h3>
-            <p class="text-gray-600 dark:text-gray-400 dark:text-gray-500 max-w-md mx-auto">
-              File and folder backups don't require filesystem snapshots. Borg will handle file consistency during the backup process.
-            </p>
-            <p class="text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-4">
-              This step is automatically skipped for file-based backups.
-            </p>
-          </div>
-          
-          <div v-else-if="loadingCapabilities" class="text-center py-8">
-            <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-200 dark:border-gray-700 border-t-primary-600"></div>
-            <p class="mt-2 text-gray-600 dark:text-gray-400 dark:text-gray-500">Detecting snapshot capabilities on {{ selectedServer?.name }}...</p>
-            <p v-if="progressMessage" class="mt-2 text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500">{{ progressMessage }}</p>
-          </div>
-          
-          <div v-else>
-            <div v-if="snapshotCapabilities.length > 0">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Available Snapshot Methods</label>
-              <div class="space-y-2">
-                <label 
-                  v-for="cap in snapshotCapabilities" 
-                  :key="cap.type"
-                  class="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800"
-                  :class="{ 'border-primary-500 bg-primary-50': wizardData.snapshotMethod === cap.type }"
-                >
-                  <input 
-                    type="radio" 
-                    :value="cap.type" 
-                    v-model="wizardData.snapshotMethod"
-                    class="mt-1"
-                  />
-                  <div class="ml-3 flex-1">
-                    <div class="font-medium">{{ cap.name }}</div>
-                    <div class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500">{{ cap.description }}</div>
-                    <div v-if="cap.details" class="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-1">
-                      {{ cap.details }}
-                    </div>
-                  </div>
-                </label>
-                
-                <label class="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800"
-                       :class="{ 'border-primary-500 bg-primary-50': wizardData.snapshotMethod === 'none' }">
-                  <input type="radio" value="none" v-model="wizardData.snapshotMethod" class="mt-1" />
-                  <div class="ml-3">
-                    <div class="font-medium">No Snapshot</div>
-                    <div class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500">Proceed without filesystem snapshot</div>
-                  </div>
-                </label>
-              </div>
-            </div>
-            
-            <div v-else class="space-y-4">
-              <!-- Warning for database backups without snapshots -->
-              <div v-if="['mysql', 'mariadb', 'postgresql', 'mongodb'].includes(wizardData.backupType)" class="p-4 bg-yellow-50 rounded-lg">
-                <div class="flex items-start">
-                  <svg class="w-5 h-5 text-yellow-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                  </svg>
-                  <div class="ml-3">
-                    <h3 class="text-sm font-medium text-yellow-800">No Snapshot Methods Available</h3>
-                    <p class="mt-1 text-sm text-yellow-700">
-                      No snapshot capabilities detected on this server. For database backups, snapshots ensure data consistency.
-                    </p>
-                    <div class="mt-2 text-sm text-yellow-700">
-                      <strong>Recommendations:</strong>
-                      <ul class="list-disc list-inside mt-1">
-                        <li>Install LVM for logical volume snapshots</li>
-                        <li>Use ZFS or Btrfs filesystems for built-in snapshot support</li>
-                        <li>Consider using database dumps instead for consistency</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Info for system backups without snapshots -->
-              <div v-else class="p-4 bg-blue-50 rounded-lg">
-                <div class="flex items-start">
-                  <svg class="w-5 h-5 text-blue-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0118 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                  </svg>
-                  <div class="ml-3">
-                    <h3 class="text-sm font-medium text-blue-800">Proceeding Without Snapshots</h3>
-                    <p class="mt-1 text-sm text-blue-700">
-                      System backup will proceed without filesystem snapshots. Files may change during backup, but Borg will handle most consistency issues.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Option to proceed without snapshot -->
-              <label class="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 border-primary-500 bg-primary-50">
-                <input type="radio" value="none" v-model="wizardData.snapshotMethod" checked class="mt-1" />
-                <div class="ml-3">
-                  <div class="font-medium">Continue Without Snapshot</div>
-                  <div class="text-sm text-gray-600 dark:text-gray-400 dark:text-gray-500">Proceed with backup without filesystem snapshot</div>
-                </div>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <!-- Step 5: Storage Pool -->
-        <div v-else-if="currentStep === 4" class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.storage_pool.select_label') }}</label>
             <div class="space-y-2">
@@ -1393,9 +1319,8 @@ const steps = computed(() => [
   { label: t('backup_wizard.steps.server.label'), title: t('backup_wizard.steps.server.title'), description: t('backup_wizard.steps.server.description') },
   { label: t('backup_wizard.steps.type.label'), title: t('backup_wizard.steps.type.title'), description: t('backup_wizard.steps.type.description') },
   { label: t('backup_wizard.steps.source.label'), title: t('backup_wizard.steps.source.title'), description: t('backup_wizard.steps.source.description') },
-  { label: t('backup_wizard.steps.snapshot.label'), title: t('backup_wizard.steps.snapshot.title'), description: t('backup_wizard.steps.snapshot.description') },
   { label: t('backup_wizard.steps.storage.label'), title: t('backup_wizard.steps.storage.title'), description: t('backup_wizard.steps.storage.description') },
-  { label: t('backup_wizard.steps.storage.label'), title: t('backup_wizard.steps.storage.title'), description: t('backup_wizard.steps.storage.description') },
+  { label: t('backup_wizard.steps.options.label'), title: t('backup_wizard.steps.options.title'), description: t('backup_wizard.steps.options.description') },
   { label: t('backup_wizard.steps.retention.label'), title: t('backup_wizard.steps.retention.title'), description: t('backup_wizard.steps.retention.description') },
   { label: t('backup_wizard.steps.schedule.label'), title: t('backup_wizard.steps.schedule.title'), description: t('backup_wizard.steps.schedule.description') },
   { label: t('backup_wizard.steps.review.label'), title: t('backup_wizard.steps.review.title'), description: t('backup_wizard.steps.review.description') }
