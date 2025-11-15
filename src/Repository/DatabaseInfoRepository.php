@@ -78,13 +78,14 @@ final class DatabaseInfoRepository
         string $vgName,
         string $lvmPartition,
         string $lvSize,
-        string $dataPath
+        string $dataPath,
+        string $repoId = ''
     ): int {
         $this->connection->executeUpdate(
             'INSERT INTO db_info
-             (type, server_id, db_host, db_user, db_pass, vg_name, lvm_part, lvsize, mysql_path)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [$type, $serverId, $dbHost, $dbUser, $dbPassword, $vgName, $lvmPartition, $lvSize, $dataPath]
+             (type, server_id, repo_id, db_host, db_user, db_pass, vg_name, lvm_part, lvsize, mysql_path, pg_svg_path)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [$type, $serverId, $repoId, $dbHost, $dbUser, $dbPassword, $vgName, $lvmPartition, $lvSize, $dataPath, $dataPath]
         );
 
         return $this->connection->getLastInsertId();

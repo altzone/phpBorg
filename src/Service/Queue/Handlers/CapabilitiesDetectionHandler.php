@@ -703,12 +703,13 @@ final class CapabilitiesDetectionHandler implements JobHandlerInterface
                         if (count($lvParts) >= 3) {
                             $volumeInfo['type'] = 'lvm';
                             $volumeInfo['snapshot_capable'] = true;
-                            $volumeInfo['vg_name'] = $vgName;
-                            $volumeInfo['lv_name'] = $lvName;
+                            // Use actual names from lvs output, not regex parsing
+                            $volumeInfo['vg_name'] = $lvParts[1]; // VG name from lvs
+                            $volumeInfo['lv_name'] = $lvParts[0]; // LV name from lvs
                             $volumeInfo['lv_size'] = trim($lvParts[2], 'B');
 
                             // Get VG free space
-                            $result = $this->sshExecutor->execute($server, "sudo vgs --noheadings --units b -o vg_free '{$vgName}' 2>/dev/null", 10);
+                            $result = $this->sshExecutor->execute($server, "sudo vgs --noheadings --units b -o vg_free '{$lvParts[1]}' 2>/dev/null", 10);
                             $vgFree = trim($result['stdout']);
                             if ($vgFree) {
                                 $volumeInfo['vg_free'] = trim($vgFree, 'B');
@@ -779,6 +780,7 @@ final class CapabilitiesDetectionHandler implements JobHandlerInterface
         return [
             'recommended' => $recommendedSize,
             'recommended_human' => $this->formatBytes($recommendedSize),
+            'recommended_lvm' => str_replace(' ', '', $this->formatBytes($recommendedSize)), // LVM format without space
             'conservative' => $conservative,
             'conservative_human' => $this->formatBytes($conservative),
             'aggressive' => $aggressive,

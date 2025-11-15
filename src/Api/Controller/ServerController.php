@@ -73,8 +73,6 @@ class ServerController extends BaseController
                         'description' => null,  // Not stored in DB yet
                         'active' => $server->active,
                         'repository_count' => $repositoryCount,
-                        'created_at' => $server->createdAt?->format('Y-m-d H:i:s'),
-                        'updated_at' => $server->updatedAt?->format('Y-m-d H:i:s'),
                         // Add server stats
                         'stats' => $stats ? [
                             'os_distribution' => $stats['os_distribution'],

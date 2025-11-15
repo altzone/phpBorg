@@ -40,9 +40,14 @@ final class BackupService
     /**
      * Register database backup strategy
      */
-    public function registerDatabaseStrategy(DatabaseBackupInterface $strategy): void
+    public function registerDatabaseStrategy(DatabaseBackupInterface $strategy, ?string $alias = null): void
     {
         $this->databaseStrategies[$strategy->getSupportedType()] = $strategy;
+
+        // Also register under alias if provided
+        if ($alias !== null) {
+            $this->databaseStrategies[$alias] = $strategy;
+        }
     }
 
     /**

@@ -280,10 +280,19 @@ class BackupWizardController extends BaseController
      */
     public function createBackupChain(): void
     {
+        // Force logging to file
+        $logFile = '/var/log/phpborg_new.log';
+        file_put_contents($logFile, date('[Y-m-d H:i:s]') . " === createBackupChain START ===\n", FILE_APPEND);
+
         try {
             $data = $this->getJsonBody();
+            file_put_contents($logFile, date('[Y-m-d H:i:s]') . " Received data: " . json_encode($data) . "\n", FILE_APPEND);
+
             $connection = $this->repositoryRepository->getConnection();
+            file_put_contents($logFile, date('[Y-m-d H:i:s]') . " Got DB connection, starting transaction\n", FILE_APPEND);
+
             $connection->beginTransaction();
+            file_put_contents($logFile, date('[Y-m-d H:i:s]') . " Transaction started\n", FILE_APPEND);
             
             // 1. Create backup source
             $source = $this->sourceRepository->create([
@@ -368,11 +377,6 @@ class BackupWizardController extends BaseController
                     $data['source_config'] ?? [],
                     $repoId
                 );
-
-                // Link DatabaseInfo to repository
-                if ($dbInfoId) {
-                    $this->databaseInfoRepository->updateRepositoryId($dbInfoId, $repoId);
-                }
             }
 
             // 3. Create backup job
@@ -777,7 +781,9 @@ class BackupWizardController extends BaseController
         // Extract LVM information from capabilities
         $vgName = $database['volume']['vg_name'];
         $lvName = $database['volume']['lv_name'];
-        $lvSize = $database['snapshot_size']['recommended_size'] ?? '10G';
+        // Use LVM format (no space) or fallback to removing space from human format
+        $lvSize = $database['snapshot_size']['recommended_lvm']
+            ?? str_replace(' ', '', $database['snapshot_size']['recommended_size'] ?? '10G');
         $datadir = $database['datadir'];
 
         error_log("Extracted - vgName: $vgName, lvName: $lvName, lvSize: $lvSize, datadir: $datadir");
@@ -810,7 +816,8 @@ class BackupWizardController extends BaseController
             vgName: $vgName,
             lvmPartition: $lvName,
             lvSize: $lvSize,
-            dataPath: $datadir
+            dataPath: $datadir,
+            repoId: $repoId
         );
 
         error_log("DatabaseInfo created successfully with ID: $dbInfoId");
