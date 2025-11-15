@@ -100,21 +100,48 @@ final class LvmSnapshotManager
         // Cleanup any existing snapshot
         $this->cleanupSnapshot($server, $dbInfo, $mountPoint);
 
-        // For PostgreSQL, we need to use pg_start_backup and pg_stop_backup
-        // Or use pg_basebackup which handles this automatically
+        // PostgreSQL requires pg_start_backup() before snapshot and pg_stop_backup() after
+        // We use a single shell command to ensure atomicity:
+        // 1. pg_start_backup() - Puts PostgreSQL in backup mode
+        // 2. Create LVM snapshot while in backup mode
+        // 3. pg_stop_backup() - Exits backup mode
 
-        // Create snapshot
+        // Build psql command based on auth method
+        $host = escapeshellarg($dbInfo->dbHost);
+        $user = escapeshellarg($dbInfo->dbUser);
+
+        if (!empty($dbInfo->dbUser) && !empty($dbInfo->dbPassword)) {
+            // Password authentication
+            $pass = escapeshellarg($dbInfo->dbPassword);
+            $psqlBase = "PGPASSWORD={$pass} psql -U {$user} -h {$host}";
+        } elseif (!empty($dbInfo->dbUser)) {
+            // User without password (trust or .pgpass)
+            $psqlBase = "psql -U {$user} -h {$host}";
+        } else {
+            // Peer auth - use su - postgres
+            $psqlBase = "su - postgres -c \"psql -h {$host}\"";
+        }
+
+        // Atomic command: start backup, create snapshot, stop backup
         $command = sprintf(
-            "lvcreate -s /dev/%s/%s -n %s -L%s",
+            "%s -c \"SELECT pg_start_backup('phpborg_lvm_snapshot', false, false);\" && " .
+            "lvcreate -s /dev/%s/%s -n %s -L%s && " .
+            "%s -c \"SELECT pg_stop_backup();\"",
+            $psqlBase,
             $dbInfo->vgName,
             $dbInfo->lvmPartition,
             $snapName,
-            $dbInfo->lvSize
+            $dbInfo->lvSize,
+            $psqlBase
         );
 
         $result = $this->sshExecutor->execute($server, $command, 120);
 
         if ($result['exitCode'] !== 0) {
+            // Try to stop backup mode if it was started
+            $stopBackupCmd = "{$psqlBase} -c \"SELECT pg_stop_backup();\" 2>/dev/null || true";
+            $this->sshExecutor->execute($server, $stopBackupCmd, 30);
+
             throw new BackupException("Failed to create LVM snapshot: {$result['stderr']}");
         }
 
@@ -199,22 +226,49 @@ final class LvmSnapshotManager
         // Cleanup any existing snapshot
         $this->cleanupSnapshot($server, $dbInfo, $mountPoint);
 
-        // For MongoDB, we use fsyncLock() to flush and lock
-        // This ensures consistency during snapshot creation
-        // Command: mongo admin --eval "db.fsyncLock()"
+        // MongoDB requires fsyncLock() before snapshot and fsyncUnlock() after
+        // We use a single shell command to ensure atomicity:
+        // 1. db.fsyncLock() - Flushes all pending writes and locks the database
+        // 2. Create LVM snapshot while locked
+        // 3. db.fsyncUnlock() - Unlocks the database
 
-        // Create snapshot
+        // Build mongo/mongosh command
+        $host = escapeshellarg($dbInfo->dbHost);
+        $mongoCmd = 'mongosh'; // Try new shell first
+
+        // Check which mongo client is available
+        $checkCmd = "command -v mongosh >/dev/null 2>&1 && echo 'mongosh' || echo 'mongo'";
+        $checkResult = $this->sshExecutor->execute($server, $checkCmd, 5);
+        if (trim($checkResult['stdout']) === 'mongo') {
+            $mongoCmd = 'mongo';
+        }
+
+        // Atomic command: lock, create snapshot, unlock
         $command = sprintf(
-            "lvcreate -s /dev/%s/%s -n %s -L%s",
+            "%s %s --quiet --eval 'db.fsyncLock()' && " .
+            "lvcreate -s /dev/%s/%s -n %s -L%s && " .
+            "%s %s --quiet --eval 'db.fsyncUnlock()'",
+            $mongoCmd,
+            $host,
             $dbInfo->vgName,
             $dbInfo->lvmPartition,
             $snapName,
-            $dbInfo->lvSize
+            $dbInfo->lvSize,
+            $mongoCmd,
+            $host
         );
 
         $result = $this->sshExecutor->execute($server, $command, 120);
 
         if ($result['exitCode'] !== 0) {
+            // Try to unlock if it was locked
+            $unlockCmd = sprintf(
+                "%s %s --quiet --eval 'db.fsyncUnlock()' 2>/dev/null || true",
+                $mongoCmd,
+                $host
+            );
+            $this->sshExecutor->execute($server, $unlockCmd, 30);
+
             throw new BackupException("Failed to create LVM snapshot: {$result['stderr']}");
         }
 
