@@ -1792,14 +1792,29 @@ async function createBackup() {
     const sourceConfig = { ...wizardData.value.sourceConfig }
     const dbInfo = getDetectedDatabase(wizardData.value.backupType)
 
-    // Fix PostgreSQL port if not set correctly
+    // Fix PostgreSQL port and cluster info
     if (wizardData.value.backupType === 'postgresql' || wizardData.value.backupType === 'postgres') {
-      sourceConfig.port = sourceConfig.port === 3306 ? 5432 : sourceConfig.port
+      // Get port from selected cluster or auto-detected cluster
+      let clusterPort = 5432 // Default fallback
 
-      // Add pg_cluster if selected
-      if (wizardData.value.sourceConfig.pg_cluster) {
-        sourceConfig.pg_cluster = wizardData.value.sourceConfig.pg_cluster
+      if (dbInfo?.auth?.clusters?.length > 0) {
+        // If user selected a specific cluster
+        if (wizardData.value.sourceConfig.pg_cluster) {
+          const selectedCluster = dbInfo.auth.clusters.find(c =>
+            `${c.version}/${c.cluster}` === wizardData.value.sourceConfig.pg_cluster
+          )
+          if (selectedCluster) {
+            clusterPort = parseInt(selectedCluster.port)
+            sourceConfig.pg_cluster = wizardData.value.sourceConfig.pg_cluster
+          }
+        } else {
+          // Auto-detect from first/only cluster
+          clusterPort = parseInt(dbInfo.auth.clusters[0].port)
+          sourceConfig.pg_cluster = `${dbInfo.auth.clusters[0].version}/${dbInfo.auth.clusters[0].cluster}`
+        }
       }
+
+      sourceConfig.port = clusterPort
 
       // Use peer auth if detected
       if (dbInfo?.auth?.peer_auth) {
