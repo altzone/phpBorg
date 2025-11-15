@@ -28,8 +28,15 @@ final class MongoDbBackupStrategy implements DatabaseBackupInterface
         try {
             $mountPoint = $this->lvmManager->createMongoSnapshot($server, $dbInfo);
 
+            // MongoDB backup includes both data and configuration
+            // Data: from LVM snapshot (consistent point-in-time)
+            // Config: from live filesystem (/etc/mongod.conf or /etc/mongodb.conf)
             return [
-                'path' => $mountPoint . $dbInfo->mysqlPath, // reuse field for MongoDB datadir
+                'paths' => [
+                    $mountPoint . $dbInfo->mysqlPath, // Data dir from snapshot
+                    '/etc/mongod.conf',                // MongoDB config (standard)
+                    '/etc/mongodb.conf'                // MongoDB config (alternative)
+                ],
                 'cleanup' => true,
             ];
         } catch (BackupException $e) {

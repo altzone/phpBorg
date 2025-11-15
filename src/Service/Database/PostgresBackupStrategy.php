@@ -61,8 +61,14 @@ final class PostgresBackupStrategy implements DatabaseBackupInterface
         try {
             $mountPoint = $this->lvmManager->createPostgresSnapshot($server, $dbInfo);
 
+            // PostgreSQL backup includes both data and configuration
+            // Data: from LVM snapshot (consistent point-in-time)
+            // Config: from live filesystem (/etc/postgresql contains all cluster configs)
             return [
-                'path' => $mountPoint . $dbInfo->mysqlPath, // reuse field for postgres data dir
+                'paths' => [
+                    $mountPoint . $dbInfo->mysqlPath, // Data dir from snapshot
+                    '/etc/postgresql'                  // PostgreSQL configuration directory
+                ],
                 'cleanup' => true,
             ];
         } catch (BackupException $e) {

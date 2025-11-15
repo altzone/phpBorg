@@ -27,8 +27,15 @@ final class MysqlBackupStrategy implements DatabaseBackupInterface
         try {
             $mountPoint = $this->lvmManager->createMysqlSnapshot($server, $dbInfo);
 
+            // MySQL backup includes both data and configuration
+            // Data: from LVM snapshot (consistent point-in-time)
+            // Config: from live filesystem (/etc/mysql, /etc/my.cnf)
             return [
-                'path' => $mountPoint . $dbInfo->mysqlPath,
+                'paths' => [
+                    $mountPoint . $dbInfo->mysqlPath, // Data dir from snapshot
+                    '/etc/mysql',                      // MySQL configuration directory
+                    '/etc/my.cnf'                      // Global MySQL config (if exists)
+                ],
                 'cleanup' => true,
             ];
         } catch (BackupException $e) {

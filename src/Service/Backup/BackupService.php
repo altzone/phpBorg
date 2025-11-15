@@ -142,7 +142,8 @@ final class BackupService
                 }
 
                 $prepareResult = $strategy->prepareBackup($server, $dbInfo);
-                $backupPaths = [$prepareResult['path']];
+                // Support both 'path' (single) and 'paths' (multiple)
+                $backupPaths = $prepareResult['paths'] ?? [$prepareResult['path']];
                 $cleanupNeeded = $prepareResult['cleanup'];
             } else {
                 // Filesystem backup (files, system, etc.)
