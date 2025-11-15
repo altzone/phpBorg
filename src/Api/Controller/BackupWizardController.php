@@ -702,6 +702,11 @@ class BackupWizardController extends BaseController
      */
     private function createDatabaseInfo($server, string $backupType, array $sourceConfig, string $repoId): int
     {
+        error_log("=== createDatabaseInfo DEBUG ===");
+        error_log("backupType: $backupType");
+        error_log("sourceConfig: " . json_encode($sourceConfig));
+        error_log("repoId: $repoId");
+
         // Map backup type to database type in capabilities
         $dbTypeMap = [
             'mysql' => 'mysql',
@@ -712,6 +717,7 @@ class BackupWizardController extends BaseController
         ];
 
         $dbType = $dbTypeMap[$backupType] ?? $backupType;
+        error_log("Mapped dbType: $dbType");
 
         // Get server capabilities
         if (!$server->capabilitiesDetected || !$server->capabilitiesData) {
@@ -743,6 +749,7 @@ class BackupWizardController extends BaseController
         }
 
         // Verify database is snapshot-capable
+        error_log("Checking snapshot_capable: " . ($database['snapshot_capable'] ?? 'NOT SET'));
         if (!($database['snapshot_capable'] ?? false)) {
             throw new PhpBorgException(
                 "Database '{$dbType}' is not on a snapshot-capable volume (LVM/Btrfs/ZFS required)",
@@ -751,6 +758,7 @@ class BackupWizardController extends BaseController
         }
 
         // Verify we have required LVM information
+        error_log("Checking LVM info - vg_name: " . ($database['volume']['vg_name'] ?? 'NOT SET') . ", lv_name: " . ($database['volume']['lv_name'] ?? 'NOT SET'));
         if (!isset($database['volume']['vg_name']) || !isset($database['volume']['lv_name'])) {
             throw new PhpBorgException(
                 "LVM volume information not found in capabilities for '{$dbType}'",
@@ -758,6 +766,7 @@ class BackupWizardController extends BaseController
             );
         }
 
+        error_log("Checking datadir: " . ($database['datadir'] ?? 'NOT SET'));
         if (!isset($database['datadir'])) {
             throw new PhpBorgException(
                 "Database datadir not found in capabilities for '{$dbType}'",
@@ -771,18 +780,25 @@ class BackupWizardController extends BaseController
         $lvSize = $database['snapshot_size']['recommended_size'] ?? '10G';
         $datadir = $database['datadir'];
 
+        error_log("Extracted - vgName: $vgName, lvName: $lvName, lvSize: $lvSize, datadir: $datadir");
+
         // Extract database credentials from source config
         $dbHost = $sourceConfig['host'] ?? 'localhost';
         $dbUser = $sourceConfig['username'] ?? '';
         $dbPassword = $sourceConfig['password'] ?? '';
 
+        error_log("Credentials - dbHost: $dbHost, dbUser: $dbUser, dbPassword: " . (empty($dbPassword) ? 'EMPTY' : 'SET'));
+
         // Validate required credentials
         if (empty($dbUser)) {
+            error_log("ERROR: dbUser is empty!");
             throw new PhpBorgException(
                 "Database username is required in source configuration",
                 400
             );
         }
+
+        error_log("Creating DatabaseInfo in DB...");
 
         // Create DatabaseInfo
         $dbInfoId = $this->databaseInfoRepository->create(
@@ -797,6 +813,7 @@ class BackupWizardController extends BaseController
             dataPath: $datadir
         );
 
+        error_log("DatabaseInfo created successfully with ID: $dbInfoId");
         return $dbInfoId;
     }
 }
