@@ -126,10 +126,12 @@ final class LvmSnapshotManager
 
         // Atomic command: start backup, create snapshot, stop backup
         // Handle quote escaping based on auth method
+        // Note: pg_start_backup() uses 2 params (label, fast) in PG 9.6-14, 3 params in PG 15+
+        // We use 2 params for compatibility with PG 12
         if ($dbInfo->dbUser === 'postgres' && empty($dbInfo->dbPassword)) {
             // For su - postgres, we need different quoting
             $command = sprintf(
-                "su - postgres -c \"psql -c \\\"SELECT pg_start_backup('phpborg_lvm_snapshot', false, false);\\\"\" && " .
+                "su - postgres -c \"psql -c \\\"SELECT pg_start_backup('phpborg_lvm_snapshot', true);\\\"\" && " .
                 "lvcreate -s /dev/%s/%s -n %s -L%s && " .
                 "su - postgres -c \"psql -c \\\"SELECT pg_stop_backup();\\\"\"",
                 $dbInfo->vgName,
@@ -140,7 +142,7 @@ final class LvmSnapshotManager
         } else {
             // For direct psql with PGPASSWORD or trust
             $command = sprintf(
-                "%s -c \"SELECT pg_start_backup('phpborg_lvm_snapshot', false, false);\" && " .
+                "%s -c \"SELECT pg_start_backup('phpborg_lvm_snapshot', true);\" && " .
                 "lvcreate -s /dev/%s/%s -n %s -L%s && " .
                 "%s -c \"SELECT pg_stop_backup();\"",
                 $psqlBase,
