@@ -57,3 +57,57 @@ www-data ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-worker@* --no-pager -n *
 www-data ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-worker@* --no-pager --since *
 
 www-data ALL=(ALL) NOPASSWD: /bin/systemctl list-units phpborg-* --no-pager
+
+# ========================================================================
+# Instant Recovery Permissions (for remote backup servers)
+# ========================================================================
+# These permissions should be added on REMOTE backup servers to allow
+# the backup user (used by SSH) to perform instant recovery operations.
+# Instant Recovery mounts Borg archives with OverlayFS and starts
+# ephemeral database instances for testing/querying without full restore.
+#
+# To deploy on remote server:
+#   1. Create file /etc/sudoers.d/phpborg-instant-recovery
+#   2. Add the permissions below for your backup user
+#   3. sudo chmod 440 /etc/sudoers.d/phpborg-instant-recovery
+#
+# Replace 'backup_user' with your actual SSH backup user (often 'root' or 'phpborg')
+# ========================================================================
+
+# Allow backup user to create mount directories
+# backup_user ALL=(ALL) NOPASSWD: /bin/mkdir -p /tmp/phpborg_instant_recovery/*
+
+# Allow backup user to mount/unmount Borg archives via FUSE
+# backup_user ALL=(ALL) NOPASSWD: /usr/bin/borg mount * /tmp/phpborg_instant_recovery/*
+# backup_user ALL=(ALL) NOPASSWD: /usr/bin/borg umount /tmp/phpborg_instant_recovery/*
+
+# Allow backup user to mount/unmount OverlayFS (required for RW layer on RO backup)
+# backup_user ALL=(ALL) NOPASSWD: /bin/mount -t overlay overlay -o lowerdir=*,upperdir=/tmp/phpborg_instant_recovery/*,workdir=/tmp/phpborg_instant_recovery/* /tmp/phpborg_instant_recovery/*
+# backup_user ALL=(ALL) NOPASSWD: /bin/umount /tmp/phpborg_instant_recovery/*
+# backup_user ALL=(ALL) NOPASSWD: /bin/umount -f /tmp/phpborg_instant_recovery/*
+
+# Allow backup user to switch to postgres user for starting/stopping PostgreSQL instances
+# backup_user ALL=(postgres) NOPASSWD: /usr/lib/postgresql/*/bin/pg_ctl *
+# backup_user ALL=(postgres) NOPASSWD: /usr/bin/pg_ctl *
+
+# Allow backup user to switch to mysql user for MySQL instances (future)
+# backup_user ALL=(mysql) NOPASSWD: /usr/bin/mysqld_safe *
+# backup_user ALL=(mysql) NOPASSWD: /usr/sbin/mysqld *
+
+# Allow backup user to check processes and kill database instances
+# backup_user ALL=(ALL) NOPASSWD: /bin/ps aux
+# backup_user ALL=(ALL) NOPASSWD: /usr/bin/head -1 /tmp/phpborg_instant_recovery/*/postmaster.pid
+# backup_user ALL=(ALL) NOPASSWD: /bin/kill *
+# backup_user ALL=(ALL) NOPASSWD: /usr/bin/pkill -f phpborg_instant*
+
+# Allow backup user to cleanup temporary instant recovery directories
+# backup_user ALL=(ALL) NOPASSWD: /bin/rm -rf /tmp/phpborg_instant_recovery/*
+# backup_user ALL=(ALL) NOPASSWD: /bin/chmod * /tmp/phpborg_instant_recovery/*
+
+# Allow backup user to check mounts
+# backup_user ALL=(ALL) NOPASSWD: /bin/mount
+# backup_user ALL=(ALL) NOPASSWD: /usr/bin/grep /tmp/phpborg_instant_recovery
+
+# Example for root user (if SSH as root - simpler approach):
+# root ALL=(postgres) NOPASSWD: ALL
+# root ALL=(mysql) NOPASSWD: ALL

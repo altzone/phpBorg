@@ -1,0 +1,130 @@
+# /etc/sudoers.d/phpborg-instant-recovery
+# Permissions for Instant Recovery operations on remote backup servers
+#
+# Installation on remote servers:
+#   sudo cp sudoers-phpborg-instant-recovery /etc/sudoers.d/phpborg-instant-recovery
+#   sudo chmod 440 /etc/sudoers.d/phpborg-instant-recovery
+#   sudo visudo -c  # Verify syntax
+#
+# ========================================================================
+# IMPORTANT: Replace 'root' with your actual SSH backup user if different
+# Most phpBorg installations SSH as root, but you may use a dedicated
+# backup user with these specific sudo permissions instead.
+# ========================================================================
+
+# ========================================================================
+# Instant Recovery - Borg Archive Mounting
+# ========================================================================
+
+# Allow mounting Borg archives via FUSE to /tmp/phpborg_instant_recovery
+root ALL=(ALL) NOPASSWD: /bin/mkdir -p /tmp/phpborg_instant_recovery/*
+root ALL=(ALL) NOPASSWD: /usr/bin/borg mount * /tmp/phpborg_instant_recovery/*
+root ALL=(ALL) NOPASSWD: /usr/bin/borg umount /tmp/phpborg_instant_recovery/*
+root ALL=(ALL) NOPASSWD: /usr/local/bin/borg mount * /tmp/phpborg_instant_recovery/*
+root ALL=(ALL) NOPASSWD: /usr/local/bin/borg umount /tmp/phpborg_instant_recovery/*
+
+# ========================================================================
+# Instant Recovery - OverlayFS Management
+# ========================================================================
+
+# Allow mounting OverlayFS (RW layer on top of RO backup)
+# Note: Wildcards in -o options not allowed, so we allow the mount command entirely for overlay
+root ALL=(ALL) NOPASSWD: /bin/mount -t overlay overlay -o * /tmp/phpborg_instant_recovery/*
+root ALL=(ALL) NOPASSWD: /usr/bin/mount -t overlay overlay -o * /tmp/phpborg_instant_recovery/*
+
+# Allow unmounting OverlayFS and Borg mounts
+root ALL=(ALL) NOPASSWD: /bin/umount /tmp/phpborg_instant_recovery/*
+root ALL=(ALL) NOPASSWD: /bin/umount -f /tmp/phpborg_instant_recovery/*
+root ALL=(ALL) NOPASSWD: /usr/bin/umount /tmp/phpborg_instant_recovery/*
+root ALL=(ALL) NOPASSWD: /usr/bin/umount -f /tmp/phpborg_instant_recovery/*
+
+# ========================================================================
+# Instant Recovery - PostgreSQL Instance Management
+# ========================================================================
+
+# Allow creating PostgreSQL socket directories with proper ownership
+root ALL=(ALL) NOPASSWD: /bin/mkdir -p /tmp/phpborg_pg_socket_*
+root ALL=(ALL) NOPASSWD: /bin/chmod * /tmp/phpborg_pg_socket_*
+root ALL=(ALL) NOPASSWD: /bin/chown postgres\:postgres /tmp/phpborg_pg_socket_*
+root ALL=(ALL) NOPASSWD: /usr/bin/chown postgres\:postgres /tmp/phpborg_pg_socket_*
+
+# Allow starting/stopping PostgreSQL as postgres user
+root ALL=(postgres) NOPASSWD: /usr/lib/postgresql/*/bin/pg_ctl *
+root ALL=(postgres) NOPASSWD: /usr/bin/pg_ctl *
+
+# Allow reading PostgreSQL PID file
+root ALL=(ALL) NOPASSWD: /usr/bin/head -1 /tmp/phpborg_instant_recovery/*/postmaster.pid
+
+# ========================================================================
+# Instant Recovery - MySQL Instance Management (Future)
+# ========================================================================
+
+# Allow creating MySQL socket directories
+# root ALL=(ALL) NOPASSWD: /bin/mkdir -p /tmp/phpborg_mysql_socket_*
+# root ALL=(ALL) NOPASSWD: /bin/chown mysql\:mysql /tmp/phpborg_mysql_socket_*
+
+# Allow starting/stopping MySQL as mysql user
+# root ALL=(mysql) NOPASSWD: /usr/bin/mysqld_safe *
+# root ALL=(mysql) NOPASSWD: /usr/sbin/mysqld *
+
+# ========================================================================
+# Instant Recovery - MongoDB Instance Management (Future)
+# ========================================================================
+
+# Allow starting/stopping MongoDB as mongodb user
+# root ALL=(mongodb) NOPASSWD: /usr/bin/mongod *
+
+# ========================================================================
+# Instant Recovery - Process Management
+# ========================================================================
+
+# Allow killing ephemeral database instances
+root ALL=(ALL) NOPASSWD: /bin/kill *
+root ALL=(ALL) NOPASSWD: /usr/bin/pkill -f phpborg_instant*
+
+# ========================================================================
+# Instant Recovery - Cleanup Operations
+# ========================================================================
+
+# Allow removing temporary instant recovery directories
+root ALL=(ALL) NOPASSWD: /bin/rm -rf /tmp/phpborg_instant_recovery/*
+root ALL=(ALL) NOPASSWD: /bin/chmod * /tmp/phpborg_instant_recovery/*
+
+# ========================================================================
+# Instant Recovery - Verification Commands
+# ========================================================================
+
+# Allow checking mounts (read-only operations)
+root ALL=(ALL) NOPASSWD: /bin/mount
+root ALL=(ALL) NOPASSWD: /usr/bin/grep /tmp/phpborg_instant_recovery
+
+# Allow checking processes (read-only operations)
+root ALL=(ALL) NOPASSWD: /bin/ps aux
+
+# ========================================================================
+# Alternative Configuration for Dedicated Backup User
+# ========================================================================
+# If you SSH as a dedicated user (e.g., 'phpborg' or 'backup') instead of root,
+# uncomment and modify the following lines:
+#
+# Cmnd_Alias INSTANT_RECOVERY_MOUNT = /bin/mkdir -p /tmp/phpborg_instant_recovery/*, \
+#                                      /usr/bin/borg mount * /tmp/phpborg_instant_recovery/*, \
+#                                      /usr/bin/borg umount /tmp/phpborg_instant_recovery/*, \
+#                                      /bin/mount -t overlay *, \
+#                                      /bin/umount /tmp/phpborg_instant_recovery/*, \
+#                                      /bin/umount -f /tmp/phpborg_instant_recovery/*
+#
+# Cmnd_Alias INSTANT_RECOVERY_DB = /bin/mkdir -p /tmp/phpborg_pg_socket_*, \
+#                                   /bin/chmod * /tmp/phpborg_pg_socket_*, \
+#                                   /bin/chown postgres\:postgres /tmp/phpborg_pg_socket_*
+#
+# Cmnd_Alias INSTANT_RECOVERY_CLEANUP = /bin/kill *, \
+#                                        /usr/bin/pkill -f phpborg_instant*, \
+#                                        /bin/rm -rf /tmp/phpborg_instant_recovery/*, \
+#                                        /usr/bin/head -1 /tmp/phpborg_instant_recovery/*
+#
+# # Replace 'phpborg' with your backup username
+# phpborg ALL=(ALL) NOPASSWD: INSTANT_RECOVERY_MOUNT
+# phpborg ALL=(ALL) NOPASSWD: INSTANT_RECOVERY_DB
+# phpborg ALL=(postgres) NOPASSWD: /usr/lib/postgresql/*/bin/pg_ctl *, /usr/bin/pg_ctl *
+# phpborg ALL=(ALL) NOPASSWD: INSTANT_RECOVERY_CLEANUP

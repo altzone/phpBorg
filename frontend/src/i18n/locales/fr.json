@@ -805,6 +805,28 @@
       "weeks_ago": "{count}s",
       "months_ago": "{count}m",
       "years_ago": "{count}a"
+    },
+    "instant_recovery": {
+      "button": "⚡ Instant Recovery",
+      "starting": "Démarrage...",
+      "modal_title": "Instant Recovery",
+      "modal_description": "Démarrez une instance de base de données éphémère directement depuis ce backup, sans restauration complète. Idéal pour tester, requêter ou analyser vos données.",
+      "deployment_label": "Où déployer l'instance ?",
+      "remote_title": "Sur le serveur source ({server})",
+      "remote_description": "L'instance sera démarrée sur le serveur d'origine. Utilisez l'environnement de production avec ses configurations.",
+      "remote_tag1": "Environnement original",
+      "remote_tag2": "SSH requis",
+      "local_title": "Sur le serveur phpBorg (local)",
+      "local_description": "L'instance sera démarrée sur ce serveur de backup. Pas de charge sur la production, accès direct au repository.",
+      "local_tag1": "Pas de charge prod",
+      "local_tag2": "Accès local direct",
+      "cancel": "Annuler",
+      "start_button": "Démarrer l'Instance",
+      "success_title": "Job créé !",
+      "success_message": "Instance {location} démarrée sur le port {port}. Vous pouvez maintenant vous connecter et requêter la base de données.",
+      "job_created_message": "Le job Instant Recovery ({location}) a été créé avec succès (Job #{job_id}). L'instance démarrera dans quelques instants.",
+      "error_title": "Erreur de démarrage",
+      "error_message": "Impossible de démarrer l'instance Instant Recovery. Vérifiez les logs."
     }
   },
   "restore_modal": {

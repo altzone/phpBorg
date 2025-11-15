@@ -13,6 +13,7 @@ use PhpBorg\Repository\ArchiveMountRepository;
 use PhpBorg\Repository\BackupJobRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\DatabaseInfoRepository;
+use PhpBorg\Repository\InstantRecoverySessionRepository;
 use PhpBorg\Repository\JobRepository;
 use PhpBorg\Repository\RefreshTokenRepository;
 use PhpBorg\Repository\ReportRepository;
@@ -32,6 +33,7 @@ use PhpBorg\Service\Database\LvmSnapshotManager;
 use PhpBorg\Service\Database\MongoDbBackupStrategy;
 use PhpBorg\Service\Database\MysqlBackupStrategy;
 use PhpBorg\Service\Database\PostgresBackupStrategy;
+use PhpBorg\Service\InstantRecovery\InstantRecoveryManager;
 use PhpBorg\Service\Repository\EncryptionService;
 use PhpBorg\Service\Server\ServerManager;
 use PhpBorg\Service\Server\ServerStatsCollector;
@@ -391,6 +393,27 @@ final class Application
                 $this->getEmailService(),
                 $this->getBackupJobRepository(),
                 $this->getSettingRepository(),
+                $this->logger
+            )
+        );
+    }
+
+    public function getInstantRecoverySessionRepository(): InstantRecoverySessionRepository
+    {
+        return $this->getService(InstantRecoverySessionRepository::class, fn() =>
+            new InstantRecoverySessionRepository($this->connection)
+        );
+    }
+
+    public function getInstantRecoveryManager(): InstantRecoveryManager
+    {
+        return $this->getService(InstantRecoveryManager::class, fn() =>
+            new InstantRecoveryManager(
+                $this->config,
+                $this->getBorgExecutor(),
+                $this->getSshExecutor(),
+                $this->getInstantRecoverySessionRepository(),
+                $this->getBorgRepositoryRepository(),
                 $this->logger
             )
         );

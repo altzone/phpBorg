@@ -303,6 +303,20 @@
               </svg>
               {{ archive.mount_status === 'mounting' ? $t('restore_wizard.mounting') : $t('restore_wizard.mount_browse') }}
             </button>
+
+            <!-- Instant Recovery Button (only for databases) -->
+            <button
+              v-if="isDatabaseArchive(archive)"
+              @click="handleInstantRecovery(archive)"
+              :disabled="archive.instant_recovery_starting"
+              class="btn btn-success flex-1"
+            >
+              <svg class="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              {{ archive.instant_recovery_starting ? $t('restore_wizard.instant_recovery.starting') : $t('restore_wizard.instant_recovery.button') }}
+            </button>
+
             <button
               @click="handleDirectRestore(archive)"
               class="btn btn-secondary flex-1"
@@ -352,6 +366,159 @@
         </div>
       </div>
     </div>
+
+    <!-- Instant Recovery Modal -->
+    <div
+      v-if="instantRecoveryModal.show"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      @click.self="instantRecoveryModal.show = false"
+    >
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">
+                  {{ $t('restore_wizard.instant_recovery.modal_title') }}
+                </h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                  {{ instantRecoveryModal.archive?.name }}
+                </p>
+              </div>
+            </div>
+            <button
+              @click="instantRecoveryModal.show = false"
+              class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+            >
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Body -->
+        <div class="px-6 py-6">
+          <p class="text-gray-700 dark:text-gray-300 mb-6">
+            {{ $t('restore_wizard.instant_recovery.modal_description') }}
+          </p>
+
+          <!-- Deployment Location Selection -->
+          <div class="space-y-4">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              {{ $t('restore_wizard.instant_recovery.deployment_label') }}
+            </label>
+
+            <!-- Remote Option -->
+            <div
+              @click="instantRecoveryModal.deploymentLocation = 'remote'"
+              :class="[
+                'group cursor-pointer p-5 border-2 rounded-lg transition-all',
+                instantRecoveryModal.deploymentLocation === 'remote'
+                  ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-600'
+              ]"
+            >
+              <div class="flex items-start gap-4">
+                <div :class="[
+                  'flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center',
+                  instantRecoveryModal.deploymentLocation === 'remote'
+                    ? 'border-green-500 bg-green-500'
+                    : 'border-gray-300 dark:border-gray-600'
+                ]">
+                  <svg v-if="instantRecoveryModal.deploymentLocation === 'remote'" class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div class="flex-1">
+                  <h4 class="font-semibold text-gray-900 dark:text-gray-100 mb-1">
+                    {{ $t('restore_wizard.instant_recovery.remote_title') }}
+                  </h4>
+                  <p class="text-sm text-gray-600 dark:text-gray-400">
+                    {{ $t('restore_wizard.instant_recovery.remote_description', { server: selectedServer?.name || '' }) }}
+                  </p>
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    <span class="px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
+                      {{ $t('restore_wizard.instant_recovery.remote_tag1') }}
+                    </span>
+                    <span class="px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
+                      {{ $t('restore_wizard.instant_recovery.remote_tag2') }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Local Option -->
+            <div
+              @click="instantRecoveryModal.deploymentLocation = 'local'"
+              :class="[
+                'group cursor-pointer p-5 border-2 rounded-lg transition-all',
+                instantRecoveryModal.deploymentLocation === 'local'
+                  ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-600'
+              ]"
+            >
+              <div class="flex items-start gap-4">
+                <div :class="[
+                  'flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center',
+                  instantRecoveryModal.deploymentLocation === 'local'
+                    ? 'border-green-500 bg-green-500'
+                    : 'border-gray-300 dark:border-gray-600'
+                ]">
+                  <svg v-if="instantRecoveryModal.deploymentLocation === 'local'" class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div class="flex-1">
+                  <h4 class="font-semibold text-gray-900 dark:text-gray-100 mb-1">
+                    {{ $t('restore_wizard.instant_recovery.local_title') }}
+                  </h4>
+                  <p class="text-sm text-gray-600 dark:text-gray-400">
+                    {{ $t('restore_wizard.instant_recovery.local_description') }}
+                  </p>
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    <span class="px-2 py-1 text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                      {{ $t('restore_wizard.instant_recovery.local_tag1') }}
+                    </span>
+                    <span class="px-2 py-1 text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                      {{ $t('restore_wizard.instant_recovery.local_tag2') }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+          <button
+            @click="instantRecoveryModal.show = false"
+            class="btn btn-secondary"
+          >
+            {{ $t('restore_wizard.instant_recovery.cancel') }}
+          </button>
+          <button
+            @click="confirmInstantRecovery"
+            :disabled="instantRecoveryModal.starting"
+            class="btn btn-success"
+          >
+            <svg v-if="!instantRecoveryModal.starting" class="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <div v-else class="inline-block w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            {{ instantRecoveryModal.starting ? $t('restore_wizard.instant_recovery.starting') : $t('restore_wizard.instant_recovery.start_button') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -362,6 +529,7 @@ import { useI18n } from 'vue-i18n'
 import { serverService } from '@/services/server'
 import { repositoryService } from '@/services/repository'
 import { backupService } from '@/services/backups'
+import { instantRecoveryService } from '@/services/instantRecovery'
 import api from '@/services/api'
 
 const router = useRouter()
@@ -381,6 +549,14 @@ const archives = ref([])
 // Toast notifications
 const toasts = ref([])
 let toastIdCounter = 0
+
+// Instant Recovery Modal
+const instantRecoveryModal = ref({
+  show: false,
+  archive: null,
+  deploymentLocation: 'remote',
+  starting: false
+})
 
 function showToast(title, message = '', type = 'success', duration = 5000) {
   const id = ++toastIdCounter
@@ -440,7 +616,11 @@ async function selectRepository(repo) {
   loading.value = true
   try {
     const result = await backupService.list({ repo_id: repo.repo_id, limit: 100 })
-    archives.value = result
+    // Add repository type to each archive
+    archives.value = result.map(archive => ({
+      ...archive,
+      type: repo.type || archive.type
+    }))
   } catch (err) {
     console.error('Failed to load archives:', err)
   } finally {
@@ -541,6 +721,66 @@ function handleDirectRestore(archive) {
     t('restore_wizard.direct_restore_msg') || 'Cette fonctionnalité sera bientôt disponible',
     'warning'
   )
+}
+
+// Check if archive is a database type (PostgreSQL, MySQL, MongoDB)
+function isDatabaseArchive(archive) {
+  const dbTypes = ['postgresql', 'postgres', 'mysql', 'mariadb', 'mongodb']
+  return archive.type && dbTypes.includes(archive.type.toLowerCase())
+}
+
+// Handle Instant Recovery button click
+function handleInstantRecovery(archive) {
+  instantRecoveryModal.value.archive = archive
+  instantRecoveryModal.value.deploymentLocation = 'remote'
+  instantRecoveryModal.value.starting = false
+  instantRecoveryModal.value.show = true
+}
+
+// Confirm and start Instant Recovery
+async function confirmInstantRecovery() {
+  const archive = instantRecoveryModal.value.archive
+  const deploymentLocation = instantRecoveryModal.value.deploymentLocation
+
+  if (!archive) return
+
+  instantRecoveryModal.value.starting = true
+  archive.instant_recovery_starting = true
+
+  try {
+    const result = await instantRecoveryService.start(archive.id, deploymentLocation)
+
+    instantRecoveryModal.value.show = false
+
+    const locationText = deploymentLocation === 'local'
+      ? t('restore_wizard.instant_recovery.local_title')
+      : t('restore_wizard.instant_recovery.remote_title')
+
+    showToast(
+      t('restore_wizard.instant_recovery.success_title'),
+      t('restore_wizard.instant_recovery.job_created_message', {
+        location: locationText,
+        job_id: result.job_id
+      }),
+      'success',
+      10000
+    )
+
+    // Optionally redirect to jobs or instant recovery management view
+    // router.push('/jobs') or router.push('/instant-recovery')
+
+  } catch (err) {
+    console.error('Failed to start instant recovery:', err)
+    showToast(
+      t('restore_wizard.instant_recovery.error_title'),
+      err.response?.data?.error?.message || err.message || t('restore_wizard.instant_recovery.error_message'),
+      'error',
+      8000
+    )
+  } finally {
+    instantRecoveryModal.value.starting = false
+    archive.instant_recovery_starting = false
+  }
 }
 
 function formatBytes(bytes) {

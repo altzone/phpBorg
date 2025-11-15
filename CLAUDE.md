@@ -227,10 +227,139 @@ tail -f /var/log/phpborg_new.log
 - ✅ MongoDB LVM snapshot support (atomic backups)
 - ✅ Reload capabilities depuis Backup Wizard
 - ✅ DatabaseInfo auto-création depuis capabilities
+- 🚧 **Instant Recovery** : Frontend complet + Job-based execution (en debug)
+  - Bouton dans Restore Wizard (database backups only)
+  - Modal dual-mode (Remote/Local deployment)
+  - i18n FR/EN complet
+  - Job queue pour sécurité (phpborg user vs www-data)
+  - PostgreSQL read-only sur FUSE mount
+  - **BLOCKER** : FUSE mount datadir detection (find returns empty)
 
-**Dernière session** : Détection Avancée Bases de Données & Snapshots Atomiques
+**Dernière session** : Instant Recovery - Job Queue Refactoring + FUSE Mount Debug
 
 **OBJECTIFS DE LA SESSION** :
+Refactorer Instant Recovery pour utiliser le job queue system (sécurité), implémenter PostgreSQL read-only sur FUSE mount (sans copie), et résoudre problèmes FUSE permissions.
+
+**IMPLÉMENTATIONS RÉALISÉES** :
+
+1. **Refactoring Sécurité : Web → Job Queue** :
+   - **Problème initial** : Exécution directe depuis web context avec `www-data` user
+   - **Solution** : Passer par job queue avec `phpborg` user
+   - Fichier : `/src/Api/Controller/InstantRecoveryController.php`
+   - Changement : `$this->recoveryManager->startRecovery()` → `$this->jobQueue->push('instant_recovery_start', $payload)`
+   - Retour HTTP 202 avec job_id au lieu de session directe
+
+2. **Job Handlers** :
+   - Fichier : `/src/Service/Queue/Handlers/InstantRecoveryStartHandler.php` (créé)
+   - Fichier : `/src/Service/Queue/Handlers/InstantRecoveryStopHandler.php` (créé)
+   - Signature correcte : `handle(Job $job, JobQueue $queue): string`
+   - Enregistrement dans `/src/Command/WorkerStartCommand.php`
+   - Exécution asynchrone par workers phpBorg
+
+3. **PostgreSQL Read-Only Direct Mount** :
+   - **Problème** : Impossible de copier 50TB de données (user feedback critique)
+   - **Ancien approach** : OverlayFS sur FUSE mount → ÉCHEC (kernel limitation)
+   - **Nouvelle approche** : PostgreSQL direct read-only sur FUSE mount
+   - Fichier : `/src/Service/InstantRecovery/InstantRecoveryManager.php`
+   - Options PostgreSQL read-only :
+     ```
+     -c default_transaction_read_only=on
+     -c fsync=off
+     -c full_page_writes=off
+     -c max_wal_senders=0
+     -c wal_level=minimal
+     -c archive_mode=off
+     ```
+   - Avantage : Zero-copy instant recovery (comme Veeam)
+
+4. **FUSE Mount Permission Fix** :
+   - **Problème découvert** : `sudo find` ne peut pas accéder aux FUSE mounts user
+   - **Root cause** : FUSE mounts sont user-specific (phpborg), root n'y a pas accès
+   - **Solution** : Paramètre `$useSudo` dans `execute()` method
+   - Usage : `false` pour opérations read-only (find, ls)
+   - Usage : `true` pour opérations privileged (mount, pg_ctl)
+   - Test manuel validé : `find /tmp/test_mount` (phpborg) → ✅ trouve datadir
+   - Test manuel validé : `sudo find /tmp/test_mount` (root) → ❌ vide
+
+5. **Sudoers Backup Server Update** :
+   - Fichier : `/docs/sudoers-phpborg-backup-server` (mis à jour)
+   - User changé : `www-data` → `phpborg` (worker context)
+   - Permissions : borg mount/umount, mkdir, pg_ctl, overlay (deprecated)
+   - Format corrigé : wildcards simplifiés pour compatibilité sudoers
+
+6. **Frontend Job-Based Response** :
+   - Fichier : `/frontend/src/services/instantRecovery.js`
+   - Ajustement : `return response.data.data || response.data`
+   - Supporte retour job info au lieu de session directe
+   - Toast affiche job_id pour tracking
+
+7. **Dynamic PostgreSQL Datadir Detection** :
+   - Méthode : `findDataDirectoryInMount()`
+   - Pattern find : `find {borgMount} -type d -path '*/var/lib/postgresql/*/main'`
+   - Support multi-version PostgreSQL (8, 9, 10, 11, 12, 13, 14, 15, 16)
+   - **BLOCKER ACTUEL** : find retourne vide malgré $useSudo=false
+
+**FICHIERS CRÉÉS/MODIFIÉS** :
+- `src/Service/Queue/Handlers/InstantRecoveryStartHandler.php` - **Créé**
+- `src/Service/Queue/Handlers/InstantRecoveryStopHandler.php` - **Créé**
+- `src/Service/InstantRecovery/InstantRecoveryManager.php` - Refacto complet (read-only PostgreSQL + FUSE fix)
+- `src/Api/Controller/InstantRecoveryController.php` - Job queue integration
+- `src/Command/WorkerStartCommand.php` - Enregistrement handlers
+- `docs/sudoers-phpborg-backup-server` - User phpborg + permissions
+- `frontend/src/services/instantRecovery.js` - Support job response
+
+**PROBLÈMES RENCONTRÉS & RÉSOLUS** :
+1. ❌ Handler signature mismatch → ✅ `handle(Job $job, JobQueue $queue): string`
+2. ❌ Wrong method `enqueue()` → ✅ Changed to `push()`
+3. ❌ `BaseController::success()` param order → ✅ `success($data, $message, 202)`
+4. ❌ Frontend undefined job_id → ✅ Adjusted service return
+5. ❌ OverlayFS mount failure → ✅ Abandoned, switched to read-only PostgreSQL
+6. ❌ 50TB copy absurd (user feedback) → ✅ Zero-copy FUSE mount approach
+7. ❌ Root can't access user FUSE → ✅ Added $useSudo parameter
+
+**BLOCKER ACTUEL** :
+- **Symptôme** : "Could not find postgresql data directory in backup"
+- **Cause probable** : Le find retourne toujours vide malgré $useSudo=false
+- **Tests manuels** :
+  - `find /tmp/test_mount` (as phpborg) → ✅ works
+  - `sudo find /tmp/test_mount` (as root) → ❌ empty
+- **Code actuel** : `$useSudo=false` dans `findDataDirectoryInMount()`
+- **Hypothèses à explorer** :
+  1. exec() vs shell_exec() behavior différent
+  2. Escape shellarg peut interférer avec glob patterns
+  3. Permissions stderr non capturées
+  4. Mount path incorrect ou non finalisé
+
+**WORKFLOW ACTUEL** :
+1. User click "⚡ Instant Recovery" → Modal sélection Remote/Local
+2. Frontend → `POST /api/instant-recovery/start` → Job created (HTTP 202)
+3. Worker phpborg → Pop job → `InstantRecoveryStartHandler::handle()`
+4. Handler → Mount Borg archive via FUSE (✅ works)
+5. Handler → Find PostgreSQL datadir (❌ **BLOCKER** - returns empty)
+6. Handler → Start PostgreSQL read-only (⏸️ not reached)
+7. Toast notification job_id (✅ works)
+
+**TESTS RÉALISÉS** :
+- ✅ Job queue integration (job created & picked by worker)
+- ✅ FUSE mount works (log shows "Borg archive mounted successfully")
+- ✅ Manual find as phpborg user (finds datadir)
+- ❌ Automated find in handler (returns empty)
+- ⏸️ PostgreSQL read-only startup (blocked by datadir detection)
+
+**NEXT STEPS (TODO LIST)** :
+- 🔴 Debug FUSE mount datadir detection - find command returns empty
+- 🟡 Test alternative datadir detection methods (ls, manual path construction)
+- 🟡 Add verbose logging to findDataDirectoryInMount for debugging
+- 🟡 Verify FUSE mount is accessible by phpborg user after mount
+- 🟡 Test PostgreSQL read-only startup on detected datadir
+- 🟢 Implement MySQL/MariaDB instant recovery support
+- 🟢 Implement MongoDB instant recovery support
+- 🟢 Add active sessions list view in frontend
+- 🟢 Add stop/cleanup session functionality in frontend
+
+**Session précédente** : Détection Avancée Bases de Données & Snapshots Atomiques
+
+**OBJECTIFS DE LA SESSION PRÉCÉDENTE** :
 Améliorer la détection des bases de données avec support automatique des credentials et snapshots LVM atomiques pour MongoDB.
 
 **IMPLÉMENTATIONS RÉALISÉES** :

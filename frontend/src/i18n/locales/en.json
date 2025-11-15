@@ -804,6 +804,28 @@
       "weeks_ago": "{count}w",
       "months_ago": "{count}mo",
       "years_ago": "{count}y"
+    },
+    "instant_recovery": {
+      "button": "⚡ Instant Recovery",
+      "starting": "Starting...",
+      "modal_title": "Instant Recovery",
+      "modal_description": "Start an ephemeral database instance directly from this backup, without full restoration. Ideal for testing, querying or analyzing your data.",
+      "deployment_label": "Where to deploy the instance?",
+      "remote_title": "On source server ({server})",
+      "remote_description": "The instance will be started on the origin server. Use the production environment with its configurations.",
+      "remote_tag1": "Original environment",
+      "remote_tag2": "SSH required",
+      "local_title": "On phpBorg server (local)",
+      "local_description": "The instance will be started on this backup server. No load on production, direct repository access.",
+      "local_tag1": "No prod load",
+      "local_tag2": "Direct local access",
+      "cancel": "Cancel",
+      "start_button": "Start Instance",
+      "success_title": "Job created!",
+      "success_message": "{location} instance started on port {port}. You can now connect and query the database.",
+      "job_created_message": "Instant Recovery job ({location}) created successfully (Job #{job_id}). The instance will start in a few moments.",
+      "error_title": "Startup error",
+      "error_message": "Failed to start Instant Recovery instance. Check logs."
     }
   },
   "restore_modal": {

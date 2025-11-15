@@ -26,6 +26,7 @@ use PhpBorg\Api\Controller\BackupScheduleController;
 use PhpBorg\Api\Controller\BackupWizardController;
 use PhpBorg\Api\Controller\DashboardController;
 use PhpBorg\Api\Controller\EmailController;
+use PhpBorg\Api\Controller\InstantRecoveryController;
 use PhpBorg\Api\Controller\JobController;
 use PhpBorg\Api\Controller\RepositoryController;
 use PhpBorg\Api\Controller\RoleController;
@@ -210,6 +211,16 @@ try {
     $router->post('/workers/:name/stop', WorkerController::class, 'stop', requireAuth: true);
     $router->post('/workers/:name/restart', WorkerController::class, 'restart', requireAuth: true);
     $router->get('/workers/:name/logs', WorkerController::class, 'logs', requireAuth: true);
+
+    // ===========================================
+    // Instant Recovery Routes (Protected)
+    // ===========================================
+    $router->get('/instant-recovery', InstantRecoveryController::class, 'list', requireAuth: true);
+    $router->get('/instant-recovery/active', InstantRecoveryController::class, 'active', requireAuth: true);
+    $router->get('/instant-recovery/:id', InstantRecoveryController::class, 'show', requireAuth: true);
+    $router->post('/instant-recovery/start', InstantRecoveryController::class, 'start', requireAuth: true);
+    $router->post('/instant-recovery/stop/:id', InstantRecoveryController::class, 'stop', requireAuth: true);
+    $router->delete('/instant-recovery/:id', InstantRecoveryController::class, 'delete', requireAuth: true);
 
     // ===========================================
     // Future Routes (To be implemented)
