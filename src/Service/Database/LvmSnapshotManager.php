@@ -107,39 +107,60 @@ final class LvmSnapshotManager
         // 3. pg_stop_backup() - Exits backup mode
 
         // Build psql command based on auth method
-        $host = escapeshellarg($dbInfo->dbHost);
-        $user = escapeshellarg($dbInfo->dbUser);
-
-        if (!empty($dbInfo->dbUser) && !empty($dbInfo->dbPassword)) {
+        // For PostgreSQL, peer auth (user=postgres, no password) uses local Unix socket
+        if ($dbInfo->dbUser === 'postgres' && empty($dbInfo->dbPassword)) {
+            // Peer auth - use su to postgres user, connect via Unix socket (no -h)
+            $psqlBase = "su - postgres -c 'psql'";
+        } elseif (!empty($dbInfo->dbPassword)) {
             // Password authentication
+            $host = escapeshellarg($dbInfo->dbHost);
+            $user = escapeshellarg($dbInfo->dbUser);
             $pass = escapeshellarg($dbInfo->dbPassword);
             $psqlBase = "PGPASSWORD={$pass} psql -U {$user} -h {$host}";
-        } elseif (!empty($dbInfo->dbUser)) {
-            // User without password (trust or .pgpass)
-            $psqlBase = "psql -U {$user} -h {$host}";
         } else {
-            // Peer auth - use su - postgres
-            $psqlBase = "su - postgres -c \"psql -h {$host}\"";
+            // Trust auth or .pgpass file
+            $host = escapeshellarg($dbInfo->dbHost);
+            $user = escapeshellarg($dbInfo->dbUser);
+            $psqlBase = "psql -U {$user} -h {$host}";
         }
 
         // Atomic command: start backup, create snapshot, stop backup
-        $command = sprintf(
-            "%s -c \"SELECT pg_start_backup('phpborg_lvm_snapshot', false, false);\" && " .
-            "lvcreate -s /dev/%s/%s -n %s -L%s && " .
-            "%s -c \"SELECT pg_stop_backup();\"",
-            $psqlBase,
-            $dbInfo->vgName,
-            $dbInfo->lvmPartition,
-            $snapName,
-            $dbInfo->lvSize,
-            $psqlBase
-        );
+        // Handle quote escaping based on auth method
+        if ($dbInfo->dbUser === 'postgres' && empty($dbInfo->dbPassword)) {
+            // For su - postgres, we need different quoting
+            $command = sprintf(
+                "su - postgres -c \"psql -c \\\"SELECT pg_start_backup('phpborg_lvm_snapshot', false, false);\\\"\" && " .
+                "lvcreate -s /dev/%s/%s -n %s -L%s && " .
+                "su - postgres -c \"psql -c \\\"SELECT pg_stop_backup();\\\"\"",
+                $dbInfo->vgName,
+                $dbInfo->lvmPartition,
+                $snapName,
+                $dbInfo->lvSize
+            );
+        } else {
+            // For direct psql with PGPASSWORD or trust
+            $command = sprintf(
+                "%s -c \"SELECT pg_start_backup('phpborg_lvm_snapshot', false, false);\" && " .
+                "lvcreate -s /dev/%s/%s -n %s -L%s && " .
+                "%s -c \"SELECT pg_stop_backup();\"",
+                $psqlBase,
+                $dbInfo->vgName,
+                $dbInfo->lvmPartition,
+                $snapName,
+                $dbInfo->lvSize,
+                $psqlBase
+            );
+        }
 
         $result = $this->sshExecutor->execute($server, $command, 120);
 
         if ($result['exitCode'] !== 0) {
             // Try to stop backup mode if it was started
-            $stopBackupCmd = "{$psqlBase} -c \"SELECT pg_stop_backup();\" 2>/dev/null || true";
+            if ($dbInfo->dbUser === 'postgres' && empty($dbInfo->dbPassword)) {
+                $stopBackupCmd = "su - postgres -c \"psql -c \\\"SELECT pg_stop_backup();\\\"\" 2>/dev/null || true";
+            } else {
+                $stopBackupCmd = "{$psqlBase} -c \"SELECT pg_stop_backup();\" 2>/dev/null || true";
+            }
             $this->sshExecutor->execute($server, $stopBackupCmd, 30);
 
             throw new BackupException("Failed to create LVM snapshot: {$result['stderr']}");
@@ -191,21 +212,22 @@ final class LvmSnapshotManager
     {
         $snapName = $this->config->borgLvmSnapName;
 
-        // Unmount if mounted
+        // Unmount if mounted (force unmount with -fl)
         $umountCommand = sprintf(
-            "a=(\`mount\`); [[ \${a[*]} =~ %s ]] && umount -fl %s 1>&2",
-            $snapName,
-            $mountPoint
+            "if mount | grep -q '%s'; then umount -fl %s 2>&1 || true; fi",
+            $mountPoint,
+            escapeshellarg($mountPoint)
         );
 
         $this->sshExecutor->execute($server, $umountCommand, 30);
 
         // Remove LVM snapshot if exists
         $removeCommand = sprintf(
-            "b=(\`lvs\`); [[ \${b[*]} =~ %s ]] && lvremove -f /dev/%s/%s 1>&2",
-            $snapName,
-            $dbInfo->vgName,
-            $snapName
+            "if lvs %s/%s >/dev/null 2>&1; then lvremove -f %s/%s 2>&1 || true; fi",
+            escapeshellarg($dbInfo->vgName),
+            escapeshellarg($snapName),
+            escapeshellarg($dbInfo->vgName),
+            escapeshellarg($snapName)
         );
 
         $this->sshExecutor->execute($server, $removeCommand, 60);
