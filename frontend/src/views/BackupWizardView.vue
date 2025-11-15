@@ -1788,12 +1788,43 @@ async function saveAsTemplate() {
 async function createBackup() {
   creating.value = true
   try {
+    // Prepare source_config according to backup type
+    const sourceConfig = { ...wizardData.value.sourceConfig }
+    const dbInfo = getDetectedDatabase(wizardData.value.backupType)
+
+    // Fix PostgreSQL port if not set correctly
+    if (wizardData.value.backupType === 'postgresql' || wizardData.value.backupType === 'postgres') {
+      sourceConfig.port = sourceConfig.port === 3306 ? 5432 : sourceConfig.port
+
+      // Add pg_cluster if selected
+      if (wizardData.value.sourceConfig.pg_cluster) {
+        sourceConfig.pg_cluster = wizardData.value.sourceConfig.pg_cluster
+      }
+
+      // Use peer auth if detected
+      if (dbInfo?.auth?.peer_auth) {
+        sourceConfig.username = 'postgres'
+        sourceConfig.password = ''
+        sourceConfig.use_peer_auth = true
+      }
+    }
+
+    // MySQL/MariaDB port fix
+    if (wizardData.value.backupType === 'mysql' || wizardData.value.backupType === 'mariadb') {
+      sourceConfig.port = sourceConfig.port || 3306
+    }
+
+    // MongoDB port fix
+    if (wizardData.value.backupType === 'mongodb') {
+      sourceConfig.port = sourceConfig.port === 3306 ? 27017 : sourceConfig.port
+    }
+
     // Prepare data for API
     const data = {
       server_id: wizardData.value.serverId,
       backup_type: wizardData.value.backupType,
       source_name: wizardData.value.repositoryName,
-      source_config: wizardData.value.sourceConfig,
+      source_config: sourceConfig,
       paths: wizardData.value.sourceConfig.paths,
       exclude_patterns: wizardData.value.sourceConfig.excludePatterns?.split('\n').filter(p => p.trim()),
       snapshot_method: wizardData.value.snapshotMethod,
