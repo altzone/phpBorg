@@ -70,12 +70,9 @@ final class InstantRecoveryManager
         // Find available port
         $port = $this->findAvailablePort($dbType);
 
-        // Generate unique session paths
+        // Generate unique session paths (Docker-based - no overlay needed)
         $sessionId = uniqid('recovery_', true);
         $borgMount = self::BASE_RECOVERY_DIR . "/borg_mount_{$sessionId}";
-        $overlayUpper = self::BASE_RECOVERY_DIR . "/overlay_upper_{$sessionId}";
-        $overlayWork = self::BASE_RECOVERY_DIR . "/overlay_work_{$sessionId}";
-        $overlayMerged = self::BASE_RECOVERY_DIR . "/overlay_merged_{$sessionId}";
 
         // Create session in database
         $recoveryId = $this->sessionRepo->create(
@@ -84,9 +81,6 @@ final class InstantRecoveryManager
             dbType: $dbType,
             deploymentLocation: $deploymentLocation,
             borgMountPoint: $borgMount,
-            overlayUpperDir: $overlayUpper,
-            overlayWorkDir: $overlayWork,
-            overlayMergedDir: $overlayMerged,
             dbPort: $port
         );
 
@@ -99,10 +93,11 @@ final class InstantRecoveryManager
             if (!$dataDir) {
                 throw new BackupException("Could not find {$dbType} data directory in backup");
             }
+            $this->logger->info("Data directory found: {$dataDir}", $server->name);
 
             // Step 3: Start database instance in READ-ONLY mode
             // Note: Instant Recovery is read-only - perfect for querying/testing without modifying backup
-            $dbInfo = $this->startDatabaseInstance($server, $dbType, $dataDir, $port, $deploymentLocation);
+            $dbInfo = $this->startDatabaseInstance($server, $dbType, $dataDir, $port, $deploymentLocation, $borgMount);
 
             // Mark as active
             $this->sessionRepo->markActive(
@@ -145,7 +140,7 @@ final class InstantRecoveryManager
         try {
             // Stop database instance
             if ($session->dbPid) {
-                $this->stopDatabaseInstance($server, $session->dbType, $session->dbPid, $session->overlayMergedDir, $session->deploymentLocation);
+                $this->stopDatabaseInstance($server, $session->dbType, $session->dbPid, $session->deploymentLocation);
             }
 
             // Unmount Borg
@@ -175,7 +170,7 @@ final class InstantRecoveryManager
      * @param bool $useSudo Whether to use sudo (default true). Set to false for read-only operations on FUSE mounts.
      * @return array{stdout: string, stderr: string, exitCode: int}
      */
-    private function execute(Server $server, string $command, int $timeout, string $deploymentLocation, bool $useSudo = true): array
+    private function execute(?Server $server, string $command, int $timeout, string $deploymentLocation, bool $useSudo = true): array
     {
         if ($deploymentLocation === 'local') {
             // Execute locally on phpBorg server
@@ -191,6 +186,9 @@ final class InstantRecoveryManager
         }
 
         // Execute remotely via SSH (already uses sudo via SshExecutor)
+        if (!$server) {
+            throw new BackupException("Server object required for remote execution");
+        }
         return $this->sshExecutor->execute($server, $command, $timeout);
     }
 
@@ -207,20 +205,23 @@ final class InstantRecoveryManager
             throw new BackupException("Repository not found for archive {$archive->name}");
         }
 
-        // Create mount point
-        $this->execute($server, "mkdir -p {$mountPoint}", 30, $deploymentLocation);
+        // Create mount point (no sudo needed - /tmp is world-writable)
+        $this->execute($server, "mkdir -p {$mountPoint}", 30, $deploymentLocation, false);
 
         // Mount archive (Borg FUSE detaches automatically)
-        // Use sh -c to set environment variable within sudo context
+        // IMPORTANT: Must be done WITHOUT sudo in local mode - FUSE mounts must belong to the user accessing them
+        // In local mode, this runs as phpborg user directly
+        // Use -o allow_other so Docker daemon (running as root) can access the mount
+        // Use -o umask=0 to make all files world-readable (safe since mount is read-only)
         $mountCmd = sprintf(
-            "sh -c 'BORG_PASSPHRASE=\"%s\" borg mount %s::%s %s'",
+            "sh -c 'BORG_PASSPHRASE=\"%s\" borg mount -o allow_other,umask=0 %s::%s %s'",
             addslashes($repository->passphrase),
             escapeshellarg($repository->repoPath),
             escapeshellarg($archive->name),
             escapeshellarg($mountPoint)
         );
 
-        $result = $this->execute($server, $mountCmd, 60, $deploymentLocation);
+        $result = $this->execute($server, $mountCmd, 60, $deploymentLocation, false);
 
         if ($result['exitCode'] !== 0) {
             throw new BackupException("Failed to mount Borg archive: {$result['stdout']}");
@@ -229,9 +230,9 @@ final class InstantRecoveryManager
         // Wait for mount to be ready (FUSE needs time to initialize)
         sleep(5);
 
-        // Verify mount
+        // Verify mount (no sudo - checking user's own mount)
         $checkCmd = "mount | grep '{$mountPoint}'";
-        $result = $this->execute($server, $checkCmd, 10, $deploymentLocation);
+        $result = $this->execute($server, $checkCmd, 10, $deploymentLocation, false);
 
         if ($result['exitCode'] !== 0) {
             throw new BackupException("Borg archive not mounted properly. Mount check output: {$result['stdout']}");
@@ -246,21 +247,21 @@ final class InstantRecoveryManager
      *
      * @return array{pid: int, socket: string|null, connection_string: string}
      */
-    private function startDatabaseInstance(Server $server, string $dbType, string $dataDir, int $port, string $deploymentLocation): array
+    private function startDatabaseInstance(Server $server, string $dbType, string $dataDir, int $port, string $deploymentLocation, string $borgMount): array
     {
         $this->logger->info("Starting {$dbType} instance on port {$port} ({$deploymentLocation})", $server->name);
 
         switch ($dbType) {
             case 'postgresql':
             case 'postgres':
-                return $this->startPostgreSQL($server, $dataDir, $port, $deploymentLocation);
+                return $this->startPostgreSQL($server, $dataDir, $port, $deploymentLocation, $borgMount);
 
             case 'mysql':
             case 'mariadb':
-                return $this->startMySQL($server, $dataDir, $port, $deploymentLocation);
+                return $this->startMySQL($server, $dataDir, $port, $deploymentLocation, $borgMount);
 
             case 'mongodb':
-                return $this->startMongoDB($server, $dataDir, $port, $deploymentLocation);
+                return $this->startMongoDB($server, $dataDir, $port, $deploymentLocation, $borgMount);
 
             default:
                 throw new BackupException("Unsupported database type: {$dbType}");
@@ -268,111 +269,186 @@ final class InstantRecoveryManager
     }
 
     /**
-     * Start PostgreSQL instance in READ-ONLY mode from backup
-     * Uses temporary directories for WAL and temp files
+     * Start PostgreSQL instance in READ-ONLY mode from backup using Docker
+     * Clean, portable, and isolated - no system PostgreSQL installation needed
      */
-    private function startPostgreSQL(Server $server, string $dataDir, int $port, string $deploymentLocation): array
+    private function startPostgreSQL(Server $server, string $dataDir, int $port, string $deploymentLocation, string $borgMount): array
     {
-        $socketDir = "/tmp/phpborg_pg_socket_" . $port;
-        $tempDataDir = "/tmp/phpborg_pg_temp_" . $port;
-
-        // Create socket and temp directories
-        $this->execute($server, "mkdir -p {$socketDir} && chmod 700 {$socketDir} && chown postgres:postgres {$socketDir}", 30, $deploymentLocation);
-        $this->execute($server, "mkdir -p {$tempDataDir} && chmod 700 {$tempDataDir} && chown postgres:postgres {$tempDataDir}", 30, $deploymentLocation);
-
-        // PostgreSQL options for read-only instant recovery:
-        // - default_transaction_read_only: Force read-only transactions
-        // - fsync=off: No need to sync (temp instance)
-        // - full_page_writes=off: No WAL needed
-        // - wal_level=minimal: Minimal WAL
-        // - max_wal_senders=0: No replication
-        // - hot_standby=on: Allow read-only queries
-        $pgOptions = sprintf(
-            "-p %d -k %s -c listen_addresses=localhost " .
-            "-c default_transaction_read_only=on " .
-            "-c fsync=off " .
-            "-c full_page_writes=off " .
-            "-c max_wal_senders=0 " .
-            "-c wal_level=minimal " .
-            "-c archive_mode=off " .
-            "-c temp_file_limit=-1",
-            $port,
-            escapeshellarg($socketDir)
-        );
-
-        // Start PostgreSQL
-        $startCmd = sprintf(
-            "su - postgres -c \"pg_ctl -D %s -o '%s' -l /tmp/pg_instant_%d.log start\"",
-            escapeshellarg($dataDir),
-            $pgOptions,
-            $port
-        );
-
-        $result = $this->execute($server, $startCmd, 60, $deploymentLocation);
-
-        if ($result['exitCode'] !== 0) {
-            $errorMsg = !empty($result['stderr']) ? $result['stderr'] : $result['stdout'];
-            // Try to get logs
-            $logResult = $this->execute($server, "tail -50 /tmp/pg_instant_{$port}.log 2>&1", 10, $deploymentLocation);
-            throw new BackupException("Failed to start PostgreSQL: {$errorMsg}\n\nLogs:\n{$logResult['stdout']}");
+        // Detect PostgreSQL version from datadir path
+        $version = $this->detectPostgreSQLVersion($dataDir);
+        if (!$version) {
+            throw new BackupException("Could not detect PostgreSQL version from datadir: {$dataDir}");
         }
 
-        // Get PID
-        $pidFile = "{$dataDir}/postmaster.pid";
-        $pidResult = $this->execute($server, "head -1 {$pidFile}", 10, $deploymentLocation);
-        $pid = (int)trim($pidResult['stdout']);
+        // Ensure Docker is installed (auto-install if missing in local mode)
+        if ($deploymentLocation === 'local') {
+            $this->ensureDockerInstalled();
+        }
+
+        // Container name with unique ID to avoid conflicts
+        $containerName = "phpborg_instant_pg_" . uniqid();
+
+        $this->logger->info("Starting PostgreSQL {$version} container '{$containerName}' on port {$port}", $server->name);
+
+        // Get UID/GID of datadir owner from FUSE mount
+        $statCmd = sprintf("stat -c '%%u:%%g' %s", escapeshellarg($dataDir));
+        $result = $this->execute($server, $statCmd, 10, $deploymentLocation, false);
+
+        if ($result['exitCode'] !== 0) {
+            throw new BackupException("Failed to get datadir ownership: {$result['stdout']}");
+        }
+
+        $uidGid = trim($result['stdout']);
+        $this->logger->info("Datadir ownership: {$uidGid}", $server->name);
+
+        // Create writable overlay for PostgreSQL runtime files (PID, WAL, etc.)
+        // We can't use read-only datadir directly, need a writable layer
+        $writableDataDir = "/tmp/phpborg_pgdata_" . uniqid();
+        $this->execute($server, "mkdir -p {$writableDataDir}", 10, $deploymentLocation, false);
+
+        // Copy datadir structure (small, just metadata)
+        $copyCmd = sprintf("cp -r %s/. %s/", escapeshellarg($dataDir), $writableDataDir);
+        $result = $this->execute($server, $copyCmd, 300, $deploymentLocation, false);
+
+        if ($result['exitCode'] !== 0) {
+            throw new BackupException("Failed to copy datadir structure: {$result['stdout']}");
+        }
+
+        // Adjust permissions for postgres user (UID from backup)
+        $chownCmd = sprintf("sudo chown -R %s %s", $uidGid, escapeshellarg($writableDataDir));
+        $this->execute($server, $chownCmd, 60, $deploymentLocation, true);
+
+        // Calculate relative path from borg mount to datadir
+        // Example: borgMount=/tmp/borg_mount_XXX, dataDir=/tmp/borg_mount_XXX/phpborg/var/lib/postgresql/12/main
+        // => relativePath=/phpborg/var/lib/postgresql/12/main
+        $relativePath = str_replace($borgMount, '', $dataDir);
+
+        // Docker run command - mount FUSE directly and run as same user as datadir owner
+        // Mount custom config + datadir from FUSE
+        $dockerCmd = sprintf(
+            "docker run -d " .
+            "--name %s " .
+            "--user %s " .
+            "--entrypoint postgres " .
+            "-v %s:/backup:ro " .
+            "-v %s:/etc/postgresql " .
+            "-p 127.0.0.1:%d:5432 " .
+            "postgres:%s " .
+            "-D /backup%s " .
+            "-c config_file=/etc/postgresql/postgresql.conf",
+            escapeshellarg($containerName),
+            $uidGid,
+            escapeshellarg($borgMount),
+            escapeshellarg($configDir),
+            $port,
+            escapeshellarg($version),
+            $relativePath
+        );
+
+        // phpborg user is in docker group, so no sudo needed
+        $this->logger->info("Docker command: {$dockerCmd}", $server->name);
+        $result = $this->execute($server, $dockerCmd, 120, $deploymentLocation, false);
+
+        if ($result['exitCode'] !== 0) {
+            throw new BackupException("Failed to start PostgreSQL container: {$result['stdout']}");
+        }
+
+        $containerId = trim($result['stdout']);
+        $this->logger->info("Docker run returned container ID: {$containerId}", $server->name);
+
+        // Wait for PostgreSQL to be ready
+        $this->logger->info("Waiting for PostgreSQL to be ready...", $server->name);
+        sleep(5);
+
+        // Verify container is still running (no sudo needed)
+        $checkCmd = "docker ps --filter id={$containerId} --format '{{.ID}}'";
+        $result = $this->execute($server, $checkCmd, 10, $deploymentLocation, false);
+        $runningId = trim($result['stdout']);
+
+        if (empty($runningId)) {
+            // Container stopped - get logs before it's removed by --rm
+            $logsCmd = "docker logs {$containerId} 2>&1";
+            $logsResult = $this->execute($server, $logsCmd, 10, $deploymentLocation, false);
+            throw new BackupException("PostgreSQL container failed to start. Logs:\n{$logsResult['stdout']}");
+        }
+
+        $this->logger->info("PostgreSQL container started successfully (ID: {$containerId})", $server->name);
 
         // Build connection string based on deployment location
-        $host = ($deploymentLocation === 'local') ? 'localhost' : $server->hostname;
-        $connectionString = "postgresql://{$host}:{$port}/postgres?options=-c%20default_transaction_read_only=on";
+        $host = ($deploymentLocation === 'local') ? '127.0.0.1' : $server->hostname;
+        $connectionString = "postgresql://{$host}:{$port}/postgres";
 
         return [
-            'pid' => $pid,
-            'socket' => $socketDir,
+            'pid' => 0, // No PID needed - Docker manages it
+            'socket' => null, // TCP connection only
             'connection_string' => $connectionString,
+            'container_id' => $containerId,
+            'container_name' => $containerName,
         ];
     }
 
     /**
      * Start MySQL instance
      */
-    private function startMySQL(Server $server, string $dataDir, int $port, string $deploymentLocation): array
+    private function startMySQL(Server $server, string $dataDir, int $port, string $deploymentLocation, string $borgMount): array
     {
-        // TODO: Implement MySQL instant recovery
+        // TODO: Implement MySQL instant recovery with Docker
         throw new BackupException("MySQL instant recovery not yet implemented");
     }
 
     /**
      * Start MongoDB instance
      */
-    private function startMongoDB(Server $server, string $dataDir, int $port, string $deploymentLocation): array
+    private function startMongoDB(Server $server, string $dataDir, int $port, string $deploymentLocation, string $borgMount): array
     {
-        // TODO: Implement MongoDB instant recovery
+        // TODO: Implement MongoDB instant recovery with Docker
         throw new BackupException("MongoDB instant recovery not yet implemented");
     }
 
     /**
-     * Stop database instance
+     * Stop database instance (Docker container)
      */
-    private function stopDatabaseInstance(Server $server, string $dbType, int $pid, string $dataDir, string $deploymentLocation): void
+    private function stopDatabaseInstance(Server $server, string $dbType, int $pid, string $deploymentLocation): void
     {
-        $this->logger->info("Stopping {$dbType} instance (PID: {$pid}) ({$deploymentLocation})", $server->name);
+        $this->logger->info("Stopping {$dbType} instance ({$deploymentLocation})", $server->name);
+
+        // For Docker-based instances, we stop by container name pattern
+        // Format: phpborg_instant_pg_{port} or phpborg_instant_mysql_{port}
 
         switch ($dbType) {
             case 'postgresql':
             case 'postgres':
-                // Graceful shutdown
-                $this->execute(
-                    $server,
-                    "su - postgres -c \"pg_ctl -D {$dataDir} stop -m fast\"",
-                    30,
-                    $deploymentLocation
-                );
+                // Stop all PostgreSQL Docker containers matching our pattern
+                $listCmd = "docker ps -a --filter name=phpborg_instant_pg_ --format '{{.Names}}'";
+                $result = $this->execute($server, $listCmd, 10, $deploymentLocation, false);
+                $containers = array_filter(explode("\n", trim($result['stdout'])));
+
+                foreach ($containers as $containerName) {
+                    $this->logger->info("Stopping Docker container: {$containerName}", $server->name);
+                    // phpborg is in docker group, no sudo needed
+                    $this->execute($server, "docker stop {$containerName} 2>/dev/null || true", 30, $deploymentLocation, false);
+                }
+                break;
+
+            case 'mysql':
+            case 'mariadb':
+                // Stop MySQL Docker containers
+                $listCmd = "docker ps -a --filter name=phpborg_instant_mysql_ --format '{{.Names}}'";
+                $result = $this->execute($server, $listCmd, 10, $deploymentLocation, false);
+                $containers = array_filter(explode("\n", trim($result['stdout'])));
+
+                foreach ($containers as $containerName) {
+                    $this->logger->info("Stopping Docker container: {$containerName}", $server->name);
+                    // phpborg is in docker group, no sudo needed
+                    $this->execute($server, "docker stop {$containerName} 2>/dev/null || true", 30, $deploymentLocation, false);
+                }
                 break;
 
             default:
-                // Fallback: kill process
-                $this->execute($server, "kill {$pid} 2>/dev/null || true", 10, $deploymentLocation);
+                // Fallback: kill process if PID exists
+                if ($pid) {
+                    $this->execute($server, "kill {$pid} 2>/dev/null || true", 10, $deploymentLocation);
+                }
                 break;
         }
     }
@@ -382,8 +458,10 @@ final class InstantRecoveryManager
      */
     private function unmountBorgArchive(Server $server, string $mountPoint, string $deploymentLocation): void
     {
-        $this->execute($server, "borg umount {$mountPoint} 2>/dev/null || true", 30, $deploymentLocation);
-        $this->execute($server, "umount -f {$mountPoint} 2>/dev/null || true", 30, $deploymentLocation);
+        // FUSE umount must be done by the user who mounted it (no sudo)
+        $this->execute($server, "borg umount {$mountPoint} 2>/dev/null || true", 30, $deploymentLocation, false);
+        // Fallback fusermount if borg umount fails (also no sudo)
+        $this->execute($server, "fusermount -u {$mountPoint} 2>/dev/null || true", 30, $deploymentLocation, false);
     }
 
     /**
@@ -423,36 +501,222 @@ final class InstantRecoveryManager
     /**
      * Find actual data directory in mounted backup
      * Searches for PostgreSQL/MySQL/MongoDB data directories dynamically
+     * Uses multiple detection strategies for robustness
      */
     private function findDataDirectoryInMount(Server $server, string $dbType, string $borgMount, string $deploymentLocation): ?string
     {
+        $this->logger->info("Searching for {$dbType} datadir in mount: {$borgMount}", $server->name);
+
+        // First, verify mount is accessible and list contents
+        $lsCmd = "ls -la " . escapeshellarg($borgMount);
+        $lsResult = $this->execute($server, $lsCmd, 10, $deploymentLocation, false);
+        $this->logger->info("Mount listing (exit: {$lsResult['exitCode']}): {$lsResult['stdout']}", $server->name);
+
+        if ($lsResult['exitCode'] !== 0 || empty(trim($lsResult['stdout']))) {
+            $this->logger->error("Mount appears empty or inaccessible", $server->name);
+            return null;
+        }
+
         switch ($dbType) {
             case 'postgresql':
             case 'postgres':
-                // Try common paths: /var/lib/postgresql/*/main, /phpborg/var/lib/postgresql/*/main
-                $findCmd = "find {$borgMount} -type d -path '*/var/lib/postgresql/*/main' 2>/dev/null | head -1";
-                // Don't use sudo for find - FUSE mounts are user-specific
-                $result = $this->execute($server, $findCmd, 30, $deploymentLocation, false);
-                $path = trim($result['stdout']);
-                return !empty($path) ? $path : null;
+                return $this->findPostgreSQLDataDir($server, $borgMount, $deploymentLocation);
 
             case 'mysql':
             case 'mariadb':
-                // Try: /var/lib/mysql, /phpborg/var/lib/mysql
-                $findCmd = "find {$borgMount} -type d -path '*/var/lib/mysql' 2>/dev/null | head -1";
-                $result = $this->execute($server, $findCmd, 30, $deploymentLocation, false);
-                $path = trim($result['stdout']);
-                return !empty($path) ? $path : null;
+                return $this->findMySQLDataDir($server, $borgMount, $deploymentLocation);
 
             case 'mongodb':
-                // Try: /var/lib/mongodb, /phpborg/var/lib/mongodb
-                $findCmd = "find {$borgMount} -type d -path '*/var/lib/mongodb' 2>/dev/null | head -1";
-                $result = $this->execute($server, $findCmd, 30, $deploymentLocation, false);
-                $path = trim($result['stdout']);
-                return !empty($path) ? $path : null;
+                return $this->findMongoDBDataDir($server, $borgMount, $deploymentLocation);
 
             default:
                 return null;
         }
+    }
+
+    /**
+     * Find PostgreSQL data directory using multiple strategies
+     */
+    private function findPostgreSQLDataDir(Server $server, string $borgMount, string $deploymentLocation): ?string
+    {
+        // Strategy 1: Try common direct paths
+        $commonPaths = [
+            '/var/lib/postgresql/12/main',
+            '/var/lib/postgresql/13/main',
+            '/var/lib/postgresql/14/main',
+            '/var/lib/postgresql/15/main',
+            '/var/lib/postgresql/16/main',
+            '/var/lib/postgresql/11/main',
+            '/var/lib/postgresql/10/main',
+        ];
+
+        foreach ($commonPaths as $relativePath) {
+            $fullPath = $borgMount . $relativePath;
+            $testCmd = "test -d " . escapeshellarg($fullPath) . " && echo 'EXISTS'";
+            $result = $this->execute($server, $testCmd, 10, $deploymentLocation, false);
+
+            if (trim($result['stdout']) === 'EXISTS') {
+                $this->logger->info("Found PostgreSQL datadir (direct path): {$fullPath}", $server->name);
+                return $fullPath;
+            }
+        }
+
+        // Strategy 2: Use find with escaped mount path
+        $findCmd = sprintf(
+            "find %s -type d -name 'main' -path '*/postgresql/*' 2>/dev/null | head -1",
+            escapeshellarg($borgMount)
+        );
+        $this->logger->info("Trying find command: {$findCmd}", $server->name);
+        $result = $this->execute($server, $findCmd, 30, $deploymentLocation, false);
+        $path = trim($result['stdout']);
+
+        if (!empty($path)) {
+            $this->logger->info("Found PostgreSQL datadir (find): {$path}", $server->name);
+            return $path;
+        }
+
+        // Strategy 3: List var/lib/postgresql and find version directories
+        $lsCmd = "ls " . escapeshellarg($borgMount . '/var/lib/postgresql') . " 2>/dev/null";
+        $lsResult = $this->execute($server, $lsCmd, 10, $deploymentLocation, false);
+        $this->logger->info("PostgreSQL versions found: {$lsResult['stdout']}", $server->name);
+
+        if ($lsResult['exitCode'] === 0 && !empty(trim($lsResult['stdout']))) {
+            $versions = array_filter(explode("\n", trim($lsResult['stdout'])));
+            foreach ($versions as $version) {
+                $version = trim($version);
+                if (is_numeric($version)) {
+                    $mainPath = $borgMount . "/var/lib/postgresql/{$version}/main";
+                    $testCmd = "test -d " . escapeshellarg($mainPath) . " && echo 'EXISTS'";
+                    $testResult = $this->execute($server, $testCmd, 10, $deploymentLocation, false);
+
+                    if (trim($testResult['stdout']) === 'EXISTS') {
+                        $this->logger->info("Found PostgreSQL datadir (ls strategy): {$mainPath}", $server->name);
+                        return $mainPath;
+                    }
+                }
+            }
+        }
+
+        $this->logger->error("Could not find PostgreSQL datadir after trying all strategies", $server->name);
+        return null;
+    }
+
+    /**
+     * Find MySQL data directory
+     */
+    private function findMySQLDataDir(Server $server, string $borgMount, string $deploymentLocation): ?string
+    {
+        // Try common path first
+        $commonPath = $borgMount . '/var/lib/mysql';
+        $testCmd = "test -d " . escapeshellarg($commonPath) . " && echo 'EXISTS'";
+        $result = $this->execute($server, $testCmd, 10, $deploymentLocation, false);
+
+        if (trim($result['stdout']) === 'EXISTS') {
+            $this->logger->info("Found MySQL datadir: {$commonPath}", $server->name);
+            return $commonPath;
+        }
+
+        // Fallback: find
+        $findCmd = sprintf(
+            "find %s -type d -name 'mysql' -path '*/var/lib/*' 2>/dev/null | head -1",
+            escapeshellarg($borgMount)
+        );
+        $result = $this->execute($server, $findCmd, 30, $deploymentLocation, false);
+        $path = trim($result['stdout']);
+
+        if (!empty($path)) {
+            $this->logger->info("Found MySQL datadir (find): {$path}", $server->name);
+            return $path;
+        }
+
+        return null;
+    }
+
+    /**
+     * Find MongoDB data directory
+     */
+    private function findMongoDBDataDir(Server $server, string $borgMount, string $deploymentLocation): ?string
+    {
+        // Try common path first
+        $commonPath = $borgMount . '/var/lib/mongodb';
+        $testCmd = "test -d " . escapeshellarg($commonPath) . " && echo 'EXISTS'";
+        $result = $this->execute($server, $testCmd, 10, $deploymentLocation, false);
+
+        if (trim($result['stdout']) === 'EXISTS') {
+            $this->logger->info("Found MongoDB datadir: {$commonPath}", $server->name);
+            return $commonPath;
+        }
+
+        // Fallback: find
+        $findCmd = sprintf(
+            "find %s -type d -name 'mongodb' -path '*/var/lib/*' 2>/dev/null | head -1",
+            escapeshellarg($borgMount)
+        );
+        $result = $this->execute($server, $findCmd, 30, $deploymentLocation, false);
+        $path = trim($result['stdout']);
+
+        if (!empty($path)) {
+            $this->logger->info("Found MongoDB datadir (find): {$path}", $server->name);
+            return $path;
+        }
+
+        return null;
+    }
+
+    /**
+     * Detect PostgreSQL version from datadir path
+     * Example: /var/lib/postgresql/12/main -> 12
+     */
+    private function detectPostgreSQLVersion(string $dataDir): ?string
+    {
+        if (preg_match('#/postgresql/(\d+)/#', $dataDir, $matches)) {
+            return $matches[1];
+        }
+        return null;
+    }
+
+    /**
+     * Ensure Docker is installed on backup server (local mode only)
+     * Auto-installs docker.io package if missing
+     * Adds phpborg user to docker group for non-root access
+     */
+    private function ensureDockerInstalled(): void
+    {
+        $this->logger->info("Checking if Docker is installed locally");
+
+        // Check if Docker is installed (check exit code, not stdout content)
+        $checkCmd = "docker --version 2>/dev/null";
+        $result = $this->execute(null, $checkCmd, 10, 'local', false);
+
+        if ($result['exitCode'] === 0) {
+            $this->logger->info("Docker already installed: " . trim($result['stdout']));
+            // Ensure phpborg is in docker group
+            $this->execute(null, "usermod -aG docker phpborg 2>/dev/null || true", 10, 'local', true);
+            return;
+        }
+
+        $this->logger->info("Docker not found, installing docker.io package...");
+
+        // Step 1: Update package list
+        $this->execute(null, "apt-get update -qq", 120, 'local', true);
+
+        // Step 2: Install Docker (non-interactive)
+        $this->logger->info("Installing docker.io... (this may take a few minutes)");
+        $installCmd = "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq docker.io";
+        $installResult = $this->execute(null, $installCmd, 600, 'local', true);
+
+        if ($installResult['exitCode'] !== 0) {
+            throw new BackupException("Failed to install Docker: {$installResult['stdout']}");
+        }
+
+        // Step 3: Start Docker service
+        $this->execute(null, "systemctl start docker", 30, 'local', true);
+        $this->execute(null, "systemctl enable docker", 30, 'local', true);
+
+        // Step 4: Add phpborg user to docker group (allows non-root docker commands)
+        $this->execute(null, "usermod -aG docker phpborg", 10, 'local', true);
+
+        $this->logger->info("Docker installed successfully");
+        $this->logger->info("NOTE: phpborg user added to docker group - worker restart may be required");
     }
 }

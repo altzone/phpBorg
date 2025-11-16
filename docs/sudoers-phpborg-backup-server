@@ -40,7 +40,26 @@ phpborg ALL=(ALL) NOPASSWD: /usr/bin/umount /tmp/phpborg_instant_recovery/*
 phpborg ALL=(ALL) NOPASSWD: /usr/bin/umount -f /tmp/phpborg_instant_recovery/*
 
 # ========================================================================
-# PostgreSQL Instance Management (Local)
+# Docker Instance Management (PostgreSQL/MySQL/MongoDB via Docker)
+# ========================================================================
+
+# Allow Docker commands for instant recovery containers
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker run *
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker ps *
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker stop phpborg_instant_*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker rm phpborg_instant_*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker logs phpborg_instant_*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker exec phpborg_instant_* *
+
+# Allow Docker installation and setup
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/apt-get update *
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/apt-get install *docker*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/systemctl start docker
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable docker
+phpborg ALL=(ALL) NOPASSWD: /usr/sbin/usermod -aG docker phpborg
+
+# ========================================================================
+# PostgreSQL Instance Management (Legacy - for backward compatibility)
 # ========================================================================
 
 # Allow creating PostgreSQL socket directories with proper ownership

@@ -75,7 +75,7 @@ final class InstantRecoverySessionRepository
     }
 
     /**
-     * Create new instant recovery session
+     * Create new instant recovery session (Docker-based)
      */
     public function create(
         int $archiveId,
@@ -83,31 +83,35 @@ final class InstantRecoverySessionRepository
         string $dbType,
         string $deploymentLocation,
         string $borgMountPoint,
-        string $overlayUpperDir,
-        string $overlayWorkDir,
-        string $overlayMergedDir,
         int $dbPort
     ): int {
         $this->connection->executeUpdate(
             'INSERT INTO instant_recovery_sessions
-             (archive_id, server_id, db_type, deployment_location, borg_mount_point, overlay_upper_dir,
-              overlay_work_dir, overlay_merged_dir, db_port, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+             (archive_id, server_id, db_type, deployment_location, borg_mount_point, db_port, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?)',
             [
                 $archiveId,
                 $serverId,
                 $dbType,
                 $deploymentLocation,
                 $borgMountPoint,
-                $overlayUpperDir,
-                $overlayWorkDir,
-                $overlayMergedDir,
                 $dbPort,
                 'starting'
             ]
         );
 
         return $this->connection->getLastInsertId();
+    }
+
+    /**
+     * Update temp data directory path
+     */
+    public function updateTempDataDir(int $id, string $tempDataDir): void
+    {
+        $this->connection->executeUpdate(
+            'UPDATE instant_recovery_sessions SET temp_data_dir = ? WHERE id = ?',
+            [$tempDataDir, $id]
+        );
     }
 
     /**

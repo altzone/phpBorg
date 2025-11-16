@@ -8,7 +8,7 @@ use DateTime;
 
 /**
  * Instant Recovery Session entity
- * Represents an active database instance mounted from a backup
+ * Represents an active database instance mounted from a backup (Docker-based)
  */
 final readonly class InstantRecoverySession
 {
@@ -20,9 +20,7 @@ final readonly class InstantRecoverySession
         public string $deploymentLocation, // 'remote' or 'local'
         public string $status,
         public string $borgMountPoint,
-        public string $overlayUpperDir,
-        public string $overlayWorkDir,
-        public string $overlayMergedDir,
+        public ?string $tempDataDir,
         public int $dbPort,
         public ?int $dbPid,
         public ?string $dbSocket,
@@ -49,9 +47,7 @@ final readonly class InstantRecoverySession
             deploymentLocation: (string)($row['deployment_location'] ?? 'remote'),
             status: (string)$row['status'],
             borgMountPoint: (string)$row['borg_mount_point'],
-            overlayUpperDir: (string)$row['overlay_upper_dir'],
-            overlayWorkDir: (string)$row['overlay_work_dir'],
-            overlayMergedDir: (string)$row['overlay_merged_dir'],
+            tempDataDir: $row['temp_data_dir'] ?? null,
             dbPort: (int)$row['db_port'],
             dbPid: isset($row['db_pid']) ? (int)$row['db_pid'] : null,
             dbSocket: $row['db_socket'] ?? null,
@@ -78,9 +74,6 @@ final readonly class InstantRecoverySession
             'deployment_location' => $this->deploymentLocation,
             'status' => $this->status,
             'borg_mount_point' => $this->borgMountPoint,
-            'overlay_upper_dir' => $this->overlayUpperDir,
-            'overlay_work_dir' => $this->overlayWorkDir,
-            'overlay_merged_dir' => $this->overlayMergedDir,
             'db_port' => $this->dbPort,
             'db_pid' => $this->dbPid,
             'db_socket' => $this->dbSocket,
