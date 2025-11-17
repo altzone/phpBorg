@@ -93,6 +93,95 @@ phpBorg est un système de backup d'entreprise moderne comparable à Veeam/Acron
 - **Sécurité** : Admin only (ROLE_ADMIN required)
 - **Sudoers** : `/etc/sudoers.d/phpborg-workers` - NOPASSWD pour systemctl/journalctl
 
+### ✅ 🔥 INSTANT RECOVERY - KILLER FEATURE (PostgreSQL)
+**Architecture Zero-Copy comparable à Veeam/Nakivo** : Accès instantané en lecture seule aux bases de données sauvegardées sans restauration ni copie de données !
+
+#### Architecture Technique (HACK ULTIME++)
+```
+Borg FUSE mount (sudo, allow_other)
+  ↓ Archive monté en read-only, root-owned
+fuse-overlayfs (sudo)
+  ↓ Layer RW pour configs PostgreSQL (tmpfs)
+chown -R 999:999
+  ↓ Changement ownership récursif de TOUS les fichiers
+Docker PostgreSQL --user 999:999
+  ↓ Container avec version exacte du backup
+PostgreSQL read-only mode
+  ✅ Accès instantané sans copier les données !
+```
+
+#### Composants
+- **Manager** : `/src/Service/InstantRecovery/InstantRecoveryManager.php`
+- **Handlers** :
+  - `InstantRecoveryStartHandler` - Démarrage session via job queue
+  - `InstantRecoveryStopHandler` - Arrêt et cleanup session
+- **API Controller** : `InstantRecoveryController`
+  - `POST /api/instant-recovery/start` - Démarre session (retourne job_id)
+  - `POST /api/instant-recovery/stop` - Arrête session
+- **Frontend** : Modal dans Restore Wizard avec mode Local/Remote
+- **Database** : Table `instant_recovery_sessions` pour tracking
+- **Sudoers** : `/etc/sudoers.d/phpborg-backup-server` - Permissions étendues
+
+#### Découvertes Techniques Critiques
+- ❌ **Borg mount `uid=999,gid=999` NE MARCHE PAS** (Borg ignore ces options)
+- ✅ **Borg mount DOIT être en sudo** pour que `allow_other` fonctionne
+- ✅ **fuse-overlayfs DOIT être en sudo** pour accéder au Borg mount root-owned
+- ✅ **chown -R est CRITIQUE** pour changer TOUS les fichiers (pas juste le répertoire)
+- ✅ Toutes les commandes d'accès au Borg mount (ls, find, test) nécessitent sudo
+
+#### Permissions Sudoers Requises
+```bash
+# Borg mount (MUST be sudo for allow_other)
+phpborg ALL=(ALL) NOPASSWD: /bin/sh -c * borg mount * /tmp/phpborg_instant_recovery/*
+
+# fuse-overlayfs (MUST be sudo to access root-owned Borg mount)
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/fuse-overlayfs * /tmp/phpborg_overlay_*
+
+# File access on root-owned Borg mount
+phpborg ALL=(ALL) NOPASSWD: /bin/ls * /tmp/phpborg_instant_recovery/*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/find /tmp/phpborg_instant_recovery/* *
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/test * /tmp/phpborg_instant_recovery/*
+
+# Recursive ownership change (CRITICAL!)
+phpborg ALL=(ALL) NOPASSWD: /bin/chown * /tmp/phpborg_overlay_*
+phpborg ALL=(ALL) NOPASSWD: /bin/chmod * /tmp/phpborg_overlay_*
+```
+
+#### Workflow Complet
+1. User clique "⚡ Instant Recovery" depuis Backup → Restore
+2. Modal : Sélection Local (serveur backup) ou Remote (serveur source)
+3. Frontend → `POST /api/instant-recovery/start` → Job queue (HTTP 202)
+4. Worker phpborg → `InstantRecoveryStartHandler`
+5. **Mount Borg archive** (sudo, allow_other) → `/tmp/phpborg_instant_recovery/borg_mount_*`
+6. **Détection datadir** PostgreSQL (find, test) → Ex: `.../var/lib/postgresql/12/main`
+7. **Mount fuse-overlayfs** (sudo) → Overlay RW sur Borg RO
+8. **Création configs** PostgreSQL (postgresql.conf, pg_hba.conf, pg_ident.conf)
+9. **chown -R 999:999** (sudo) → Tous les fichiers accessibles par Docker
+10. **Docker run** postgres:12 --user 999:999 --net=host -p 15432 (read-only mode)
+11. Session active → PostgreSQL accessible sur `127.0.0.1:15432`
+
+#### Avantages
+- ✅ **Zero-copy** : Pas de duplication, fonctionne avec des TB de données
+- ✅ **Instantané** : Mount et query en quelques secondes
+- ✅ **Sécurisé** : Mode read-only empêche toute modification
+- ✅ **Flexible** : N'importe quelle version PostgreSQL via Docker
+- ✅ **Professionnel** : Niveau entreprise (Veeam, Nakivo, Acronis)
+
+#### Cas d'Usage
+- 🔍 Query de données historiques sans impacter la production
+- 🧪 Tests et développement sur données réelles
+- 🚨 Accès d'urgence aux données pendant une panne
+- 📊 Rapports et analyses sur backups anciens
+- ✅ Validation de backups (vérifier que les données sont intactes)
+
+#### Prochaines Étapes (TODO)
+- [ ] Frontend: Polling job status + affichage connection info
+- [ ] Frontend: Bouton one-click phpPgAdmin/Adminer
+- [ ] MySQL/MariaDB instant recovery
+- [ ] MongoDB instant recovery
+- [ ] Liste sessions actives + management (stop, cleanup)
+- [ ] Mode Remote deployment (instant recovery sur serveur source)
+
 ## 🔧 Configuration
 
 ### Base de données
