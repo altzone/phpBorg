@@ -511,11 +511,43 @@ final class InstantRecoveryManager
 
         $this->logger->info("Starting {$image} container '{$containerName}' on port {$port}", $server->name);
 
+        // Create fuse-overlayfs for RW layer (same as PostgreSQL)
+        // Architecture: Borg FUSE (read-only) → fuse-overlayfs (RW layer) → Docker
+        $overlayBase = "/tmp/phpborg_overlay_mysql_" . uniqid();
+        $lowerDir = $dataDir;  // Borg mount
+        $upperDir = "{$overlayBase}/upper";
+        $workDir = "{$overlayBase}/work";
+        $mergedDir = "{$overlayBase}/merged";
+
+        $this->logger->info("Creating fuse-overlayfs (RW layer) on Borg mount", $server->name);
+
+        // Create overlay directories
+        $this->execute($server, "mkdir -p {$upperDir} {$workDir} {$mergedDir}", 10, $deploymentLocation, false);
+
+        // Mount fuse-overlayfs (WITH sudo)
+        $fuseOverlayCmd = sprintf(
+            "fuse-overlayfs -o lowerdir=%s -o upperdir=%s -o workdir=%s %s",
+            escapeshellarg($lowerDir),
+            escapeshellarg($upperDir),
+            escapeshellarg($workDir),
+            escapeshellarg($mergedDir)
+        );
+        $this->logger->info("fuse-overlayfs command: {$fuseOverlayCmd}", $server->name);
+        $result = $this->execute($server, $fuseOverlayCmd, 30, $deploymentLocation, true);
+
+        if ($result['exitCode'] !== 0) {
+            $error = !empty($result['stderr']) ? $result['stderr'] : $result['stdout'];
+            throw new BackupException("Failed to create fuse-overlayfs: {$error}");
+        }
+
+        $this->logger->info("✓ fuse-overlayfs created: {$mergedDir}", $server->name);
+
+        // Change ownership to mysql user (999:999) for Docker container
+        $this->execute($server, "chown -R 999:999 {$mergedDir}", 10, $deploymentLocation, true);
+        $this->execute($server, "chmod 0755 {$mergedDir}", 10, $deploymentLocation, true);
+
         // MySQL/MariaDB read-only configuration
         // CRITICAL: Bypass entrypoint script by calling mysqld directly
-        // The entrypoint checks for initialization and requires password env vars
-        // We want to use EXISTING datadir, not initialize a new one
-        // Mount as rw because MySQL needs to write temp files, but InnoDB will be read-only
         $dockerCmd = sprintf(
             "docker run -d " .
             "--name %s " .
@@ -532,7 +564,7 @@ final class InstantRecoveryManager
             "--skip-log-bin " .
             "--bind-address=0.0.0.0",
             escapeshellarg($containerName),
-            escapeshellarg($dataDir),
+            escapeshellarg($mergedDir),  // Use merged dir instead of dataDir
             escapeshellarg($image),
             $port
         );
