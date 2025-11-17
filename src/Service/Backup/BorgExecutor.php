@@ -121,6 +121,180 @@ final class BorgExecutor
     }
 
     /**
+     * Create a backup archive with real-time progress updates
+     *
+     * @param array<int, string> $paths
+     * @param array<int, string> $excludePatterns
+     * @param callable|null $progressCallback Callback function(int $percent, string $message): void
+     * @return array{stdout: string, stderr: string, exitCode: int}
+     * @throws BackupException
+     */
+    public function createArchiveWithProgress(
+        string $repository,
+        string $archiveName,
+        array $paths,
+        string $passphrase,
+        string $compression = 'lz4',
+        array $excludePatterns = [],
+        int $rateLimit = 0,
+        ?callable $progressCallback = null
+    ): array {
+        $arguments = [
+            'create',
+            '--stats',
+            '--json',
+            '--progress',  // Enable real-time progress
+            '--compression', $compression,
+        ];
+
+        if ($rateLimit > 0) {
+            $arguments[] = '--remote-ratelimit';
+            $arguments[] = (string)$rateLimit;
+        }
+
+        foreach ($excludePatterns as $pattern) {
+            $arguments[] = '--exclude';
+            $arguments[] = $pattern;
+        }
+
+        $arguments[] = "{$repository}::{$archiveName}";
+        $arguments = array_merge($arguments, $paths);
+
+        // Execute with streaming progress
+        return $this->executeWithProgress($arguments, $passphrase, 7200, $progressCallback);
+    }
+
+    /**
+     * Execute borg command with progress streaming
+     *
+     * @param array<int, string> $arguments
+     * @param callable|null $progressCallback
+     * @return array{stdout: string, stderr: string, exitCode: int}
+     * @throws BackupException
+     */
+    private function executeWithProgress(array $arguments, string $passphrase, int $timeout, ?callable $progressCallback): array
+    {
+        $command = array_merge([$this->config->borgBinaryPath], $arguments);
+
+        $env = [
+            'BORG_PASSPHRASE' => $passphrase,
+            'BORG_RELOCATED_REPO_ACCESS_IS_OK' => 'yes',
+            'BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK' => 'no',
+        ];
+
+        $process = new Process($command, null, $env, null, $timeout);
+
+        $this->logger->debug('Executing Borg command with progress: ' . $process->getCommandLine(), 'BORG');
+
+        $stdout = '';
+        $stderr = '';
+        $lastProgressTime = 0;
+
+        try {
+            $process->start();
+
+            // Stream output in real-time
+            while ($process->isRunning()) {
+                // Borg outputs progress JSON to stderr
+                $newStderr = $process->getIncrementalErrorOutput();
+                if (!empty($newStderr)) {
+                    $stderr .= $newStderr;
+
+                    // Parse progress JSON (throttle to max 1 update per second)
+                    if ($progressCallback && (time() - $lastProgressTime) >= 1) {
+                        $this->parseProgressAndCallback($newStderr, $progressCallback);
+                        $lastProgressTime = time();
+                    }
+                }
+
+                // Collect stdout
+                $stdout .= $process->getIncrementalOutput();
+
+                usleep(100000); // Sleep 100ms between checks
+            }
+
+            // Get final output
+            $stdout .= $process->getOutput();
+            $stderr .= $process->getErrorOutput();
+
+        } catch (ProcessFailedException $e) {
+            $this->logger->error(
+                'Borg command failed: ' . $e->getMessage(),
+                'BORG',
+                ['command' => $arguments[0] ?? 'unknown']
+            );
+            throw new BackupException('Borg command failed: ' . $e->getMessage(), 0, $e);
+        }
+
+        return [
+            'stdout' => $stdout,
+            'stderr' => $stderr,
+            'exitCode' => $process->getExitCode() ?? 1,
+        ];
+    }
+
+    /**
+     * Parse progress JSON from Borg and call callback
+     */
+    private function parseProgressAndCallback(string $output, callable $callback): void
+    {
+        // Borg outputs JSON lines for progress
+        $lines = explode("\n", $output);
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line)) {
+                continue;
+            }
+
+            $data = json_decode($line, true);
+            if (!is_array($data) || !isset($data['type'])) {
+                continue;
+            }
+
+            // Handle archive_progress messages
+            if ($data['type'] === 'archive_progress') {
+                $originalSize = $data['original_size'] ?? 0;
+                $nfiles = $data['nfiles'] ?? 0;
+                $path = $data['path'] ?? '';
+
+                // Calculate rough progress based on file count
+                // (Borg doesn't give us total files, so we use heuristics)
+                // We'll just update the UI with current stats
+                $message = sprintf(
+                    "Processing: %s (%d files, %s)",
+                    basename($path),
+                    $nfiles,
+                    $this->formatBytes($originalSize)
+                );
+
+                // Call callback with progress info (we can't calculate exact %, so use file count as indicator)
+                $callback(0, $message); // Progress percentage unknown
+            }
+            // Handle progress_percent messages (if Borg adds them in future)
+            elseif ($data['type'] === 'progress_percent') {
+                $percent = (int)($data['current'] ?? 0);
+                $message = $data['message'] ?? 'Processing...';
+                $callback($percent, $message);
+            }
+        }
+    }
+
+    /**
+     * Format bytes to human-readable size
+     */
+    private function formatBytes(int $bytes): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        $i = 0;
+        while ($bytes >= 1024 && $i < count($units) - 1) {
+            $bytes /= 1024;
+            $i++;
+        }
+        return round($bytes, 2) . ' ' . $units[$i];
+    }
+
+    /**
      * Get repository info as JSON
      *
      * @return array<string, mixed>
