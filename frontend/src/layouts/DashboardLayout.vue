@@ -269,21 +269,27 @@
         <RouterView />
       </main>
     </div>
+
+    <!-- Instant Recovery Task Bar (Global) -->
+    <InstantRecoveryTaskBar />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsStore } from '@/stores/settings'
+import { useInstantRecoveryStore } from '@/stores/instantRecovery'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
+import InstantRecoveryTaskBar from '@/components/InstantRecoveryTaskBar.vue'
 
 const { t } = useI18n()
 const router = useRouter()
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
+const instantRecoveryStore = useInstantRecoveryStore()
 const mobileMenuOpen = ref(false)
 
 const appName = computed(() => {
@@ -312,6 +318,14 @@ onMounted(() => {
   if (Object.keys(settingsStore.settings).length === 0) {
     settingsStore.fetchSettings()
   }
+
+  // Start polling instant recovery sessions (every 10 seconds)
+  instantRecoveryStore.startPolling(10000)
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  instantRecoveryStore.stopPolling()
 })
 </script>
 

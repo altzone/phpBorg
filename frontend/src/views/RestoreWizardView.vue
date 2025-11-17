@@ -520,20 +520,78 @@
       </div>
     </div>
   </div>
+
+  <!-- Job Polling Status (only while job is running) -->
+  <div v-if="jobPolling.active" class="fixed bottom-6 right-6 z-50 w-96 max-w-full">
+    <!-- Job Polling Card -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div class="px-5 py-4 bg-gradient-to-r from-blue-500 to-blue-600">
+        <h3 class="text-white font-semibold text-lg flex items-center gap-2">
+          <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          {{ $t('restore_wizard.instant_recovery.job_polling_title') }}
+        </h3>
+      </div>
+      <div class="p-5">
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          {{ $t('restore_wizard.instant_recovery.job_polling_message') }}
+        </p>
+
+        <!-- Job Status -->
+        <div class="flex items-center gap-3 text-sm">
+          <div class="flex-1">
+            <div class="flex items-center gap-2">
+              <div v-if="jobPolling.status === 'pending'" class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+              <div v-else-if="jobPolling.status === 'running'" class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+              <span class="text-gray-700 dark:text-gray-300">
+                <span v-if="jobPolling.status === 'pending'">{{ $t('restore_wizard.instant_recovery.job_starting') }}</span>
+                <span v-else-if="jobPolling.status === 'running'">{{ $t('restore_wizard.instant_recovery.job_running') }}</span>
+              </span>
+            </div>
+          </div>
+          <span class="text-gray-500 dark:text-gray-500 text-xs">Job #{{ jobPolling.jobId }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Card (only on failure) -->
+  <div v-if="jobPolling.error && !jobPolling.active" class="fixed bottom-6 right-6 z-50 w-96 max-w-full">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-red-200 dark:border-red-900 overflow-hidden">
+      <div class="px-5 py-4 bg-gradient-to-r from-red-500 to-red-600">
+        <h3 class="text-white font-semibold text-lg">
+          {{ $t('restore_wizard.instant_recovery.job_failed_title') }}
+        </h3>
+      </div>
+      <div class="p-5">
+        <p class="text-sm text-gray-700 dark:text-gray-300 mb-4">
+          {{ $t('restore_wizard.instant_recovery.job_failed_message', { error: jobPolling.error }) }}
+        </p>
+        <button
+          @click="jobPolling.active = false; jobPolling.error = null"
+          class="btn btn-secondary w-full text-sm"
+        >
+          {{ $t('common.close') }}
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { serverService } from '@/services/server'
 import { repositoryService } from '@/services/repository'
 import { backupService } from '@/services/backups'
 import { instantRecoveryService } from '@/services/instantRecovery'
+import { jobService } from '@/services/jobs'
+import { useInstantRecoveryStore } from '@/stores/instantRecovery'
 import api from '@/services/api'
 
 const router = useRouter()
 const { t } = useI18n()
+const instantRecoveryStore = useInstantRecoveryStore()
 
 const currentStep = ref(1)
 const loading = ref(false)
@@ -557,6 +615,16 @@ const instantRecoveryModal = ref({
   deploymentLocation: 'remote',
   starting: false
 })
+
+// Instant Recovery Job Polling State
+const jobPolling = ref({
+  active: false,
+  jobId: null,
+  status: null,
+  sessionId: null,
+  error: null
+})
+let pollingInterval = null
 
 function showToast(title, message = '', type = 'success', duration = 5000) {
   const id = ++toastIdCounter
@@ -737,6 +805,70 @@ function handleInstantRecovery(archive) {
   instantRecoveryModal.value.show = true
 }
 
+// Poll job status every 2 seconds
+async function pollJobStatus() {
+  try {
+    const job = await jobService.get(jobPolling.value.jobId)
+    jobPolling.value.status = job.status
+
+    if (job.status === 'completed') {
+      // Job succeeded - get session info
+      clearInterval(pollingInterval)
+      pollingInterval = null
+
+      // Extract session_id from job output (handler returns JSON)
+      let sessionId = null
+      if (job.output && typeof job.output === 'string') {
+        try {
+          const parsed = JSON.parse(job.output)
+          sessionId = parsed.session_id
+        } catch (e) {
+          // If not JSON, try to parse plain text "Session ID: X"
+          console.warn('Failed to parse job output as JSON:', e)
+          const match = job.output.match(/Session ID:\s*(\d+)/)
+          if (match) {
+            sessionId = parseInt(match[1])
+          }
+        }
+      }
+
+      if (sessionId) {
+        // Show the global task bar when session starts successfully
+        instantRecoveryStore.showTaskBar()
+        instantRecoveryStore.fetchActiveSessions()
+      } else {
+        console.error('Could not extract session_id from job output:', job.output)
+        jobPolling.value.error = 'Failed to extract session information from job result'
+      }
+
+      jobPolling.value.active = false
+
+    } else if (job.status === 'failed') {
+      // Job failed
+      clearInterval(pollingInterval)
+      pollingInterval = null
+      jobPolling.value.error = job.error_message || t('restore_wizard.instant_recovery.job_failed_message')
+      jobPolling.value.active = false
+    }
+    // If pending or running, keep polling
+
+  } catch (err) {
+    console.error('Polling error:', err)
+  }
+}
+
+// Load session info when job completes
+// Removed: loadSessionInfo, copyConnectionString, openDatabaseManager, stopInstantRecovery
+// These functions are now handled by the global InstantRecoveryTaskBar component
+
+// Cleanup polling on component unmount
+onUnmounted(() => {
+  if (pollingInterval) {
+    clearInterval(pollingInterval)
+    pollingInterval = null
+  }
+})
+
 // Confirm and start Instant Recovery
 async function confirmInstantRecovery() {
   const archive = instantRecoveryModal.value.archive
@@ -751,23 +883,20 @@ async function confirmInstantRecovery() {
     const result = await instantRecoveryService.start(archive.id, deploymentLocation)
 
     instantRecoveryModal.value.show = false
+    instantRecoveryModal.value.starting = false
+    archive.instant_recovery_starting = false
 
-    const locationText = deploymentLocation === 'local'
-      ? t('restore_wizard.instant_recovery.local_title')
-      : t('restore_wizard.instant_recovery.remote_title')
+    // Start job polling
+    jobPolling.value.active = true
+    jobPolling.value.jobId = result.job_id
+    jobPolling.value.status = 'pending'
+    jobPolling.value.sessionId = null
+    jobPolling.value.error = null
 
-    showToast(
-      t('restore_wizard.instant_recovery.success_title'),
-      t('restore_wizard.instant_recovery.job_created_message', {
-        location: locationText,
-        job_id: result.job_id
-      }),
-      'success',
-      10000
-    )
-
-    // Optionally redirect to jobs or instant recovery management view
-    // router.push('/jobs') or router.push('/instant-recovery')
+    // Start polling every 2 seconds
+    pollingInterval = setInterval(pollJobStatus, 2000)
+    // Poll immediately
+    pollJobStatus()
 
   } catch (err) {
     console.error('Failed to start instant recovery:', err)
@@ -777,7 +906,6 @@ async function confirmInstantRecovery() {
       'error',
       8000
     )
-  } finally {
     instantRecoveryModal.value.starting = false
     archive.instant_recovery_starting = false
   }

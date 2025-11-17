@@ -125,7 +125,28 @@ final class Router
             return;
         }
 
-        $controller->$action();
+        // Extract route parameters and convert to typed arguments
+        $routeParams = $_SERVER['ROUTE_PARAMS'] ?? [];
+        $args = [];
+
+        // Get method reflection to check parameter types
+        $reflectionMethod = new \ReflectionMethod($controller, $action);
+        foreach ($reflectionMethod->getParameters() as $param) {
+            $paramName = $param->getName();
+
+            if (isset($routeParams[$paramName])) {
+                $value = $routeParams[$paramName];
+
+                // Cast to int if parameter type is int
+                if ($param->getType() && $param->getType()->getName() === 'int') {
+                    $value = (int) $value;
+                }
+
+                $args[] = $value;
+            }
+        }
+
+        $controller->$action(...$args);
     }
 
     /**

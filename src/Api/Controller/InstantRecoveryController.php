@@ -53,8 +53,46 @@ final class InstantRecoveryController extends BaseController
         try {
             $sessions = $this->sessionRepo->findActive();
 
+            // Enrich each session with server and archive info
+            $enrichedSessions = array_map(function($session) {
+                $sessionData = $session->toArray();
+
+                // Add server info
+                $server = $this->serverRepo->findById($session->serverId);
+                if ($server) {
+                    $sessionData['server_name'] = $server->name;
+                    $sessionData['server_hostname'] = $server->host;
+                }
+
+                // Add archive info
+                $archive = $this->archiveRepo->findById($session->archiveId);
+                if ($archive) {
+                    $sessionData['archive_name'] = $archive->name;
+                    $sessionData['archive_time'] = $archive->start->format('Y-m-d H:i:s');
+                }
+
+                // Calculate connection host
+                $sessionData['connection_host'] = $session->deploymentLocation === 'local'
+                    ? '127.0.0.1'
+                    : ($server->host ?? 'unknown');
+
+                // Add default database connection info
+                if ($session->dbType === 'postgresql') {
+                    $sessionData['db_user'] = 'postgres';
+                    $sessionData['db_name'] = 'postgres';
+                } elseif ($session->dbType === 'mysql' || $session->dbType === 'mariadb') {
+                    $sessionData['db_user'] = 'root';
+                    $sessionData['db_name'] = 'mysql';
+                } elseif ($session->dbType === 'mongodb') {
+                    $sessionData['db_user'] = 'admin';
+                    $sessionData['db_name'] = 'admin';
+                }
+
+                return $sessionData;
+            }, $sessions);
+
             $this->success([
-                'sessions' => array_map(fn($s) => $s->toArray(), $sessions)
+                'sessions' => $enrichedSessions
             ]);
 
         } catch (\Exception $e) {
@@ -76,7 +114,40 @@ final class InstantRecoveryController extends BaseController
                 return;
             }
 
-            $this->success($session->toArray());
+            // Enrich session data with server and archive information
+            $sessionData = $session->toArray();
+
+            // Add server info
+            $server = $this->serverRepo->findById($session->serverId);
+            if ($server) {
+                $sessionData['server_name'] = $server->name;
+                $sessionData['server_hostname'] = $server->host;
+            }
+
+            // Add archive info
+            $archive = $this->archiveRepo->findById($session->archiveId);
+            if ($archive) {
+                $sessionData['archive_name'] = $archive->name;
+            }
+
+            // Calculate connection host (127.0.0.1 for local, server IP for remote)
+            $sessionData['connection_host'] = $session->deploymentLocation === 'local'
+                ? '127.0.0.1'
+                : ($server->host ?? 'unknown');
+
+            // Add default database connection info (TODO: get from database_info table)
+            if ($session->dbType === 'postgresql') {
+                $sessionData['db_user'] = 'postgres';
+                $sessionData['db_name'] = 'postgres';
+            } elseif ($session->dbType === 'mysql' || $session->dbType === 'mariadb') {
+                $sessionData['db_user'] = 'root';
+                $sessionData['db_name'] = 'mysql';
+            } elseif ($session->dbType === 'mongodb') {
+                $sessionData['db_user'] = 'admin';
+                $sessionData['db_name'] = 'admin';
+            }
+
+            $this->success($sessionData);
 
         } catch (\Exception $e) {
             $this->error($e->getMessage(), 500);

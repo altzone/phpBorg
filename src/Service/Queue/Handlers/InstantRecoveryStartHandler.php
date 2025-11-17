@@ -58,7 +58,12 @@ final class InstantRecoveryStartHandler implements JobHandlerInterface
         $message = "Instant recovery started successfully. Session ID: {$session->id}, Port: {$session->dbPort}";
         $this->logger->info($message);
 
-        return $message;
+        // Return JSON result for frontend parsing
+        return json_encode([
+            'session_id' => $session->id,
+            'port' => $session->dbPort,
+            'message' => $message
+        ]);
     }
 
     public function getType(): string

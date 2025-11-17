@@ -136,8 +136,24 @@ phpborg ALL=(ALL) NOPASSWD: /usr/bin/pkill -f phpborg_instant*
 # Cleanup Operations
 # ========================================================================
 
+# Allow unmounting FUSE and overlay mounts (CRITICAL for cleanup!)
+phpborg ALL=(ALL) NOPASSWD: /bin/umount /tmp/phpborg_instant_recovery/*
+phpborg ALL=(ALL) NOPASSWD: /bin/umount /tmp/phpborg_overlay_*
+phpborg ALL=(ALL) NOPASSWD: /bin/umount -l /tmp/phpborg_instant_recovery/*
+phpborg ALL=(ALL) NOPASSWD: /bin/umount -l /tmp/phpborg_overlay_*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/umount /tmp/phpborg_instant_recovery/*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/umount /tmp/phpborg_overlay_*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/umount -l /tmp/phpborg_instant_recovery/*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/umount -l /tmp/phpborg_overlay_*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/fusermount -u /tmp/phpborg_instant_recovery/*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/fusermount -u /tmp/phpborg_overlay_*
+phpborg ALL=(ALL) NOPASSWD: /bin/fusermount -u /tmp/phpborg_instant_recovery/*
+phpborg ALL=(ALL) NOPASSWD: /bin/fusermount -u /tmp/phpborg_overlay_*
+
 # Allow removing temporary instant recovery directories
 phpborg ALL=(ALL) NOPASSWD: /bin/rm -rf /tmp/phpborg_instant_recovery/*
+phpborg ALL=(ALL) NOPASSWD: /bin/rm -rf /tmp/phpborg_overlay_*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/rm -rf /tmp/phpborg_overlay_*
 phpborg ALL=(ALL) NOPASSWD: /bin/chmod * /tmp/phpborg_instant_recovery/*
 phpborg ALL=(ALL) NOPASSWD: /bin/chmod * /tmp/phpborg_pgdata_*
 

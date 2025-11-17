@@ -136,35 +136,67 @@ final class InstantRecoveryManager
 
     /**
      * Stop instant recovery session
+     *
+     * IDEMPOTENT: Tries to cleanup everything. Only marks as stopped if no CRITICAL errors.
+     * - If resources already cleaned (idempotent) → marks as stopped
+     * - If actual errors (docker rm fails, etc.) → throws exception, session stays active
      */
     public function stopRecovery(InstantRecoverySession $session, Server $server): void
     {
         $this->logger->info("Stopping instant recovery session {$session->id}", $server->name);
 
-        try {
-            // Stop database instance
-            if ($session->dbPid) {
-                $this->stopDatabaseInstance($server, $session->dbType, $session->dbPid, $session->deploymentLocation);
-            }
+        $criticalErrors = [];
 
+        // Best effort cleanup - try everything, collect CRITICAL errors
+        try {
+            // Stop database instance (always try, even if dbPid is 0 - Docker containers managed by name)
+            $this->stopDatabaseInstance($server, $session->dbType, $session->dbPid, $session->deploymentLocation);
+        } catch (\Exception $e) {
+            $error = "Failed to stop database instance: {$e->getMessage()}";
+            $this->logger->error($error, $server->name);
+            $criticalErrors[] = $error;
+        }
+
+        try {
             // Unmount Borg
             $this->unmountBorgArchive($server, $session->borgMountPoint, $session->deploymentLocation);
+        } catch (\Exception $e) {
+            $error = "Failed to unmount Borg archive: {$e->getMessage()}";
+            $this->logger->error($error, $server->name);
+            $criticalErrors[] = $error;
+        }
 
-            // Cleanup directories
+        try {
+            // Cleanup directories (never throws - best effort)
+            // NOTE: Don't try to rm the mount point itself - only auxiliary directories
             $this->cleanupDirectories($server, [
-                $session->borgMountPoint,
                 "/tmp/phpborg_pg_socket_" . $session->dbPort,
                 "/tmp/phpborg_pg_temp_" . $session->dbPort
             ], $session->deploymentLocation);
-
-            // Mark as stopped
-            $this->sessionRepo->markStopped($session->id);
-
-            $this->logger->info("Instant recovery session stopped successfully", $server->name);
-
         } catch (\Exception $e) {
-            $this->logger->error("Error stopping instant recovery: {$e->getMessage()}", $server->name);
-            throw new BackupException("Failed to stop instant recovery: {$e->getMessage()}");
+            // Directory cleanup errors are not critical
+            $this->logger->warning("Directory cleanup warnings: {$e->getMessage()}", $server->name);
+        }
+
+        // Cleanup mount point ONLY if unmount succeeded (no critical errors)
+        if (empty($criticalErrors)) {
+            try {
+                $this->cleanupDirectories($server, [$session->borgMountPoint], $session->deploymentLocation);
+            } catch (\Exception $e) {
+                $this->logger->warning("Failed to remove mount point directory: {$e->getMessage()}", $server->name);
+            }
+        }
+
+        // Only mark as stopped if no CRITICAL errors
+        if (empty($criticalErrors)) {
+            $this->sessionRepo->markStopped($session->id);
+            $this->logger->info("Instant recovery session stopped successfully", $server->name);
+        } else {
+            // CRITICAL errors - session stays active, throw exception
+            $errorMsg = "Instant recovery session cleanup failed with critical errors:\n" . implode("\n", $criticalErrors);
+            $this->logger->error($errorMsg, $server->name);
+            $this->logger->error("Session {$session->id} remains ACTIVE - manual cleanup required", $server->name);
+            throw new BackupException($errorMsg);
         }
     }
 
@@ -475,71 +507,192 @@ final class InstantRecoveryManager
     }
 
     /**
-     * Stop database instance (Docker container)
+     * Stop database instance (Docker container) - idempotent
      */
     private function stopDatabaseInstance(Server $server, string $dbType, int $pid, string $deploymentLocation): void
     {
         $this->logger->info("Stopping {$dbType} instance ({$deploymentLocation})", $server->name);
 
-        // For Docker-based instances, we stop by container name pattern
+        // For Docker-based instances, we stop AND REMOVE by container name pattern
         // Format: phpborg_instant_pg_{port} or phpborg_instant_mysql_{port}
 
         switch ($dbType) {
             case 'postgresql':
             case 'postgres':
-                // Stop all PostgreSQL Docker containers matching our pattern
+                // Stop and remove all PostgreSQL Docker containers matching our pattern
                 $listCmd = "docker ps -a --filter name=phpborg_instant_pg_ --format '{{.Names}}'";
                 $result = $this->execute($server, $listCmd, 10, $deploymentLocation, false);
                 $containers = array_filter(explode("\n", trim($result['stdout'])));
 
+                if (empty($containers)) {
+                    $this->logger->info("No PostgreSQL containers found (already stopped)", $server->name);
+                    return;
+                }
+
                 foreach ($containers as $containerName) {
-                    $this->logger->info("Stopping Docker container: {$containerName}", $server->name);
+                    $this->logger->info("Stopping & removing Docker container: {$containerName}", $server->name);
                     // phpborg is in docker group, no sudo needed
-                    $this->execute($server, "docker stop {$containerName} 2>/dev/null || true", 30, $deploymentLocation, false);
+                    $stopResult = $this->execute($server, "docker stop {$containerName}", 30, $deploymentLocation, false);
+                    if ($stopResult['exitCode'] !== 0) {
+                        // Container might already be stopped - check if it's just a "not running" error
+                        $this->logger->warning("docker stop returned {$stopResult['exitCode']} (might already be stopped)", $server->name);
+                    }
+
+                    // Wait a moment for Docker to fully release all mount references
+                    sleep(2);
+
+                    $rmResult = $this->execute($server, "docker rm {$containerName}", 30, $deploymentLocation, false);
+                    if ($rmResult['exitCode'] !== 0) {
+                        $error = !empty($rmResult['stderr']) ? $rmResult['stderr'] : $rmResult['stdout'];
+                        throw new BackupException("Failed to remove Docker container {$containerName}: {$error}");
+                    }
                 }
                 break;
 
             case 'mysql':
             case 'mariadb':
-                // Stop MySQL Docker containers
+                // Stop and remove MySQL Docker containers
                 $listCmd = "docker ps -a --filter name=phpborg_instant_mysql_ --format '{{.Names}}'";
                 $result = $this->execute($server, $listCmd, 10, $deploymentLocation, false);
                 $containers = array_filter(explode("\n", trim($result['stdout'])));
 
+                if (empty($containers)) {
+                    $this->logger->info("No MySQL containers found (already stopped)", $server->name);
+                    return;
+                }
+
                 foreach ($containers as $containerName) {
-                    $this->logger->info("Stopping Docker container: {$containerName}", $server->name);
+                    $this->logger->info("Stopping & removing Docker container: {$containerName}", $server->name);
                     // phpborg is in docker group, no sudo needed
-                    $this->execute($server, "docker stop {$containerName} 2>/dev/null || true", 30, $deploymentLocation, false);
+                    $stopResult = $this->execute($server, "docker stop {$containerName}", 30, $deploymentLocation, false);
+                    if ($stopResult['exitCode'] !== 0) {
+                        $this->logger->warning("docker stop returned {$stopResult['exitCode']} (might already be stopped)", $server->name);
+                    }
+
+                    // Wait a moment for Docker to fully release all mount references
+                    sleep(2);
+
+                    $rmResult = $this->execute($server, "docker rm {$containerName}", 30, $deploymentLocation, false);
+                    if ($rmResult['exitCode'] !== 0) {
+                        $error = !empty($rmResult['stderr']) ? $rmResult['stderr'] : $rmResult['stdout'];
+                        throw new BackupException("Failed to remove Docker container {$containerName}: {$error}");
+                    }
                 }
                 break;
 
             default:
                 // Fallback: kill process if PID exists
                 if ($pid) {
-                    $this->execute($server, "kill {$pid} 2>/dev/null || true", 10, $deploymentLocation);
+                    $killResult = $this->execute($server, "kill {$pid}", 10, $deploymentLocation);
+                    if ($killResult['exitCode'] !== 0) {
+                        // Process might already be dead - that's ok
+                        $this->logger->warning("kill returned {$killResult['exitCode']} (process might already be dead)", $server->name);
+                    }
                 }
                 break;
         }
     }
 
     /**
-     * Unmount Borg archive
+     * Unmount Borg archive and overlayfs - idempotent
      */
     private function unmountBorgArchive(Server $server, string $mountPoint, string $deploymentLocation): void
     {
-        // FUSE umount must be done by the user who mounted it (no sudo)
-        $this->execute($server, "borg umount {$mountPoint} 2>/dev/null || true", 30, $deploymentLocation, false);
-        // Fallback fusermount if borg umount fails (also no sudo)
-        $this->execute($server, "fusermount -u {$mountPoint} 2>/dev/null || true", 30, $deploymentLocation, false);
+        $this->logger->info("Unmounting Borg archive and overlayfs from {$mountPoint}", $server->name);
+
+        // IMPORTANT: Since we mounted with sudo, we MUST unmount with sudo
+        // Architecture: Borg mount (sudo) → fuse-overlayfs (sudo) → chown → Docker
+
+        // 1. First, check and unmount any overlayfs mounts (they would be on /tmp/phpborg_overlay_*)
+        // Get all overlay mount points (in /tmp, not in the mount directory)
+        $findCmd = "find /tmp -maxdepth 1 -type d -name 'phpborg_overlay_*'";
+        $result = $this->execute($server, $findCmd, 10, $deploymentLocation, false);
+        $overlayDirs = array_filter(explode("\n", trim($result['stdout'])));
+
+        foreach ($overlayDirs as $overlayDir) {
+            // Try to unmount overlay merged dir
+            $mergedDir = $overlayDir . "/merged";
+            $this->logger->info("Unmounting overlay: {$mergedDir}", $server->name);
+
+            $umountResult = $this->execute($server, "umount {$mergedDir}", 30, $deploymentLocation, true);
+            if ($umountResult['exitCode'] !== 0) {
+                $this->logger->warning("Failed to unmount overlay {$mergedDir} (might already be unmounted)", $server->name);
+            }
+
+            // Cleanup overlay dirs
+            $rmResult = $this->execute($server, "rm -rf {$overlayDir}", 30, $deploymentLocation, true);
+            if ($rmResult['exitCode'] !== 0) {
+                $this->logger->warning("Failed to remove overlay dir {$overlayDir}", $server->name);
+            }
+        }
+
+        // 2. Check if mount point is actually mounted
+        $checkMountCmd = "mount | grep -q " . escapeshellarg($mountPoint);
+        $checkResult = $this->execute($server, $checkMountCmd, 10, $deploymentLocation, false);
+
+        if ($checkResult['exitCode'] !== 0) {
+            // Not mounted - that's fine (idempotent)
+            $this->logger->info("Borg mount point not found (already unmounted): {$mountPoint}", $server->name);
+            return;
+        }
+
+        // 3. Then unmount the Borg FUSE mount (must use sudo umount, not borg umount)
+        $this->logger->info("Unmounting Borg FUSE: {$mountPoint}", $server->name);
+        $umountResult = $this->execute($server, "umount {$mountPoint}", 30, $deploymentLocation, true);
+
+        if ($umountResult['exitCode'] !== 0) {
+            // Try fallback fusermount if umount fails
+            $umountError = !empty($umountResult['stderr']) ? $umountResult['stderr'] : $umountResult['stdout'];
+            $this->logger->warning("umount failed (exit {$umountResult['exitCode']}), trying fusermount: {$umountError}", $server->name);
+            $fusermountResult = $this->execute($server, "fusermount -u {$mountPoint}", 30, $deploymentLocation, true);
+
+            if ($fusermountResult['exitCode'] !== 0) {
+                // Last resort: lazy unmount (umount -l) - unmounts when no longer busy
+                $fusermountError = !empty($fusermountResult['stderr']) ? $fusermountResult['stderr'] : $fusermountResult['stdout'];
+                $this->logger->warning("fusermount failed, trying lazy unmount: {$fusermountError}", $server->name);
+
+                $lazyResult = $this->execute($server, "umount -l {$mountPoint}", 30, $deploymentLocation, true);
+                if ($lazyResult['exitCode'] !== 0) {
+                    $lazyError = !empty($lazyResult['stderr']) ? $lazyResult['stderr'] : $lazyResult['stdout'];
+                    throw new BackupException("Failed to unmount Borg FUSE at {$mountPoint}: umount exit={$umountResult['exitCode']} ('{$umountError}'), fusermount exit={$fusermountResult['exitCode']} ('{$fusermountError}'), lazy unmount exit={$lazyResult['exitCode']} ('{$lazyError}')");
+                }
+
+                $this->logger->info("Lazy unmount scheduled (will complete when mount no longer busy)", $server->name);
+            }
+        }
+
+        $this->logger->info("Borg FUSE unmounted successfully", $server->name);
     }
 
     /**
-     * Cleanup directories
+     * Cleanup directories (idempotent - doesn't fail if dirs don't exist)
      */
     private function cleanupDirectories(Server $server, array $dirs, string $deploymentLocation): void
     {
         foreach ($dirs as $dir) {
-            $this->execute($server, "rm -rf {$dir}", 30, $deploymentLocation);
+            if (empty($dir) || $dir === '/' || $dir === '/tmp') {
+                $this->logger->warning("Skipping dangerous directory cleanup: {$dir}", $server->name);
+                continue;
+            }
+
+            // Check if directory exists first
+            $checkCmd = "test -e {$dir}";
+            $checkResult = $this->execute($server, $checkCmd, 10, $deploymentLocation, false);
+
+            if ($checkResult['exitCode'] !== 0) {
+                // Directory doesn't exist - that's fine (idempotent)
+                $this->logger->info("Directory already removed or doesn't exist: {$dir}", $server->name);
+                continue;
+            }
+
+            $this->logger->info("Cleaning up directory: {$dir}", $server->name);
+            $result = $this->execute($server, "rm -rf {$dir}", 30, $deploymentLocation, true);
+
+            if ($result['exitCode'] !== 0) {
+                $error = !empty($result['stderr']) ? $result['stderr'] : $result['stdout'];
+                $this->logger->warning("Failed to cleanup directory {$dir}: {$error}", $server->name);
+                // Don't throw - just log warning (best effort cleanup)
+            }
         }
     }
 
