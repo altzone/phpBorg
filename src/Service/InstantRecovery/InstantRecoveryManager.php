@@ -1258,21 +1258,35 @@ final class InstantRecoveryManager
         // Check for mysql_upgrade_info file which contains version
         $versionFile = $dataDir . '/mysql_upgrade_info';
         $checkCmd = "test -f {$versionFile} && cat {$versionFile}";
-        $result = $this->execute($server, $checkCmd, 10, $deploymentLocation, false);
+        $result = $this->execute($server, $checkCmd, 10, $deploymentLocation, true);
 
         if ($result['exitCode'] === 0 && !empty($result['stdout'])) {
             $version = trim($result['stdout']);
+            $this->logger->info("Detected MySQL version from mysql_upgrade_info: {$version}", $server->name);
+
             // Extract major.minor version (e.g., "8.0.32-0ubuntu0.20.04.2" -> "8.0")
             if (preg_match('/^(\d+\.\d+)/', $version, $matches)) {
                 return $matches[1];
             }
         }
 
-        // Fallback: Try to detect from directory structure or files
-        // MariaDB often has mysql_upgrade_info with "10.x.x-MariaDB"
-        // MySQL has it with "8.0.x" or "5.7.x"
-        // If all fails, use a reasonable default
-        return '8.0'; // Default to MySQL 8.0
+        // Fallback: Look for ib_logfile0 and check its header for version hints
+        // MySQL 5.7 has different redo log format than 8.0
+        $this->logger->warning("mysql_upgrade_info not found, checking redo log format", $server->name);
+
+        $ibLogfile = $dataDir . '/ib_logfile0';
+        $checkLog = "test -f {$ibLogfile} && od -An -N 100 -c {$ibLogfile} 2>/dev/null | head -5";
+        $logResult = $this->execute($server, $checkLog, 10, $deploymentLocation, true);
+
+        if ($logResult['exitCode'] === 0 && !empty($logResult['stdout'])) {
+            // Check for version markers in redo log
+            $logContent = $logResult['stdout'];
+            $this->logger->info("Redo log header sample: " . substr($logContent, 0, 200), $server->name);
+        }
+
+        // Default to MySQL 5.7 (safer for old backups than 8.0)
+        $this->logger->warning("Could not detect MySQL version, defaulting to 5.7", $server->name);
+        return '5.7';
     }
 
     /**
@@ -1282,7 +1296,7 @@ final class InstantRecoveryManager
     {
         $versionFile = $dataDir . '/mysql_upgrade_info';
         $checkCmd = "test -f {$versionFile} && cat {$versionFile}";
-        $result = $this->execute($server, $checkCmd, 10, $deploymentLocation, false);
+        $result = $this->execute($server, $checkCmd, 10, $deploymentLocation, true);
 
         if ($result['exitCode'] === 0 && !empty($result['stdout'])) {
             $version = trim($result['stdout']);
