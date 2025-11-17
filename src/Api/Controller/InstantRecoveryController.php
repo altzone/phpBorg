@@ -16,6 +16,7 @@ final class InstantRecoveryController extends BaseController
     private $sessionRepo;
     private $archiveRepo;
     private $serverRepo;
+    private $borgRepoRepo;
     private $jobQueue;
 
     public function __construct(Application $app)
@@ -23,6 +24,7 @@ final class InstantRecoveryController extends BaseController
         $this->sessionRepo = $app->getInstantRecoverySessionRepository();
         $this->archiveRepo = $app->getArchiveRepository();
         $this->serverRepo = $app->getServerRepository();
+        $this->borgRepoRepo = $app->getBorgRepositoryRepository();
         $this->jobQueue = $app->getJobQueue();
     }
 
@@ -197,8 +199,15 @@ final class InstantRecoveryController extends BaseController
                 return;
             }
 
+            // Get repository to determine database type
+            $repository = $this->borgRepoRepo->findByRepoId($archive->repoId);
+            if (!$repository) {
+                $this->error("Repository not found for archive", 404);
+                return;
+            }
+
             // Determine database type from repository type
-            $dbType = $archive->type ?? 'postgresql';
+            $dbType = $repository->type ?? 'postgresql';
 
             // Check if already running
             $existing = $this->sessionRepo->findByArchiveId($archiveId);

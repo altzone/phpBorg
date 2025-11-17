@@ -1045,7 +1045,7 @@ final class InstantRecoveryManager
         foreach ($commonPaths as $relativePath) {
             $fullPath = $borgMount . $relativePath;
             $testCmd = "test -d " . escapeshellarg($fullPath) . " && echo 'EXISTS'";
-            $result = $this->execute($server, $testCmd, 10, $deploymentLocation, true);
+            $result = $this->execute($server, $testCmd, 10, $deploymentLocation, false);
 
             if (trim($result['stdout']) === 'EXISTS') {
                 $this->logger->info("Found PostgreSQL datadir (direct path): {$fullPath}", $server->name);
@@ -1053,23 +1053,37 @@ final class InstantRecoveryManager
             }
         }
 
-        // Strategy 2: Use find with escaped mount path
+        // Strategy 2: Look for LVM snapshot structure (phpborg/{server}/pgsql/var/lib/postgresql/*/main)
+        $findLvmCmd = sprintf(
+            "find %s -type d -name 'main' -path '*/phpborg/*/pgsql/var/lib/postgresql/*' 2>/dev/null | head -1",
+            escapeshellarg($borgMount)
+        );
+        $this->logger->info("Searching for LVM snapshot PostgreSQL datadir: {$findLvmCmd}", $server->name);
+        $result = $this->execute($server, $findLvmCmd, 30, $deploymentLocation, false);
+        $path = trim($result['stdout']);
+
+        if (!empty($path)) {
+            $this->logger->info("Found PostgreSQL datadir (LVM snapshot): {$path}", $server->name);
+            return $path;
+        }
+
+        // Strategy 3: Generic find with escaped mount path
         $findCmd = sprintf(
             "find %s -type d -name 'main' -path '*/postgresql/*' 2>/dev/null | head -1",
             escapeshellarg($borgMount)
         );
-        $this->logger->info("Trying find command: {$findCmd}", $server->name);
-        $result = $this->execute($server, $findCmd, 30, $deploymentLocation, true);
+        $this->logger->info("Trying generic find command: {$findCmd}", $server->name);
+        $result = $this->execute($server, $findCmd, 30, $deploymentLocation, false);
         $path = trim($result['stdout']);
 
         if (!empty($path)) {
-            $this->logger->info("Found PostgreSQL datadir (find): {$path}", $server->name);
+            $this->logger->info("Found PostgreSQL datadir (generic find): {$path}", $server->name);
             return $path;
         }
 
-        // Strategy 3: List var/lib/postgresql and find version directories
+        // Strategy 4: List var/lib/postgresql and find version directories
         $lsCmd = "ls " . escapeshellarg($borgMount . '/var/lib/postgresql') . " 2>/dev/null";
-        $lsResult = $this->execute($server, $lsCmd, 10, $deploymentLocation, true);
+        $lsResult = $this->execute($server, $lsCmd, 10, $deploymentLocation, false);
         $this->logger->info("PostgreSQL versions found: {$lsResult['stdout']}", $server->name);
 
         if ($lsResult['exitCode'] === 0 && !empty(trim($lsResult['stdout']))) {
@@ -1079,7 +1093,7 @@ final class InstantRecoveryManager
                 if (is_numeric($version)) {
                     $mainPath = $borgMount . "/var/lib/postgresql/{$version}/main";
                     $testCmd = "test -d " . escapeshellarg($mainPath) . " && echo 'EXISTS'";
-                    $testResult = $this->execute($server, $testCmd, 10, $deploymentLocation, true);
+                    $testResult = $this->execute($server, $testCmd, 10, $deploymentLocation, false);
 
                     if (trim($testResult['stdout']) === 'EXISTS') {
                         $this->logger->info("Found PostgreSQL datadir (ls strategy): {$mainPath}", $server->name);
@@ -1098,17 +1112,31 @@ final class InstantRecoveryManager
      */
     private function findMySQLDataDir(Server $server, string $borgMount, string $deploymentLocation): ?string
     {
-        // Try common path first
+        // Strategy 1: Try direct /var/lib/mysql path (full system backups)
         $commonPath = $borgMount . '/var/lib/mysql';
         $testCmd = "test -d " . escapeshellarg($commonPath) . " && echo 'EXISTS'";
         $result = $this->execute($server, $testCmd, 10, $deploymentLocation, false);
 
         if (trim($result['stdout']) === 'EXISTS') {
-            $this->logger->info("Found MySQL datadir: {$commonPath}", $server->name);
+            $this->logger->info("Found MySQL datadir (direct path): {$commonPath}", $server->name);
             return $commonPath;
         }
 
-        // Fallback: find
+        // Strategy 2: Look for LVM snapshot structure (phpborg/{server}/mysql/var/lib/mysql)
+        $findLvmCmd = sprintf(
+            "find %s -type d -path '*/phpborg/*/mysql/var/lib/mysql' 2>/dev/null | head -1",
+            escapeshellarg($borgMount)
+        );
+        $this->logger->info("Searching for LVM snapshot MySQL datadir: {$findLvmCmd}", $server->name);
+        $result = $this->execute($server, $findLvmCmd, 30, $deploymentLocation, false);
+        $path = trim($result['stdout']);
+
+        if (!empty($path)) {
+            $this->logger->info("Found MySQL datadir (LVM snapshot): {$path}", $server->name);
+            return $path;
+        }
+
+        // Strategy 3: Generic find for any mysql directory in var/lib
         $findCmd = sprintf(
             "find %s -type d -name 'mysql' -path '*/var/lib/*' 2>/dev/null | head -1",
             escapeshellarg($borgMount)
@@ -1117,10 +1145,11 @@ final class InstantRecoveryManager
         $path = trim($result['stdout']);
 
         if (!empty($path)) {
-            $this->logger->info("Found MySQL datadir (find): {$path}", $server->name);
+            $this->logger->info("Found MySQL datadir (generic find): {$path}", $server->name);
             return $path;
         }
 
+        $this->logger->error("Could not find MySQL datadir after trying all strategies", $server->name);
         return null;
     }
 
@@ -1129,17 +1158,31 @@ final class InstantRecoveryManager
      */
     private function findMongoDBDataDir(Server $server, string $borgMount, string $deploymentLocation): ?string
     {
-        // Try common path first
+        // Strategy 1: Try direct /var/lib/mongodb path (full system backups)
         $commonPath = $borgMount . '/var/lib/mongodb';
         $testCmd = "test -d " . escapeshellarg($commonPath) . " && echo 'EXISTS'";
         $result = $this->execute($server, $testCmd, 10, $deploymentLocation, false);
 
         if (trim($result['stdout']) === 'EXISTS') {
-            $this->logger->info("Found MongoDB datadir: {$commonPath}", $server->name);
+            $this->logger->info("Found MongoDB datadir (direct path): {$commonPath}", $server->name);
             return $commonPath;
         }
 
-        // Fallback: find
+        // Strategy 2: Look for LVM snapshot structure (phpborg/{server}/mongodb/var/lib/mongodb)
+        $findLvmCmd = sprintf(
+            "find %s -type d -path '*/phpborg/*/mongodb/var/lib/mongodb' 2>/dev/null | head -1",
+            escapeshellarg($borgMount)
+        );
+        $this->logger->info("Searching for LVM snapshot MongoDB datadir: {$findLvmCmd}", $server->name);
+        $result = $this->execute($server, $findLvmCmd, 30, $deploymentLocation, false);
+        $path = trim($result['stdout']);
+
+        if (!empty($path)) {
+            $this->logger->info("Found MongoDB datadir (LVM snapshot): {$path}", $server->name);
+            return $path;
+        }
+
+        // Strategy 3: Generic find for any mongodb directory in var/lib
         $findCmd = sprintf(
             "find %s -type d -name 'mongodb' -path '*/var/lib/*' 2>/dev/null | head -1",
             escapeshellarg($borgMount)
@@ -1148,10 +1191,11 @@ final class InstantRecoveryManager
         $path = trim($result['stdout']);
 
         if (!empty($path)) {
-            $this->logger->info("Found MongoDB datadir (find): {$path}", $server->name);
+            $this->logger->info("Found MongoDB datadir (generic find): {$path}", $server->name);
             return $path;
         }
 
+        $this->logger->error("Could not find MongoDB datadir after trying all strategies", $server->name);
         return null;
     }
 

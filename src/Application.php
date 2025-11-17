@@ -268,7 +268,7 @@ final class Application
             $lvmManager = $this->getLvmSnapshotManager();
 
             $service->registerDatabaseStrategy(
-                new MysqlBackupStrategy($lvmManager, $this->logger),
+                new MysqlBackupStrategy($lvmManager, $this->logger, $this->getSshExecutor()),
                 'mariadb' // Register under both 'mysql' and 'mariadb'
             );
 
