@@ -512,9 +512,9 @@ final class InstantRecoveryManager
         $this->logger->info("Starting {$image} container '{$containerName}' on port {$port}", $server->name);
 
         // MySQL/MariaDB read-only configuration
-        // Note: We use --skip-grant-tables to bypass authentication on existing datadir
-        // We use --innodb-read-only=1 and --read_only=1 for read-only mode
-        // IMPORTANT: No MYSQL_ALLOW_EMPTY_PASSWORD - it triggers initialization!
+        // CRITICAL: Bypass entrypoint script by calling mysqld directly
+        // The entrypoint checks for initialization and requires password env vars
+        // We want to use EXISTING datadir, not initialize a new one
         // Mount as rw because MySQL needs to write temp files, but InnoDB will be read-only
         $dockerCmd = sprintf(
             "docker run -d " .
@@ -522,13 +522,15 @@ final class InstantRecoveryManager
             "--user 999:999 " .
             "--net=host " .
             "-v %s:/var/lib/mysql:rw " .
+            "--entrypoint mysqld " .
             "%s " .
             "--datadir=/var/lib/mysql " .
             "--port=%d " .
             "--skip-grant-tables " .
             "--read_only=1 " .
             "--innodb-read-only=1 " .
-            "--skip-log-bin",
+            "--skip-log-bin " .
+            "--bind-address=0.0.0.0",
             escapeshellarg($containerName),
             escapeshellarg($dataDir),
             escapeshellarg($image),
