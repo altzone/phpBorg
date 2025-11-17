@@ -21,27 +21,54 @@ Defaults:phpborg !requiretty
 phpborg ALL=(ALL) NOPASSWD: /bin/mkdir -p /tmp/phpborg_instant_recovery/*
 phpborg ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /tmp/phpborg_instant_recovery/*
 
-# Allow mounting Borg archives via FUSE (local repositories)
+# ========================================================================
+# INSTANT RECOVERY - HACK ULTIME++ Architecture
+# ========================================================================
+# Architecture finale: Borg mount (sudo) → fuse-overlayfs → chown/chmod → Docker
+#
+# Note: fuse-overlayfs est user-space (pas de sudo)
+# MAIS Borg mount DOIT être avec sudo pour que allow_other fonctionne !
+#
+# Les opérations sudo nécessaires sont :
+# - borg mount (pour allow_other permissions)
+# - chown/chmod sur merged dir (permissions PostgreSQL strictes)
+# - Docker operations (phpborg doit être dans le groupe docker)
+# ========================================================================
+
+# Allow Borg mount operations (MUST be with sudo for allow_other to work)
 phpborg ALL=(ALL) NOPASSWD: /bin/sh -c * borg mount * /tmp/phpborg_instant_recovery/*
 phpborg ALL=(ALL) NOPASSWD: /usr/bin/borg mount * /tmp/phpborg_instant_recovery/*
 phpborg ALL=(ALL) NOPASSWD: /usr/local/bin/borg mount * /tmp/phpborg_instant_recovery/*
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/borg umount /tmp/phpborg_instant_recovery/*
-phpborg ALL=(ALL) NOPASSWD: /usr/local/bin/borg umount /tmp/phpborg_instant_recovery/*
 
-# Allow mounting OverlayFS (RW layer on top of RO backup)
-# Note: Wildcards in -o options not allowed, so we allow the mount command entirely for overlay
-phpborg ALL=(ALL) NOPASSWD: /bin/mount -t overlay overlay -o * /tmp/phpborg_instant_recovery/*
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/mount -t overlay overlay -o * /tmp/phpborg_instant_recovery/*
+# Allow fuse-overlayfs mount operations (needed to access root-owned Borg mount)
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/fuse-overlayfs * /tmp/phpborg_overlay_*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/fuse-overlayfs * /tmp/test_overlay_*
 
-# Allow unmounting OverlayFS and Borg mounts
-phpborg ALL=(ALL) NOPASSWD: /bin/umount /tmp/phpborg_instant_recovery/*
-phpborg ALL=(ALL) NOPASSWD: /bin/umount -f /tmp/phpborg_instant_recovery/*
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/umount /tmp/phpborg_instant_recovery/*
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/umount -f /tmp/phpborg_instant_recovery/*
+# Allow reading Borg mount contents (ls, test, find) - needed because mount is root-owned
+phpborg ALL=(ALL) NOPASSWD: /bin/ls * /tmp/phpborg_instant_recovery/*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/ls * /tmp/phpborg_instant_recovery/*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/test * /tmp/phpborg_instant_recovery/*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/find /tmp/phpborg_instant_recovery/* *
+phpborg ALL=(ALL) NOPASSWD: /bin/find /tmp/phpborg_instant_recovery/* *
+
+# Allow chown/chmod on overlay merged directories (required for PostgreSQL ownership checks)
+phpborg ALL=(ALL) NOPASSWD: /bin/chown * /tmp/phpborg_overlay_*
+phpborg ALL=(ALL) NOPASSWD: /bin/chown * /tmp/test_overlay_*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/chown * /tmp/phpborg_overlay_*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/chown * /tmp/test_overlay_*
+phpborg ALL=(ALL) NOPASSWD: /bin/chmod * /tmp/phpborg_overlay_*
+phpborg ALL=(ALL) NOPASSWD: /bin/chmod * /tmp/test_overlay_*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/chmod * /tmp/phpborg_overlay_*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/chmod * /tmp/test_overlay_*
+
+# Note: Plus besoin de chown/chmod sur bindfs - architecture simplifiée !
 
 # ========================================================================
 # Docker Instance Management (PostgreSQL/MySQL/MongoDB via Docker)
 # ========================================================================
+# NOTE: Si phpborg est dans le groupe docker (recommandé), ces permissions
+# ne sont pas utilisées - Docker est exécuté sans sudo.
+# Ces lignes sont conservées comme fallback si le user n'est pas dans docker group.
 
 # Allow Docker commands for instant recovery containers
 phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker run *
@@ -112,6 +139,18 @@ phpborg ALL=(ALL) NOPASSWD: /usr/bin/pkill -f phpborg_instant*
 # Allow removing temporary instant recovery directories
 phpborg ALL=(ALL) NOPASSWD: /bin/rm -rf /tmp/phpborg_instant_recovery/*
 phpborg ALL=(ALL) NOPASSWD: /bin/chmod * /tmp/phpborg_instant_recovery/*
+phpborg ALL=(ALL) NOPASSWD: /bin/chmod * /tmp/phpborg_pgdata_*
+
+# Allow copying files from FUSE mounts (0700 postgres:postgres files)
+# Note: Must allow any subdirectory depth for FUSE mount paths
+phpborg ALL=(ALL) NOPASSWD: /bin/cp *
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/cp *
+
+# Allow changing ownership of copied files
+phpborg ALL=(ALL) NOPASSWD: /bin/chown -R * /tmp/phpborg_pgdata_*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/chown -R * /tmp/phpborg_pgdata_*
+phpborg ALL=(ALL) NOPASSWD: /bin/chown * /tmp/phpborg_pgdata_*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/chown * /tmp/phpborg_pgdata_*
 
 # ========================================================================
 # Verification Commands (Read-Only)

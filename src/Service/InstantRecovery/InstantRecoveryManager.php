@@ -116,7 +116,9 @@ final class InstantRecoveryManager
             $this->logger->error("Failed to start instant recovery: {$e->getMessage()}", $server->name);
             $this->sessionRepo->markFailed($recoveryId, $e->getMessage());
 
+            // DEBUG: Disable cleanup to allow manual debugging
             // Attempt cleanup
+            /*
             try {
                 $session = $this->sessionRepo->findById($recoveryId);
                 if ($session) {
@@ -125,6 +127,8 @@ final class InstantRecoveryManager
             } catch (\Exception $cleanupError) {
                 $this->logger->error("Cleanup after failure also failed: {$cleanupError->getMessage()}", $server->name);
             }
+            */
+            $this->logger->info("DEBUG: Cleanup disabled - mount and temp files preserved for debugging", $server->name);
 
             throw new BackupException("Failed to start instant recovery: {$e->getMessage()}");
         }
@@ -209,19 +213,22 @@ final class InstantRecoveryManager
         $this->execute($server, "mkdir -p {$mountPoint}", 30, $deploymentLocation, false);
 
         // Mount archive (Borg FUSE detaches automatically)
-        // IMPORTANT: Must be done WITHOUT sudo in local mode - FUSE mounts must belong to the user accessing them
-        // In local mode, this runs as phpborg user directly
-        // Use -o allow_other so Docker daemon (running as root) can access the mount
-        // Use -o umask=0 to make all files world-readable (safe since mount is read-only)
+        // IMPORTANT: MUST be done WITH sudo (root) for allow_other to work correctly
+        // Without sudo, phpborg mounts but can't read its own mount (permission denied on subdirs)
+        // With sudo, root mounts and allow_other allows phpborg to read
+        // HACK ULTIME++: Architecture finale qui MARCHE !
+        // Borg mount (sudo) → fuse-overlayfs (phpborg) → chown/chmod merged dir → Docker
+        // Note: uid=999,gid=999 options don't work with Borg (ignored), but backup files are already uid 999!
+        // Use -o allow_other,allow_root so all users (including phpborg) can access the mount
         $mountCmd = sprintf(
-            "sh -c 'BORG_PASSPHRASE=\"%s\" borg mount -o allow_other,umask=0 %s::%s %s'",
+            "sh -c 'BORG_PASSPHRASE=\"%s\" borg mount -o allow_other,allow_root %s::%s %s'",
             addslashes($repository->passphrase),
             escapeshellarg($repository->repoPath),
             escapeshellarg($archive->name),
             escapeshellarg($mountPoint)
         );
 
-        $result = $this->execute($server, $mountCmd, 60, $deploymentLocation, false);
+        $result = $this->execute($server, $mountCmd, 60, $deploymentLocation, true);
 
         if ($result['exitCode'] !== 0) {
             throw new BackupException("Failed to mount Borg archive: {$result['stdout']}");
@@ -290,59 +297,121 @@ final class InstantRecoveryManager
 
         $this->logger->info("Starting PostgreSQL {$version} container '{$containerName}' on port {$port}", $server->name);
 
-        // Get UID/GID of datadir owner from FUSE mount
-        $statCmd = sprintf("stat -c '%%u:%%g' %s", escapeshellarg($dataDir));
-        $result = $this->execute($server, $statCmd, 10, $deploymentLocation, false);
+        // HACK ULTIME++: Create fuse-overlayfs on top of Borg mount with uid=999
+        // Architecture: Borg FUSE (uid=999) → fuse-overlayfs (RW layer) → Docker
+        // No bindfs, no NFS - direct and simple!
+
+        $overlayBase = "/tmp/phpborg_overlay_" . uniqid();
+        $lowerDir = $dataDir;  // Borg mount with uid=999,gid=999
+        $upperDir = "{$overlayBase}/upper";
+        $workDir = "{$overlayBase}/work";
+        $mergedDir = "{$overlayBase}/merged";
+
+        $this->logger->info("Creating fuse-overlayfs (RW layer) on Borg mount", $server->name);
+
+        // Create overlay directories (no sudo - /tmp is world-writable)
+        $this->execute($server, "mkdir -p {$upperDir} {$workDir} {$mergedDir}", 10, $deploymentLocation, false);
+
+        // Mount fuse-overlayfs (WITH sudo - needed to access root-owned Borg mount)
+        // Since Borg mount is done with sudo (root-owned), fuse-overlayfs needs sudo too
+        // lowerdir = Borg FUSE mount (RO, root-owned with allow_other)
+        // upperdir/workdir = tmpfs (RW for PostgreSQL config files)
+        $fuseOverlayCmd = sprintf(
+            "fuse-overlayfs -o lowerdir=%s -o upperdir=%s -o workdir=%s %s",
+            escapeshellarg($lowerDir),
+            escapeshellarg($upperDir),
+            escapeshellarg($workDir),
+            escapeshellarg($mergedDir)
+        );
+        $this->logger->info("fuse-overlayfs command: {$fuseOverlayCmd}", $server->name);
+        $result = $this->execute($server, $fuseOverlayCmd, 30, $deploymentLocation, true);
 
         if ($result['exitCode'] !== 0) {
-            throw new BackupException("Failed to get datadir ownership: {$result['stdout']}");
+            // In local mode, stderr is redirected to stdout (2>&1 in execute()), so check stdout
+            $error = !empty($result['stderr']) ? $result['stderr'] : $result['stdout'];
+            $this->logger->error("Failed to create fuse-overlayfs (exit {$result['exitCode']}): {$error}", $server->name);
+            throw new BackupException("Failed to create fuse-overlayfs: {$error}");
         }
 
-        $uidGid = trim($result['stdout']);
-        $this->logger->info("Datadir ownership: {$uidGid}", $server->name);
+        $this->logger->info("✓ fuse-overlayfs created successfully: {$mergedDir}", $server->name);
 
-        // Create writable overlay for PostgreSQL runtime files (PID, WAL, etc.)
-        // We can't use read-only datadir directly, need a writable layer
-        $writableDataDir = "/tmp/phpborg_pgdata_" . uniqid();
-        $this->execute($server, "mkdir -p {$writableDataDir}", 10, $deploymentLocation, false);
+        // The merged dir is now the datadir for PostgreSQL (zero-copy instant recovery!)
+        // No need to copy anything - fuse-overlayfs provides RW layer on top of RO Borg mount!
+        // Any writes (configs, temp files) go to upperdir (tmpfs), original backup stays untouched
 
-        // Copy datadir structure (small, just metadata)
-        $copyCmd = sprintf("cp -r %s/. %s/", escapeshellarg($dataDir), $writableDataDir);
-        $result = $this->execute($server, $copyCmd, 300, $deploymentLocation, false);
+        // Create minimal PostgreSQL config files in the merged dir
+        // These will be written to the upperdir (tmpfs) thanks to fuse-overlayfs
+        $this->logger->info("Creating PostgreSQL config files in overlay", $server->name);
 
-        if ($result['exitCode'] !== 0) {
-            throw new BackupException("Failed to copy datadir structure: {$result['stdout']}");
+        // Create postgresql.conf using multiple echo commands
+        $pgConfPath = "{$mergedDir}/postgresql.conf";
+        $pgConfLines = [
+            "listen_addresses = '*'",
+            "port = {$port}",
+            "max_connections = 100",
+            "shared_buffers = 128MB",
+            "default_transaction_read_only = on",
+            "fsync = off",
+            "full_page_writes = off",
+            "wal_level = minimal",
+            "max_wal_senders = 0",
+            "archive_mode = off"
+        ];
+
+        // Clear file first
+        $this->execute($server, "> {$pgConfPath}", 10, $deploymentLocation, false);
+
+        // Append each line
+        foreach ($pgConfLines as $line) {
+            $cmd = sprintf("echo %s >> %s", escapeshellarg($line), escapeshellarg($pgConfPath));
+            $this->execute($server, $cmd, 10, $deploymentLocation, false);
         }
 
-        // Adjust permissions for postgres user (UID from backup)
-        $chownCmd = sprintf("sudo chown -R %s %s", $uidGid, escapeshellarg($writableDataDir));
-        $this->execute($server, $chownCmd, 60, $deploymentLocation, true);
+        // Create pg_hba.conf (trust all for instant recovery)
+        $hbaPath = "{$mergedDir}/pg_hba.conf";
+        $this->execute($server, "> {$hbaPath}", 10, $deploymentLocation, false);
+        $this->execute($server, sprintf("echo %s >> %s", escapeshellarg('host all all 0.0.0.0/0 trust'), escapeshellarg($hbaPath)), 10, $deploymentLocation, false);
+        $this->execute($server, sprintf("echo %s >> %s", escapeshellarg('host all all ::/0 trust'), escapeshellarg($hbaPath)), 10, $deploymentLocation, false);
+        $this->execute($server, sprintf("echo %s >> %s", escapeshellarg('local all all trust'), escapeshellarg($hbaPath)), 10, $deploymentLocation, false);
 
-        // Calculate relative path from borg mount to datadir
-        // Example: borgMount=/tmp/borg_mount_XXX, dataDir=/tmp/borg_mount_XXX/phpborg/var/lib/postgresql/12/main
-        // => relativePath=/phpborg/var/lib/postgresql/12/main
-        $relativePath = str_replace($borgMount, '', $dataDir);
+        // Create pg_ident.conf (empty, but PostgreSQL expects it)
+        $identPath = "{$mergedDir}/pg_ident.conf";
+        $this->execute($server, "> {$identPath}", 10, $deploymentLocation, false);
+        $this->execute($server, sprintf("echo %s >> %s", escapeshellarg('# PostgreSQL User Name Maps'), escapeshellarg($identPath)), 10, $deploymentLocation, false);
 
-        // Docker run command - mount FUSE directly and run as same user as datadir owner
-        // Mount custom config + datadir from FUSE
+        $this->logger->info("✓ Config files created in fuse-overlayfs upper layer", $server->name);
+
+        // NOW fix ownership and permissions on merged dir AFTER creating config files
+        // PostgreSQL requires EXACTLY 0700 permissions on datadir (drwx------)
+        // and the user running postgres must own the directory AND all files inside
+        $this->logger->info("Setting final ownership (999:999) and permissions (0700) on merged dir", $server->name);
+
+        // IMPORTANT: Use chown -R to change ALL files recursively (including config files created above)
+        // Config files were created by phpborg/root, must be owned by 999:999 for Docker to read
+        $this->execute($server, "chown -R 999:999 {$mergedDir}", 10, $deploymentLocation, true);
+        $this->execute($server, "chmod 0700 {$mergedDir}", 10, $deploymentLocation, true);
+
+        // Verify the changes were applied
+        $verifyCmd = sprintf("ls -ld %s", escapeshellarg($mergedDir));
+        $result = $this->execute($server, $verifyCmd, 10, $deploymentLocation, false);
+        $this->logger->info("Merged dir permissions: {$result['stdout']}", $server->name);
+
+        // Docker command - Mount the fuse-overlayfs merged dir with PostgreSQL read-only
+        // IMPORTANT: Use --user 999:999 to match Borg mount UID/GID
+        // IMPORTANT: Use --entrypoint postgres to bypass the official entrypoint
         $dockerCmd = sprintf(
             "docker run -d " .
             "--name %s " .
-            "--user %s " .
+            "--user 999:999 " .
+            "--net=host " .
             "--entrypoint postgres " .
-            "-v %s:/backup:ro " .
-            "-v %s:/etc/postgresql " .
-            "-p 127.0.0.1:%d:5432 " .
+            "-v %s:/var/lib/postgresql/data:rw " .
             "postgres:%s " .
-            "-D /backup%s " .
-            "-c config_file=/etc/postgresql/postgresql.conf",
+            "-D /var/lib/postgresql/data -c listen_addresses='*' -c port=%d -c default_transaction_read_only=on",
             escapeshellarg($containerName),
-            $uidGid,
-            escapeshellarg($borgMount),
-            escapeshellarg($configDir),
-            $port,
+            escapeshellarg($mergedDir),
             escapeshellarg($version),
-            $relativePath
+            $port
         );
 
         // phpborg user is in docker group, so no sudo needed
@@ -508,8 +577,9 @@ final class InstantRecoveryManager
         $this->logger->info("Searching for {$dbType} datadir in mount: {$borgMount}", $server->name);
 
         // First, verify mount is accessible and list contents
+        // IMPORTANT: Use sudo because Borg mount is root-owned
         $lsCmd = "ls -la " . escapeshellarg($borgMount);
-        $lsResult = $this->execute($server, $lsCmd, 10, $deploymentLocation, false);
+        $lsResult = $this->execute($server, $lsCmd, 10, $deploymentLocation, true);
         $this->logger->info("Mount listing (exit: {$lsResult['exitCode']}): {$lsResult['stdout']}", $server->name);
 
         if ($lsResult['exitCode'] !== 0 || empty(trim($lsResult['stdout']))) {
@@ -553,7 +623,7 @@ final class InstantRecoveryManager
         foreach ($commonPaths as $relativePath) {
             $fullPath = $borgMount . $relativePath;
             $testCmd = "test -d " . escapeshellarg($fullPath) . " && echo 'EXISTS'";
-            $result = $this->execute($server, $testCmd, 10, $deploymentLocation, false);
+            $result = $this->execute($server, $testCmd, 10, $deploymentLocation, true);
 
             if (trim($result['stdout']) === 'EXISTS') {
                 $this->logger->info("Found PostgreSQL datadir (direct path): {$fullPath}", $server->name);
@@ -567,7 +637,7 @@ final class InstantRecoveryManager
             escapeshellarg($borgMount)
         );
         $this->logger->info("Trying find command: {$findCmd}", $server->name);
-        $result = $this->execute($server, $findCmd, 30, $deploymentLocation, false);
+        $result = $this->execute($server, $findCmd, 30, $deploymentLocation, true);
         $path = trim($result['stdout']);
 
         if (!empty($path)) {
@@ -577,7 +647,7 @@ final class InstantRecoveryManager
 
         // Strategy 3: List var/lib/postgresql and find version directories
         $lsCmd = "ls " . escapeshellarg($borgMount . '/var/lib/postgresql') . " 2>/dev/null";
-        $lsResult = $this->execute($server, $lsCmd, 10, $deploymentLocation, false);
+        $lsResult = $this->execute($server, $lsCmd, 10, $deploymentLocation, true);
         $this->logger->info("PostgreSQL versions found: {$lsResult['stdout']}", $server->name);
 
         if ($lsResult['exitCode'] === 0 && !empty(trim($lsResult['stdout']))) {
@@ -587,7 +657,7 @@ final class InstantRecoveryManager
                 if (is_numeric($version)) {
                     $mainPath = $borgMount . "/var/lib/postgresql/{$version}/main";
                     $testCmd = "test -d " . escapeshellarg($mainPath) . " && echo 'EXISTS'";
-                    $testResult = $this->execute($server, $testCmd, 10, $deploymentLocation, false);
+                    $testResult = $this->execute($server, $testCmd, 10, $deploymentLocation, true);
 
                     if (trim($testResult['stdout']) === 'EXISTS') {
                         $this->logger->info("Found PostgreSQL datadir (ls strategy): {$mainPath}", $server->name);
