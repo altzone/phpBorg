@@ -546,8 +546,11 @@ final class InstantRecoveryManager
         $this->execute($server, "chown -R 999:999 {$mergedDir}", 10, $deploymentLocation, true);
         $this->execute($server, "chmod 0755 {$mergedDir}", 10, $deploymentLocation, true);
 
-        // MySQL/MariaDB read-only configuration
+        // MySQL/MariaDB configuration for Instant Recovery
         // CRITICAL: Bypass entrypoint script by calling mysqld directly
+        // Note: Cannot use --innodb-read-only=1 because MySQL may need to upgrade datadir
+        // Using fuse-overlayfs RW layer so upgrades write to tmpfs (not original backup)
+        // --read_only=1 ensures data is not modified after startup
         $dockerCmd = sprintf(
             "docker run -d " .
             "--name %s " .
@@ -560,7 +563,6 @@ final class InstantRecoveryManager
             "--port=%d " .
             "--skip-grant-tables " .
             "--read_only=1 " .
-            "--innodb-read-only=1 " .
             "--skip-log-bin " .
             "--bind-address=0.0.0.0",
             escapeshellarg($containerName),
