@@ -470,6 +470,145 @@
             </div>
           </div>
 
+          <!-- Docker Environment Configuration -->
+          <div v-else-if="wizardData.backupType === 'docker'">
+            <div class="space-y-4">
+              <!-- Docker Information from Capabilities -->
+              <div v-if="getDetectedDocker()" class="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div class="flex items-start gap-3">
+                  <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div class="flex-1 text-sm">
+                    <p class="font-semibold text-blue-900 dark:text-blue-200 mb-2">{{ $t('backup_wizard.source_config.docker_detected_title') }}</p>
+                    <div class="grid grid-cols-3 gap-x-4 gap-y-2 text-blue-800 dark:text-blue-300">
+                      <div>
+                        <span class="font-medium">{{ $t('backup_wizard.source_config.docker_containers') }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDocker().container_count || 0 }}</span>
+                      </div>
+                      <div>
+                        <span class="font-medium">{{ $t('backup_wizard.source_config.docker_volumes') }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDocker().volume_count || 0 }}</span>
+                      </div>
+                      <div>
+                        <span class="font-medium">{{ $t('backup_wizard.source_config.docker_compose') }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDocker().compose_project_count || 0 }} {{ $t('backup_wizard.source_config.docker_projects') }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Global Option: Backup all volumes -->
+              <div>
+                <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                  <input
+                    v-model="wizardData.sourceConfig.backupAllVolumes"
+                    type="checkbox"
+                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  <span class="ml-3 text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {{ $t('backup_wizard.source_config.docker_all_volumes') }}
+                  </span>
+                  <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">{{ $t('backup_wizard.source_config.docker_recommended') }}</span>
+                </label>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-3">
+                  {{ $t('backup_wizard.source_config.docker_all_volumes_desc') }}
+                </p>
+              </div>
+
+              <!-- Compose Projects -->
+              <div v-if="getDetectedDocker()?.compose_projects && Object.keys(getDetectedDocker().compose_projects).length > 0">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {{ $t('backup_wizard.source_config.docker_compose_projects') }}
+                </label>
+                <div class="space-y-2 max-h-64 overflow-y-auto border dark:border-gray-700 rounded-lg p-3">
+                  <label
+                    v-for="(project, projectName) in getDetectedDocker().compose_projects"
+                    :key="projectName"
+                    class="flex items-start p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                  >
+                    <input
+                      v-model="wizardData.sourceConfig.selectedComposeProjects"
+                      :value="projectName"
+                      type="checkbox"
+                      class="mt-1 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <div class="ml-3 flex-1">
+                      <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ projectName }}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ project.containers?.length || 0 }} containers</span>
+                      </div>
+                      <p class="text-xs text-gray-600 dark:text-gray-400 mt-0.5" v-if="project.working_dir">
+                        📁 {{ project.working_dir }}
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Individual Volumes -->
+              <div v-if="!wizardData.sourceConfig.backupAllVolumes && getDetectedDocker()?.volumes">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {{ $t('backup_wizard.source_config.docker_individual_volumes') }}
+                </label>
+                <div class="space-y-2 max-h-64 overflow-y-auto border dark:border-gray-700 rounded-lg p-3">
+                  <label
+                    v-for="volume in getDetectedDocker().volumes"
+                    :key="volume.name"
+                    class="flex items-start p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                  >
+                    <input
+                      v-model="wizardData.sourceConfig.selectedVolumes"
+                      :value="volume.name"
+                      type="checkbox"
+                      class="mt-1 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <div class="ml-3 flex-1">
+                      <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100 font-mono">{{ volume.name }}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ volume.driver }}</span>
+                      </div>
+                      <p class="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                        {{ volume.mountpoint }}
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- System Configuration -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {{ $t('backup_wizard.source_config.docker_system_config') }}
+                </label>
+                <div class="space-y-2">
+                  <label class="flex items-center p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
+                    <input
+                      v-model="wizardData.sourceConfig.backupDockerConfig"
+                      type="checkbox"
+                      class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span class="ml-3 text-sm text-gray-900 dark:text-gray-100">
+                      {{ $t('backup_wizard.source_config.docker_daemon_config') }}
+                    </span>
+                    <code class="ml-2 text-xs text-gray-500 dark:text-gray-400">/etc/docker/daemon.json</code>
+                  </label>
+                  <label class="flex items-center p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
+                    <input
+                      v-model="wizardData.sourceConfig.backupCustomNetworks"
+                      type="checkbox"
+                      class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span class="ml-3 text-sm text-gray-900 dark:text-gray-100">
+                      {{ $t('backup_wizard.source_config.docker_custom_networks') }}
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Full System Backup Configuration -->
           <div v-else-if="wizardData.backupType === 'system'">
             <div class="space-y-4">
@@ -1382,7 +1521,13 @@ const wizardData = ref({
     excludeLogs: true,
     excludeCaches: true,
     excludeDownloads: false,
-    excludeBuildArtifacts: false
+    excludeBuildArtifacts: false,
+    // Docker backup options
+    backupAllVolumes: true,
+    selectedComposeProjects: [],
+    selectedVolumes: [],
+    backupDockerConfig: true,
+    backupCustomNetworks: false
   },
   snapshotMethod: 'none',
   storagePoolId: null,
@@ -1409,6 +1554,12 @@ function getDetectedDatabase(dbType) {
 
   const db = serverCapabilities.value.capabilities.databases.find(d => d.type === dbType)
   return db || null
+}
+
+// Helper function to get detected Docker environment from capabilities
+function getDetectedDocker() {
+  if (!serverCapabilities.value?.capabilities?.docker) return null
+  return serverCapabilities.value.capabilities.docker
 }
 
 // Helper function to check if a database type is snapshot-capable
