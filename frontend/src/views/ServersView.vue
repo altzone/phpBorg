@@ -213,7 +213,23 @@
             </div>
             <div v-if="authStore.isAdmin" class="flex items-center gap-2">
               <button
+                @click.stop="detectCapabilities(server)"
+                :disabled="detectingCapabilities[server.id]"
+                :title="$t('servers.detect_capabilities')"
+                class="p-2 text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <svg
+                  :class="['w-5 h-5', detectingCapabilities[server.id] ? 'animate-spin' : '']"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+              <button
                 @click.stop="editServer(server)"
+                :title="$t('common.edit')"
                 class="p-2 text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300"
               >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -222,6 +238,7 @@
               </button>
               <button
                 @click.stop="confirmDelete(server)"
+                :title="$t('common.delete')"
                 class="p-2 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
               >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -329,6 +346,7 @@ const showEditModal = ref(false)
 const showDeleteModal = ref(false)
 const editingServer = ref(null)
 const deletingServer = ref(null)
+const detectingCapabilities = ref({})
 
 // Toast notifications
 const toasts = ref([])
@@ -401,6 +419,33 @@ async function handleDelete(deleteType) {
         8000
       )
     }
+  }
+}
+
+async function detectCapabilities(server) {
+  detectingCapabilities.value[server.id] = true
+
+  try {
+    await serverStore.detectCapabilities(server.id)
+    showToast(
+      '✓ Capacités détectées',
+      `Détection des capacités lancée pour ${server.name}`,
+      'success'
+    )
+
+    // Refresh server list after detection completes (wait 5s for job to finish)
+    setTimeout(async () => {
+      await serverStore.fetchServers()
+    }, 5000)
+  } catch (err) {
+    showToast(
+      'Erreur',
+      err.response?.data?.error?.message || 'Échec de la détection des capacités',
+      'error',
+      8000
+    )
+  } finally {
+    detectingCapabilities.value[server.id] = false
   }
 }
 

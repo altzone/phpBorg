@@ -125,6 +125,20 @@ export const useServerStore = defineStore('server', () => {
     }
   }
 
+  async function detectCapabilities(id) {
+    try {
+      loading.value = true
+      error.value = null
+      const data = await serverService.detectCapabilities(id)
+      return data
+    } catch (err) {
+      error.value = err.response?.data?.error?.message || 'Failed to detect server capabilities'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   function clearError() {
     error.value = null
   }
@@ -142,6 +156,7 @@ export const useServerStore = defineStore('server', () => {
     updateServer,
     deleteServer,
     collectStats,
+    detectCapabilities,
     clearError,
   }
 })
