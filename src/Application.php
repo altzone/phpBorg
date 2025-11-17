@@ -28,6 +28,7 @@ use PhpBorg\Service\Backup\BackupService;
 use PhpBorg\Service\Backup\BorgExecutor;
 use PhpBorg\Service\Backup\MountService;
 use PhpBorg\Service\Queue\JobQueue;
+use PhpBorg\Service\Database\DockerBackupStrategy;
 use PhpBorg\Service\Database\ElasticsearchBackupStrategy;
 use PhpBorg\Service\Database\LvmSnapshotManager;
 use PhpBorg\Service\Database\MongoDbBackupStrategy;
@@ -291,6 +292,13 @@ final class Application
             $service->registerDatabaseStrategy(
                 new MongoDbBackupStrategy(
                     $lvmManager,
+                    $this->logger
+                )
+            );
+
+            $service->registerDatabaseStrategy(
+                new DockerBackupStrategy(
+                    $this->getSshExecutor(),
                     $this->logger
                 )
             );

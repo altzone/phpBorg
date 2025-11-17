@@ -369,7 +369,7 @@ class BackupWizardController extends BaseController
             }
 
             // 2.5. Create DatabaseInfo if this is a database backup
-            $databaseTypes = ['mysql', 'mariadb', 'postgresql', 'postgres', 'mongodb'];
+            $databaseTypes = ['mysql', 'mariadb', 'postgresql', 'postgres', 'mongodb', 'docker'];
             if (in_array($data['backup_type'], $databaseTypes)) {
                 $dbInfoId = $this->createDatabaseInfo(
                     $server,
@@ -717,11 +717,17 @@ class BackupWizardController extends BaseController
             'mariadb' => 'mysql',
             'postgresql' => 'postgresql',
             'postgres' => 'postgresql',
-            'mongodb' => 'mongodb'
+            'mongodb' => 'mongodb',
+            'docker' => 'docker'
         ];
 
         $dbType = $dbTypeMap[$backupType] ?? $backupType;
         error_log("Mapped dbType: $dbType");
+
+        // Special case: Docker doesn't need snapshot validation
+        if ($dbType === 'docker') {
+            return $this->createDockerDatabaseInfo($server, $sourceConfig, $repoId);
+        }
 
         // Get server capabilities
         if (!$server->capabilitiesDetected || !$server->capabilitiesData) {
@@ -821,6 +827,42 @@ class BackupWizardController extends BaseController
         );
 
         error_log("DatabaseInfo created successfully with ID: $dbInfoId");
+        return $dbInfoId;
+    }
+
+    /**
+     * Create DatabaseInfo for Docker backups
+     * Docker doesn't use LVM snapshots, so we store source config as JSON
+     *
+     * @throws PhpBorgException
+     * @return int DatabaseInfo ID
+     */
+    private function createDockerDatabaseInfo($server, array $sourceConfig, string $repoId): int
+    {
+        error_log("=== createDockerDatabaseInfo DEBUG ===");
+        error_log("sourceConfig: " . json_encode($sourceConfig));
+        error_log("repoId: $repoId");
+
+        // Store source config as JSON in mysqlPath field (reusing field for simplicity)
+        // This includes: backupAllVolumes, selectedVolumes, selectedComposeProjects, backupDockerConfig, backupCustomNetworks
+        $sourceConfigJson = json_encode($sourceConfig);
+
+        // Create DatabaseInfo with minimal fields
+        // Docker doesn't use LVM snapshots, so vg_name, lv_name, lv_size are set to dummy values
+        $dbInfoId = $this->databaseInfoRepository->create(
+            type: 'docker',
+            serverId: $server->id,
+            dbHost: 'localhost',
+            dbUser: 'docker',
+            dbPassword: '',
+            vgName: 'none',
+            lvmPartition: 'none',
+            lvSize: '0',
+            dataPath: $sourceConfigJson,  // Store source config in dataPath field
+            repoId: $repoId
+        );
+
+        error_log("Docker DatabaseInfo created successfully with ID: $dbInfoId");
         return $dbInfoId;
     }
 }
