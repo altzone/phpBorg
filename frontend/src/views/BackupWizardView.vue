@@ -228,9 +228,15 @@
 
               <div>
                 <label class="flex items-center justify-between mb-2">
-                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('backup_wizard.source_config.advanced') }}</span>
-                  <button @click="detectMySQLCredentials" class="text-sm text-primary-600 hover:text-primary-700">
-                    Auto-detect
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('backup_wizard.source_config.mysql_credentials') }}</span>
+                  <button
+                    @click="detectMySQLCredentials"
+                    class="inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md transition-colors"
+                  >
+                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    {{ $t('backup_wizard.source_config.auto_detect') }}
                   </button>
                 </label>
 
@@ -1767,17 +1773,35 @@ watch(() => [
 })
 
 async function detectMySQLCredentials() {
-  try {
-    const response = await wizardService.detectMySQL(wizardData.value.serverId)
-    if (response.data.detected) {
-      wizardData.value.sourceConfig.username = response.data.username
-      wizardData.value.sourceConfig.password = response.data.password
-      wizardData.value.sourceConfig.host = response.data.host
-      wizardData.value.sourceConfig.port = response.data.port
-    }
-  } catch (error) {
-    console.error('Failed to detect MySQL credentials:', error)
+  // Get MySQL capabilities auth data
+  const mysqlDb = getDetectedDatabase('mysql')
+
+  if (!mysqlDb || !mysqlDb.auth) {
+    alert('No MySQL authentication detected. Please run "Detect Capabilities" first.')
+    return
   }
+
+  const auth = mysqlDb.auth
+
+  if (!auth.working) {
+    alert('No working MySQL credentials detected. Please configure manually.')
+    return
+  }
+
+  // Auto-fill credentials from detected auth
+  wizardData.value.sourceConfig.username = auth.user || 'root'
+  wizardData.value.sourceConfig.password = auth.password || ''
+  wizardData.value.sourceConfig.host = auth.host || 'localhost'
+  wizardData.value.sourceConfig.port = auth.port || 3306
+
+  // Show success message with method used
+  const methodText = auth.method === 'root_no_password'
+    ? 'root without password'
+    : auth.method === 'debian_cnf'
+    ? 'debian-sys-maint from /etc/mysql/debian.cnf'
+    : 'detected credentials'
+
+  alert(`✓ Credentials auto-filled using: ${methodText}`)
 }
 
 async function saveAsTemplate() {

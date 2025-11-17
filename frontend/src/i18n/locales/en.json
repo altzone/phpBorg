@@ -1012,6 +1012,8 @@
       "exclude_placeholder": "*.log\\n/tmp/*\\ncache/",
       "exclude_help": "One pattern per line. Uses Borg pattern syntax.",
       "advanced": "Advanced Configuration",
+      "mysql_credentials": "MySQL/MariaDB Credentials",
+      "auto_detect": "Auto-detect",
       "host": "Host",
       "port": "Port",
       "username": "Username",

@@ -1062,6 +1062,8 @@
       "exclude_placeholder": "*.log\\n/tmp/*\\ncache/",
       "exclude_help": "Un motif par ligne. Utilise la syntaxe de motifs de Borg.",
       "advanced": "Configuration Avancée",
+      "mysql_credentials": "Identifiants MySQL/MariaDB",
+      "auto_detect": "Auto-détecter",
       "host": "Hôte",
       "port": "Port",
       "username": "Nom d'utilisateur",
