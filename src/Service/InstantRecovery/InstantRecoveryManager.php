@@ -512,17 +512,20 @@ final class InstantRecoveryManager
         $this->logger->info("Starting {$image} container '{$containerName}' on port {$port}", $server->name);
 
         // MySQL/MariaDB read-only configuration
-        // Note: MySQL doesn't have a simple --read-only flag like PostgreSQL
-        // We use --innodb-read-only=1 and --read_only=1 (global variables)
+        // Note: We use --skip-grant-tables to bypass authentication on existing datadir
+        // We use --innodb-read-only=1 and --read_only=1 for read-only mode
+        // IMPORTANT: No MYSQL_ALLOW_EMPTY_PASSWORD - it triggers initialization!
+        // Mount as rw because MySQL needs to write temp files, but InnoDB will be read-only
         $dockerCmd = sprintf(
             "docker run -d " .
             "--name %s " .
             "--user 999:999 " .
             "--net=host " .
             "-v %s:/var/lib/mysql:rw " .
-            "-e MYSQL_ALLOW_EMPTY_PASSWORD=1 " .
             "%s " .
+            "--datadir=/var/lib/mysql " .
             "--port=%d " .
+            "--skip-grant-tables " .
             "--read_only=1 " .
             "--innodb-read-only=1 " .
             "--skip-log-bin",
