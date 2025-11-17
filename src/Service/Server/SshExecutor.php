@@ -84,9 +84,10 @@ final class SshExecutor
     {
         // Use deployed SSH key and connect as phpborg user (with borg serve restriction)
         // Note: Due to borg serve restriction, we can only run borg commands
+        // Note: Using StrictHostKeyChecking=no for compatibility with OpenSSH < 7.6
         $sshKeyPath = '/root/.ssh/phpborg_backup';
         $command = sprintf(
-            'ssh -i %s -q -o BatchMode=yes -o ConnectTimeout=3 -o StrictHostKeyChecking=accept-new phpborg@%s "borg --version"',
+            'ssh -i %s -q -o BatchMode=yes -o ConnectTimeout=3 -o StrictHostKeyChecking=no phpborg@%s "borg --version"',
             escapeshellarg($sshKeyPath),
             $backupServerIp
         );

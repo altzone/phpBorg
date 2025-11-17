@@ -126,7 +126,7 @@ final class ServerSetupHandler implements JobHandlerInterface
     private function testSSHConnection(string $hostname, int $port, string $user): void
     {
         $command = sprintf(
-            'ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p %d %s@%s "echo SSH_OK" 2>&1',
+            'ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=no -p %d %s@%s "echo SSH_OK" 2>&1',
             $port,
             escapeshellarg($user),
             escapeshellarg($hostname)
@@ -154,7 +154,7 @@ final class ServerSetupHandler implements JobHandlerInterface
     private function checkBorgInstallation(string $hostname, string $sshUser): bool
     {
         $command = sprintf(
-            'ssh -o StrictHostKeyChecking=accept-new %s@%s "which borg" 2>&1',
+            'ssh -o StrictHostKeyChecking=no %s@%s "which borg" 2>&1',
             escapeshellarg($sshUser),
             escapeshellarg($hostname)
         );
@@ -181,7 +181,7 @@ final class ServerSetupHandler implements JobHandlerInterface
         // First, try apt-get (Debian/Ubuntu)
         // Note: No sudo needed as we connect as root
         $command = sprintf(
-            'ssh -o StrictHostKeyChecking=accept-new %s@%s "apt-get update && apt-get install -y borgbackup" 2>&1',
+            'ssh -o StrictHostKeyChecking=no %s@%s "apt-get update && apt-get install -y borgbackup" 2>&1',
             escapeshellarg($sshUser),
             escapeshellarg($hostname)
         );
@@ -198,7 +198,7 @@ final class ServerSetupHandler implements JobHandlerInterface
         if ($returnCode !== 0) {
             // Try yum (CentOS/RHEL) as fallback
             $command = sprintf(
-                'ssh -o StrictHostKeyChecking=accept-new %s@%s "yum install -y borgbackup" 2>&1',
+                'ssh -o StrictHostKeyChecking=no %s@%s "yum install -y borgbackup" 2>&1',
                 escapeshellarg($sshUser),
                 escapeshellarg($hostname)
             );
@@ -225,7 +225,7 @@ final class ServerSetupHandler implements JobHandlerInterface
     private function verifyBorgInstallation(string $hostname, string $sshUser): void
     {
         $command = sprintf(
-            'ssh -o StrictHostKeyChecking=accept-new %s@%s "borg --version" 2>&1',
+            'ssh -o StrictHostKeyChecking=no %s@%s "borg --version" 2>&1',
             escapeshellarg($sshUser),
             escapeshellarg($hostname)
         );
@@ -327,7 +327,7 @@ final class ServerSetupHandler implements JobHandlerInterface
 
         // Create .ssh directory on remote server if needed
         $command = sprintf(
-            'ssh -o StrictHostKeyChecking=accept-new %s@%s "mkdir -p /root/.ssh && chmod 700 /root/.ssh" 2>&1',
+            'ssh -o StrictHostKeyChecking=no %s@%s "mkdir -p /root/.ssh && chmod 700 /root/.ssh" 2>&1',
             escapeshellarg($sshUser),
             escapeshellarg($hostname)
         );
@@ -346,7 +346,7 @@ final class ServerSetupHandler implements JobHandlerInterface
         // Copy private key to remote server using heredoc
         $escapedKey = str_replace("'", "'\\''", $privateKey);
         $command = sprintf(
-            "ssh -o StrictHostKeyChecking=accept-new %s@%s 'cat > %s && chmod 600 %s' <<'EOF'\n%s\nEOF",
+            "ssh -o StrictHostKeyChecking=no %s@%s 'cat > %s && chmod 600 %s' <<'EOF'\n%s\nEOF",
             escapeshellarg($sshUser),
             escapeshellarg($hostname),
             escapeshellarg($remoteKeyPath),

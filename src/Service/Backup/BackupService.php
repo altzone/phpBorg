@@ -352,8 +352,9 @@ final class BackupService
 
         // Build borg create command with secure SSH
         // BORG_RSH specifies SSH options including the identity file
+        // Note: Using StrictHostKeyChecking=no for compatibility with OpenSSH < 7.6
         return sprintf(
-            "export BORG_PASSPHRASE=%s && export BORG_RSH='ssh -i %s -o StrictHostKeyChecking=accept-new' && %s create --compression %s --stats --json%s ssh://%s@%s%s::%s %s",
+            "export BORG_PASSPHRASE=%s && export BORG_RSH='ssh -i %s -o StrictHostKeyChecking=no' && %s create --compression %s --stats --json%s ssh://%s@%s%s::%s %s",
             $escapedPassphrase,
             escapeshellarg($sshKeyPath),
             $this->config->borgBinaryPath,
