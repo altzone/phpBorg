@@ -201,30 +201,55 @@ final class BackupService
                 $strategy->cleanupBackup($server, $dbInfo);
             }
 
+            // Handle Borg exit codes
+            // Exit code 0 = success, 1 = success with warnings, 2+ = error
+            $hasWarnings = false;
             if ($result['exitCode'] !== 0) {
                 $stderr = $result['stderr'];
 
-                // Detect permission errors and provide helpful message
-                if (strpos($stderr, 'Permission denied') !== false ||
-                    strpos($stderr, 'LockFailed') !== false ||
-                    strpos($stderr, 'lock.exclusive') !== false) {
+                // Exit code 1 = warnings (files changed, etc.) - treat as success with warning
+                if ($result['exitCode'] === 1) {
+                    $hasWarnings = true;
 
-                    $username = $server->host;
-                    $errorMsg = "Borg repository permission error detected!\n\n";
-                    $errorMsg .= "The user '{$username}' cannot access the repository at: {$repository->repoPath}\n\n";
-                    $errorMsg .= "To fix this issue, run the following commands on the backup server:\n\n";
-                    $errorMsg .= "  1. Ensure the user exists:\n";
-                    $errorMsg .= "     sudo useradd -d " . dirname($repository->repoPath) . " -m {$username}\n\n";
-                    $errorMsg .= "  2. Fix repository ownership:\n";
-                    $errorMsg .= "     sudo chown -R {$username}:{$username} {$repository->repoPath}\n\n";
-                    $errorMsg .= "  3. Set correct permissions:\n";
-                    $errorMsg .= "     sudo chmod -R 700 {$repository->repoPath}\n\n";
-                    $errorMsg .= "Original error: " . trim(substr($stderr, 0, 500));
+                    // Detect non-atomic database backup warnings
+                    if (strpos($stderr, 'file changed while we backed it up') !== false) {
+                        $this->logger->warning(
+                            "⚠️  Non-atomic backup detected: Database files changed during backup. " .
+                            "For atomic backups of databases, use dedicated MySQL/PostgreSQL/MongoDB backup types with LVM snapshots.",
+                            $server->name
+                        );
+                    }
 
-                    throw new BackupException($errorMsg);
+                    // Log all warnings for transparency
+                    $this->logger->warning(
+                        "Backup completed with warnings (exit code 1): " . trim(substr($stderr, 0, 500)),
+                        $server->name
+                    );
+                } else {
+                    // Exit code 2+ = actual errors
+
+                    // Detect permission errors and provide helpful message
+                    if (strpos($stderr, 'Permission denied') !== false ||
+                        strpos($stderr, 'LockFailed') !== false ||
+                        strpos($stderr, 'lock.exclusive') !== false) {
+
+                        $username = $server->host;
+                        $errorMsg = "Borg repository permission error detected!\n\n";
+                        $errorMsg .= "The user '{$username}' cannot access the repository at: {$repository->repoPath}\n\n";
+                        $errorMsg .= "To fix this issue, run the following commands on the backup server:\n\n";
+                        $errorMsg .= "  1. Ensure the user exists:\n";
+                        $errorMsg .= "     sudo useradd -d " . dirname($repository->repoPath) . " -m {$username}\n\n";
+                        $errorMsg .= "  2. Fix repository ownership:\n";
+                        $errorMsg .= "     sudo chown -R {$username}:{$username} {$repository->repoPath}\n\n";
+                        $errorMsg .= "  3. Set correct permissions:\n";
+                        $errorMsg .= "     sudo chmod -R 700 {$repository->repoPath}\n\n";
+                        $errorMsg .= "Original error: " . trim(substr($stderr, 0, 500));
+
+                        throw new BackupException($errorMsg);
+                    }
+
+                    throw new BackupException("Borg backup failed: {$stderr}");
                 }
-
-                throw new BackupException("Borg backup failed: {$stderr}");
             }
 
             // Parse backup info
