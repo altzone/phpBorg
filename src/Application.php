@@ -196,6 +196,13 @@ final class Application
         );
     }
 
+    public function getSettingsRepository(): SettingRepository
+    {
+        return $this->getService(SettingRepository::class, fn() =>
+            new SettingRepository($this->connection)
+        );
+    }
+
     public function getServerStatsRepository(): ServerStatsRepository
     {
         return $this->getService(ServerStatsRepository::class, fn() =>

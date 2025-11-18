@@ -14,7 +14,7 @@ use PhpBorg\Repository\ArchiveRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\DatabaseInfoRepository;
 use PhpBorg\Repository\ReportRepository;
-use PhpBorg\Repository\SettingsRepository;
+use PhpBorg\Repository\SettingRepository;
 use PhpBorg\Service\Database\DatabaseBackupInterface;
 use PhpBorg\Service\Server\SshExecutor;
 
@@ -34,7 +34,7 @@ final class BackupService
         private readonly ArchiveRepository $archiveRepo,
         private readonly DatabaseInfoRepository $dbInfoRepo,
         private readonly ReportRepository $reportRepo,
-        private readonly SettingsRepository $settingsRepo,
+        private readonly SettingRepository $settingsRepo,
         private readonly LoggerInterface $logger,
     ) {
     }
