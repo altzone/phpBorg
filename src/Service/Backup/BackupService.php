@@ -253,6 +253,7 @@ final class BackupService
             }
 
             // Parse backup info
+            $archiveSavedToDb = false;
             try {
                 $archiveInfo = $this->borgExecutor->getArchiveInfo(
                     $repository->repoPath . "::{$archiveName}",
@@ -261,13 +262,35 @@ final class BackupService
 
                 // Save archive to database
                 $this->saveArchive($repository, $archiveInfo);
+                $archiveSavedToDb = true;
             } catch (\Exception $e) {
                 $this->logger->error(
-                    "Failed to save archive to database: {$e->getMessage()}. Backup exists in Borg but not in database!",
+                    "Failed to save archive to database: {$e->getMessage()}. Archive exists in Borg but not in database!",
                     $server->name
                 );
-                // Don't throw - backup succeeded in Borg, just database recording failed
-                // The sync function can recover this later
+
+                // CRITICAL: Automatically sync to recover orphaned archive
+                $this->logger->info("Attempting automatic sync to recover orphaned archive: {$archiveName}", $server->name);
+                try {
+                    $syncResult = $this->syncArchivesFromBorg($server->id, $repository->type);
+                    if ($syncResult['synced'] > 0) {
+                        $this->logger->info(
+                            "✓ Successfully recovered {$syncResult['synced']} orphaned archive(s) via automatic sync",
+                            $server->name
+                        );
+                        $archiveSavedToDb = true;
+                    } else {
+                        $this->logger->warning(
+                            "Automatic sync completed but archive may still be orphaned. Manual sync may be required.",
+                            $server->name
+                        );
+                    }
+                } catch (\Exception $syncError) {
+                    $this->logger->error(
+                        "Automatic sync failed: {$syncError->getMessage()}. Archive remains orphaned. Run 'phpborg sync-archives' manually.",
+                        $server->name
+                    );
+                }
             }
 
             // Update repository statistics
