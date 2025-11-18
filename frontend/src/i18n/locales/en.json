@@ -1372,7 +1372,10 @@
       "projects": "Compose Projects",
       "configs": "Configuration Files",
       "select_all": "Select All",
-      "deselect_all": "Deselect All"
+      "deselect_all": "Deselect All",
+      "analyzing": "Analyzing archive content...",
+      "no_analysis": "Archive analysis not available. Please retry.",
+      "retry_analysis": "Retry Analysis"
     },
     "destination": {
       "title": "Where to restore?",

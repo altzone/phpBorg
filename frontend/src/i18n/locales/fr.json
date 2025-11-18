@@ -1422,7 +1422,10 @@
       "projects": "Projets Compose",
       "configs": "Fichiers de Configuration",
       "select_all": "Tout Sélectionner",
-      "deselect_all": "Tout Désélectionner"
+      "deselect_all": "Tout Désélectionner",
+      "analyzing": "Analyse du contenu de l'archive...",
+      "no_analysis": "Analyse de l'archive non disponible. Veuillez réessayer.",
+      "retry_analysis": "Réessayer l'Analyse"
     },
     "destination": {
       "title": "Où restaurer ?",

@@ -280,7 +280,25 @@
           </div>
 
           <!-- Custom Selection Details -->
-          <div v-if="store.restoreType === 'custom' && store.analysis" class="mt-6 space-y-6">
+          <div v-if="store.restoreType === 'custom'" class="mt-6 space-y-6">
+            <!-- Loading Analysis -->
+            <div v-if="store.analyzing" class="text-center py-8">
+              <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-200 dark:border-gray-700 border-t-primary-600 mb-3"></div>
+              <p class="text-gray-600 dark:text-gray-400">{{ $t('docker_restore.custom_selection.analyzing') }}</p>
+            </div>
+
+            <!-- No Analysis Data -->
+            <div v-else-if="!store.analysis" class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
+              <p class="text-yellow-800 dark:text-yellow-200">
+                ⚠️ {{ $t('docker_restore.custom_selection.no_analysis') }}
+              </p>
+              <button @click="store.analyzeArchive()" class="mt-3 btn btn-primary btn-sm">
+                {{ $t('docker_restore.custom_selection.retry_analysis') }}
+              </button>
+            </div>
+
+            <!-- Analysis Results -->
+            <div v-else>
             <!-- Volumes -->
             <div v-if="store.analysis.volumes?.length" class="border dark:border-gray-700 rounded-lg p-4">
               <div class="flex items-center justify-between mb-3">
@@ -407,6 +425,7 @@
                   </span>
                 </label>
               </div>
+            </div>
             </div>
           </div>
         </div>
