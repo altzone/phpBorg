@@ -796,6 +796,7 @@
     "duration": "Durée :",
     "mounting": "Montage...",
     "mount_browse": "Monter & Parcourir",
+    "docker_restore_button": "🐳 Restauration Docker",
     "direct_restore": "Restauration directe",
     "mount_failed": "Échec du montage de l'archive : {error}",
     "mount_timeout": "Délai d'attente du montage dépassé",
@@ -1539,7 +1540,8 @@
         "copy": "Copier dans le Presse-papiers",
         "mode_explained": "Mode Expliqué",
         "mode_advanced": "Mode Avancé",
-        "copied": "Script copié dans le presse-papiers !"
+        "copied": "Script copié dans le presse-papiers !",
+        "copy_failed": "Échec de la copie du script"
       },
       "actions": {
         "start_restore": "⚠️ Exécuter la Restauration",
@@ -1571,6 +1573,10 @@
       "restore_failed": "Échec du démarrage de la restauration",
       "operation_not_found": "Opération introuvable",
       "rollback_failed": "Échec du rollback"
-    }
+    },
+    "error_missing_data": "Informations d'archive ou de serveur manquantes",
+    "error_server_not_found": "Serveur introuvable",
+    "error_load_data": "Échec du chargement des données",
+    "success_title": "Restauration Démarrée"
   }
 }

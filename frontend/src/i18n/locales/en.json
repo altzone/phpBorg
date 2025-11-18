@@ -795,6 +795,7 @@
     "duration": "Duration:",
     "mounting": "Mounting...",
     "mount_browse": "Mount & Browse",
+    "docker_restore_button": "🐳 Docker Restore",
     "direct_restore": "Direct Restore",
     "mount_failed": "Failed to mount archive: {error}",
     "mount_timeout": "Mount operation timed out",
@@ -1489,7 +1490,8 @@
         "copy": "Copy to Clipboard",
         "mode_explained": "Explained Mode",
         "mode_advanced": "Advanced Mode",
-        "copied": "Script copied to clipboard!"
+        "copied": "Script copied to clipboard!",
+        "copy_failed": "Failed to copy script"
       },
       "actions": {
         "start_restore": "⚠️ Execute Restore",
@@ -1521,6 +1523,10 @@
       "restore_failed": "Failed to start restore",
       "operation_not_found": "Operation not found",
       "rollback_failed": "Failed to rollback"
-    }
+    },
+    "error_missing_data": "Missing archive or server information",
+    "error_server_not_found": "Server not found",
+    "error_load_data": "Failed to load data",
+    "success_title": "Restore Started"
   }
 }

@@ -1,8 +1,5 @@
 import { defineStore } from 'pinia'
 import dockerRestoreService from '../services/dockerRestore'
-import { useToast } from 'vue-toastification'
-
-const toast = useToast()
 
 export const useDockerRestoreStore = defineStore('dockerRestore', {
   state: () => ({
@@ -173,7 +170,7 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
         this.analysis = response.data.analysis
       } catch (error) {
         console.error('Failed to analyze archive:', error)
-        toast.error('Failed to analyze archive: ' + (error.response?.data?.message || error.message))
+        // Error will be handled by component
       } finally {
         this.analyzing = false
       }
@@ -194,7 +191,7 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
         this.conflicts = response.data.conflicts
       } catch (error) {
         console.error('Failed to detect conflicts:', error)
-        toast.error('Failed to detect conflicts: ' + (error.response?.data?.message || error.message))
+        // Error will be handled by component
       } finally {
         this.detectingConflicts = false
       }
@@ -205,7 +202,7 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
      */
     async generateScript(advanced = false) {
       if (!this.operation) {
-        toast.error('No operation created yet')
+        console.warn('No operation created yet')
         return
       }
 
@@ -220,7 +217,7 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
         this.script = response.data.script
       } catch (error) {
         console.error('Failed to generate script:', error)
-        toast.error('Failed to generate script: ' + (error.response?.data?.message || error.message))
+        // Error will be handled by component
       } finally {
         this.generatingScript = false
       }
@@ -234,11 +231,9 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
       try {
         const response = await dockerRestoreService.startRestore(this.getRestoreConfig)
         this.operation = response.data
-        toast.success('Docker restore started successfully')
         return response.data
       } catch (error) {
         console.error('Failed to start restore:', error)
-        toast.error('Failed to start restore: ' + (error.response?.data?.message || error.message))
         throw error
       } finally {
         this.restoring = false
@@ -269,7 +264,7 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
         this.operations = response.data.operations
       } catch (error) {
         console.error('Failed to list operations:', error)
-        toast.error('Failed to load operations')
+        // Error will be handled by component
       } finally {
         this.loadingOperations = false
       }
@@ -281,11 +276,9 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
     async rollback(operationId) {
       try {
         const response = await dockerRestoreService.rollback(operationId)
-        toast.success('Rollback started successfully')
         return response.data
       } catch (error) {
         console.error('Failed to rollback:', error)
-        toast.error('Failed to rollback: ' + (error.response?.data?.message || error.message))
         throw error
       }
     },

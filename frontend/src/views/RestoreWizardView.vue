@@ -317,6 +317,18 @@
               {{ archive.instant_recovery_starting ? $t('restore_wizard.instant_recovery.starting') : $t('restore_wizard.instant_recovery.button') }}
             </button>
 
+            <!-- Docker Restore Button (only for Docker repositories) -->
+            <button
+              v-if="isDockerArchive(archive)"
+              @click="handleDockerRestore(archive)"
+              class="btn btn-primary flex-1"
+            >
+              <svg class="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+              {{ $t('restore_wizard.docker_restore_button') }}
+            </button>
+
             <button
               @click="handleDirectRestore(archive)"
               class="btn btn-secondary flex-1"
@@ -795,6 +807,25 @@ function handleDirectRestore(archive) {
 function isDatabaseArchive(archive) {
   const dbTypes = ['postgresql', 'postgres', 'mysql', 'mariadb', 'mongodb']
   return archive.type && dbTypes.includes(archive.type.toLowerCase())
+}
+
+// Check if archive is a Docker type
+function isDockerArchive(archive) {
+  return archive.type && archive.type.toLowerCase() === 'docker'
+}
+
+// Handle Docker Restore button click
+function handleDockerRestore(archive) {
+  // Navigate to Docker Restore Wizard with archive and server data
+  router.push({
+    name: 'docker-restore-wizard',
+    params: {
+      archiveId: archive.id
+    },
+    query: {
+      serverId: selectedServer.value?.id
+    }
+  })
 }
 
 // Handle Instant Recovery button click

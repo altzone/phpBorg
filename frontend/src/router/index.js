@@ -51,6 +51,11 @@ const router = createRouter({
           component: () => import('@/views/RestoreWizardView.vue'),
         },
         {
+          path: 'docker-restore/:archiveId',
+          name: 'docker-restore-wizard',
+          component: () => import('@/views/DockerRestoreWizardView.vue'),
+        },
+        {
           path: 'backup-jobs',
           name: 'backup-jobs',
           component: () => import('@/views/BackupJobsView.vue'),
