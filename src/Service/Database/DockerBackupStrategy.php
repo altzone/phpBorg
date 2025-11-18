@@ -161,8 +161,17 @@ final class DockerBackupStrategy implements DatabaseBackupInterface
             30
         );
 
+        $this->logger->info("Docker volume detection - exit code: {$result['exitCode']}, stdout length: " . strlen($result['stdout']), $server->name);
+
+        if ($result['exitCode'] !== 0) {
+            $this->logger->error("Failed to get Docker volumes: {$result['stderr']}", $server->name);
+        }
+
         if ($result['exitCode'] === 0 && !empty($result['stdout'])) {
             $paths = array_filter(explode("\n", trim($result['stdout'])));
+            $this->logger->info("Found " . count($paths) . " Docker volume paths", $server->name);
+        } else {
+            $this->logger->warning("No Docker volumes found or command failed", $server->name);
         }
 
         return $paths;
