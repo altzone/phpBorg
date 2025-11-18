@@ -547,6 +547,42 @@
                 </div>
               </div>
 
+              <!-- Standalone Containers with Dockerfiles -->
+              <div v-if="getDetectedDocker()?.standalone_containers && getDetectedDocker().standalone_containers.length > 0">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {{ $t('backup_wizard.source_config.docker_standalone_containers') }}
+                  <span class="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
+                    ({{ $t('backup_wizard.source_config.docker_standalone_desc') }})
+                  </span>
+                </label>
+                <div class="space-y-2 max-h-64 overflow-y-auto border dark:border-gray-700 rounded-lg p-3">
+                  <label
+                    v-for="container in getDetectedDocker().standalone_containers"
+                    :key="container.name"
+                    class="flex items-start p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                  >
+                    <input
+                      v-model="wizardData.sourceConfig.selectedStandaloneContainers"
+                      :value="container.name"
+                      type="checkbox"
+                      class="mt-1 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <div class="ml-3 flex-1">
+                      <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100 font-mono">{{ container.name }}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ container.image }}</span>
+                      </div>
+                      <p class="text-xs text-gray-600 dark:text-gray-400 mt-0.5" v-if="container.dockerfile_path">
+                        🐳 {{ container.dockerfile_path }}
+                      </p>
+                    </div>
+                  </label>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2 ml-1">
+                  {{ $t('backup_wizard.source_config.docker_standalone_help') }}
+                </p>
+              </div>
+
               <!-- Individual Volumes -->
               <div v-if="!wizardData.sourceConfig.backupAllVolumes && getDetectedDocker()?.volumes">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1525,6 +1561,7 @@ const wizardData = ref({
     // Docker backup options
     backupAllVolumes: true,
     selectedComposeProjects: [],
+    selectedStandaloneContainers: [],
     selectedVolumes: [],
     backupDockerConfig: true,
     backupCustomNetworks: false

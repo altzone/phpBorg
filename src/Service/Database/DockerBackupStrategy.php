@@ -77,6 +77,34 @@ final class DockerBackupStrategy implements DatabaseBackupInterface
                 }
             }
 
+            // 2b. Backup Dockerfiles for standalone containers (CRITICAL for restore!)
+            $selectedStandaloneContainers = $sourceConfig['selectedStandaloneContainers'] ?? [];
+            $backupAllStandalone = empty($selectedStandaloneContainers); // If nothing selected, backup all detected
+
+            if ($backupAllStandalone) {
+                $this->logger->info("No standalone containers selected - backing up ALL detected Dockerfiles", $server->name);
+                $standaloneContainers = $this->getStandaloneContainersWithDockerfiles($server);
+                foreach ($standaloneContainers as $containerInfo) {
+                    $dockerfilePath = $containerInfo['dockerfile_path'] ?? null;
+                    if ($dockerfilePath && $this->fileExists($server, $dockerfilePath)) {
+                        // Backup the directory containing the Dockerfile (not just the file)
+                        $dockerfileDir = dirname($dockerfilePath);
+                        $paths[] = $dockerfileDir;
+                        $this->logger->info("Including standalone container Dockerfile: {$containerInfo['name']} ({$dockerfileDir})", $server->name);
+                    }
+                }
+            } else {
+                // User selected specific standalone containers to backup
+                foreach ($selectedStandaloneContainers as $containerName) {
+                    $dockerfilePath = $this->getDockerfilePathForContainer($server, $containerName);
+                    if ($dockerfilePath && $this->fileExists($server, $dockerfilePath)) {
+                        $dockerfileDir = dirname($dockerfilePath);
+                        $paths[] = $dockerfileDir;
+                        $this->logger->info("Including selected standalone container: {$containerName} ({$dockerfileDir})", $server->name);
+                    }
+                }
+            }
+
             // 3. Backup Docker system configuration
             if ($sourceConfig['backupDockerConfig'] ?? true) {
                 // Docker daemon configuration
@@ -317,5 +345,132 @@ final class DockerBackupStrategy implements DatabaseBackupInterface
             'docker ps -a --format "{{.ID}}" | xargs docker inspect > /tmp/phpborg_docker_containers.json 2>/dev/null',
             30
         );
+    }
+
+    /**
+     * Get standalone containers with Dockerfiles detected
+     */
+    private function getStandaloneContainersWithDockerfiles(Server $server): array
+    {
+        $standaloneContainers = [];
+
+        // Get all containers (running + stopped)
+        $result = $this->sshExecutor->execute(
+            $server,
+            'docker ps -a --format "{{.ID}}|{{.Names}}" 2>/dev/null',
+            15
+        );
+
+        if ($result['exitCode'] !== 0 || empty($result['stdout'])) {
+            $this->logger->warning("No containers found or command failed", $server->name);
+            return [];
+        }
+
+        $lines = explode("\n", trim($result['stdout']));
+        foreach ($lines as $line) {
+            if (empty($line)) continue;
+
+            $parts = explode('|', $line);
+            if (count($parts) < 2) continue;
+
+            [$containerId, $containerName] = $parts;
+
+            // Inspect container to check if standalone and has Dockerfile
+            $inspectResult = $this->sshExecutor->execute(
+                $server,
+                sprintf('docker inspect %s --format "{{index .Config.Labels \"com.docker.compose.project\"}}"', escapeshellarg($containerId)),
+                5
+            );
+
+            $composeProject = trim($inspectResult['stdout']);
+
+            // Skip if it's a compose container
+            if (!empty($composeProject)) {
+                continue;
+            }
+
+            // Try to find Dockerfile for this standalone container
+            $dockerfilePath = $this->findDockerfileForContainer($server, $containerId);
+
+            if ($dockerfilePath) {
+                $standaloneContainers[] = [
+                    'name' => $containerName,
+                    'id' => $containerId,
+                    'dockerfile_path' => $dockerfilePath
+                ];
+                $this->logger->info("Found standalone container with Dockerfile: {$containerName} → {$dockerfilePath}", $server->name);
+            }
+        }
+
+        return $standaloneContainers;
+    }
+
+    /**
+     * Find Dockerfile for a specific container
+     */
+    private function findDockerfileForContainer(Server $server, string $containerId): ?string
+    {
+        // Get container bind mounts
+        $result = $this->sshExecutor->execute(
+            $server,
+            sprintf(
+                'docker inspect %s --format \'{{range .Mounts}}{{if eq .Type "bind"}}{{.Source}}|{{end}}{{end}}\'',
+                escapeshellarg($containerId)
+            ),
+            10
+        );
+
+        if ($result['exitCode'] !== 0 || empty($result['stdout'])) {
+            return null;
+        }
+
+        $bindMounts = array_filter(explode('|', trim($result['stdout'])));
+
+        foreach ($bindMounts as $mountPath) {
+            // Check for Dockerfile in mount directory
+            $checkResult = $this->sshExecutor->execute(
+                $server,
+                sprintf('test -f %s/Dockerfile && echo "found"', escapeshellarg($mountPath)),
+                5
+            );
+
+            if (trim($checkResult['stdout']) === 'found') {
+                return $mountPath . '/Dockerfile';
+            }
+
+            // Check parent directory
+            $parentPath = dirname($mountPath);
+            $checkResult = $this->sshExecutor->execute(
+                $server,
+                sprintf('test -f %s/Dockerfile && echo "found"', escapeshellarg($parentPath)),
+                5
+            );
+
+            if (trim($checkResult['stdout']) === 'found') {
+                return $parentPath . '/Dockerfile';
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Get Dockerfile path for specific container name
+     */
+    private function getDockerfilePathForContainer(Server $server, string $containerName): ?string
+    {
+        // Get container ID from name
+        $result = $this->sshExecutor->execute(
+            $server,
+            sprintf('docker ps -a --filter "name=^%s$" --format "{{.ID}}" | head -1', escapeshellarg($containerName)),
+            5
+        );
+
+        if ($result['exitCode'] !== 0 || empty($result['stdout'])) {
+            return null;
+        }
+
+        $containerId = trim($result['stdout']);
+        return $this->findDockerfileForContainer($server, $containerId);
     }
 }

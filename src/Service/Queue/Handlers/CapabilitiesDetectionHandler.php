@@ -930,6 +930,7 @@ final class CapabilitiesDetectionHandler implements JobHandlerInterface
             'networks' => [],
             'volumes' => [],
             'compose_projects' => [],
+            'standalone_containers' => [],
             'host_config' => [
                 'config_path' => '/etc/docker',
                 'config_exists' => false,
@@ -986,7 +987,9 @@ final class CapabilitiesDetectionHandler implements JobHandlerInterface
                             'compose_project' => $containerDetails['compose_project'] ?? null,
                             'compose_file' => $containerDetails['compose_file'] ?? null,
                             'working_dir' => $containerDetails['working_dir'] ?? null,
-                            'networks' => $containerDetails['networks'] ?? []
+                            'networks' => $containerDetails['networks'] ?? [],
+                            'is_standalone' => $containerDetails['is_standalone'] ?? false,
+                            'dockerfile_path' => $containerDetails['dockerfile_path'] ?? null
                         ];
 
                         $dockerInfo['containers'][] = $container;
@@ -1004,6 +1007,19 @@ final class CapabilitiesDetectionHandler implements JobHandlerInterface
                             }
                             $dockerInfo['compose_projects'][$projectKey]['containers'][] = $containerName;
                         }
+
+                        // Track standalone containers with Dockerfiles
+                        if ($container['is_standalone'] && $container['dockerfile_path']) {
+                            if (!isset($dockerInfo['standalone_containers'])) {
+                                $dockerInfo['standalone_containers'] = [];
+                            }
+                            $dockerInfo['standalone_containers'][] = [
+                                'name' => $containerName,
+                                'image' => $container['image'],
+                                'dockerfile_path' => $container['dockerfile_path'],
+                                'volumes' => $container['volumes']
+                            ];
+                        }
                     }
                 }
             }
@@ -1018,6 +1034,7 @@ final class CapabilitiesDetectionHandler implements JobHandlerInterface
             $dockerInfo['network_count'] = count($dockerInfo['networks']);
             $dockerInfo['volume_count'] = count($dockerInfo['volumes']);
             $dockerInfo['compose_project_count'] = count($dockerInfo['compose_projects']);
+            $dockerInfo['standalone_container_count'] = count($dockerInfo['standalone_containers']);
 
         } catch (\Exception $e) {
             $this->logger->error("Error detecting Docker: " . $e->getMessage(), 'CAPABILITIES');
@@ -1036,7 +1053,9 @@ final class CapabilitiesDetectionHandler implements JobHandlerInterface
             'compose_project' => null,
             'compose_file' => null,
             'working_dir' => null,
-            'networks' => []
+            'networks' => [],
+            'dockerfile_path' => null,
+            'is_standalone' => false
         ];
 
         try {
@@ -1086,6 +1105,22 @@ final class CapabilitiesDetectionHandler implements JobHandlerInterface
                         if (isset($labels['com.docker.compose.project.config_files'])) {
                             $details['compose_file'] = $labels['com.docker.compose.project.config_files'];
                         }
+
+                        // Check for custom Dockerfile labels (for standalone containers)
+                        if (isset($labels['dockerfile']) || isset($labels['build.context'])) {
+                            $details['dockerfile_path'] = $labels['dockerfile'] ?? $labels['build.context'];
+                        }
+                    }
+
+                    // Detect standalone containers (not from compose)
+                    $details['is_standalone'] = empty($details['compose_project']);
+
+                    // For standalone containers, try to find Dockerfile in bind mounts
+                    if ($details['is_standalone'] && !empty($details['volumes'])) {
+                        $dockerfilePath = $this->findDockerfileInMounts($server, $details['volumes']);
+                        if ($dockerfilePath) {
+                            $details['dockerfile_path'] = $dockerfilePath;
+                        }
                     }
 
                     // Extract networks
@@ -1100,6 +1135,45 @@ final class CapabilitiesDetectionHandler implements JobHandlerInterface
         }
 
         return $details;
+    }
+
+    /**
+     * Try to find Dockerfile in container bind mounts
+     */
+    private function findDockerfileInMounts(Server $server, array $volumes): ?string
+    {
+        foreach ($volumes as $volume) {
+            if ($volume['type'] !== 'bind') {
+                continue;
+            }
+
+            $mountPath = $volume['source'];
+
+            // Check for Dockerfile in the bind mount directory
+            $result = $this->sshExecutor->execute(
+                $server,
+                sprintf('test -f %s/Dockerfile && echo "found"', escapeshellarg($mountPath)),
+                5
+            );
+
+            if (trim($result['stdout']) === 'found') {
+                return $mountPath . '/Dockerfile';
+            }
+
+            // Check parent directory (common pattern: mount subdirectory but Dockerfile is in parent)
+            $parentPath = dirname($mountPath);
+            $result = $this->sshExecutor->execute(
+                $server,
+                sprintf('test -f %s/Dockerfile && echo "found"', escapeshellarg($parentPath)),
+                5
+            );
+
+            if (trim($result['stdout']) === 'found') {
+                return $parentPath . '/Dockerfile';
+            }
+        }
+
+        return null;
     }
 
     /**
