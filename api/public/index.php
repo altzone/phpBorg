@@ -25,6 +25,7 @@ use PhpBorg\Api\Controller\BackupSourceController;
 use PhpBorg\Api\Controller\BackupScheduleController;
 use PhpBorg\Api\Controller\BackupWizardController;
 use PhpBorg\Api\Controller\DashboardController;
+use PhpBorg\Api\Controller\DockerRestoreController;
 use PhpBorg\Api\Controller\EmailController;
 use PhpBorg\Api\Controller\InstantRecoveryController;
 use PhpBorg\Api\Controller\JobController;
@@ -221,6 +222,17 @@ try {
     $router->post('/instant-recovery/start', InstantRecoveryController::class, 'start', requireAuth: true);
     $router->post('/instant-recovery/stop/:id', InstantRecoveryController::class, 'stop', requireAuth: true);
     $router->delete('/instant-recovery/:id', InstantRecoveryController::class, 'delete', requireAuth: true);
+
+    // ===========================================
+    // Docker Restore Routes (Protected)
+    // ===========================================
+    $router->post('/docker-restore/analyze', DockerRestoreController::class, 'analyze', requireAuth: true);
+    $router->post('/docker-restore/detect-conflicts', DockerRestoreController::class, 'detectConflicts', requireAuth: true);
+    $router->post('/docker-restore/preview-script', DockerRestoreController::class, 'previewScript', requireAuth: true);
+    $router->post('/docker-restore/start', DockerRestoreController::class, 'start', requireAuth: true);
+    $router->get('/docker-restore', DockerRestoreController::class, 'list', requireAuth: true);
+    $router->get('/docker-restore/:id', DockerRestoreController::class, 'show', requireAuth: true);
+    $router->post('/docker-restore/:id/rollback', DockerRestoreController::class, 'rollback', requireAuth: true);
 
     // ===========================================
     // Future Routes (To be implemented)
