@@ -1308,5 +1308,219 @@
       "creation_failed": "Failed to create backup"
     },
     "success": "Backup configuration created successfully!"
+  },
+  "docker_restore": {
+    "title": "Docker Restore Wizard",
+    "subtitle": "Restore Docker volumes, compose projects, and configurations",
+    "steps": {
+      "mode": "Mode Selection",
+      "type": "Restore Type",
+      "destination": "Destination",
+      "options": "Advanced Options",
+      "conflicts": "Safety Checks",
+      "review": "Review & Confirm"
+    },
+    "mode": {
+      "title": "Select Restore Mode",
+      "express": {
+        "title": "Express Recovery",
+        "subtitle": "Fast disaster recovery",
+        "description": "One-click full restore with automatic container management. Recommended for emergency situations and complete system recovery.",
+        "features": [
+          "Automatic conflict detection",
+          "Auto-stop conflicting containers",
+          "In-place restore by default",
+          "Automatic container restart",
+          "Health checks post-restore"
+        ]
+      },
+      "pro_safe": {
+        "title": "Pro Safe",
+        "subtitle": "Advanced selective restore",
+        "description": "Granular control with custom selection and alternative location. Recommended for experienced administrators and selective recovery.",
+        "features": [
+          "Custom item selection",
+          "Alternative location restore",
+          "Script preview before execution",
+          "Path adaptation options",
+          "Maximum flexibility"
+        ]
+      }
+    },
+    "type": {
+      "title": "What do you want to restore?",
+      "full": {
+        "title": "Full Environment Restore",
+        "description": "Restore everything: volumes + compose projects + configs. Recommended for disaster recovery."
+      },
+      "volumes_only": {
+        "title": "Volumes Only",
+        "description": "Restore only volume data. Does not touch compose files or configs. Useful for data recovery."
+      },
+      "compose_only": {
+        "title": "Compose Files Only",
+        "description": "Restore only docker-compose.yml and Dockerfiles. Does not touch volumes. Useful for configuration rollback."
+      },
+      "custom": {
+        "title": "Custom Selection",
+        "description": "Select specific items to restore. Maximum flexibility for advanced users."
+      }
+    },
+    "custom_selection": {
+      "volumes": "Docker Volumes",
+      "projects": "Compose Projects",
+      "configs": "Configuration Files",
+      "select_all": "Select All",
+      "deselect_all": "Deselect All"
+    },
+    "destination": {
+      "title": "Where to restore?",
+      "alternative": {
+        "title": "Alternative Location",
+        "badge": "Safe - Recommended",
+        "description": "Restore to a new location. No risk to production. Allows review before deployment.",
+        "advantages": [
+          "No risk to production",
+          "Review before deployment",
+          "Compare with existing",
+          "Easy rollback"
+        ]
+      },
+      "in_place": {
+        "title": "In-Place Restore",
+        "badge": "Dangerous",
+        "description": "Restore directly to original locations. Will OVERWRITE current data!",
+        "warning_title": "⚠️ WARNING: In-Place Restore",
+        "warning_msg": "This operation will OVERWRITE current data!",
+        "active_containers": "Active containers detected:",
+        "actions_taken": "Actions that will be performed:",
+        "action_stop": "Stop {count} container(s)",
+        "action_overwrite": "Overwrite existing volumes",
+        "action_restart": "Restart containers",
+        "protections_title": "Available protections:",
+        "protection_lvm": "LVM snapshot before restore (recommended)",
+        "protection_backup": "Backup current state",
+        "no_protection_warning": "⚠️ Without these protections, the operation is IRREVERSIBLE!",
+        "confirm_checkbox": "I understand the risks and want to continue"
+      },
+      "alternative_path_label": "Restore path",
+      "alternative_path_placeholder": "/opt/restore_YYYY-MM-DD_HH-mm"
+    },
+    "advanced": {
+      "title": "Advanced Options",
+      "compose_adaptation": {
+        "title": "Path adaptation in docker-compose.yml",
+        "description": "How to handle volume paths in compose files?",
+        "none": {
+          "title": "Keep original paths",
+          "description": "No modification. You will need to adapt manually."
+        },
+        "auto_modify": {
+          "title": "Auto-modify paths",
+          "badge": "Recommended",
+          "description": "Automatically update paths to alternative location. Ready to use with docker-compose up."
+        },
+        "generate_new": {
+          "title": "Generate new + keep original",
+          "description": "Keep original as .original and generate adapted version. Best of both worlds."
+        }
+      },
+      "protections": {
+        "title": "Data Protection",
+        "lvm_snapshot": "Create LVM snapshot before restore",
+        "lvm_path": "LVM path",
+        "snapshot_size": "Snapshot size",
+        "pre_restore_backup": "Backup current state before restore",
+        "auto_rollback": "Auto-rollback on failure"
+      },
+      "containers": {
+        "title": "Container Management",
+        "auto_restart": "Auto-restart containers after restore"
+      }
+    },
+    "conflicts": {
+      "title": "Safety Checks & Conflicts",
+      "detecting": "Detecting conflicts...",
+      "no_conflicts": "✓ No conflicts detected",
+      "conflicts_detected": "Conflicts detected:",
+      "volume_used_by": "Volume {volume} used by:",
+      "project_containers": "Compose project {project} containers:",
+      "containers_stopped": "⚠️ These containers will be stopped before restore",
+      "disk_space": {
+        "title": "Disk Space",
+        "required": "Required: {size}",
+        "available": "Available: {size}",
+        "sufficient": "✓ Sufficient",
+        "insufficient": "⚠️ Insufficient disk space"
+      },
+      "warnings": {
+        "title": "Warnings",
+        "high_risk": "🔴 HIGH RISK",
+        "no_protection": "No protection enabled! Operation will be irreversible.",
+        "enable_protection": "Recommendation: Enable at least one protection.",
+        "volumes_without_compose": "⚠️ ATTENTION",
+        "volumes_compose_mismatch": "You are restoring volumes but not compose files. Containers will use old configurations with new data. Risk of incompatibility."
+      }
+    },
+    "review": {
+      "title": "Review & Confirm",
+      "summary": {
+        "title": "Restore Summary",
+        "archive": "Archive",
+        "mode": "Mode",
+        "type": "Restore Type",
+        "destination": "Destination",
+        "items": "Items to restore",
+        "volumes": "{count} volume(s)",
+        "projects": "{count} compose project(s)",
+        "configs": "{count} config file(s)",
+        "containers_stop": "Containers to stop",
+        "protections": "Protections enabled",
+        "lvm_snapshot": "✓ LVM Snapshot (rollback available 8h)",
+        "pre_restore_backup": "✓ Pre-restore backup",
+        "auto_restart": "✓ Auto-restart containers",
+        "estimated_duration": "Estimated duration",
+        "disk_space_required": "Disk space required"
+      },
+      "script": {
+        "title": "Generated Script",
+        "preview": "Preview Script",
+        "download": "Download Script",
+        "copy": "Copy to Clipboard",
+        "mode_explained": "Explained Mode",
+        "mode_advanced": "Advanced Mode",
+        "copied": "Script copied to clipboard!"
+      },
+      "actions": {
+        "start_restore": "⚠️ Execute Restore",
+        "starting": "Starting restore...",
+        "success": "Restore started successfully!",
+        "job_id": "Job ID: {id}",
+        "operation_id": "Operation ID: {id}",
+        "monitor": "Monitor Progress"
+      }
+    },
+    "operations": {
+      "title": "Restore Operations",
+      "status": {
+        "pending": "Pending",
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed",
+        "rolled_back": "Rolled Back"
+      },
+      "can_rollback": "Rollback available until {date}",
+      "rollback": "Rollback",
+      "rollback_confirm": "Are you sure you want to rollback this restore operation?",
+      "rollback_started": "Rollback started successfully"
+    },
+    "errors": {
+      "analyze_failed": "Failed to analyze archive",
+      "conflicts_failed": "Failed to detect conflicts",
+      "script_failed": "Failed to generate script",
+      "restore_failed": "Failed to start restore",
+      "operation_not_found": "Operation not found",
+      "rollback_failed": "Failed to rollback"
+    }
   }
 }

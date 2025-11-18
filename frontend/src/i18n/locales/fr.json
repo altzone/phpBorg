@@ -1358,5 +1358,219 @@
       "creation_failed": "Échec de la création de la sauvegarde"
     },
     "success": "Configuration de sauvegarde créée avec succès !"
+  },
+  "docker_restore": {
+    "title": "Assistant de Restauration Docker",
+    "subtitle": "Restaurez vos volumes, projets compose et configurations Docker",
+    "steps": {
+      "mode": "Sélection du Mode",
+      "type": "Type de Restauration",
+      "destination": "Destination",
+      "options": "Options Avancées",
+      "conflicts": "Vérifications de Sécurité",
+      "review": "Révision & Confirmation"
+    },
+    "mode": {
+      "title": "Sélectionnez le Mode de Restauration",
+      "express": {
+        "title": "Express Recovery",
+        "subtitle": "Récupération rapide en urgence",
+        "description": "Restauration complète en un clic avec gestion automatique des conteneurs. Recommandé pour les situations d'urgence et la récupération complète du système.",
+        "features": [
+          "Détection automatique des conflits",
+          "Arrêt auto des conteneurs en conflit",
+          "Restauration in-place par défaut",
+          "Redémarrage automatique des conteneurs",
+          "Vérifications de santé post-restauration"
+        ]
+      },
+      "pro_safe": {
+        "title": "Pro Safe",
+        "subtitle": "Restauration sélective avancée",
+        "description": "Contrôle granulaire avec sélection personnalisée et emplacement alternatif. Recommandé pour les administrateurs expérimentés et la récupération sélective.",
+        "features": [
+          "Sélection personnalisée des éléments",
+          "Restauration en emplacement alternatif",
+          "Prévisualisation du script avant exécution",
+          "Options d'adaptation des chemins",
+          "Flexibilité maximale"
+        ]
+      }
+    },
+    "type": {
+      "title": "Que voulez-vous restaurer ?",
+      "full": {
+        "title": "Restauration Complète de l'Environnement",
+        "description": "Restaure tout : volumes + projets compose + configs. Recommandé pour la reprise après sinistre."
+      },
+      "volumes_only": {
+        "title": "Volumes Uniquement",
+        "description": "Restaure uniquement les données des volumes. Ne touche pas aux fichiers compose ni aux configs. Utile pour la récupération de données."
+      },
+      "compose_only": {
+        "title": "Fichiers Compose Uniquement",
+        "description": "Restaure uniquement docker-compose.yml et Dockerfiles. Ne touche pas aux volumes. Utile pour le rollback de configuration."
+      },
+      "custom": {
+        "title": "Sélection Personnalisée",
+        "description": "Sélectionnez des éléments spécifiques à restaurer. Flexibilité maximale pour utilisateurs avancés."
+      }
+    },
+    "custom_selection": {
+      "volumes": "Volumes Docker",
+      "projects": "Projets Compose",
+      "configs": "Fichiers de Configuration",
+      "select_all": "Tout Sélectionner",
+      "deselect_all": "Tout Désélectionner"
+    },
+    "destination": {
+      "title": "Où restaurer ?",
+      "alternative": {
+        "title": "Emplacement Alternatif",
+        "badge": "Sûr - Recommandé",
+        "description": "Restaure vers un nouvel emplacement. Aucun risque pour la production. Permet une révision avant déploiement.",
+        "advantages": [
+          "Aucun risque pour la production",
+          "Révision avant déploiement",
+          "Comparaison avec l'existant",
+          "Rollback facile"
+        ]
+      },
+      "in_place": {
+        "title": "Restauration In-Place",
+        "badge": "Dangereux",
+        "description": "Restaure directement aux emplacements d'origine. Va ÉCRASER les données actuelles !",
+        "warning_title": "⚠️ ATTENTION : Restauration In-Place",
+        "warning_msg": "Cette opération va ÉCRASER les données actuelles !",
+        "active_containers": "Conteneurs actifs détectés :",
+        "actions_taken": "Actions qui seront effectuées :",
+        "action_stop": "Arrêt de {count} conteneur(s)",
+        "action_overwrite": "Écrasement des volumes existants",
+        "action_restart": "Redémarrage des conteneurs",
+        "protections_title": "Protections disponibles :",
+        "protection_lvm": "Snapshot LVM avant restauration (recommandé)",
+        "protection_backup": "Sauvegarde de l'état actuel",
+        "no_protection_warning": "⚠️ Sans ces protections, l'opération est IRRÉVERSIBLE !",
+        "confirm_checkbox": "Je comprends les risques et souhaite continuer"
+      },
+      "alternative_path_label": "Chemin de restauration",
+      "alternative_path_placeholder": "/opt/restore_AAAA-MM-JJ_HH-mm"
+    },
+    "advanced": {
+      "title": "Options Avancées",
+      "compose_adaptation": {
+        "title": "Adaptation des chemins dans docker-compose.yml",
+        "description": "Comment gérer les chemins de volumes dans les fichiers compose ?",
+        "none": {
+          "title": "Conserver les chemins originaux",
+          "description": "Aucune modification. Vous devrez adapter manuellement."
+        },
+        "auto_modify": {
+          "title": "Modifier automatiquement les chemins",
+          "badge": "Recommandé",
+          "description": "Mise à jour automatique des chemins vers l'emplacement alternatif. Prêt à utiliser avec docker-compose up."
+        },
+        "generate_new": {
+          "title": "Générer nouveau + garder l'original",
+          "description": "Garde l'original en .original et génère une version adaptée. Le meilleur des deux mondes."
+        }
+      },
+      "protections": {
+        "title": "Protection des Données",
+        "lvm_snapshot": "Créer un snapshot LVM avant restauration",
+        "lvm_path": "Chemin LVM",
+        "snapshot_size": "Taille du snapshot",
+        "pre_restore_backup": "Sauvegarder l'état actuel avant restauration",
+        "auto_rollback": "Rollback automatique en cas d'échec"
+      },
+      "containers": {
+        "title": "Gestion des Conteneurs",
+        "auto_restart": "Redémarrage automatique des conteneurs après restauration"
+      }
+    },
+    "conflicts": {
+      "title": "Vérifications de Sécurité & Conflits",
+      "detecting": "Détection des conflits...",
+      "no_conflicts": "✓ Aucun conflit détecté",
+      "conflicts_detected": "Conflits détectés :",
+      "volume_used_by": "Volume {volume} utilisé par :",
+      "project_containers": "Conteneurs du projet compose {project} :",
+      "containers_stopped": "⚠️ Ces conteneurs seront arrêtés avant la restauration",
+      "disk_space": {
+        "title": "Espace Disque",
+        "required": "Requis : {size}",
+        "available": "Disponible : {size}",
+        "sufficient": "✓ Suffisant",
+        "insufficient": "⚠️ Espace disque insuffisant"
+      },
+      "warnings": {
+        "title": "Avertissements",
+        "high_risk": "🔴 RISQUE ÉLEVÉ",
+        "no_protection": "Aucune protection activée ! L'opération sera irréversible.",
+        "enable_protection": "Recommandation : Activer au moins une protection.",
+        "volumes_without_compose": "⚠️ ATTENTION",
+        "volumes_compose_mismatch": "Vous restaurez les volumes mais pas les fichiers compose. Les conteneurs utiliseront les anciennes configurations avec les nouvelles données. Risque d'incompatibilité."
+      }
+    },
+    "review": {
+      "title": "Révision & Confirmation",
+      "summary": {
+        "title": "Résumé de la Restauration",
+        "archive": "Archive",
+        "mode": "Mode",
+        "type": "Type de Restauration",
+        "destination": "Destination",
+        "items": "Éléments à restaurer",
+        "volumes": "{count} volume(s)",
+        "projects": "{count} projet(s) compose",
+        "configs": "{count} fichier(s) de config",
+        "containers_stop": "Conteneurs à arrêter",
+        "protections": "Protections activées",
+        "lvm_snapshot": "✓ Snapshot LVM (rollback disponible 8h)",
+        "pre_restore_backup": "✓ Sauvegarde pré-restauration",
+        "auto_restart": "✓ Redémarrage auto des conteneurs",
+        "estimated_duration": "Durée estimée",
+        "disk_space_required": "Espace disque requis"
+      },
+      "script": {
+        "title": "Script Généré",
+        "preview": "Prévisualiser le Script",
+        "download": "Télécharger le Script",
+        "copy": "Copier dans le Presse-papiers",
+        "mode_explained": "Mode Expliqué",
+        "mode_advanced": "Mode Avancé",
+        "copied": "Script copié dans le presse-papiers !"
+      },
+      "actions": {
+        "start_restore": "⚠️ Exécuter la Restauration",
+        "starting": "Démarrage de la restauration...",
+        "success": "Restauration démarrée avec succès !",
+        "job_id": "ID Job : {id}",
+        "operation_id": "ID Opération : {id}",
+        "monitor": "Suivre la Progression"
+      }
+    },
+    "operations": {
+      "title": "Opérations de Restauration",
+      "status": {
+        "pending": "En Attente",
+        "running": "En Cours",
+        "completed": "Terminé",
+        "failed": "Échoué",
+        "rolled_back": "Annulé (Rollback)"
+      },
+      "can_rollback": "Rollback disponible jusqu'au {date}",
+      "rollback": "Rollback",
+      "rollback_confirm": "Êtes-vous sûr de vouloir annuler cette opération de restauration ?",
+      "rollback_started": "Rollback démarré avec succès"
+    },
+    "errors": {
+      "analyze_failed": "Échec de l'analyse de l'archive",
+      "conflicts_failed": "Échec de la détection des conflits",
+      "script_failed": "Échec de la génération du script",
+      "restore_failed": "Échec du démarrage de la restauration",
+      "operation_not_found": "Opération introuvable",
+      "rollback_failed": "Échec du rollback"
+    }
   }
 }
