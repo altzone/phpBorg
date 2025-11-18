@@ -10,6 +10,7 @@ use PhpBorg\Entity\RestoreOperation;
 use PhpBorg\Exception\RestoreException;
 use PhpBorg\Logger\LoggerInterface;
 use PhpBorg\Repository\ArchiveRepository;
+use PhpBorg\Repository\BackupSourceRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\ServerRepository;
 use PhpBorg\Repository\RestoreOperationRepository;
@@ -26,6 +27,7 @@ final class DockerRestoreService
     public function __construct(
         private readonly RestoreOperationRepository $restoreOperationRepository,
         private readonly ArchiveRepository $archiveRepository,
+        private readonly BackupSourceRepository $backupSourceRepository,
         private readonly BorgRepositoryRepository $repositoryRepository,
         private readonly ServerRepository $serverRepository,
         private readonly SshExecutor $sshExecutor,
@@ -73,7 +75,7 @@ final class DockerRestoreService
             ];
         }
 
-        $config = json_decode($backupSource['config'], true) ?? [];
+        $config = json_decode($backupSource->config, true) ?? [];
 
         // Extract volumes from backup configuration
         $volumes = [];
@@ -380,21 +382,13 @@ final class DockerRestoreService
     /**
      * Get backup source for an archive
      *
-     * @return array|null
+     * @return object|null
      */
-    private function getBackupSourceForArchive($archive, $repository, $server): ?array
+    private function getBackupSourceForArchive($archive, $repository, $server): ?object
     {
-        // Query backup_sources table to find Docker backup source for this server
-        $db = $GLOBALS['db'] ?? null;
-        if (!$db) {
-            return null;
-        }
-
-        $stmt = $db->prepare("SELECT * FROM backup_sources WHERE server_id = ? AND type = 'docker' LIMIT 1");
-        $stmt->bind_param('i', $server->id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        return $result->fetch_assoc();
+        // Find Docker backup source for this server
+        $sources = $this->backupSourceRepository->findByServerAndType($server->id, 'docker');
+        return !empty($sources) ? $sources[0] : null;
     }
 
     /**

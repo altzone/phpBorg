@@ -448,6 +448,7 @@ final class Application
             new \PhpBorg\Service\Docker\DockerRestoreService(
                 $this->getRestoreOperationRepository(),
                 $this->getArchiveRepository(),
+                $this->getBackupSourceRepository(),
                 $this->getBorgRepositoryRepository(),
                 $this->getServerRepository(),
                 $this->getSshExecutor(),
