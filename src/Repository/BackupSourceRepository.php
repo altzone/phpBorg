@@ -90,7 +90,7 @@ class BackupSourceRepository
 
     /**
      * Find backup sources by type
-     * 
+     *
      * @return BackupSource[]
      */
     public function findByType(string $type): array
@@ -98,6 +98,26 @@ class BackupSourceRepository
         $result = $this->connection->execute(
             'SELECT * FROM backup_sources WHERE type = ? ORDER BY name ASC',
             [$type]
+        );
+
+        $sources = [];
+        foreach ($result as $row) {
+            $sources[] = BackupSource::fromDatabase($row);
+        }
+
+        return $sources;
+    }
+
+    /**
+     * Find backup sources by server ID and type
+     *
+     * @return BackupSource[]
+     */
+    public function findByServerAndType(int $serverId, string $type): array
+    {
+        $result = $this->connection->execute(
+            'SELECT * FROM backup_sources WHERE server_id = ? AND type = ? ORDER BY name ASC',
+            [$serverId, $type]
         );
 
         $sources = [];
