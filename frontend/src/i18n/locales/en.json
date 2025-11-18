@@ -227,6 +227,11 @@
     "output_logs": "Output Logs",
     "job_payload": "Job Payload",
     "cancel_confirm": "Are you sure you want to cancel this job?",
+    "live_progress": "Live Progress",
+    "files_count": "Files",
+    "original_size": "Original Size",
+    "compressed_size": "Compressed",
+    "deduplicated_size": "Deduplicated",
     "types": {
       "backup_create": "Create Backup",
       "backup_prune": "Prune Backups",
@@ -358,7 +363,9 @@
       "message": "The archive \"{name}\" will be deleted by the worker.",
       "job_id": "Job ID: {id}",
       "monitor": "You can monitor the progress in the Jobs section."
-    }
+    },
+    "avg_transfer_rate": "Average Transfer Rate",
+    "average_speed": "Average Speed"
   },
   "backup_jobs": {
     "title": "Scheduled Jobs",
@@ -915,7 +922,6 @@
     "preview": "Preview",
     "download": "Download",
     "name": "Name",
-    "size": "Size",
     "modified": "Modified",
     "type": "Type",
     "directory": "Directory",
@@ -972,15 +978,51 @@
       "manual": "manual"
     },
     "steps": {
-      "server": { "label": "Server", "title": "Select Server", "description": "Choose the server to backup" },
-      "type": { "label": "Type", "title": "Backup Type", "description": "What do you want to backup?" },
-      "source": { "label": "Source", "title": "Source Configuration", "description": "Configure what to backup" },
-      "snapshot": { "label": "Snapshot", "title": "Snapshot Strategy", "description": "Choose snapshot method for consistency" },
-      "storage": { "label": "Storage", "title": "Storage Pool", "description": "Where to store the backup" },
-      "schedule": { "label": "Schedule", "title": "Backup Schedule", "description": "When to run backups" },
-      "retention": { "label": "Retention", "title": "Retention Policy", "description": "How long to keep backups" },
-      "options": { "label": "Options", "title": "Backup Options", "description": "Advanced settings and options" },
-      "review": { "label": "Review", "title": "Review & Create", "description": "Review your configuration and create" }
+      "server": {
+        "label": "Server",
+        "title": "Select Server",
+        "description": "Choose the server to backup"
+      },
+      "type": {
+        "label": "Type",
+        "title": "Backup Type",
+        "description": "What do you want to backup?"
+      },
+      "source": {
+        "label": "Source",
+        "title": "Source Configuration",
+        "description": "Configure what to backup"
+      },
+      "snapshot": {
+        "label": "Snapshot",
+        "title": "Snapshot Strategy",
+        "description": "Choose snapshot method for consistency"
+      },
+      "storage": {
+        "label": "Storage",
+        "title": "Storage Pool",
+        "description": "Where to store the backup"
+      },
+      "schedule": {
+        "label": "Schedule",
+        "title": "Backup Schedule",
+        "description": "When to run backups"
+      },
+      "retention": {
+        "label": "Retention",
+        "title": "Retention Policy",
+        "description": "How long to keep backups"
+      },
+      "options": {
+        "label": "Options",
+        "title": "Backup Options",
+        "description": "Advanced settings and options"
+      },
+      "review": {
+        "label": "Review",
+        "title": "Review & Create",
+        "description": "Review your configuration and create"
+      }
     },
     "server_select": {
       "label": "Select Server",
@@ -991,14 +1033,38 @@
       "description": "Description:"
     },
     "backup_types": {
-      "files": { "name": "Files & Folders", "description": "Backup files and directories" },
-      "filesystem": { "name": "Filesystem", "description": "Backup files and directories" },
-      "mysql": { "name": "MySQL", "description": "MySQL/MariaDB databases" },
-      "postgresql": { "name": "PostgreSQL", "description": "PostgreSQL databases" },
-      "mongodb": { "name": "MongoDB", "description": "MongoDB databases" },
-      "docker": { "name": "Docker", "description": "Docker containers" },
-      "system": { "name": "Full System", "description": "Complete system backup" },
-      "custom": { "name": "Custom Script", "description": "Run a custom backup script" }
+      "files": {
+        "name": "Files & Folders",
+        "description": "Backup files and directories"
+      },
+      "filesystem": {
+        "name": "Filesystem",
+        "description": "Backup files and directories"
+      },
+      "mysql": {
+        "name": "MySQL",
+        "description": "MySQL/MariaDB databases"
+      },
+      "postgresql": {
+        "name": "PostgreSQL",
+        "description": "PostgreSQL databases"
+      },
+      "mongodb": {
+        "name": "MongoDB",
+        "description": "MongoDB databases"
+      },
+      "docker": {
+        "name": "Docker",
+        "description": "Docker containers"
+      },
+      "system": {
+        "name": "Full System",
+        "description": "Complete system backup"
+      },
+      "custom": {
+        "name": "Custom Script",
+        "description": "Run a custom backup script"
+      }
     },
     "backup_type": {
       "db_requirements_title": "Database Backup Requirements",
@@ -1152,10 +1218,22 @@
       "passphrase_help_manual": "Store this passphrase securely - it cannot be recovered!"
     },
     "snapshot": {
-      "none": { "name": "No Snapshot", "description": "Direct backup without snapshot" },
-      "lvm": { "name": "LVM Snapshot", "description": "Use LVM snapshots for consistency" },
-      "btrfs": { "name": "BTRFS Snapshot", "description": "Use BTRFS snapshots" },
-      "zfs": { "name": "ZFS Snapshot", "description": "Use ZFS snapshots" }
+      "none": {
+        "name": "No Snapshot",
+        "description": "Direct backup without snapshot"
+      },
+      "lvm": {
+        "name": "LVM Snapshot",
+        "description": "Use LVM snapshots for consistency"
+      },
+      "btrfs": {
+        "name": "BTRFS Snapshot",
+        "description": "Use BTRFS snapshots"
+      },
+      "zfs": {
+        "name": "ZFS Snapshot",
+        "description": "Use ZFS snapshots"
+      }
     },
     "storage": {
       "select_label": "Select Storage Pool",
@@ -1237,13 +1315,34 @@
       "days_of_week": "Days of Week",
       "days_of_month": "Days of Month",
       "weekdays": {
-        "mon": { "short": "Mon", "full": "Monday" },
-        "tue": { "short": "Tue", "full": "Tuesday" },
-        "wed": { "short": "Wed", "full": "Wednesday" },
-        "thu": { "short": "Thu", "full": "Thursday" },
-        "fri": { "short": "Fri", "full": "Friday" },
-        "sat": { "short": "Sat", "full": "Saturday" },
-        "sun": { "short": "Sun", "full": "Sunday" }
+        "mon": {
+          "short": "Mon",
+          "full": "Monday"
+        },
+        "tue": {
+          "short": "Tue",
+          "full": "Tuesday"
+        },
+        "wed": {
+          "short": "Wed",
+          "full": "Wednesday"
+        },
+        "thu": {
+          "short": "Thu",
+          "full": "Thursday"
+        },
+        "fri": {
+          "short": "Fri",
+          "full": "Friday"
+        },
+        "sat": {
+          "short": "Sat",
+          "full": "Saturday"
+        },
+        "sun": {
+          "short": "Sun",
+          "full": "Sunday"
+        }
       }
     },
     "review": {

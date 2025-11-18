@@ -27,25 +27,32 @@
     </div>
 
     <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      <div class="card bg-blue-50">
-        <div class="text-sm text-blue-600 mb-1">{{ $t('backups.total_backups') }}</div>
-        <div class="text-2xl font-bold text-blue-900">{{ backupStore.stats.total_backups }}</div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+      <div class="card bg-blue-50 dark:bg-blue-900/20">
+        <div class="text-sm text-blue-600 dark:text-blue-400 mb-1">{{ $t('backups.total_backups') }}</div>
+        <div class="text-2xl font-bold text-blue-900 dark:text-blue-100">{{ backupStore.stats.total_backups }}</div>
       </div>
-      <div class="card bg-green-50">
-        <div class="text-sm text-green-600 mb-1">{{ $t('backups.total_size') }}</div>
-        <div class="text-2xl font-bold text-green-900">{{ formatBytes(backupStore.stats.total_original_size) }}</div>
-        <div class="text-xs text-green-600 mt-1">{{ $t('backups.original') }}</div>
+      <div class="card bg-green-50 dark:bg-green-900/20">
+        <div class="text-sm text-green-600 dark:text-green-400 mb-1">{{ $t('backups.total_size') }}</div>
+        <div class="text-2xl font-bold text-green-900 dark:text-green-100">{{ formatBytes(backupStore.stats.total_original_size) }}</div>
+        <div class="text-xs text-green-600 dark:text-green-400 mt-1">{{ $t('backups.original') }}</div>
       </div>
-      <div class="card bg-purple-50">
-        <div class="text-sm text-purple-600 mb-1">{{ $t('backups.compression') }}</div>
-        <div class="text-2xl font-bold text-purple-900">{{ backupStore.stats.compression_ratio }}%</div>
-        <div class="text-xs text-purple-600 mt-1">{{ formatBytes(backupStore.stats.total_compressed_size) }} {{ $t('backups.saved') }}</div>
+      <div class="card bg-purple-50 dark:bg-purple-900/20">
+        <div class="text-sm text-purple-600 dark:text-purple-400 mb-1">{{ $t('backups.compression') }}</div>
+        <div class="text-2xl font-bold text-purple-900 dark:text-purple-100">{{ backupStore.stats.compression_ratio }}%</div>
+        <div class="text-xs text-purple-600 dark:text-purple-400 mt-1">{{ formatBytes(backupStore.stats.total_compressed_size) }} {{ $t('backups.saved') }}</div>
       </div>
-      <div class="card bg-orange-50">
-        <div class="text-sm text-orange-600 mb-1">{{ $t('backups.deduplication') }}</div>
-        <div class="text-2xl font-bold text-orange-900">{{ backupStore.stats.deduplication_ratio }}%</div>
-        <div class="text-xs text-orange-600 mt-1">{{ formatBytes(backupStore.stats.total_deduplicated_size) }} {{ $t('backups.stored') }}</div>
+      <div class="card bg-orange-50 dark:bg-orange-900/20">
+        <div class="text-sm text-orange-600 dark:text-orange-400 mb-1">{{ $t('backups.deduplication') }}</div>
+        <div class="text-2xl font-bold text-orange-900 dark:text-orange-100">{{ backupStore.stats.deduplication_ratio }}%</div>
+        <div class="text-xs text-orange-600 dark:text-orange-400 mt-1">{{ formatBytes(backupStore.stats.total_deduplicated_size) }} {{ $t('backups.stored') }}</div>
+      </div>
+      <div class="card bg-teal-50 dark:bg-teal-900/20">
+        <div class="text-sm text-teal-600 dark:text-teal-400 mb-1">{{ $t('backups.avg_transfer_rate') }}</div>
+        <div class="text-2xl font-bold text-teal-900 dark:text-teal-100">
+          {{ backupStore.stats.avg_transfer_rate ? formatRate(backupStore.stats.avg_transfer_rate) : 'N/A' }}
+        </div>
+        <div class="text-xs text-teal-600 dark:text-teal-400 mt-1">{{ $t('backups.average_speed') }}</div>
       </div>
     </div>
 
@@ -207,6 +214,12 @@
                 <div class="text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500">
                   <div>{{ $t('backups.compression_stats') }}: <span class="font-medium">{{ backup.compression_ratio }}%</span></div>
                   <div>{{ $t('backups.dedup_stats') }}: <span class="font-medium">{{ backup.deduplication_ratio }}%</span></div>
+                  <div v-if="backup.avg_transfer_rate" class="flex items-center gap-1 mt-1">
+                    <svg class="w-3 h-3 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                    <span class="font-medium text-green-600 dark:text-green-400">{{ formatRate(backup.avg_transfer_rate) }}</span>
+                  </div>
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" v-if="authStore.isAdmin">
@@ -433,6 +446,31 @@ function formatBytes(bytes) {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+}
+
+function formatRate(bytesPerSecond) {
+  if (!bytesPerSecond || bytesPerSecond === 0) return '0 B/s'
+
+  // Convert to bits per second for network-style display
+  const bitsPerSecond = bytesPerSecond * 8
+
+  // Check if we should display in Gbit/s or Mbit/s
+  if (bitsPerSecond >= 1000000000) {
+    return (bitsPerSecond / 1000000000).toFixed(2) + ' Gbit/s'
+  } else if (bitsPerSecond >= 1000000) {
+    return (bitsPerSecond / 1000000).toFixed(2) + ' Mbit/s'
+  } else if (bitsPerSecond >= 1000) {
+    return (bitsPerSecond / 1000).toFixed(2) + ' Kbit/s'
+  }
+
+  // Fallback to MB/s for very low speeds
+  const k = 1024
+  if (bytesPerSecond >= k * k) {
+    return (bytesPerSecond / (k * k)).toFixed(2) + ' MB/s'
+  } else if (bytesPerSecond >= k) {
+    return (bytesPerSecond / k).toFixed(2) + ' KB/s'
+  }
+  return bytesPerSecond.toFixed(2) + ' B/s'
 }
 
 function formatDate(dateString) {

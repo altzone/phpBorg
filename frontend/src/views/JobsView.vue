@@ -120,12 +120,53 @@
             <span>{{ $t('jobs.progress') }}</span>
             <span>{{ job.progress }}%</span>
           </div>
-          <div class="w-full bg-gray-200 rounded-full h-2">
+          <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
             <div
               :class="job.status === 'completed' ? 'bg-green-600' : 'bg-primary-600'"
               class="h-2 rounded-full transition-all duration-300"
               :style="{ width: job.progress + '%' }"
             ></div>
+          </div>
+        </div>
+
+        <!-- Real-time Borg Progress (from Redis) -->
+        <div v-if="job.status === 'running' && jobStore.getProgressInfo(job.id)" class="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-blue-600 dark:text-blue-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span class="text-sm font-medium text-blue-900 dark:text-blue-300">{{ $t('jobs.live_progress') }}</span>
+            </div>
+            <div v-if="jobStore.getProgressInfo(job.id).transfer_rate" class="flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded">
+              <svg class="w-3 h-3 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+              <span class="text-xs font-mono font-semibold text-green-700 dark:text-green-300">{{ formatRate(jobStore.getProgressInfo(job.id).transfer_rate) }}</span>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3 text-xs mb-2">
+            <div>
+              <span class="text-gray-600 dark:text-gray-400">{{ $t('jobs.files_count') }}:</span>
+              <span class="ml-1 font-mono text-gray-900 dark:text-gray-100">{{ jobStore.getProgressInfo(job.id).files_count || 0 }}</span>
+            </div>
+            <div>
+              <span class="text-gray-600 dark:text-gray-400">{{ $t('jobs.original_size') }}:</span>
+              <span class="ml-1 font-mono text-gray-900 dark:text-gray-100">{{ formatBytes(jobStore.getProgressInfo(job.id).original_size || 0) }}</span>
+            </div>
+            <div>
+              <span class="text-gray-600 dark:text-gray-400">{{ $t('jobs.compressed_size') }}:</span>
+              <span class="ml-1 font-mono text-gray-900 dark:text-gray-100">{{ formatBytes(jobStore.getProgressInfo(job.id).compressed_size || 0) }}</span>
+              <span class="ml-1 text-green-600 dark:text-green-400 font-semibold">({{ calculateCompressionRatio(jobStore.getProgressInfo(job.id).original_size, jobStore.getProgressInfo(job.id).compressed_size) }}%)</span>
+            </div>
+            <div>
+              <span class="text-gray-600 dark:text-gray-400">{{ $t('jobs.deduplicated_size') }}:</span>
+              <span class="ml-1 font-mono text-gray-900 dark:text-gray-100">{{ formatBytes(jobStore.getProgressInfo(job.id).deduplicated_size || 0) }}</span>
+              <span class="ml-1 text-blue-600 dark:text-blue-400 font-semibold">({{ calculateDeduplicationRatio(jobStore.getProgressInfo(job.id).original_size, jobStore.getProgressInfo(job.id).deduplicated_size) }}%)</span>
+            </div>
+          </div>
+          <div v-if="jobStore.getProgressInfo(job.id).message" class="mt-2 text-xs text-gray-700 dark:text-gray-300 font-mono">
+            {{ jobStore.getProgressInfo(job.id).message }}
           </div>
         </div>
 
@@ -212,7 +253,8 @@ onUnmounted(() => {
 async function loadData() {
   await Promise.all([
     jobStore.fetchJobs({ limit: 50 }),
-    jobStore.fetchStats()
+    jobStore.fetchStats(),
+    jobStore.fetchProgressForRunningJobs()
   ])
 }
 
@@ -274,5 +316,48 @@ function getStatusClass(status) {
     cancelled: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
   }
   return classes[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+}
+
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
+}
+
+function formatRate(bytesPerSecond) {
+  if (!bytesPerSecond || bytesPerSecond === 0) return '0 B/s'
+
+  // Convert to bits per second for network-style display
+  const bitsPerSecond = bytesPerSecond * 8
+
+  // Check if we should display in Gbit/s or Mbit/s
+  if (bitsPerSecond >= 1000000000) {
+    return (bitsPerSecond / 1000000000).toFixed(2) + ' Gbit/s'
+  } else if (bitsPerSecond >= 1000000) {
+    return (bitsPerSecond / 1000000).toFixed(2) + ' Mbit/s'
+  } else if (bitsPerSecond >= 1000) {
+    return (bitsPerSecond / 1000).toFixed(2) + ' Kbit/s'
+  }
+
+  // Fallback to MB/s for very low speeds
+  const k = 1024
+  if (bytesPerSecond >= k * k) {
+    return (bytesPerSecond / (k * k)).toFixed(2) + ' MB/s'
+  } else if (bytesPerSecond >= k) {
+    return (bytesPerSecond / k).toFixed(2) + ' KB/s'
+  }
+  return bytesPerSecond.toFixed(2) + ' B/s'
+}
+
+function calculateCompressionRatio(original, compressed) {
+  if (!original || !compressed || original === 0) return 0
+  return Math.round((1 - compressed / original) * 100)
+}
+
+function calculateDeduplicationRatio(original, deduplicated) {
+  if (!original || !deduplicated || original === 0) return 0
+  return Math.round((1 - deduplicated / original) * 100)
 }
 </script>

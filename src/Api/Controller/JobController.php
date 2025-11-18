@@ -121,6 +121,33 @@ class JobController extends BaseController
     }
 
     /**
+     * GET /api/jobs/:id/progress
+     * Get real-time progress info from Redis
+     */
+    public function progress(): void
+    {
+        try {
+            $jobId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
+
+            if ($jobId <= 0) {
+                $this->error('Invalid job ID', 400, 'INVALID_JOB_ID');
+                return;
+            }
+
+            $progressInfo = $this->jobQueue->getProgressInfo($jobId);
+
+            if ($progressInfo === null) {
+                $this->error('No progress info available', 404, 'PROGRESS_NOT_FOUND');
+                return;
+            }
+
+            $this->success(['progress' => $progressInfo]);
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'PROGRESS_ERROR');
+        }
+    }
+
+    /**
      * GET /api/jobs/stats
      * Get queue statistics
      */

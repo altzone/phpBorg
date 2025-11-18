@@ -118,17 +118,18 @@ final class ArchiveRepository
         int $deduplicatedSize,
         int $originalSize,
         int $filesCount,
-        ?string $backupConfig = null
+        ?string $backupConfig = null,
+        ?int $avgTransferRate = null
     ): int {
         $this->connection->executeUpdate(
             'INSERT INTO archives
-             (repo_id, server_id, nom, archive_id, backup_config, dur, start, end, csize, dsize, osize, nfiles)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+             (repo_id, server_id, nom, archive_id, backup_config, dur, start, end, csize, dsize, osize, nfiles, avg_transfer_rate)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $repoId, $serverId, $name, $archiveId, $backupConfig, $duration,
                 $start->format('Y-m-d H:i:s'),
                 $end->format('Y-m-d H:i:s'),
-                $compressedSize, $deduplicatedSize, $originalSize, $filesCount
+                $compressedSize, $deduplicatedSize, $originalSize, $filesCount, $avgTransferRate
             ]
         );
 

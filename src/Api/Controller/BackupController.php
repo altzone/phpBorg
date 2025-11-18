@@ -220,6 +220,15 @@ class BackupController extends BaseController
 
             $lastBackup = !empty($archives) ? $archives[0]->end->format('Y-m-d H:i:s') : null;
 
+            // Calculate average transfer rate (only for archives with rate data)
+            $archivesWithRate = array_filter($archives, fn($a) => $a->avgTransferRate !== null && $a->avgTransferRate > 0);
+            $avgTransferRate = null;
+
+            if (count($archivesWithRate) > 0) {
+                $totalRate = array_sum(array_map(fn($a) => $a->avgTransferRate, $archivesWithRate));
+                $avgTransferRate = (int)($totalRate / count($archivesWithRate));
+            }
+
             $this->success([
                 'stats' => [
                     'total_backups' => $totalBackups,
@@ -229,6 +238,7 @@ class BackupController extends BaseController
                     'compression_ratio' => $totalSize > 0 ? round((1 - ($totalCompressed / $totalSize)) * 100, 2) : 0,
                     'deduplication_ratio' => $totalSize > 0 ? round((1 - ($totalDeduplicated / $totalSize)) * 100, 2) : 0,
                     'last_backup' => $lastBackup,
+                    'avg_transfer_rate' => $avgTransferRate,
                 ]
             ]);
         } catch (PhpBorgException $e) {
@@ -257,6 +267,7 @@ class BackupController extends BaseController
             'files_count' => $archive->filesCount,
             'compression_ratio' => $archive->getCompressionRatio(),
             'deduplication_ratio' => $archive->getDeduplicationRatio(),
+            'avg_transfer_rate' => $archive->avgTransferRate,
         ];
     }
 
@@ -296,6 +307,7 @@ class BackupController extends BaseController
             'files_count' => (int)($row['nfiles'] ?? 0),
             'compression_ratio' => $compressionRatio,
             'deduplication_ratio' => $deduplicationRatio,
+            'avg_transfer_rate' => isset($row['avg_transfer_rate']) ? (int)$row['avg_transfer_rate'] : null,
             'server_name' => $row['server_name'] ?? 'Unknown Server',
             'repository_type' => $row['repository_type'] ?? 'backup',
             'mount_id' => isset($row['mount_id']) ? (int)$row['mount_id'] : null,

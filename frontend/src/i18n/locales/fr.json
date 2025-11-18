@@ -227,6 +227,11 @@
     "output_logs": "Logs de sortie",
     "job_payload": "Payload de la tâche",
     "cancel_confirm": "Êtes-vous sûr de vouloir annuler cette tâche ?",
+    "live_progress": "Progression en direct",
+    "files_count": "Fichiers",
+    "original_size": "Taille originale",
+    "compressed_size": "Compressé",
+    "deduplicated_size": "Dédupliqué",
     "types": {
       "backup_create": "Créer une sauvegarde",
       "backup_prune": "Nettoyer les sauvegardes",
@@ -358,7 +363,9 @@
       "message": "L'archive \"{name}\" va être supprimée par le worker.",
       "job_id": "Job ID: {id}",
       "monitor": "Vous pouvez suivre le progrès dans la section Tâches."
-    }
+    },
+    "avg_transfer_rate": "Débit moyen",
+    "average_speed": "Vitesse moyenne"
   },
   "backup_jobs": {
     "title": "Tâches planifiées",
@@ -965,7 +972,6 @@
     "preview": "Aperçu",
     "download": "Télécharger",
     "name": "Nom",
-    "size": "Taille",
     "modified": "Modifié",
     "type": "Type",
     "directory": "Répertoire",
@@ -1022,15 +1028,51 @@
       "manual": "manuel"
     },
     "steps": {
-      "server": { "label": "Serveur", "title": "Sélectionner un Serveur", "description": "Choisissez le serveur à sauvegarder" },
-      "type": { "label": "Type", "title": "Type de Sauvegarde", "description": "Que souhaitez-vous sauvegarder ?" },
-      "source": { "label": "Source", "title": "Configuration Source", "description": "Configurez ce qui doit être sauvegardé" },
-      "snapshot": { "label": "Snapshot", "title": "Stratégie de Snapshot", "description": "Choisissez la méthode de snapshot pour la cohérence" },
-      "storage": { "label": "Stockage", "title": "Pool de Stockage", "description": "Où stocker la sauvegarde" },
-      "schedule": { "label": "Planification", "title": "Planification de Sauvegarde", "description": "Quand exécuter les sauvegardes" },
-      "retention": { "label": "Rétention", "title": "Politique de Rétention", "description": "Combien de temps conserver les sauvegardes" },
-      "options": { "label": "Options", "title": "Options de Sauvegarde", "description": "Paramètres avancés et options" },
-      "review": { "label": "Vérification", "title": "Vérifier & Créer", "description": "Vérifiez votre configuration et créez" }
+      "server": {
+        "label": "Serveur",
+        "title": "Sélectionner un Serveur",
+        "description": "Choisissez le serveur à sauvegarder"
+      },
+      "type": {
+        "label": "Type",
+        "title": "Type de Sauvegarde",
+        "description": "Que souhaitez-vous sauvegarder ?"
+      },
+      "source": {
+        "label": "Source",
+        "title": "Configuration Source",
+        "description": "Configurez ce qui doit être sauvegardé"
+      },
+      "snapshot": {
+        "label": "Snapshot",
+        "title": "Stratégie de Snapshot",
+        "description": "Choisissez la méthode de snapshot pour la cohérence"
+      },
+      "storage": {
+        "label": "Stockage",
+        "title": "Pool de Stockage",
+        "description": "Où stocker la sauvegarde"
+      },
+      "schedule": {
+        "label": "Planification",
+        "title": "Planification de Sauvegarde",
+        "description": "Quand exécuter les sauvegardes"
+      },
+      "retention": {
+        "label": "Rétention",
+        "title": "Politique de Rétention",
+        "description": "Combien de temps conserver les sauvegardes"
+      },
+      "options": {
+        "label": "Options",
+        "title": "Options de Sauvegarde",
+        "description": "Paramètres avancés et options"
+      },
+      "review": {
+        "label": "Vérification",
+        "title": "Vérifier & Créer",
+        "description": "Vérifiez votre configuration et créez"
+      }
     },
     "server_select": {
       "label": "Sélectionner un Serveur",
@@ -1041,14 +1083,38 @@
       "description": "Description :"
     },
     "backup_types": {
-      "files": { "name": "Fichiers & Dossiers", "description": "Sauvegarder des fichiers et répertoires" },
-      "filesystem": { "name": "Système de Fichiers", "description": "Sauvegarder des fichiers et répertoires" },
-      "mysql": { "name": "MySQL", "description": "Bases de données MySQL/MariaDB" },
-      "postgresql": { "name": "PostgreSQL", "description": "Bases de données PostgreSQL" },
-      "mongodb": { "name": "MongoDB", "description": "Bases de données MongoDB" },
-      "docker": { "name": "Docker", "description": "Conteneurs Docker" },
-      "system": { "name": "Système Complet", "description": "Sauvegarde complète du système" },
-      "custom": { "name": "Script Personnalisé", "description": "Exécuter un script de sauvegarde personnalisé" }
+      "files": {
+        "name": "Fichiers & Dossiers",
+        "description": "Sauvegarder des fichiers et répertoires"
+      },
+      "filesystem": {
+        "name": "Système de Fichiers",
+        "description": "Sauvegarder des fichiers et répertoires"
+      },
+      "mysql": {
+        "name": "MySQL",
+        "description": "Bases de données MySQL/MariaDB"
+      },
+      "postgresql": {
+        "name": "PostgreSQL",
+        "description": "Bases de données PostgreSQL"
+      },
+      "mongodb": {
+        "name": "MongoDB",
+        "description": "Bases de données MongoDB"
+      },
+      "docker": {
+        "name": "Docker",
+        "description": "Conteneurs Docker"
+      },
+      "system": {
+        "name": "Système Complet",
+        "description": "Sauvegarde complète du système"
+      },
+      "custom": {
+        "name": "Script Personnalisé",
+        "description": "Exécuter un script de sauvegarde personnalisé"
+      }
     },
     "backup_type": {
       "db_requirements_title": "Exigences des Sauvegardes de Bases de Données",
@@ -1202,10 +1268,22 @@
       "passphrase_help_manual": "Conservez cette phrase de passe en sécurité - elle ne peut pas être récupérée !"
     },
     "snapshot": {
-      "none": { "name": "Aucun Snapshot", "description": "Sauvegarde directe sans snapshot" },
-      "lvm": { "name": "LVM Snapshot", "description": "Utilise les snapshots LVM pour la cohérence" },
-      "btrfs": { "name": "BTRFS Snapshot", "description": "Utilise les snapshots BTRFS" },
-      "zfs": { "name": "ZFS Snapshot", "description": "Utilise les snapshots ZFS" }
+      "none": {
+        "name": "Aucun Snapshot",
+        "description": "Sauvegarde directe sans snapshot"
+      },
+      "lvm": {
+        "name": "LVM Snapshot",
+        "description": "Utilise les snapshots LVM pour la cohérence"
+      },
+      "btrfs": {
+        "name": "BTRFS Snapshot",
+        "description": "Utilise les snapshots BTRFS"
+      },
+      "zfs": {
+        "name": "ZFS Snapshot",
+        "description": "Utilise les snapshots ZFS"
+      }
     },
     "storage": {
       "select_label": "Sélectionner un Pool de Stockage",
@@ -1287,13 +1365,34 @@
       "days_of_week": "Jours de la Semaine",
       "days_of_month": "Jours du Mois",
       "weekdays": {
-        "mon": { "short": "Lun", "full": "Lundi" },
-        "tue": { "short": "Mar", "full": "Mardi" },
-        "wed": { "short": "Mer", "full": "Mercredi" },
-        "thu": { "short": "Jeu", "full": "Jeudi" },
-        "fri": { "short": "Ven", "full": "Vendredi" },
-        "sat": { "short": "Sam", "full": "Samedi" },
-        "sun": { "short": "Dim", "full": "Dimanche" }
+        "mon": {
+          "short": "Lun",
+          "full": "Lundi"
+        },
+        "tue": {
+          "short": "Mar",
+          "full": "Mardi"
+        },
+        "wed": {
+          "short": "Mer",
+          "full": "Mercredi"
+        },
+        "thu": {
+          "short": "Jeu",
+          "full": "Jeudi"
+        },
+        "fri": {
+          "short": "Ven",
+          "full": "Vendredi"
+        },
+        "sat": {
+          "short": "Sam",
+          "full": "Samedi"
+        },
+        "sun": {
+          "short": "Dim",
+          "full": "Dimanche"
+        }
       }
     },
     "options": {

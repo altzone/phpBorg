@@ -12,7 +12,8 @@ export const useBackupStore = defineStore('backups', () => {
     total_deduplicated_size: 0,
     compression_ratio: 0,
     deduplication_ratio: 0,
-    last_backup: null
+    last_backup: null,
+    avg_transfer_rate: null
   })
   const loading = ref(false)
   const error = ref(null)
@@ -46,7 +47,8 @@ export const useBackupStore = defineStore('backups', () => {
         total_deduplicated_size: 0,
         compression_ratio: 0,
         deduplication_ratio: 0,
-        last_backup: null
+        last_backup: null,
+        avg_transfer_rate: null
       }
     } catch (err) {
       console.error('Fetch stats error:', err)

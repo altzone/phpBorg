@@ -92,7 +92,7 @@ final class BackupService
     /**
      * Execute backup with a specific repository (used by manual triggers and scheduled jobs with specific repos)
      */
-    public function executeBackupWithRepository(Server $server, BorgRepository $repository, ?int $reportId = null): array
+    public function executeBackupWithRepository(Server $server, BorgRepository $repository, ?int $reportId = null, ?callable $progressCallback = null): array
     {
         $this->logger->info("Starting backup for repository {$repository->repoId}", $server->name);
 
@@ -129,6 +129,7 @@ final class BackupService
             $backupPaths = [];
             $cleanupNeeded = false;
             $dbInfo = null;
+            $actualBackedUpItems = null; // For Docker: real list of volumes/projects backed up
 
             // Define types that use backup strategies (databases + docker + other specialized backups)
             $strategyTypes = ['mysql', 'mariadb', 'postgresql', 'mongodb', 'docker'];
@@ -149,6 +150,7 @@ final class BackupService
                 // Support both 'path' (single) and 'paths' (multiple)
                 $backupPaths = $prepareResult['paths'] ?? [$prepareResult['path']];
                 $cleanupNeeded = $prepareResult['cleanup'];
+                $actualBackedUpItems = $prepareResult['actual_backed_up_items'] ?? null; // Docker snapshot
             } else {
                 // Filesystem backup (files, system, etc.)
                 $backupPaths = $repository->getBackupPaths();
@@ -179,7 +181,55 @@ final class BackupService
             // Get backup timeout from settings (default: 12 hours = 43200 seconds)
             $timeoutSetting = $this->settingsRepo->findByKey('backup_timeout');
             $timeout = $timeoutSetting ? (int)$timeoutSetting->value : 43200;
-            $result = $this->sshExecutor->execute($server, $borgCommand, $timeout);
+
+            // Progress callback: parse Borg --log-json output and log it in real-time
+            $borgProgressCallback = function (string $buffer) use ($server, $progressCallback) {
+                // Borg --log-json sends JSON events on stderr, one per line
+                $lines = explode("\n", $buffer);
+                foreach ($lines as $line) {
+                    $line = trim($line);
+                    if (empty($line)) continue;
+
+                    // Try to parse as JSON (from --log-json)
+                    $json = json_decode($line, true);
+                    if ($json !== null && isset($json['type'])) {
+                        // Borg JSON log event
+                        if ($json['type'] === 'archive_progress') {
+                            // Real-time progress: {"type": "archive_progress", "original_size": 123, "compressed_size": 45, "nfiles": 10}
+                            $logMessage = sprintf(
+                                "Progress: %d files, %s original, %s compressed",
+                                $json['nfiles'] ?? 0,
+                                $this->formatBytes($json['original_size'] ?? 0),
+                                $this->formatBytes($json['compressed_size'] ?? 0)
+                            );
+                            $this->logger->info($logMessage, $server->name);
+
+                            // Call external progress callback if provided (for Redis update)
+                            if ($progressCallback !== null) {
+                                $progressCallback([
+                                    'files_count' => $json['nfiles'] ?? 0,
+                                    'original_size' => $json['original_size'] ?? 0,
+                                    'compressed_size' => $json['compressed_size'] ?? 0,
+                                    'deduplicated_size' => $json['deduplicated_size'] ?? 0,
+                                    'message' => $logMessage,
+                                    'timestamp' => time(),
+                                ]);
+                            }
+                        } elseif ($json['type'] === 'file_status') {
+                            // File being processed: {"type": "file_status", "status": "U", "path": "/some/file"}
+                            // Too verbose, skip
+                        }
+                    } else {
+                        // Not JSON, might be --progress text output
+                        // Log it if it contains useful info
+                        if (preg_match('/[\d\.]+ [KMG]B/', $line)) {
+                            $this->logger->info("Progress: " . $line, $server->name);
+                        }
+                    }
+                }
+            };
+
+            $result = $this->sshExecutor->execute($server, $borgCommand, $timeout, false, $borgProgressCallback);
 
             // Log borg command output (includes stats and progress info)
             if (!empty($result['stdout'])) {
@@ -263,7 +313,7 @@ final class BackupService
                 );
 
                 // Save archive to database
-                $this->saveArchive($repository, $archiveInfo);
+                $this->saveArchive($repository, $archiveInfo, $actualBackedUpItems);
                 $archiveSavedToDb = true;
             } catch (\Exception $e) {
                 $this->logger->error(
@@ -413,8 +463,11 @@ final class BackupService
         // Build borg create command with secure SSH
         // BORG_RSH specifies SSH options including the identity file
         // Note: Using StrictHostKeyChecking=no for compatibility with OpenSSH < 7.6
+        // --log-json: Real-time JSON logs on stderr for progress tracking
+        // --progress: Human-readable progress on stderr (kept for compatibility)
+        // --json: Final stats as JSON on stdout
         return sprintf(
-            "export BORG_PASSPHRASE=%s && export BORG_RSH='ssh -i %s -o StrictHostKeyChecking=no' && %s create --compression %s --stats --json --progress%s ssh://%s@%s%s::%s %s",
+            "export BORG_PASSPHRASE=%s && export BORG_RSH='ssh -i %s -o StrictHostKeyChecking=no' && %s create --compression %s --stats --json --log-json --progress%s ssh://%s@%s%s::%s %s",
             $escapedPassphrase,
             escapeshellarg($sshKeyPath),
             $this->config->borgBinaryPath,
@@ -426,6 +479,19 @@ final class BackupService
             $archiveName,
             $pathsString
         );
+    }
+
+    /**
+     * Format bytes into human-readable format
+     */
+    private function formatBytes(int $bytes): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        $bytes = max($bytes, 0);
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
+        $bytes /= (1 << (10 * $pow));
+        return round($bytes, 2) . ' ' . $units[$pow];
     }
 
     /**
@@ -468,7 +534,7 @@ final class BackupService
     /**
      * Save archive information to database
      */
-    private function saveArchive(BorgRepository $repository, array $archiveInfo): void
+    private function saveArchive(BorgRepository $repository, array $archiveInfo, ?array $actualBackedUpItems = null): void
     {
         // Borg can return archive info in two formats:
         // 1. After backup: {archive: {...}} - singular
@@ -517,8 +583,43 @@ final class BackupService
         if (!empty($backupSources)) {
             $backupSource = $backupSources[0];
             if (!empty($backupSource->config)) {
-                $backupConfig = json_encode($backupSource->config);
+                $config = $backupSource->config;
+
+                // CRITICAL: Enrich config with actual backed up items (for Docker restore)
+                // This snapshot allows restore to know EXACTLY what was in this archive
+                if ($actualBackedUpItems !== null) {
+                    $config['actual_backed_up_items'] = $actualBackedUpItems;
+                    $this->logger->info(
+                        sprintf(
+                            "Enriched backup_config with actual items: %d volumes, %d projects, %d standalone, %d configs",
+                            count($actualBackedUpItems['volumes'] ?? []),
+                            count($actualBackedUpItems['compose_projects'] ?? []),
+                            count($actualBackedUpItems['standalone_containers'] ?? []),
+                            count($actualBackedUpItems['configs'] ?? [])
+                        ),
+                        'BACKUP'
+                    );
+                }
+
+                $backupConfig = json_encode($config);
             }
+        }
+
+        // Calculate average transfer rate (bytes/second)
+        $duration = (float)($archiveData['duration'] ?? 0);
+        $originalSize = (int)($stats['original_size'] ?? 0);
+        $avgTransferRate = null;
+
+        if ($duration > 0 && $originalSize > 0) {
+            $avgTransferRate = (int)($originalSize / $duration);
+            $this->logger->info(
+                sprintf(
+                    "Average transfer rate: %s/s (%.2f MB/s)",
+                    $this->formatBytes($avgTransferRate),
+                    $avgTransferRate / (1024 * 1024)
+                ),
+                $repository->type
+            );
         }
 
         $this->archiveRepo->create(
@@ -526,14 +627,15 @@ final class BackupService
             serverId: $repository->serverId,
             name: $archiveName,
             archiveId: $archiveId,
-            duration: (float)($archiveData['duration'] ?? 0),
+            duration: $duration,
             start: new DateTimeImmutable($archiveData['start'] ?? 'now'),
             end: new DateTimeImmutable($archiveData['end'] ?? 'now'),
             compressedSize: (int)($stats['compressed_size'] ?? 0),
             deduplicatedSize: (int)($stats['deduplicated_size'] ?? 0),
-            originalSize: (int)($stats['original_size'] ?? 0),
+            originalSize: $originalSize,
             filesCount: (int)($stats['nfiles'] ?? 0),
-            backupConfig: $backupConfig
+            backupConfig: $backupConfig,
+            avgTransferRate: $avgTransferRate
         );
     }
 

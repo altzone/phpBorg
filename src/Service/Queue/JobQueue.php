@@ -272,6 +272,50 @@ final class JobQueue
     }
 
     /**
+     * Set real-time progress info in Redis (ephemeral, fast access)
+     * Used for live updates in UI without hitting database
+     *
+     * @param int $jobId Job ID
+     * @param array $progressData Progress data (files, bytes, percentage, etc.)
+     * @param int $ttl Time to live in seconds (default: 1 hour)
+     */
+    public function setProgressInfo(int $jobId, array $progressData, int $ttl = 3600): void
+    {
+        $key = "phpborg:job:{$jobId}:progress";
+        $this->redis->setex($key, $ttl, json_encode($progressData));
+    }
+
+    /**
+     * Get real-time progress info from Redis
+     *
+     * @param int $jobId Job ID
+     * @return array|null Progress data or null if not found/expired
+     */
+    public function getProgressInfo(int $jobId): ?array
+    {
+        $key = "phpborg:job:{$jobId}:progress";
+        $data = $this->redis->get($key);
+
+        if ($data === false) {
+            return null;
+        }
+
+        $decoded = json_decode($data, true);
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * Delete progress info from Redis (cleanup after job completion)
+     *
+     * @param int $jobId Job ID
+     */
+    public function deleteProgressInfo(int $jobId): void
+    {
+        $key = "phpborg:job:{$jobId}:progress";
+        $this->redis->del($key);
+    }
+
+    /**
      * Close Redis connection
      */
     public function close(): void

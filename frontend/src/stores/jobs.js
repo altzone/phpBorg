@@ -16,6 +16,12 @@ export const useJobStore = defineStore('jobs', () => {
   const loading = ref(false)
   const error = ref(null)
 
+  // Real-time progress info for running jobs (jobId => progressData)
+  const progressInfo = ref(new Map())
+
+  // Previous progress snapshots for rate calculation (jobId => { bytes, timestamp })
+  const previousProgress = ref(new Map())
+
   // Getters
   const pendingJobs = computed(() => jobs.value.filter(j => j.status === 'pending'))
   const runningJobs = computed(() => jobs.value.filter(j => j.status === 'running'))
@@ -96,12 +102,71 @@ export const useJobStore = defineStore('jobs', () => {
     error.value = null
   }
 
+  /**
+   * Fetch real-time progress for running jobs
+   * This should be called on an interval for jobs with status 'running'
+   */
+  async function fetchProgressForRunningJobs() {
+    const running = jobs.value.filter(j => j.status === 'running')
+
+    // Fetch progress for all running jobs in parallel
+    await Promise.all(
+      running.map(async (job) => {
+        try {
+          const progress = await jobService.getProgress(job.id)
+          if (progress) {
+            // Get previous progress for rate calculation
+            const prev = previousProgress.value.get(job.id)
+
+            if (prev && progress.timestamp && progress.original_size) {
+              // Calculate rate (bytes per second)
+              const deltaBytes = progress.original_size - prev.bytes
+              const deltaTime = progress.timestamp - prev.timestamp
+
+              if (deltaTime > 0 && deltaBytes > 0) {
+                // Add transfer rate to progress data (bytes/sec)
+                progress.transfer_rate = deltaBytes / deltaTime
+              }
+            }
+
+            // Store current as previous for next iteration
+            if (progress.timestamp && progress.original_size) {
+              previousProgress.value.set(job.id, {
+                bytes: progress.original_size,
+                timestamp: progress.timestamp
+              })
+            }
+
+            progressInfo.value.set(job.id, progress)
+          } else {
+            progressInfo.value.delete(job.id)
+            previousProgress.value.delete(job.id)
+          }
+        } catch (err) {
+          console.error(`Failed to fetch progress for job ${job.id}:`, err)
+          progressInfo.value.delete(job.id)
+          previousProgress.value.delete(job.id)
+        }
+      })
+    )
+  }
+
+  /**
+   * Get progress info for a specific job
+   * @param {number} jobId - Job ID
+   * @returns {Object|null} Progress data or null
+   */
+  function getProgressInfo(jobId) {
+    return progressInfo.value.get(jobId) || null
+  }
+
   return {
     // State
     jobs,
     stats,
     loading,
     error,
+    progressInfo,
 
     // Getters
     pendingJobs,
@@ -115,5 +180,7 @@ export const useJobStore = defineStore('jobs', () => {
     cancelJob,
     retryJob,
     clearError,
+    fetchProgressForRunningJobs,
+    getProgressInfo,
   }
 })

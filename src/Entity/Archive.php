@@ -25,6 +25,7 @@ final readonly class Archive
         public int $originalSize,
         public int $filesCount,
         public ?array $backupConfig = null,
+        public ?int $avgTransferRate = null,
     ) {
     }
 
@@ -55,6 +56,7 @@ final readonly class Archive
             originalSize: (int)$row['osize'],
             filesCount: (int)$row['nfiles'],
             backupConfig: $backupConfig,
+            avgTransferRate: isset($row['avg_transfer_rate']) ? (int)$row['avg_transfer_rate'] : null,
         );
     }
 

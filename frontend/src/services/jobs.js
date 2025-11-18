@@ -58,4 +58,22 @@ export const jobService = {
     const response = await api.post(`/jobs/${id}/retry`)
     return response.data.data?.new_job_id || response.data.new_job_id
   },
+
+  /**
+   * Get real-time progress info for a running job
+   * @param {number} id - Job ID
+   * @returns {Promise<Object|null>} Progress data or null if not available
+   */
+  async getProgress(id) {
+    try {
+      const response = await api.get(`/jobs/${id}/progress`)
+      return response.data.data?.progress || response.data.progress || null
+    } catch (error) {
+      // 404 means no progress data available (job not running or progress expired)
+      if (error.response?.status === 404) {
+        return null
+      }
+      throw error
+    }
+  },
 }

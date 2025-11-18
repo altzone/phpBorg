@@ -137,9 +137,52 @@ final class DockerBackupStrategy implements DatabaseBackupInterface
 
             $this->logger->info("Docker backup prepared with " . count($paths) . " paths", $server->name);
 
+            // Build snapshot of actual items being backed up (for restore)
+            $actualBackedUpItems = [
+                'volumes' => [],
+                'compose_projects' => [],
+                'standalone_containers' => [],
+                'configs' => [],
+            ];
+
+            // Extract volume names from paths
+            if ($sourceConfig['backupAllVolumes'] ?? true) {
+                $volumePaths = $this->getAllVolumePaths($server);
+                foreach ($volumePaths as $volumePath) {
+                    // Extract volume name from path: /var/lib/docker/volumes/VOLUME_NAME/_data
+                    if (preg_match('#/var/lib/docker/volumes/([^/]+)/_data#', $volumePath, $matches)) {
+                        $actualBackedUpItems['volumes'][] = $matches[1];
+                    }
+                }
+            } else {
+                $actualBackedUpItems['volumes'] = $sourceConfig['selectedVolumes'] ?? [];
+            }
+
+            // Add compose projects
+            if ($backupAllProjects) {
+                $allProjects = $this->getAllComposeProjects($server);
+                $actualBackedUpItems['compose_projects'] = array_keys($allProjects);
+            } else {
+                $actualBackedUpItems['compose_projects'] = $sourceConfig['selectedComposeProjects'] ?? [];
+            }
+
+            // Add standalone containers
+            if ($backupAllStandalone) {
+                $standaloneContainers = $this->getStandaloneContainersWithDockerfiles($server);
+                $actualBackedUpItems['standalone_containers'] = array_column($standaloneContainers, 'name');
+            } else {
+                $actualBackedUpItems['standalone_containers'] = $sourceConfig['selectedStandaloneContainers'] ?? [];
+            }
+
+            // Add configs
+            if ($sourceConfig['backupDockerConfig'] ?? true) {
+                $actualBackedUpItems['configs'][] = 'daemon.json';
+            }
+
             return [
                 'paths' => $paths,
                 'cleanup' => true, // Will cleanup exported JSON files
+                'actual_backed_up_items' => $actualBackedUpItems, // Snapshot for restore
             ];
 
         } catch (BackupException $e) {

@@ -94,9 +94,14 @@ final class BackupCreateHandler implements JobHandlerInterface
             // Step 2: Execute backup
             $queue->updateProgress($job->id, 50, "Executing {$type} backup: {$server->name}...");
 
+            // Progress callback for real-time updates in Redis
+            $progressCallback = function (array $progressData) use ($queue, $job) {
+                $queue->setProgressInfo($job->id, $progressData);
+            };
+
             // If we have a specific repository, use it; otherwise use the original method
             if ($repositoryId) {
-                $result = $this->backupService->executeBackupWithRepository($server, $repository);
+                $result = $this->backupService->executeBackupWithRepository($server, $repository, null, $progressCallback);
             } else {
                 $result = $this->backupService->executeBackup($server, $type);
             }
@@ -107,6 +112,9 @@ final class BackupCreateHandler implements JobHandlerInterface
 
             $archiveName = $result['archiveName'] ?? 'unknown';
             $queue->updateProgress($job->id, 100, "Backup completed: {$archiveName}");
+
+            // Clear real-time progress from Redis (job is complete)
+            $queue->deleteProgressInfo($job->id);
 
             // Send success notification if backup job ID is provided
             if ($backupJobId) {

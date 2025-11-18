@@ -34,7 +34,7 @@ final class SshExecutor
      * @return array{stdout: string, stderr: string, exitCode: int}
      * @throws SshException
      */
-    public function execute(Server $server, string $command, int $timeout = 300, bool $tty = false): array
+    public function execute(Server $server, string $command, int $timeout = 300, bool $tty = false, ?callable $progressCallback = null): array
     {
         $sshCommand = $this->buildSshCommand($server, $command, $tty);
 
@@ -42,7 +42,18 @@ final class SshExecutor
 
         $this->logger->debug("Executing SSH command on {$server->name}", 'SSH');
 
-        $process->run();
+        // If progress callback provided, capture output in real-time
+        if ($progressCallback !== null) {
+            $process->run(function ($type, $buffer) use ($progressCallback) {
+                // Borg sends progress on stderr (with --progress or --log-json)
+                if ($type === Process::ERR) {
+                    $progressCallback($buffer);
+                }
+            });
+        } else {
+            // Standard execution without real-time output
+            $process->run();
+        }
 
         if (!$process->isSuccessful()) {
             $this->logger->error(

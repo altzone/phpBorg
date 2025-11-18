@@ -87,30 +87,59 @@ final class DockerRestoreService
 
         // Extract volumes from backup configuration
         $volumes = [];
-        if ($config['backupAllVolumes'] ?? false) {
-            // When backupAllVolumes is true, we don't have the exact list in config
-            // Volumes will need to be detected from the archive content during restore
-            // For now, return empty array (will be populated by browsing archive)
-            $this->logger->info("Archive configured with backupAllVolumes=true, volume list will be detected from archive content", $server->name);
-        } else {
-            // Use selected volumes from configuration
-            $selectedVolumes = $config['selectedVolumes'] ?? [];
+
+        // PRIORITY 1: Use actual_backed_up_items snapshot (set during backup)
+        // This contains the REAL list of volumes that were backed up
+        if (!empty($config['actual_backed_up_items']['volumes'])) {
+            $actualVolumes = $config['actual_backed_up_items']['volumes'];
+            foreach ($actualVolumes as $volumeName) {
+                $volumes[] = [
+                    'name' => $volumeName,
+                    'path' => "/var/lib/docker/volumes/{$volumeName}/_data",
+                ];
+            }
+            $this->logger->info(sprintf("Using actual backed up volumes: %d items", count($volumes)), $server->name);
+        }
+        // FALLBACK 1: Use selectedVolumes if available (old archives)
+        elseif (!empty($config['selectedVolumes'])) {
+            $selectedVolumes = $config['selectedVolumes'];
             foreach ($selectedVolumes as $volumeName) {
                 $volumes[] = [
                     'name' => $volumeName,
                     'path' => "/var/lib/docker/volumes/{$volumeName}/_data",
                 ];
             }
+            $this->logger->info("Using selectedVolumes from config (old archive format)", $server->name);
+        }
+        // FALLBACK 2: backupAllVolumes but no actual_backed_up_items (very old archives)
+        else {
+            $this->logger->warning("Archive has no volume snapshot - will need manual selection during restore", $server->name);
         }
 
         // Extract compose projects from backup configuration
         $composeProjects = [];
-        $selectedProjects = $config['selectedComposeProjects'] ?? [];
-        foreach ($selectedProjects as $projectName) {
-            $composeProjects[] = [
-                'name' => $projectName,
-                'path' => '/var/lib/docker/compose/' . $projectName, // Default path (will be detected during restore)
-            ];
+
+        // PRIORITY 1: Use actual_backed_up_items snapshot (set during backup)
+        if (!empty($config['actual_backed_up_items']['compose_projects'])) {
+            $actualProjects = $config['actual_backed_up_items']['compose_projects'];
+            foreach ($actualProjects as $projectName) {
+                $composeProjects[] = [
+                    'name' => $projectName,
+                    'path' => '/var/lib/docker/compose/' . $projectName, // Default path (will be detected during restore)
+                ];
+            }
+            $this->logger->info(sprintf("Using actual backed up projects: %d items", count($composeProjects)), $server->name);
+        }
+        // FALLBACK: Use selectedComposeProjects (old archives)
+        elseif (!empty($config['selectedComposeProjects'])) {
+            $selectedProjects = $config['selectedComposeProjects'];
+            foreach ($selectedProjects as $projectName) {
+                $composeProjects[] = [
+                    'name' => $projectName,
+                    'path' => '/var/lib/docker/compose/' . $projectName,
+                ];
+            }
+            $this->logger->info("Using selectedComposeProjects from config (old archive format)", $server->name);
         }
 
         // Check if Docker configs were backed up
