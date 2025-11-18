@@ -262,6 +262,7 @@ final class Application
                 $this->getArchiveRepository(),
                 $this->getDatabaseInfoRepository(),
                 $this->getReportRepository(),
+                $this->getSettingsRepository(),
                 $this->logger
             );
 

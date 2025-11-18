@@ -14,6 +14,7 @@ use PhpBorg\Repository\ArchiveRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\DatabaseInfoRepository;
 use PhpBorg\Repository\ReportRepository;
+use PhpBorg\Repository\SettingsRepository;
 use PhpBorg\Service\Database\DatabaseBackupInterface;
 use PhpBorg\Service\Server\SshExecutor;
 
@@ -33,6 +34,7 @@ final class BackupService
         private readonly ArchiveRepository $archiveRepo,
         private readonly DatabaseInfoRepository $dbInfoRepo,
         private readonly ReportRepository $reportRepo,
+        private readonly SettingsRepository $settingsRepo,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -126,14 +128,14 @@ final class BackupService
             $cleanupNeeded = false;
             $dbInfo = null;
 
-            // Define database types
-            $databaseTypes = ['mysql', 'mariadb', 'postgresql', 'mongodb'];
-            
-            if (in_array($repository->type, $databaseTypes)) {
-                // Database backup
+            // Define types that use backup strategies (databases + docker + other specialized backups)
+            $strategyTypes = ['mysql', 'mariadb', 'postgresql', 'mongodb', 'docker'];
+
+            if (in_array($repository->type, $strategyTypes)) {
+                // Strategy-based backup (database, docker, etc.)
                 $dbInfo = $this->dbInfoRepo->findByServerAndType($server->id, $repository->type);
                 if ($dbInfo === null) {
-                    throw new BackupException("Database configuration not found");
+                    throw new BackupException("Configuration not found for type: {$repository->type}");
                 }
 
                 $strategy = $this->databaseStrategies[$repository->type] ?? null;
@@ -167,7 +169,9 @@ final class BackupService
                 $server
             );
 
-            $result = $this->sshExecutor->execute($server, $borgCommand, 7200);
+            // Get backup timeout from settings (default: 12 hours = 43200 seconds)
+            $timeout = (int)($this->settingsRepo->get('backup_timeout') ?? 43200);
+            $result = $this->sshExecutor->execute($server, $borgCommand, $timeout);
 
             // Log borg command output (includes stats and progress info)
             if (!empty($result['stdout'])) {

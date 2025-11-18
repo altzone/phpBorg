@@ -167,6 +167,20 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.backup.yearly_help') }}</p>
               </div>
             </div>
+
+            <!-- Backup Timeout -->
+            <div class="border-t dark:border-gray-700 pt-4 mt-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.backup.timeout') }}</label>
+                <div class="flex items-center gap-2">
+                  <input v-model.number="backupForm['backup_timeout']" type="number" min="1800" max="86400" step="1800" class="input w-32" />
+                  <span class="text-sm text-gray-600 dark:text-gray-400">{{ $t('settings.backup.timeout_unit') }}</span>
+                  <span class="text-xs text-gray-500 dark:text-gray-400">({{ formatTimeoutDisplay(backupForm['backup_timeout']) }})</span>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.backup.timeout_help') }}</p>
+              </div>
+            </div>
+
             <div class="flex justify-end">
               <button type="submit" class="btn btn-primary" :disabled="settingsStore.loading">
                 {{ $t('settings.backup.save') }}
@@ -515,6 +529,14 @@ async function saveSettings(category) {
   } catch (err) {
     // Error handled by store
   }
+}
+
+function formatTimeoutDisplay(seconds) {
+  if (!seconds) return '0h'
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (minutes === 0) return `${hours}h`
+  return `${hours}h ${minutes}min`
 }
 
 function openTestEmailModal() {

@@ -704,6 +704,9 @@
       "monthly_help": "Nombre de sauvegardes mensuelles à conserver (0-60)",
       "yearly": "Sauvegardes annuelles",
       "yearly_help": "Nombre de sauvegardes annuelles à conserver (0-10)",
+      "timeout": "Timeout maximum des backups",
+      "timeout_unit": "secondes",
+      "timeout_help": "Durée maximale d'exécution d'un backup (30min - 24h). Les gros backups comme Docker peuvent nécessiter plus de temps.",
       "save": "Enregistrer les paramètres backup"
     },
     "borg": {
