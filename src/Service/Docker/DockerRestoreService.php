@@ -60,61 +60,54 @@ final class DockerRestoreService
 
         $this->logger->info("Analyzing Docker archive: {$archive->name}", $server->name);
 
-        // Extract container metadata JSON from backup (contains volumes, compose info, etc.)
-        $repoPath = $repository->repoPath . '::' . $archive->name;
-        $containers = $this->extractContainerMetadata($repoPath, $repository->passphrase);
+        // Get backup source configuration (contains selected volumes, compose projects, etc.)
+        $backupSource = $this->getBackupSourceForArchive($archive, $repository, $server);
 
-        // Parse container metadata to extract volumes and compose projects
+        if (!$backupSource) {
+            $this->logger->warning("No backup source found for Docker archive", $server->name);
+            return [
+                'volumes' => [],
+                'compose_projects' => [],
+                'configs' => [],
+                'containers' => [],
+            ];
+        }
+
+        $config = json_decode($backupSource['config'], true) ?? [];
+
+        // Extract volumes from backup configuration
         $volumes = [];
-        $composeProjects = [];
-
-        foreach ($containers as $container) {
-            // Extract volumes from container mounts
-            $mounts = $container['Mounts'] ?? [];
-            foreach ($mounts as $mount) {
-                if ($mount['Type'] === 'volume') {
-                    $volumeName = $mount['Name'] ?? '';
-                    if ($volumeName && !isset($volumes[$volumeName])) {
-                        $volumes[$volumeName] = [
-                            'name' => $volumeName,
-                            'path' => $mount['Source'] ?? "/var/lib/docker/volumes/{$volumeName}/_data",
-                            'destination' => $mount['Destination'] ?? '',
-                        ];
-                    }
-                }
-            }
-
-            // Extract compose projects from labels
-            $labels = $container['Config']['Labels'] ?? [];
-            $projectName = $labels['com.docker.compose.project'] ?? null;
-            $projectWorkingDir = $labels['com.docker.compose.project.working_dir'] ?? null;
-
-            if ($projectName && $projectWorkingDir && !isset($composeProjects[$projectName])) {
-                $composeProjects[$projectName] = [
-                    'name' => $projectName,
-                    'path' => $projectWorkingDir,
+        if ($config['backupAllVolumes'] ?? false) {
+            // Get all Docker volumes from server capabilities
+            $volumes = $this->getDockerVolumesFromServer($server);
+        } else {
+            // Use selected volumes from configuration
+            $selectedVolumes = $config['selectedVolumes'] ?? [];
+            foreach ($selectedVolumes as $volumeName) {
+                $volumes[] = [
+                    'name' => $volumeName,
+                    'path' => "/var/lib/docker/volumes/{$volumeName}/_data",
                 ];
             }
         }
 
-        // Quick scan for Docker configs (daemon.json, etc.)
-        $configs = [];
-        $result = $this->borgExecutor->execute(
-            ['list', $repoPath, 'etc/docker'],
-            $repository->passphrase,
-            30
-        );
+        // Extract compose projects from backup configuration
+        $composeProjects = [];
+        $selectedProjects = $config['selectedComposeProjects'] ?? [];
+        foreach ($selectedProjects as $projectName) {
+            $composeProjects[] = [
+                'name' => $projectName,
+                'path' => '/var/lib/docker/compose/' . $projectName, // Default path (will be detected during restore)
+            ];
+        }
 
-        if ($result['exitCode'] === 0) {
-            $lines = explode("\n", trim($result['stdout']));
-            foreach ($lines as $line) {
-                if (!empty($line) && str_starts_with($line, 'etc/docker/')) {
-                    $configs[] = [
-                        'path' => '/' . $line,
-                        'name' => basename($line),
-                    ];
-                }
-            }
+        // Check if Docker configs were backed up
+        $configs = [];
+        if ($config['backupDockerConfig'] ?? false) {
+            $configs[] = [
+                'path' => '/etc/docker/daemon.json',
+                'name' => 'daemon.json',
+            ];
         }
 
         $this->logger->info(
@@ -128,10 +121,10 @@ final class DockerRestoreService
         );
 
         return [
-            'volumes' => array_values($volumes),
-            'compose_projects' => array_values($composeProjects),
+            'volumes' => $volumes,
+            'compose_projects' => $composeProjects,
             'configs' => $configs,
-            'containers' => $containers,
+            'containers' => [], // Will be populated from archive metadata if needed
         ];
     }
 
@@ -385,7 +378,60 @@ final class DockerRestoreService
     }
 
     /**
-     * Extract container metadata from backup
+     * Get backup source for an archive
+     *
+     * @return array|null
+     */
+    private function getBackupSourceForArchive($archive, $repository, $server): ?array
+    {
+        // Query backup_sources table to find Docker backup source for this server
+        $db = $GLOBALS['db'] ?? null;
+        if (!$db) {
+            return null;
+        }
+
+        $stmt = $db->prepare("SELECT * FROM backup_sources WHERE server_id = ? AND type = 'docker' LIMIT 1");
+        $stmt->bind_param('i', $server->id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result->fetch_assoc();
+    }
+
+    /**
+     * Get Docker volumes from server (via capabilities or live query)
+     *
+     * @return array<int, array<string, string>>
+     */
+    private function getDockerVolumesFromServer($server): array
+    {
+        // Try to get volumes from server via SSH
+        $result = $this->sshExecutor->execute(
+            $server,
+            'docker volume ls --format "{{.Name}}"',
+            10
+        );
+
+        if ($result['exitCode'] !== 0) {
+            return [];
+        }
+
+        $volumes = [];
+        $lines = explode("\n", trim($result['stdout']));
+        foreach ($lines as $line) {
+            $volumeName = trim($line);
+            if (!empty($volumeName)) {
+                $volumes[] = [
+                    'name' => $volumeName,
+                    'path' => "/var/lib/docker/volumes/{$volumeName}/_data",
+                ];
+            }
+        }
+
+        return $volumes;
+    }
+
+    /**
+     * Extract container metadata from backup (DEPRECATED - use backup_sources.config instead)
      *
      * @return array<int, array<string, mixed>>
      */
@@ -399,11 +445,29 @@ final class DockerRestoreService
         );
 
         if ($result['exitCode'] !== 0) {
+            $this->logger->warning(
+                "Failed to extract container metadata: " . ($result['stderr'] ?? 'Unknown error'),
+                'DockerRestore'
+            );
             return [];
         }
 
         // Parse JSON from stdout
         $containers = json_decode($result['stdout'], true);
-        return is_array($containers) ? $containers : [];
+
+        if (!is_array($containers)) {
+            $this->logger->warning(
+                "Failed to parse container metadata JSON. Output length: " . strlen($result['stdout']),
+                'DockerRestore'
+            );
+            return [];
+        }
+
+        $this->logger->info(
+            sprintf("Extracted metadata for %d containers", count($containers)),
+            'DockerRestore'
+        );
+
+        return $containers;
     }
 }
