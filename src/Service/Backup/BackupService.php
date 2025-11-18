@@ -196,7 +196,7 @@ final class BackupService
             }
 
             // Cleanup database backup if needed
-            if ($cleanupNeeded && $dbInfo !== null && in_array($repository->type, $databaseTypes)) {
+            if ($cleanupNeeded && $dbInfo !== null && in_array($repository->type, $strategyTypes)) {
                 $strategy = $this->databaseStrategies[$repository->type];
                 $strategy->cleanupBackup($server, $dbInfo);
             }
