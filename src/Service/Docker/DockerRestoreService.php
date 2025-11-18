@@ -75,7 +75,7 @@ final class DockerRestoreService
             ];
         }
 
-        $config = json_decode($backupSource->config, true) ?? [];
+        $config = $backupSource->config ?? [];
 
         // Extract volumes from backup configuration
         $volumes = [];
