@@ -60,70 +60,60 @@ final class DockerRestoreService
 
         $this->logger->info("Analyzing Docker archive: {$archive->name}", $server->name);
 
-        // List archive contents using borg list
+        // Extract container metadata JSON from backup (contains volumes, compose info, etc.)
         $repoPath = $repository->repoPath . '::' . $archive->name;
-        $result = $this->borgExecutor->execute(
-            ['list', $repoPath],
-            $repository->passphrase,
-            120
-        );
+        $containers = $this->extractContainerMetadata($repoPath, $repository->passphrase);
 
-        if ($result['exitCode'] !== 0) {
-            throw new RestoreException("Failed to list archive contents: {$result['stderr']}");
-        }
-
-        $contents = explode("\n", trim($result['stdout']));
-
-        // Parse contents to extract volumes, compose projects, configs
+        // Parse container metadata to extract volumes and compose projects
         $volumes = [];
         $composeProjects = [];
-        $configs = [];
-        $containers = [];
 
-        foreach ($contents as $line) {
-            if (empty($line)) continue;
-
-            // Docker volumes: var/lib/docker/volumes/VOLUME_NAME/_data
-            if (preg_match('#var/lib/docker/volumes/([^/]+)/_data#', $line, $matches)) {
-                $volumeName = $matches[1];
-                if (!isset($volumes[$volumeName])) {
-                    $volumes[$volumeName] = [
-                        'name' => $volumeName,
-                        'path' => "/var/lib/docker/volumes/{$volumeName}/_data",
-                        'files' => 0,
-                        'size' => 0,
-                    ];
+        foreach ($containers as $container) {
+            // Extract volumes from container mounts
+            $mounts = $container['Mounts'] ?? [];
+            foreach ($mounts as $mount) {
+                if ($mount['Type'] === 'volume') {
+                    $volumeName = $mount['Name'] ?? '';
+                    if ($volumeName && !isset($volumes[$volumeName])) {
+                        $volumes[$volumeName] = [
+                            'name' => $volumeName,
+                            'path' => $mount['Source'] ?? "/var/lib/docker/volumes/{$volumeName}/_data",
+                            'destination' => $mount['Destination'] ?? '',
+                        ];
+                    }
                 }
-                $volumes[$volumeName]['files']++;
             }
 
-            // Compose projects: paths containing docker-compose.yml
-            if (str_contains($line, 'docker-compose.yml') || str_contains($line, 'docker-compose.yaml')) {
-                $projectPath = dirname($line);
-                $projectName = basename($projectPath);
+            // Extract compose projects from labels
+            $labels = $container['Config']['Labels'] ?? [];
+            $projectName = $labels['com.docker.compose.project'] ?? null;
+            $projectWorkingDir = $labels['com.docker.compose.project.working_dir'] ?? null;
 
-                if (!isset($composeProjects[$projectName])) {
-                    $composeProjects[$projectName] = [
-                        'name' => $projectName,
-                        'path' => '/' . $projectPath,
-                        'files' => [],
-                    ];
-                }
-                $composeProjects[$projectName]['files'][] = basename($line);
-            }
-
-            // Docker configs: /etc/docker/
-            if (str_starts_with($line, 'etc/docker/')) {
-                $configs[] = [
-                    'path' => '/' . $line,
-                    'name' => basename($line),
+            if ($projectName && $projectWorkingDir && !isset($composeProjects[$projectName])) {
+                $composeProjects[$projectName] = [
+                    'name' => $projectName,
+                    'path' => $projectWorkingDir,
                 ];
             }
+        }
 
-            // Container metadata files
-            if (str_contains($line, 'phpborg_docker_containers.json')) {
-                // Extract container list from backup metadata
-                $containers = $this->extractContainerMetadata($server, $repoPath, $repository->passphrase);
+        // Quick scan for Docker configs (daemon.json, etc.)
+        $configs = [];
+        $result = $this->borgExecutor->execute(
+            ['list', $repoPath, 'etc/docker'],
+            $repository->passphrase,
+            30
+        );
+
+        if ($result['exitCode'] === 0) {
+            $lines = explode("\n", trim($result['stdout']));
+            foreach ($lines as $line) {
+                if (!empty($line) && str_starts_with($line, 'etc/docker/')) {
+                    $configs[] = [
+                        'path' => '/' . $line,
+                        'name' => basename($line),
+                    ];
+                }
             }
         }
 
@@ -399,19 +389,12 @@ final class DockerRestoreService
      *
      * @return array<int, array<string, mixed>>
      */
-    private function extractContainerMetadata(Server $server, string $repoPath, string $passphrase): array
+    private function extractContainerMetadata(string $repoPath, string $passphrase): array
     {
-        // Extract phpborg_docker_containers.json from backup
-        $tmpFile = '/tmp/phpborg_restore_containers_' . uniqid() . '.json';
-
+        // Extract phpborg_docker_containers.json from backup using borg extract --stdout
         $result = $this->borgExecutor->execute(
-            $server,
-            sprintf(
-                'BORG_PASSPHRASE=%s borg extract --stdout %s tmp/phpborg_docker_containers.json > %s',
-                escapeshellarg($passphrase),
-                escapeshellarg($repoPath),
-                escapeshellarg($tmpFile)
-            ),
+            ['extract', '--stdout', $repoPath, 'tmp/phpborg_docker_containers.json'],
+            $passphrase,
             30
         );
 
@@ -419,13 +402,8 @@ final class DockerRestoreService
             return [];
         }
 
-        // Read and parse JSON
-        $readResult = $this->sshExecutor->execute($server, "cat {$tmpFile} && rm {$tmpFile}", 10);
-        if ($readResult['exitCode'] !== 0) {
-            return [];
-        }
-
-        $containers = json_decode($readResult['stdout'], true);
+        // Parse JSON from stdout
+        $containers = json_decode($result['stdout'], true);
         return is_array($containers) ? $containers : [];
     }
 }
