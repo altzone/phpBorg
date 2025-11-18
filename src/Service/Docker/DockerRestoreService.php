@@ -60,9 +60,13 @@ final class DockerRestoreService
 
         $this->logger->info("Analyzing Docker archive: {$archive->name}", $server->name);
 
-        // List archive contents
+        // List archive contents using borg list
         $repoPath = $repository->repoPath . '::' . $archive->name;
-        $result = $this->borgExecutor->listArchive($repoPath, $repository->passphrase);
+        $result = $this->borgExecutor->execute(
+            ['list', $repoPath],
+            $repository->passphrase,
+            120
+        );
 
         if ($result['exitCode'] !== 0) {
             throw new RestoreException("Failed to list archive contents: {$result['stderr']}");
