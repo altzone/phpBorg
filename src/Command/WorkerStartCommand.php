@@ -10,6 +10,7 @@ use PhpBorg\Service\Queue\Handlers\ArchiveMountHandler;
 use PhpBorg\Service\Queue\Handlers\ArchiveRestoreHandler;
 use PhpBorg\Service\Queue\Handlers\BackupCreateHandler;
 use PhpBorg\Service\Queue\Handlers\CapabilitiesDetectionHandler;
+use PhpBorg\Service\Queue\Handlers\DockerConflictsDetectionHandler;
 use PhpBorg\Service\Queue\Handlers\DockerRestoreHandler;
 use PhpBorg\Service\Queue\Handlers\InstantRecoveryStartHandler;
 use PhpBorg\Service\Queue\Handlers\InstantRecoveryStopHandler;
@@ -156,6 +157,11 @@ final class WorkerStartCommand extends Command
             $this->app->getServerRepository(),
             $this->app->getSshExecutor(),
             $this->app->getBorgExecutor(),
+            $this->app->getDockerRestoreService(),
+            $logger
+        ));
+
+        $worker->registerHandler('docker_conflicts_detection', new DockerConflictsDetectionHandler(
             $this->app->getDockerRestoreService(),
             $logger
         ));

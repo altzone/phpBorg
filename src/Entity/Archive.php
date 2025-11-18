@@ -24,6 +24,7 @@ final readonly class Archive
         public int $deduplicatedSize,
         public int $originalSize,
         public int $filesCount,
+        public ?array $backupConfig = null,
     ) {
     }
 
@@ -34,6 +35,12 @@ final readonly class Archive
      */
     public static function fromDatabase(array $row): self
     {
+        $backupConfig = null;
+        if (!empty($row['backup_config'])) {
+            $decoded = json_decode($row['backup_config'], true);
+            $backupConfig = is_array($decoded) ? $decoded : null;
+        }
+
         return new self(
             id: (int)$row['id'],
             repoId: (string)$row['repo_id'],
@@ -47,6 +54,7 @@ final readonly class Archive
             deduplicatedSize: (int)$row['dsize'],
             originalSize: (int)$row['osize'],
             filesCount: (int)$row['nfiles'],
+            backupConfig: $backupConfig,
         );
     }
 

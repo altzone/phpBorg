@@ -166,10 +166,10 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
 
       this.analyzing = true
       try {
-        const response = await dockerRestoreService.analyzeArchive(this.archive.id)
-        this.analysis = response.data.analysis
+        this.analysis = await dockerRestoreService.analyzeArchive(this.archive.id)
       } catch (error) {
         console.error('Failed to analyze archive:', error)
+        this.analysis = null
         // Error will be handled by component
       } finally {
         this.analyzing = false

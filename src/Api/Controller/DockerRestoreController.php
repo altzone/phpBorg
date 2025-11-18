@@ -61,7 +61,7 @@ class DockerRestoreController extends BaseController
 
     /**
      * POST /api/docker-restore/detect-conflicts
-     * Detect conflicts with running containers
+     * Detect conflicts with running containers (via job queue for security)
      *
      * Request body:
      * {
@@ -71,6 +71,8 @@ class DockerRestoreController extends BaseController
      *     "projects": ["project1"]
      *   }
      * }
+     *
+     * Returns: job_id for polling results
      */
     public function detectConflicts(): void
     {
@@ -85,11 +87,17 @@ class DockerRestoreController extends BaseController
                 return;
             }
 
-            $conflicts = $this->restoreService->detectConflicts((int)$serverId, $selectedItems);
+            // Create job for conflict detection (requires SSH access via phpborg user)
+            $jobId = $this->jobQueue->push('docker_conflicts_detection', [
+                'server_id' => (int)$serverId,
+                'selected_items' => $selectedItems,
+            ]);
 
             $this->success([
-                'conflicts' => $conflicts,
-            ]);
+                'job_id' => $jobId,
+                'message' => 'Conflict detection started',
+            ], 'Conflict detection queued', 202);
+
         } catch (PhpBorgException $e) {
             $this->error($e->getMessage(), 500, 'CONFLICT_DETECTION_ERROR');
         }

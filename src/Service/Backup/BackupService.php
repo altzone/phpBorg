@@ -11,6 +11,7 @@ use PhpBorg\Entity\Server;
 use PhpBorg\Exception\BackupException;
 use PhpBorg\Logger\LoggerInterface;
 use PhpBorg\Repository\ArchiveRepository;
+use PhpBorg\Repository\BackupSourceRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\DatabaseInfoRepository;
 use PhpBorg\Repository\ReportRepository;
@@ -35,6 +36,7 @@ final class BackupService
         private readonly DatabaseInfoRepository $dbInfoRepo,
         private readonly ReportRepository $reportRepo,
         private readonly SettingRepository $settingsRepo,
+        private readonly BackupSourceRepository $backupSourceRepo,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -509,6 +511,16 @@ final class BackupService
             return;
         }
 
+        // Get backup_config from backup_sources if it exists
+        $backupConfig = null;
+        $backupSources = $this->backupSourceRepo->findByServerAndType($repository->serverId, $repository->type);
+        if (!empty($backupSources)) {
+            $backupSource = $backupSources[0];
+            if (!empty($backupSource->config)) {
+                $backupConfig = json_encode($backupSource->config);
+            }
+        }
+
         $this->archiveRepo->create(
             repoId: $repository->repoId,
             serverId: $repository->serverId,
@@ -520,7 +532,8 @@ final class BackupService
             compressedSize: (int)($stats['compressed_size'] ?? 0),
             deduplicatedSize: (int)($stats['deduplicated_size'] ?? 0),
             originalSize: (int)($stats['original_size'] ?? 0),
-            filesCount: (int)($stats['nfiles'] ?? 0)
+            filesCount: (int)($stats['nfiles'] ?? 0),
+            backupConfig: $backupConfig
         );
     }
 

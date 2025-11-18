@@ -9,8 +9,14 @@ export default {
    * @param {number} archiveId
    * @returns {Promise}
    */
-  analyzeArchive(archiveId) {
-    return api.post('/docker-restore/analyze', { archive_id: archiveId })
+  async analyzeArchive(archiveId) {
+    const response = await api.post('/docker-restore/analyze', { archive_id: archiveId })
+    return response.data.data?.analysis || response.data.analysis || {
+      volumes: [],
+      compose_projects: [],
+      configs: [],
+      containers: []
+    }
   },
 
   /**

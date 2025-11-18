@@ -62,11 +62,21 @@ final class DockerRestoreService
 
         $this->logger->info("Analyzing Docker archive: {$archive->name}", $server->name);
 
-        // Get backup source configuration (contains selected volumes, compose projects, etc.)
-        $backupSource = $this->getBackupSourceForArchive($archive, $repository, $server);
+        // Get backup configuration from archive (snapshot of what was selected during backup)
+        $config = $archive->backupConfig ?? [];
 
-        if (!$backupSource) {
-            $this->logger->warning("No backup source found for Docker archive", $server->name);
+        if (empty($config)) {
+            $this->logger->warning("No backup config found in archive metadata", $server->name);
+            // Fallback: try to get from current backup_sources configuration
+            $backupSource = $this->getBackupSourceForArchive($archive, $repository, $server);
+            if ($backupSource) {
+                $config = $backupSource->config ?? [];
+                $this->logger->info("Using backup_sources config as fallback", $server->name);
+            }
+        }
+
+        if (empty($config)) {
+            $this->logger->warning("No configuration found for Docker archive (neither in archive nor backup_sources)", $server->name);
             return [
                 'volumes' => [],
                 'compose_projects' => [],
@@ -75,13 +85,13 @@ final class DockerRestoreService
             ];
         }
 
-        $config = $backupSource->config ?? [];
-
         // Extract volumes from backup configuration
         $volumes = [];
         if ($config['backupAllVolumes'] ?? false) {
-            // Get all Docker volumes from server capabilities
-            $volumes = $this->getDockerVolumesFromServer($server);
+            // When backupAllVolumes is true, we don't have the exact list in config
+            // Volumes will need to be detected from the archive content during restore
+            // For now, return empty array (will be populated by browsing archive)
+            $this->logger->info("Archive configured with backupAllVolumes=true, volume list will be detected from archive content", $server->name);
         } else {
             // Use selected volumes from configuration
             $selectedVolumes = $config['selectedVolumes'] ?? [];
