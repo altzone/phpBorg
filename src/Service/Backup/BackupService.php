@@ -175,7 +175,8 @@ final class BackupService
             );
 
             // Get backup timeout from settings (default: 12 hours = 43200 seconds)
-            $timeout = (int)($this->settingsRepo->get('backup_timeout') ?? 43200);
+            $timeoutSetting = $this->settingsRepo->findByKey('backup_timeout');
+            $timeout = $timeoutSetting ? (int)$timeoutSetting->value : 43200;
             $result = $this->sshExecutor->execute($server, $borgCommand, $timeout);
 
             // Log borg command output (includes stats and progress info)
