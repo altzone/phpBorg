@@ -158,6 +158,11 @@ final class BackupService
             // Create archive name
             $archiveName = $repository->type . '_' . date('Y-m-d_H-i-s');
 
+            // Validate backup paths
+            if (empty($backupPaths)) {
+                throw new BackupException("No backup paths specified. Cannot create empty backup.");
+            }
+
             // Execute Borg backup via SSH
             $this->logger->info("Creating Borg archive: {$archiveName}", $server->name);
 
