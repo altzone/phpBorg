@@ -52,13 +52,28 @@ final class DockerBackupStrategy implements DatabaseBackupInterface
                 }
             }
 
-            // 2. Backup selected Compose projects (including docker-compose.yml files)
+            // 2. Backup Compose projects (CRITICAL for restore!)
+            // If user selected specific projects, use those. Otherwise backup ALL detected projects.
             $selectedProjects = $sourceConfig['selectedComposeProjects'] ?? [];
-            foreach ($selectedProjects as $projectName) {
-                $projectPath = $this->getComposeProjectPath($server, $projectName);
-                if ($projectPath) {
-                    $paths[] = $projectPath;
-                    $this->logger->info("Including Compose project: {$projectName} ({$projectPath})", $server->name);
+            $backupAllProjects = empty($selectedProjects); // If nothing selected, backup everything
+
+            if ($backupAllProjects) {
+                $this->logger->info("No projects selected - backing up ALL detected Compose projects", $server->name);
+                $allProjects = $this->getAllComposeProjects($server);
+                foreach ($allProjects as $projectName => $projectInfo) {
+                    $projectPath = $projectInfo['working_dir'] ?? null;
+                    if ($projectPath && $this->fileExists($server, $projectPath)) {
+                        $paths[] = $projectPath;
+                        $this->logger->info("Including Compose project: {$projectName} ({$projectPath})", $server->name);
+                    }
+                }
+            } else {
+                foreach ($selectedProjects as $projectName) {
+                    $projectPath = $this->getComposeProjectPath($server, $projectName);
+                    if ($projectPath) {
+                        $paths[] = $projectPath;
+                        $this->logger->info("Including Compose project: {$projectName} ({$projectPath})", $server->name);
+                    }
                 }
             }
 
@@ -215,6 +230,53 @@ final class DockerBackupStrategy implements DatabaseBackupInterface
         }
 
         return null;
+    }
+
+    /**
+     * Get all Compose projects on server
+     * Returns array of [projectName => ['name' => ..., 'working_dir' => ..., 'containers' => []]]
+     */
+    private function getAllComposeProjects(Server $server): array
+    {
+        $projects = [];
+
+        // Get all containers with compose labels
+        $result = $this->sshExecutor->execute(
+            $server,
+            'docker ps -a --filter "label=com.docker.compose.project" --format "{{.ID}}|{{.Names}}|{{.Label \"com.docker.compose.project\"}}|{{.Label \"com.docker.compose.project.working_dir\"}}"',
+            30
+        );
+
+        if ($result['exitCode'] !== 0 || empty($result['stdout'])) {
+            $this->logger->warning("No Compose projects found or command failed", $server->name);
+            return [];
+        }
+
+        $lines = explode("\n", trim($result['stdout']));
+        foreach ($lines as $line) {
+            if (empty($line)) continue;
+
+            $parts = explode('|', $line);
+            if (count($parts) < 4) continue;
+
+            [$containerId, $containerName, $projectName, $workingDir] = $parts;
+
+            if (empty($projectName)) continue;
+
+            // Initialize project if not seen before
+            if (!isset($projects[$projectName])) {
+                $projects[$projectName] = [
+                    'name' => $projectName,
+                    'working_dir' => $workingDir ?: null,
+                    'containers' => []
+                ];
+            }
+
+            $projects[$projectName]['containers'][] = $containerName;
+        }
+
+        $this->logger->info("Detected " . count($projects) . " Compose projects", $server->name);
+        return $projects;
     }
 
     /**
