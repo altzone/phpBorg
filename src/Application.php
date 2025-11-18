@@ -435,6 +435,28 @@ final class Application
         );
     }
 
+    public function getRestoreOperationRepository(): \PhpBorg\Repository\RestoreOperationRepository
+    {
+        return $this->getService(\PhpBorg\Repository\RestoreOperationRepository::class, fn() =>
+            new \PhpBorg\Repository\RestoreOperationRepository($this->connection)
+        );
+    }
+
+    public function getDockerRestoreService(): \PhpBorg\Service\Docker\DockerRestoreService
+    {
+        return $this->getService(\PhpBorg\Service\Docker\DockerRestoreService::class, fn() =>
+            new \PhpBorg\Service\Docker\DockerRestoreService(
+                $this->getRestoreOperationRepository(),
+                $this->getArchiveRepository(),
+                $this->getBorgRepositoryRepository(),
+                $this->getServerRepository(),
+                $this->getSshExecutor(),
+                $this->getBorgExecutor(),
+                $this->logger
+            )
+        );
+    }
+
     /**
      * Cleanup resources
      */

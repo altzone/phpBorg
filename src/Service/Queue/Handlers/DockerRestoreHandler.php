@@ -1,0 +1,515 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PhpBorg\Service\Queue\Handlers;
+
+use PhpBorg\Entity\Job;
+use PhpBorg\Logger\LoggerInterface;
+use PhpBorg\Repository\RestoreOperationRepository;
+use PhpBorg\Repository\ArchiveRepository;
+use PhpBorg\Repository\BorgRepositoryRepository;
+use PhpBorg\Repository\ServerRepository;
+use PhpBorg\Service\Queue\JobQueue;
+use PhpBorg\Service\Server\SshExecutor;
+use PhpBorg\Service\Backup\BorgExecutor;
+use PhpBorg\Service\Docker\DockerRestoreService;
+use PhpBorg\Exception\RestoreException;
+
+/**
+ * Handler for Docker restore operations
+ * Responsibilities:
+ * - Stop conflicting containers
+ * - Create LVM snapshots (protection)
+ * - Extract from Borg archive
+ * - Adapt paths if needed
+ * - Restart containers
+ * - Health checks
+ * - Set rollback window
+ */
+final class DockerRestoreHandler implements JobHandlerInterface
+{
+    public function __construct(
+        private readonly RestoreOperationRepository $restoreOperationRepo,
+        private readonly ArchiveRepository $archiveRepo,
+        private readonly BorgRepositoryRepository $repositoryRepo,
+        private readonly ServerRepository $serverRepo,
+        private readonly SshExecutor $sshExecutor,
+        private readonly BorgExecutor $borgExecutor,
+        private readonly DockerRestoreService $restoreService,
+        private readonly LoggerInterface $logger
+    ) {
+    }
+
+    /**
+     * Handle Docker restore job
+     */
+    public function handle(Job $job, JobQueue $queue): string
+    {
+        $payload = $job->payload;
+
+        $operationId = $payload['operation_id'] ?? null;
+        if (!$operationId) {
+            throw new \Exception('Missing operation_id in job payload');
+        }
+
+        $this->logger->info("Starting Docker restore operation: {$operationId}", 'JOB');
+        $queue->updateProgress($job->id, 5, "Loading restore operation...");
+
+        try {
+            // Load operation
+            $operation = $this->restoreOperationRepo->findById($operationId);
+            if (!$operation) {
+                throw new RestoreException("Restore operation not found: {$operationId}");
+            }
+
+            // Mark as running
+            $this->restoreOperationRepo->updateStatus($operationId, 'running');
+
+            // Load related entities
+            $archive = $this->archiveRepo->findById($operation->archiveId);
+            $repository = $this->repositoryRepo->findByRepoId($archive->repositoryId);
+            $server = $this->serverRepo->findById($operation->serverId);
+
+            $this->logger->info(
+                "Restoring archive '{$archive->name}' to server '{$server->name}'",
+                $server->name
+            );
+
+            // Step 1: Stop containers (if needed)
+            if (!empty($operation->selectedItems['must_stop'])) {
+                $queue->updateProgress($job->id, 10, "Stopping containers...");
+                $this->stopContainers($server, $operation->selectedItems['must_stop'], $operationId);
+            }
+
+            // Step 2: Create LVM snapshot (protection)
+            if ($operation->lvmSnapshotCreated || ($payload['create_lvm_snapshot'] ?? false)) {
+                $queue->updateProgress($job->id, 20, "Creating LVM snapshot...");
+                $this->createLvmSnapshot($server, $payload, $operationId);
+            }
+
+            // Step 3: Create pre-restore backup (protection)
+            if ($operation->preRestoreBackupCreated || ($payload['create_pre_restore_backup'] ?? false)) {
+                $queue->updateProgress($job->id, 30, "Creating pre-restore backup...");
+                $this->createPreRestoreBackup($server, $repository, $operation, $operationId);
+            }
+
+            // Step 4: Extract from Borg archive
+            $queue->updateProgress($job->id, 40, "Extracting from Borg archive...");
+            $this->extractFromBorg($server, $repository, $archive, $operation, $job, $queue);
+
+            // Step 5: Adapt paths (if alternative location + compose files)
+            if ($operation->destination === 'alternative' && $operation->composePathAdaptation !== 'none') {
+                $queue->updateProgress($job->id, 70, "Adapting paths in compose files...");
+                $this->adaptComposePaths($server, $operation, $operationId);
+            }
+
+            // Step 6: Restart containers
+            if ($operation->autoRestart && !empty($operation->stoppedContainers)) {
+                $queue->updateProgress($job->id, 80, "Restarting containers...");
+                $this->restartContainers($server, $operation->stoppedContainers, $operationId);
+            }
+
+            // Step 7: Health checks
+            $queue->updateProgress($job->id, 90, "Running health checks...");
+            $this->runHealthChecks($server, $operation, $operationId);
+
+            // Step 8: Set rollback window (8 hours)
+            $this->restoreOperationRepo->setRollbackWindow($operationId, 8);
+
+            // Mark as completed
+            $this->restoreOperationRepo->updateStatus($operationId, 'completed');
+            $queue->updateProgress($job->id, 100, "Restore completed successfully!");
+
+            $this->logger->info("Docker restore completed successfully", $server->name);
+
+            return "Docker restore completed successfully. Rollback available for 8 hours.";
+
+        } catch (\Exception $e) {
+            $this->logger->error("Docker restore failed: {$e->getMessage()}", 'JOB');
+
+            // Mark as failed
+            $this->restoreOperationRepo->updateStatus($operationId, 'failed', $e->getMessage());
+
+            // Auto-rollback on failure
+            if ($payload['auto_rollback_on_failure'] ?? true) {
+                $this->logger->info("Attempting auto-rollback...", 'JOB');
+                try {
+                    $this->rollback($operationId);
+                    return "Restore failed, auto-rollback executed: " . $e->getMessage();
+                } catch (\Exception $rollbackError) {
+                    $this->logger->error("Auto-rollback failed: {$rollbackError->getMessage()}", 'JOB');
+                }
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Stop Docker containers
+     *
+     * @param array<string> $containers
+     */
+    private function stopContainers(object $server, array $containers, int $operationId): void
+    {
+        $this->logger->info("Stopping " . count($containers) . " container(s)", $server->name);
+
+        $stoppedContainers = [];
+        $restartOrder = 0;
+
+        foreach ($containers as $containerName) {
+            $result = $this->sshExecutor->execute(
+                $server,
+                sprintf('docker stop %s', escapeshellarg($containerName)),
+                60
+            );
+
+            if ($result['exitCode'] === 0) {
+                $this->logger->info("Stopped container: {$containerName}", $server->name);
+                $stoppedContainers[] = [
+                    'name' => $containerName,
+                    'restart_order' => $restartOrder++,
+                    'stopped_at' => date('Y-m-d H:i:s'),
+                ];
+            } else {
+                $this->logger->warning(
+                    "Failed to stop container {$containerName}: {$result['stderr']}",
+                    $server->name
+                );
+            }
+        }
+
+        $this->restoreOperationRepo->updateStoppedContainers($operationId, $stoppedContainers);
+    }
+
+    /**
+     * Create LVM snapshot for rollback capability
+     *
+     * @param array<string, mixed> $config
+     */
+    private function createLvmSnapshot(object $server, array $config, int $operationId): void
+    {
+        $lvmPath = $config['lvm_path'] ?? '/dev/vg_data/lv_docker';
+        $snapshotSize = $config['snapshot_size'] ?? '20G';
+        $snapshotName = 'restore_snapshot_' . date('Ymd_His');
+
+        $this->logger->info("Creating LVM snapshot: {$snapshotName}", $server->name);
+
+        $result = $this->sshExecutor->execute(
+            $server,
+            sprintf(
+                'lvcreate -L %s -s -n %s %s',
+                escapeshellarg($snapshotSize),
+                escapeshellarg($snapshotName),
+                escapeshellarg($lvmPath)
+            ),
+            120
+        );
+
+        if ($result['exitCode'] !== 0) {
+            throw new RestoreException("Failed to create LVM snapshot: {$result['stderr']}");
+        }
+
+        $this->logger->info("LVM snapshot created successfully", $server->name);
+        $this->restoreOperationRepo->markLvmSnapshotCreated($operationId, $snapshotName);
+    }
+
+    /**
+     * Create backup of current state before restore
+     */
+    private function createPreRestoreBackup(
+        object $server,
+        object $repository,
+        object $operation,
+        int $operationId
+    ): void {
+        $archiveName = 'pre_restore_backup_' . date('Ymd_His');
+        $this->logger->info("Creating pre-restore backup: {$archiveName}", $server->name);
+
+        // Build paths to backup based on what will be restored
+        $paths = [];
+        if (!empty($operation->selectedItems['volumes'])) {
+            foreach ($operation->selectedItems['volumes'] as $volumeName) {
+                $paths[] = "/var/lib/docker/volumes/{$volumeName}";
+            }
+        }
+        if (!empty($operation->selectedItems['projects'])) {
+            foreach ($operation->selectedItems['projects'] as $project) {
+                if (isset($project['path'])) {
+                    $paths[] = $project['path'];
+                }
+            }
+        }
+
+        if (empty($paths)) {
+            $this->logger->info("No paths to backup, skipping pre-restore backup", $server->name);
+            return;
+        }
+
+        $result = $this->borgExecutor->createBackup(
+            $repository->repoPath,
+            $repository->passphrase,
+            $archiveName,
+            $paths,
+            [],
+            7200 // 2 hour timeout
+        );
+
+        if ($result['exitCode'] !== 0 && $result['exitCode'] !== 1) {
+            throw new RestoreException("Failed to create pre-restore backup: {$result['stderr']}");
+        }
+
+        $this->logger->info("Pre-restore backup created successfully", $server->name);
+        $this->restoreOperationRepo->markPreRestoreBackupCreated($operationId, $archiveName);
+    }
+
+    /**
+     * Extract files from Borg archive
+     */
+    private function extractFromBorg(
+        object $server,
+        object $repository,
+        object $archive,
+        object $operation,
+        object $job,
+        JobQueue $queue
+    ): void {
+        $repoPath = $repository->repoPath . '::' . $archive->name;
+        $this->logger->info("Extracting from Borg archive: {$repoPath}", $server->name);
+
+        // Build extraction command
+        $cmd = sprintf(
+            'cd /tmp && BORG_PASSPHRASE=%s borg extract --progress %s',
+            escapeshellarg($repository->passphrase),
+            escapeshellarg($repoPath)
+        );
+
+        // Add strip-components for alternative location
+        if ($operation->destination === 'alternative') {
+            $cmd .= ' --strip-components=1';
+        }
+
+        // Add specific paths if custom selection
+        if ($operation->restoreType === 'custom' && !empty($operation->selectedItems)) {
+            $selectedPaths = [];
+
+            if (!empty($operation->selectedItems['volumes'])) {
+                foreach ($operation->selectedItems['volumes'] as $volumeName) {
+                    $selectedPaths[] = "var/lib/docker/volumes/{$volumeName}";
+                }
+            }
+
+            if (!empty($operation->selectedItems['projects'])) {
+                foreach ($operation->selectedItems['projects'] as $project) {
+                    if (isset($project['path'])) {
+                        $selectedPaths[] = ltrim($project['path'], '/');
+                    }
+                }
+            }
+
+            if (!empty($selectedPaths)) {
+                $cmd .= ' ' . implode(' ', array_map('escapeshellarg', $selectedPaths));
+            }
+        }
+
+        $this->logger->info("Executing Borg extract command", $server->name);
+
+        $result = $this->sshExecutor->execute($server, $cmd, 7200); // 2 hour timeout
+
+        if ($result['exitCode'] !== 0 && $result['exitCode'] !== 1) {
+            throw new RestoreException("Failed to extract from Borg archive: {$result['stderr']}");
+        }
+
+        // TODO: Parse progress from stderr and update job progress in real-time
+
+        $this->logger->info("Extraction completed successfully", $server->name);
+    }
+
+    /**
+     * Adapt paths in docker-compose.yml files for alternative location
+     */
+    private function adaptComposePaths(object $server, object $operation, int $operationId): void
+    {
+        if ($operation->composePathAdaptation === 'none') {
+            return;
+        }
+
+        $this->logger->info("Adapting compose file paths", $server->name);
+
+        // Find all docker-compose.yml files in alternative location
+        $result = $this->sshExecutor->execute(
+            $server,
+            sprintf(
+                'find %s -name "docker-compose.yml" -o -name "docker-compose.yaml"',
+                escapeshellarg($operation->alternativePath)
+            ),
+            30
+        );
+
+        if ($result['exitCode'] !== 0) {
+            $this->logger->warning("Failed to find compose files: {$result['stderr']}", $server->name);
+            return;
+        }
+
+        $composeFiles = array_filter(explode("\n", trim($result['stdout'])));
+
+        foreach ($composeFiles as $composeFile) {
+            $this->adaptComposeFile($server, $composeFile, $operation);
+        }
+    }
+
+    /**
+     * Adapt a single docker-compose.yml file
+     */
+    private function adaptComposeFile(object $server, string $composeFile, object $operation): void
+    {
+        // Backup original if requested
+        if ($operation->composePathAdaptation === 'generate_new') {
+            $this->sshExecutor->execute(
+                $server,
+                sprintf('cp %s %s.original', escapeshellarg($composeFile), escapeshellarg($composeFile)),
+                10
+            );
+        }
+
+        // Replace volume paths in compose file
+        // This is a simplified version - a real implementation would parse YAML properly
+        $sedCommand = sprintf(
+            "sed -i 's|/var/lib/docker/volumes/|%s/volumes/|g' %s",
+            escapeshellarg($operation->alternativePath),
+            escapeshellarg($composeFile)
+        );
+
+        $result = $this->sshExecutor->execute($server, $sedCommand, 10);
+
+        if ($result['exitCode'] !== 0) {
+            $this->logger->warning("Failed to adapt compose file {$composeFile}: {$result['stderr']}", $server->name);
+        } else {
+            $this->logger->info("Adapted compose file: {$composeFile}", $server->name);
+        }
+    }
+
+    /**
+     * Restart Docker containers
+     *
+     * @param array<string, mixed> $containers
+     */
+    private function restartContainers(object $server, array $containers, int $operationId): void
+    {
+        // Sort by restart_order (reverse order - LIFO)
+        usort($containers, fn($a, $b) => ($b['restart_order'] ?? 0) <=> ($a['restart_order'] ?? 0));
+
+        $this->logger->info("Restarting " . count($containers) . " container(s)", $server->name);
+
+        foreach ($containers as $container) {
+            $containerName = $container['name'];
+
+            $result = $this->sshExecutor->execute(
+                $server,
+                sprintf('docker start %s', escapeshellarg($containerName)),
+                60
+            );
+
+            if ($result['exitCode'] === 0) {
+                $this->logger->info("Restarted container: {$containerName}", $server->name);
+            } else {
+                $this->logger->warning(
+                    "Failed to restart container {$containerName}: {$result['stderr']}",
+                    $server->name
+                );
+            }
+        }
+    }
+
+    /**
+     * Run health checks after restore
+     */
+    private function runHealthChecks(object $server, object $operation, int $operationId): void
+    {
+        $this->logger->info("Running health checks", $server->name);
+
+        // Check all containers are running
+        if (!empty($operation->stoppedContainers)) {
+            foreach ($operation->stoppedContainers as $container) {
+                $containerName = $container['name'];
+
+                $result = $this->sshExecutor->execute(
+                    $server,
+                    sprintf('docker inspect -f "{{.State.Running}}" %s', escapeshellarg($containerName)),
+                    10
+                );
+
+                $isRunning = trim($result['stdout']) === 'true';
+
+                if (!$isRunning) {
+                    $this->logger->warning("Container {$containerName} is not running after restore", $server->name);
+                } else {
+                    $this->logger->info("✓ Container {$containerName} is running", $server->name);
+                }
+            }
+        }
+    }
+
+    /**
+     * Rollback restore operation
+     */
+    private function rollback(int $operationId): void
+    {
+        $operation = $this->restoreOperationRepo->findById($operationId);
+        if (!$operation) {
+            throw new RestoreException("Restore operation not found: {$operationId}");
+        }
+
+        $server = $this->serverRepo->findById($operation->serverId);
+        $this->logger->info("Rolling back restore operation", $server->name);
+
+        // Rollback from LVM snapshot (fastest)
+        if ($operation->lvmSnapshotCreated && $operation->lvmSnapshotName) {
+            $this->rollbackFromLvmSnapshot($server, $operation);
+        }
+        // Rollback from pre-restore backup
+        elseif ($operation->preRestoreBackupCreated && $operation->preRestoreBackupArchive) {
+            $this->rollbackFromBackup($server, $operation);
+        }
+        else {
+            throw new RestoreException("No rollback method available for this restore operation");
+        }
+
+        $this->restoreOperationRepo->markRolledBack($operationId);
+        $this->logger->info("Rollback completed successfully", $server->name);
+    }
+
+    /**
+     * Rollback using LVM snapshot
+     */
+    private function rollbackFromLvmSnapshot(object $server, object $operation): void
+    {
+        $this->logger->info("Rolling back from LVM snapshot: {$operation->lvmSnapshotName}", $server->name);
+
+        $result = $this->sshExecutor->execute(
+            $server,
+            sprintf('lvconvert --merge /dev/vg_data/%s', escapeshellarg($operation->lvmSnapshotName)),
+            120
+        );
+
+        if ($result['exitCode'] !== 0) {
+            throw new RestoreException("Failed to merge LVM snapshot: {$result['stderr']}");
+        }
+
+        $this->logger->info("LVM snapshot merged. Reboot or remount required.", $server->name);
+    }
+
+    /**
+     * Rollback using pre-restore backup
+     */
+    private function rollbackFromBackup(object $server, object $operation): void
+    {
+        $this->logger->info("Rolling back from pre-restore backup: {$operation->preRestoreBackupArchive}", $server->name);
+
+        // This would trigger another restore operation
+        // Implementation depends on how pre-restore backup was structured
+
+        throw new RestoreException("Rollback from backup not yet implemented");
+    }
+}

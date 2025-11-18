@@ -10,6 +10,7 @@ use PhpBorg\Service\Queue\Handlers\ArchiveMountHandler;
 use PhpBorg\Service\Queue\Handlers\ArchiveRestoreHandler;
 use PhpBorg\Service\Queue\Handlers\BackupCreateHandler;
 use PhpBorg\Service\Queue\Handlers\CapabilitiesDetectionHandler;
+use PhpBorg\Service\Queue\Handlers\DockerRestoreHandler;
 use PhpBorg\Service\Queue\Handlers\InstantRecoveryStartHandler;
 use PhpBorg\Service\Queue\Handlers\InstantRecoveryStopHandler;
 use PhpBorg\Service\Queue\Handlers\RepositoryDeleteHandler;
@@ -147,6 +148,17 @@ final class WorkerStartCommand extends Command
         $worker->registerHandler('instant_recovery_start', new InstantRecoveryStartHandler($this->app));
 
         $worker->registerHandler('instant_recovery_stop', new InstantRecoveryStopHandler($this->app));
+
+        $worker->registerHandler('docker_restore', new DockerRestoreHandler(
+            $this->app->getRestoreOperationRepository(),
+            $this->app->getArchiveRepository(),
+            $this->app->getBorgRepositoryRepository(),
+            $this->app->getServerRepository(),
+            $this->app->getSshExecutor(),
+            $this->app->getBorgExecutor(),
+            $this->app->getDockerRestoreService(),
+            $logger
+        ));
 
         $output->writeln('<comment>Worker ready. Waiting for jobs...</comment>');
         $output->writeln('<comment>Press Ctrl+C to stop</comment>');
