@@ -578,13 +578,17 @@ function getRepositoryName(job) {
   if (job.payload?.repo_name) {
     return job.payload.repo_name
   }
-  // If we have a repository_id like "backup-repo-1-12345", extract meaningful part
+  // If we have a repository_id, convert to string and try to parse
   if (job.payload?.repository_id) {
-    const repoId = job.payload.repository_id
+    const repoId = String(job.payload.repository_id)
     // Try to extract type from repo_id format: "type-repo-serverId-timestamp"
     const parts = repoId.split('-')
     if (parts.length >= 2 && parts[1] === 'repo') {
       return parts[0] // Return the type (backup, database, etc.)
+    }
+    // If it's just a number, show it as "Repo #X"
+    if (!isNaN(Number(repoId))) {
+      return `Repo #${repoId}`
     }
     return repoId
   }
