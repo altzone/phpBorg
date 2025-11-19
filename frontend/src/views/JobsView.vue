@@ -372,28 +372,19 @@ onMounted(async () => {
 
   // Subscribe to real-time job updates via global SSE
   subscribe('jobs', (data) => {
-    let hasChanges = false
-
-    // Update job list
+    // Update job list (silent)
     if (data.jobs) {
       jobStore.jobs = data.jobs
-      hasChanges = true
     }
 
-    // Update job stats (silent, no log spam)
+    // Update job stats (silent)
     if (data.stats) {
       jobStore.stats = data.stats
     }
 
-    // Update specific job progress
+    // Update specific job progress (silent - updates every second)
     if (data.job_id && data.progress_info) {
       jobStore.setProgressInfo(data.job_id, data.progress_info)
-      console.log(`[Jobs] Progress update for job #${data.job_id}:`, data.progress_info)
-    }
-
-    // Only log when job list changes (not for stats-only updates)
-    if (hasChanges && data.jobs) {
-      console.log(`[Jobs] SSE update: ${data.jobs.length} jobs`)
     }
   })
 })
