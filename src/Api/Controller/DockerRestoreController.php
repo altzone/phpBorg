@@ -143,8 +143,8 @@ class DockerRestoreController extends BaseController
     }
 
     /**
-     * POST /api/docker-restore/start
-     * Start a Docker restore operation (creates job)
+     * POST /api/docker-restore/create-operation
+     * Create a restore operation record (for preview, without starting job)
      *
      * Request body:
      * {
@@ -154,11 +154,10 @@ class DockerRestoreController extends BaseController
      *   "restore_type": "full",
      *   "destination": "in_place",
      *   "selected_items": {...},
-     *   "create_lvm_snapshot": true,
      *   "auto_restart": true
      * }
      */
-    public function start(): void
+    public function createOperation(): void
     {
         try {
 
@@ -187,10 +186,81 @@ class DockerRestoreController extends BaseController
                 'compose_path_adaptation' => $data['compose_path_adaptation'] ?? 'none',
                 'selected_items' => $data['selected_items'] ?? null,
                 'auto_restart' => $data['auto_restart'] ?? true,
-                'status' => 'pending',
+                'status' => 'draft', // Draft status for preview only
             ];
 
             $operationId = $this->restoreOperationRepo->create($operationData);
+
+            // Get the created operation
+            $operation = $this->restoreOperationRepo->findById($operationId);
+
+            $this->success([
+                'operation' => $this->serializeOperation($operation),
+            ]);
+
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'OPERATION_CREATE_ERROR');
+        }
+    }
+
+    /**
+     * POST /api/docker-restore/start
+     * Start a Docker restore operation (creates or updates job)
+     *
+     * Request body:
+     * {
+     *   "operation_id": 123 (optional, if already created for preview),
+     *   "archive_id": 123,
+     *   "server_id": 1,
+     *   "mode": "express",
+     *   "restore_type": "full",
+     *   "destination": "in_place",
+     *   "selected_items": {...},
+     *   "create_lvm_snapshot": true,
+     *   "auto_restart": true
+     * }
+     */
+    public function start(): void
+    {
+        try {
+
+            $data = $this->getJsonBody();
+            $existingOperationId = $data['operation_id'] ?? null;
+            $archiveId = $data['archive_id'] ?? null;
+            $serverId = $data['server_id'] ?? null;
+
+            if (!$archiveId || !$serverId) {
+                $this->error('Missing archive_id or server_id', 400, 'MISSING_PARAMETERS');
+                return;
+            }
+
+            // If operation already exists (from preview), update it, otherwise create new
+            if ($existingOperationId) {
+                $operationId = (int)$existingOperationId;
+                // Update status from 'draft' to 'pending'
+                $this->restoreOperationRepo->update($operationId, ['status' => 'pending']);
+            } else {
+                // Get current user ID (hardcoded to admin for now)
+                $userId = 1;
+
+                // Create restore operation record
+                $operationData = [
+                    'archive_id' => (int)$archiveId,
+                    'server_id' => (int)$serverId,
+                    'user_id' => $userId,
+                    'source_type' => 'docker',
+                    'mode' => $data['mode'] ?? 'express',
+                    'restore_type' => $data['restore_type'] ?? 'full',
+                    'destination' => $data['destination'] ?? 'in_place',
+                    'alternative_path' => $data['alternative_path'] ?? null,
+                    'compose_path_adaptation' => $data['compose_path_adaptation'] ?? 'none',
+                    'selected_items' => $data['selected_items'] ?? null,
+                    'auto_restart' => $data['auto_restart'] ?? true,
+                    'status' => 'pending',
+                ];
+
+                $operationId = $this->restoreOperationRepo->create($operationData);
+            }
 
             // Create job for async execution
             $jobPayload = [

@@ -121,7 +121,7 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
      * Get restore config for API
      */
     getRestoreConfig(state) {
-      return {
+      const config = {
         archive_id: state.archive?.id,
         server_id: state.server?.id,
         mode: state.mode,
@@ -138,6 +138,13 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
         auto_rollback_on_failure: state.autoRollbackOnFailure,
         containers_to_stop: state.conflicts?.must_stop || []
       }
+
+      // Include operation_id if it exists (for startRestore after preview)
+      if (state.operation?.id) {
+        config.operation_id = state.operation.id
+      }
+
+      return config
     }
   },
 
@@ -229,6 +236,20 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
     },
 
     /**
+     * Create operation (for preview, without starting restore)
+     */
+    async createOperation() {
+      try {
+        const response = await dockerRestoreService.createOperation(this.getRestoreConfig)
+        this.operation = response.data.operation
+        return response.data.operation
+      } catch (error) {
+        console.error('Failed to create operation:', error)
+        throw error
+      }
+    },
+
+    /**
      * Start Docker restore
      */
     async startRestore() {
@@ -291,13 +312,18 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
     /**
      * Navigation
      */
-    nextStep() {
+    async nextStep() {
       if (this.canProceed && this.currentStep < 6) {
         this.currentStep++
 
         // Auto-detect conflicts when entering step 5
         if (this.currentStep === 5) {
           this.detectConflicts()
+        }
+
+        // Create operation when entering step 6 (preview)
+        if (this.currentStep === 6 && !this.operation) {
+          await this.createOperation()
         }
       }
     },

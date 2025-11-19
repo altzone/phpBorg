@@ -91,6 +91,15 @@ export default {
   },
 
   /**
+   * Create operation (for preview, without starting restore job)
+   * @param {Object} config - Complete restore configuration
+   * @returns {Promise}
+   */
+  async createOperation(config) {
+    return api.post('/docker-restore/create-operation', config)
+  },
+
+  /**
    * Start Docker restore operation
    * @param {Object} config - Complete restore configuration
    * @returns {Promise}

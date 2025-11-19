@@ -230,6 +230,7 @@ try {
     $router->post('/docker-restore/analyze', DockerRestoreController::class, 'analyze', requireAuth: true);
     $router->post('/docker-restore/detect-conflicts', DockerRestoreController::class, 'detectConflicts', requireAuth: true);
     $router->post('/docker-restore/preview-script', DockerRestoreController::class, 'previewScript', requireAuth: true);
+    $router->post('/docker-restore/create-operation', DockerRestoreController::class, 'createOperation', requireAuth: true);
     $router->post('/docker-restore/start', DockerRestoreController::class, 'start', requireAuth: true);
     $router->get('/docker-restore', DockerRestoreController::class, 'list', requireAuth: true);
     $router->get('/docker-restore/:id', DockerRestoreController::class, 'show', requireAuth: true);
