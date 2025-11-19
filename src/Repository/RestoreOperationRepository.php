@@ -157,7 +157,7 @@ final class RestoreOperationRepository
         ];
 
         $this->connection->execute($sql, $params);
-        return $this->connection->lastInsertId();
+        return $this->connection->getLastInsertId();
     }
 
     /**
