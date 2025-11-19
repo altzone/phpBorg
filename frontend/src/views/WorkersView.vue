@@ -410,6 +410,9 @@ let pollingInterval = null
 let connectionType = ref('connecting') // 'sse', 'polling', 'connecting', 'error'
 let useSSE = ref(true) // Track if we should try SSE
 let reconnectTimeout = null
+let reconnectAttempts = 0
+let maxReconnectAttempts = 3
+let lastUsedToken = null
 
 function setupSSE() {
   try {
@@ -420,43 +423,76 @@ function setupSSE() {
       return
     }
 
+    // If token changed, reset reconnect attempts
+    if (lastUsedToken !== token) {
+      console.log('New token detected, resetting reconnect attempts')
+      reconnectAttempts = 0
+      lastUsedToken = token
+    }
+
+    // Check reconnect attempts limit
+    if (reconnectAttempts >= maxReconnectAttempts) {
+      console.warn('Max SSE reconnect attempts reached, falling back to polling')
+      useSSE.value = false
+      setupPolling()
+      return
+    }
+
     // Clean up existing connection if any
     if (eventSource) {
       eventSource.close()
+      eventSource = null
     }
 
+    console.log(`Setting up SSE with token (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`)
     eventSource = new EventSource(`/api/workers/stream?token=${token}`)
 
     eventSource.addEventListener('update', (event) => {
       const data = JSON.parse(event.data)
       workerStore.workers = data.workers
       connectionType.value = 'sse'
+      // Reset reconnect attempts on successful connection
+      reconnectAttempts = 0
     })
 
     eventSource.addEventListener('heartbeat', () => {
       // Connection is alive
       connectionType.value = 'sse'
+      // Reset reconnect attempts on successful heartbeat
+      reconnectAttempts = 0
     })
 
     eventSource.onerror = (error) => {
       console.error('SSE Error:', error)
 
-      // Check if it's a token error by trying to reconnect once
-      if (eventSource.readyState === EventSource.CLOSED) {
-        eventSource.close()
+      // Increment reconnect attempts
+      reconnectAttempts++
 
-        // Try to reconnect once (in case token was refreshed)
-        if (useSSE.value) {
-          console.log('SSE connection closed, attempting reconnect...')
-          reconnectTimeout = setTimeout(() => {
-            setupSSE()
-          }, 2000)
-        } else {
-          // Give up on SSE, use polling
-          connectionType.value = 'error'
-          showToast(t('workers.connection.realtime_disabled'), t('workers.connection.switching_to_polling'), 'warning', 3000)
-          setupPolling()
-        }
+      // Immediately close to prevent auto-reconnect with old token
+      if (eventSource) {
+        eventSource.close()
+        eventSource = null
+      }
+
+      // Clear any pending reconnect timeout
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout)
+        reconnectTimeout = null
+      }
+
+      // Try to reconnect with fresh token (in case token was refreshed)
+      if (useSSE.value && reconnectAttempts < maxReconnectAttempts) {
+        console.log(`SSE connection closed, attempting reconnect ${reconnectAttempts}/${maxReconnectAttempts}...`)
+        reconnectTimeout = setTimeout(() => {
+          setupSSE()
+        }, 2000)
+      } else {
+        // Give up on SSE, use polling
+        console.warn('SSE reconnection failed, switching to polling mode')
+        connectionType.value = 'error'
+        useSSE.value = false
+        showToast(t('workers.connection.realtime_disabled'), t('workers.connection.switching_to_polling'), 'warning', 3000)
+        setupPolling()
       }
     }
   } catch (error) {
