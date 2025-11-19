@@ -31,7 +31,7 @@
       <nav class="flex-1 overflow-y-auto py-3 px-3 scrollbar-hide">
         <!-- Quick Access Section -->
         <div class="mb-4">
-          <div class="px-3 mb-1.5 text-xs font-semibold text-primary-600 dark:text-primary-400 uppercase tracking-wider flex items-center gap-2">
+          <div class="px-3 mb-1.5 text-xs font-bold text-primary-600 dark:text-primary-400 uppercase tracking-wider flex items-center gap-2 border-b border-primary-200 dark:border-primary-800 pb-1">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
@@ -76,7 +76,7 @@
 
         <!-- Backup Operations Section -->
         <div class="mb-4">
-          <div class="px-3 mb-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+          <div class="px-3 mb-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 pb-1">
             {{ $t('nav.backup_operations') }}
           </div>
           <RouterLink
@@ -105,7 +105,7 @@
 
         <!-- Infrastructure Section -->
         <div class="mb-4">
-          <div class="px-3 mb-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+          <div class="px-3 mb-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 pb-1">
             {{ $t('nav.infrastructure') }}
           </div>
           <RouterLink
@@ -145,7 +145,7 @@
 
         <!-- System Section -->
         <div class="mb-4">
-          <div class="px-3 mb-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+          <div class="px-3 mb-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 pb-1">
             {{ $t('nav.system') }}
           </div>
           <RouterLink
@@ -175,7 +175,7 @@
 
         <!-- Administration Section (Admin only) -->
         <div v-if="authStore.isAdmin" class="mb-4">
-          <div class="px-3 mb-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+          <div class="px-3 mb-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 pb-1">
             {{ $t('nav.administration') }}
           </div>
           <RouterLink

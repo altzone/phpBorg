@@ -240,6 +240,8 @@ export const useSSEStore = defineStore('sse', () => {
     connectionType.value = 'polling'
     connected.value = true
 
+    let pollCount = 0
+
     // Poll every 5 seconds
     const pollData = async () => {
       try {
@@ -261,6 +263,23 @@ export const useSSEStore = defineStore('sse', () => {
           notifySubscribers('workers', {
             workers: workersResponse.data.data.workers
           })
+        }
+
+        // Every 30 seconds (6 polls), try to reconnect to SSE
+        pollCount++
+        if (pollCount >= 6) {
+          console.log('[SSE] Attempting to reconnect to SSE from polling mode...')
+          pollCount = 0
+          reconnectAttempts.value = 0 // Reset attempts for fresh try
+
+          // Stop polling temporarily
+          if (pollingInterval.value) {
+            clearInterval(pollingInterval.value)
+            pollingInterval.value = null
+          }
+
+          // Try SSE again
+          setupSSE()
         }
 
       } catch (error) {
