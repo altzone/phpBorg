@@ -242,6 +242,10 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
       try {
         const response = await dockerRestoreService.createOperation(this.getRestoreConfig)
         this.operation = response.data.operation
+
+        // Auto-generate script immediately after creating operation
+        await this.generateScript(false)
+
         return response.data.operation
       } catch (error) {
         console.error('Failed to create operation:', error)

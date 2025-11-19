@@ -1149,7 +1149,12 @@ const copyScript = async () => {
 
 watch(() => showScriptModal.value, (show) => {
   if (show) {
-    generateScriptPreview()
+    // Load existing script from store if available, otherwise generate
+    if (store.script) {
+      scriptContent.value = store.script
+    } else {
+      generateScriptPreview()
+    }
   }
 })
 
