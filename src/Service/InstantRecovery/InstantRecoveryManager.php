@@ -371,8 +371,8 @@ final class InstantRecoveryManager
             throw new \Exception("Failed to start Adminer container");
         }
 
-        // Wait for Adminer to be ready (max 10 seconds)
-        $maxAttempts = 20;
+        // Wait for Adminer to be ready (max 30 seconds)
+        $maxAttempts = 60;
         $attempt = 0;
         $ready = false;
 
