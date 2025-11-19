@@ -286,6 +286,40 @@ final class DockerRestoreService
     }
 
     /**
+     * Convert selected items to borg extract paths
+     *
+     * @param array $selectedItems {volumes: [], projects: [], configs: []}
+     * @return array List of paths to extract
+     */
+    private function convertSelectedItemsToPaths(array $selectedItems): array
+    {
+        $paths = [];
+
+        // Volumes: /var/lib/docker/volumes/{volumeName}/_data
+        foreach ($selectedItems['volumes'] ?? [] as $volumeName) {
+            $paths[] = "var/lib/docker/volumes/{$volumeName}";
+        }
+
+        // Compose projects: from working directory
+        foreach ($selectedItems['projects'] ?? [] as $projectName) {
+            // Projects are stored as full path in backup
+            // We need to find them from metadata
+            // For now, we'll add the project name pattern
+            $paths[] = "*/{$projectName}";
+        }
+
+        // Docker configs: /etc/docker
+        if (!empty($selectedItems['configs'])) {
+            $paths[] = "etc/docker";
+        }
+
+        // Always include container metadata if exists
+        $paths[] = "tmp/phpborg_docker_containers.json";
+
+        return $paths;
+    }
+
+    /**
      * Generate bash script for restore operation
      *
      * @param array<string, mixed> $config - Full restore configuration
@@ -362,14 +396,32 @@ final class DockerRestoreService
             $script .= "echo \"📦 Step 3: Extracting from Borg archive...\"\n";
         }
 
+        // Build selective extract command with paths
+        $extractPaths = [];
+        if (!empty($config['selected_items'])) {
+            $extractPaths = $this->convertSelectedItemsToPaths($config['selected_items']);
+        }
+
         $script .= "borg extract --progress {$repoPath}";
         if ($operation->destination === 'alternative') {
             $script .= " --strip-components=1 --target={$operation->alternativePath}";
         }
+
+        // Add selective paths if specified
+        if (!empty($extractPaths)) {
+            $script .= " \\\n  ";
+            $script .= implode(" \\\n  ", array_map('escapeshellarg', $extractPaths));
+        }
+
         $script .= "\n";
 
         if (!$advanced) {
-            $script .= "# → Extraction des fichiers depuis le backup\n\n";
+            if (!empty($extractPaths)) {
+                $script .= "# → Extraction sélective de " . count($extractPaths) . " item(s)\n";
+                $script .= "# → Items: " . implode(', ', array_map(fn($p) => basename($p), $extractPaths)) . "\n\n";
+            } else {
+                $script .= "# → Extraction complète depuis le backup\n\n";
+            }
         }
 
         // Restart containers

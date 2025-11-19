@@ -985,8 +985,8 @@
             </button>
           </div>
 
-          <!-- Script Content -->
-          <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto font-mono">{{ scriptContent }}</pre>
+          <!-- Script Content with Syntax Highlighting -->
+          <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto font-mono"><code v-html="highlightedScript" class="language-bash"></code></pre>
         </div>
 
         <div class="p-6 border-t dark:border-gray-700 flex gap-3">
@@ -1046,6 +1046,12 @@ import { useI18n } from 'vue-i18n'
 import { useDockerRestoreStore } from '../stores/dockerRestore'
 import { backupService } from '@/services/backups'
 import { serverService } from '@/services/server'
+import hljs from 'highlight.js/lib/core'
+import bash from 'highlight.js/lib/languages/bash'
+import 'highlight.js/styles/atom-one-dark.css'
+
+// Register bash language for syntax highlighting
+hljs.registerLanguage('bash', bash)
 
 const route = useRoute()
 const router = useRouter()
@@ -1078,6 +1084,12 @@ const confirmInPlace = ref(false)
 const showScriptModal = ref(false)
 const scriptAdvanced = ref(false)
 const scriptContent = ref('')
+
+// Computed property for highlighted script
+const highlightedScript = computed(() => {
+  if (!scriptContent.value) return ''
+  return hljs.highlight(scriptContent.value, { language: 'bash' }).value
+})
 
 const steps = [
   { label: 'docker_restore.steps.mode' },
