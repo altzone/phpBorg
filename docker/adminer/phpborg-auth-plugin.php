@@ -99,21 +99,9 @@ class AdminerPhpBorgAuth
             'db' => $database,
         ]);
 
-        // Escape for HTML display
-        $serverDisplay = htmlspecialchars($server);
-        $usernameDisplay = htmlspecialchars($username);
-
-        ?>
-        <script>
-        // Auto-redirect after showing message
-        setTimeout(function() {
-            window.location.href = '<?php echo $redirectUrl; ?>';
-        }, 500);
-        </script>
-        <p class="message">🔐 <strong>Authenticating with phpBorg...</strong></p>
-        <p class="message">Connecting to <code><?php echo $serverDisplay; ?></code> as <code><?php echo $usernameDisplay; ?></code></p>
-        <p class="message">Redirecting...</p>
-        <?php
+        // Immediate PHP redirect (no HTML output)
+        header('Location: ' . $redirectUrl);
+        exit;
     }
 
     /**
