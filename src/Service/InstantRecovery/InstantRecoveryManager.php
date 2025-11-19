@@ -388,7 +388,7 @@ final class InstantRecoveryManager
 
         if (!$ready) {
             // Cleanup container on failure
-            $this->execute("docker stop {$containerName} && docker rm {$containerName}", false);
+            $this->execute(null, "docker stop {$containerName} && docker rm {$containerName}", 30, 'local', false);
             throw new \Exception("Adminer container failed to start within timeout");
         }
 
