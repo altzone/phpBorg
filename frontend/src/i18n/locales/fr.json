@@ -203,6 +203,15 @@
   "jobs": {
     "title": "Tâches en arrière-plan",
     "subtitle": "Surveiller et gérer les tâches en arrière-plan",
+    "show_system_jobs": "Afficher les tâches système",
+    "view_details": "Voir les détails",
+    "details": "Détails",
+    "logs": "Logs",
+    "payload": "Payload",
+    "status": "Statut",
+    "transfer_rate": "Taux de transfert",
+    "no_logs": "Aucun log disponible",
+    "no_user_jobs_msg": "Aucune tâche utilisateur. Activez 'Afficher les tâches système' pour voir toutes les tâches.",
     "stats": {
       "total": "Total",
       "pending": "En attente",
@@ -239,7 +248,12 @@
       "repository_delete": "Supprimer un dépôt",
       "server_setup": "Configurer un serveur",
       "server_stats_collect": "Collecter les statistiques",
-      "storage_pool_analyze": "Analyser le pool de stockage"
+      "storage_pool_analyze": "Analyser le pool de stockage",
+      "capabilities_detection": "Détection des capacités",
+      "docker_restore": "Restauration Docker",
+      "archive_restore": "Restauration d'archive",
+      "instant_recovery_start": "Démarrage Instant Recovery",
+      "instant_recovery_stop": "Arrêt Instant Recovery"
     }
   },
   "workers": {

@@ -203,6 +203,15 @@
   "jobs": {
     "title": "Background Jobs",
     "subtitle": "Monitor and manage background tasks",
+    "show_system_jobs": "Show system jobs",
+    "view_details": "View details",
+    "details": "Details",
+    "logs": "Logs",
+    "payload": "Payload",
+    "status": "Status",
+    "transfer_rate": "Transfer rate",
+    "no_logs": "No logs available",
+    "no_user_jobs_msg": "No user jobs. Enable 'Show system jobs' to see all jobs.",
     "stats": {
       "total": "Total",
       "pending": "Pending",
@@ -239,7 +248,12 @@
       "repository_delete": "Delete Repository",
       "server_setup": "Setup Server",
       "server_stats_collect": "Collect Statistics",
-      "storage_pool_analyze": "Analyze Storage Pool"
+      "storage_pool_analyze": "Analyze Storage Pool",
+      "capabilities_detection": "Capabilities Detection",
+      "docker_restore": "Docker Restore",
+      "archive_restore": "Archive Restore",
+      "instant_recovery_start": "Start Instant Recovery",
+      "instant_recovery_stop": "Stop Instant Recovery"
     }
   },
   "workers": {
