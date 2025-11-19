@@ -184,11 +184,16 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
 
       this.detectingConflicts = true
       try {
-        const response = await dockerRestoreService.detectConflicts(
+        // detectConflicts now polls the job and returns the result directly
+        const conflictsData = await dockerRestoreService.detectConflicts(
           this.server.id,
           this.getSelectedItems
         )
-        this.conflicts = response.data.conflicts
+
+        // conflictsData is already the parsed result: {conflicts, must_stop, disk_space_ok, warnings}
+        console.log('📊 Conflicts detection result:', conflictsData)
+        console.log('💾 disk_space_ok type:', typeof conflictsData.disk_space_ok, 'value:', conflictsData.disk_space_ok)
+        this.conflicts = conflictsData
       } catch (error) {
         console.error('Failed to detect conflicts:', error)
         // Error will be handled by component
