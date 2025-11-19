@@ -116,6 +116,9 @@
                   <span v-if="getBackupType(job)" class="px-2 py-0.5 text-xs font-semibold rounded bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300">
                     {{ getBackupType(job) }}
                   </span>
+                  <span v-if="getRepositoryName(job)" class="px-2 py-0.5 text-xs font-semibold rounded bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300">
+                    📚 {{ getRepositoryName(job) }}
+                  </span>
                   <span v-if="isManualTrigger(job)" class="px-2 py-0.5 text-xs font-semibold rounded bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
                     👤 Manual
                   </span>
@@ -564,5 +567,27 @@ function isManualTrigger(job) {
 
 function isScheduledTrigger(job) {
   return job.payload?.triggered_by === 'scheduled' || job.payload?.triggered_by === 'schedule'
+}
+
+function getRepositoryName(job) {
+  // Try to extract repository name from payload
+  // Could be repository_name, repo_name, or extract from repository_id
+  if (job.payload?.repository_name) {
+    return job.payload.repository_name
+  }
+  if (job.payload?.repo_name) {
+    return job.payload.repo_name
+  }
+  // If we have a repository_id like "backup-repo-1-12345", extract meaningful part
+  if (job.payload?.repository_id) {
+    const repoId = job.payload.repository_id
+    // Try to extract type from repo_id format: "type-repo-serverId-timestamp"
+    const parts = repoId.split('-')
+    if (parts.length >= 2 && parts[1] === 'repo') {
+      return parts[0] // Return the type (backup, database, etc.)
+    }
+    return repoId
+  }
+  return null
 }
 </script>
