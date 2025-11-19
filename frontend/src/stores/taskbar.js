@@ -43,6 +43,10 @@ export const useTaskBarStore = defineStore('taskbar', () => {
 
     console.log('[TaskBar] Subscribing to SSE topics (jobs + instant_recovery)')
 
+    // Track previous counts to log only on changes
+    let lastJobsCount = 0
+    let lastSessionsCount = 0
+
     // Subscribe to jobs topic
     unsubscribeJobs = sseStore.subscribe('jobs', (data) => {
       if (data.jobs) {
@@ -52,7 +56,11 @@ export const useTaskBarStore = defineStore('taskbar', () => {
         )
         runningJobs.value = running
 
-        console.log(`[TaskBar] SSE jobs update: ${running.length} running jobs (system jobs excluded)`)
+        // Only log when count changes
+        if (running.length !== lastJobsCount) {
+          console.log(`[TaskBar] Running jobs: ${running.length}`)
+          lastJobsCount = running.length
+        }
       }
     })
 
@@ -60,7 +68,12 @@ export const useTaskBarStore = defineStore('taskbar', () => {
     unsubscribeInstantRecovery = sseStore.subscribe('instant_recovery', (data) => {
       if (data.sessions) {
         activeSessions.value = data.sessions
-        console.log(`[TaskBar] SSE instant_recovery update: ${data.sessions.length} active sessions`)
+
+        // Only log when count changes
+        if (data.sessions.length !== lastSessionsCount) {
+          console.log(`[TaskBar] Active IR sessions: ${data.sessions.length}`)
+          lastSessionsCount = data.sessions.length
+        }
       }
     })
   }
