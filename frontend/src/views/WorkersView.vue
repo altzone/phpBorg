@@ -404,166 +404,23 @@ function removeToast(id) {
   }
 }
 
-// SSE Connection with fallback to polling
-let eventSource = null
-let pollingInterval = null
-let connectionType = ref('connecting') // 'sse', 'polling', 'connecting', 'error'
-let useSSE = ref(true) // Track if we should try SSE
-let reconnectTimeout = null
-let reconnectAttempts = 0
-let maxReconnectAttempts = 3
-let lastUsedToken = null
-
-function setupSSE() {
-  try {
-    const token = authStore.accessToken
-    if (!token) {
-      console.error('No access token available')
-      setupPolling()
-      return
-    }
-
-    // If token changed, reset reconnect attempts
-    if (lastUsedToken !== token) {
-      console.log('New token detected, resetting reconnect attempts')
-      reconnectAttempts = 0
-      lastUsedToken = token
-    }
-
-    // Check reconnect attempts limit
-    if (reconnectAttempts >= maxReconnectAttempts) {
-      console.warn('Max SSE reconnect attempts reached, falling back to polling')
-      useSSE.value = false
-      setupPolling()
-      return
-    }
-
-    // Clean up existing connection if any
-    if (eventSource) {
-      eventSource.close()
-      eventSource = null
-    }
-
-    console.log(`Setting up SSE with token (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`)
-    eventSource = new EventSource(`/api/workers/stream?token=${token}`)
-
-    eventSource.addEventListener('update', (event) => {
-      const data = JSON.parse(event.data)
-      workerStore.workers = data.workers
-      connectionType.value = 'sse'
-      // Reset reconnect attempts on successful connection
-      reconnectAttempts = 0
-    })
-
-    eventSource.addEventListener('heartbeat', () => {
-      // Connection is alive
-      connectionType.value = 'sse'
-      // Reset reconnect attempts on successful heartbeat
-      reconnectAttempts = 0
-    })
-
-    eventSource.onerror = async (error) => {
-      console.error('SSE Error:', error)
-
-      // Increment reconnect attempts
-      reconnectAttempts++
-
-      // Immediately close to prevent auto-reconnect with old token
-      if (eventSource) {
-        eventSource.close()
-        eventSource = null
-      }
-
-      // Clear any pending reconnect timeout
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout)
-        reconnectTimeout = null
-      }
-
-      // Try to reconnect with fresh token (in case token was refreshed)
-      if (useSSE.value && reconnectAttempts < maxReconnectAttempts) {
-        console.log(`SSE connection closed, attempting reconnect ${reconnectAttempts}/${maxReconnectAttempts}...`)
-        console.log('Waiting for automatic token refresh by axios interceptor...')
-
-        // Wait for axios interceptor to refresh the token automatically
-        // The watch on authStore.accessToken will detect the change
-        reconnectTimeout = setTimeout(() => {
-          const currentToken = authStore.accessToken
-          if (currentToken !== lastUsedToken) {
-            console.log('Token was refreshed, reconnecting with new token')
-          } else {
-            console.log('Token not refreshed yet, trying with current token anyway')
-          }
-          setupSSE()
-        }, 3000) // Give more time for axios interceptor to refresh
-      } else {
-        // Give up on SSE, use polling
-        console.warn('SSE reconnection failed, switching to polling mode')
-        connectionType.value = 'error'
-        useSSE.value = false
-        showToast(t('workers.connection.realtime_disabled'), t('workers.connection.switching_to_polling'), 'warning', 3000)
-        setupPolling()
-      }
-    }
-  } catch (error) {
-    console.error('Failed to setup SSE:', error)
-    setupPolling()
-  }
-}
-
-function reconnectSSE() {
-  console.log('Token changed, reconnecting SSE...')
-  cleanup()
-  if (useSSE.value) {
-    setupSSE()
-  }
-}
-
-function setupPolling() {
-  if (pollingInterval) return // Already polling
-
-  useSSE.value = false // Stop trying SSE
-  connectionType.value = 'polling'
-
-  // Poll every 10 seconds
-  pollingInterval = setInterval(async () => {
-    await workerStore.fetchWorkers()
-  }, 10000)
-}
-
-function cleanup() {
-  if (eventSource) {
-    eventSource.close()
-    eventSource = null
-  }
-  if (pollingInterval) {
-    clearInterval(pollingInterval)
-    pollingInterval = null
-  }
-  if (reconnectTimeout) {
-    clearTimeout(reconnectTimeout)
-    reconnectTimeout = null
-  }
-}
-
-// Watch for token changes (token refresh)
-watch(() => authStore.accessToken, (newToken, oldToken) => {
-  // If token changed and we're using SSE, reconnect
-  if (newToken && oldToken && newToken !== oldToken && useSSE.value) {
-    console.log('Access token refreshed, reconnecting SSE...')
-    reconnectSSE()
-  }
-})
+// Use global SSE
+import { useSSE } from '@/composables/useSSE'
+const { subscribe, connectionType } = useSSE()
 
 onMounted(async () => {
+  // Initial data fetch
   await workerStore.fetchWorkers()
 
-  // Try SSE first
-  setupSSE()
-})
+  // Subscribe to real-time worker updates via global SSE
+  subscribe('workers', (data) => {
+    console.log('[Workers] SSE update received:', data)
 
-onUnmounted(() => {
-  cleanup()
+    // Update workers list
+    if (data.workers) {
+      workerStore.workers = data.workers
+    }
+  })
 })
 
 async function refreshWorkers() {
