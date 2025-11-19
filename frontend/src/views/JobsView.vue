@@ -94,7 +94,7 @@
             <div class="flex-1 flex items-center gap-3">
               <!-- Job Type & Status -->
               <div class="flex-1">
-                <div class="flex items-center gap-2 mb-1">
+                <div class="flex items-center gap-2 mb-1 flex-wrap">
                   <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
                     {{ formatJobType(job.type) }}
                   </h3>
@@ -106,6 +106,21 @@
                   </span>
                   <span v-if="isSystemJob(job.type)" class="px-2 py-0.5 text-xs font-semibold rounded bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
                     SYSTEM
+                  </span>
+                  <span v-if="job.worker_id" class="px-2 py-0.5 text-xs font-semibold rounded bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                    Worker #{{ job.worker_id }}
+                  </span>
+                  <span v-if="getJobServer(job)" class="px-2 py-0.5 text-xs font-semibold rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
+                    📦 {{ getJobServer(job) }}
+                  </span>
+                  <span v-if="getBackupType(job)" class="px-2 py-0.5 text-xs font-semibold rounded bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300">
+                    {{ getBackupType(job) }}
+                  </span>
+                  <span v-if="isManualTrigger(job)" class="px-2 py-0.5 text-xs font-semibold rounded bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+                    👤 Manual
+                  </span>
+                  <span v-else-if="isScheduledTrigger(job)" class="px-2 py-0.5 text-xs font-semibold rounded bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300">
+                    ⏰ Scheduled
                   </span>
                 </div>
                 <div class="flex items-center gap-3 text-xs text-gray-600 dark:text-gray-400">
@@ -509,5 +524,45 @@ function calculateCompressionRatio(original, compressed) {
 function calculateDeduplicationRatio(original, deduplicated) {
   if (!original || !deduplicated || original === 0) return 0
   return Math.round((1 - deduplicated / original) * 100)
+}
+
+function getJobServer(job) {
+  // Try to extract server name from payload
+  if (job.payload?.server_name) {
+    return job.payload.server_name
+  }
+  return null
+}
+
+function getBackupType(job) {
+  // Extract backup type from payload (backup, database, docker, etc.)
+  if (job.payload?.type) {
+    const typeMap = {
+      'backup': '💾 System',
+      'database': '🗄️ Database',
+      'docker': '🐳 Docker'
+    }
+    return typeMap[job.payload.type] || job.payload.type
+  }
+
+  // For docker_restore jobs
+  if (job.type === 'docker_restore') {
+    return '🐳 Docker'
+  }
+
+  // For archive_restore jobs
+  if (job.type === 'archive_restore') {
+    return '📁 Archive'
+  }
+
+  return null
+}
+
+function isManualTrigger(job) {
+  return job.payload?.triggered_by === 'manual'
+}
+
+function isScheduledTrigger(job) {
+  return job.payload?.triggered_by === 'scheduled' || job.payload?.triggered_by === 'schedule'
 }
 </script>
