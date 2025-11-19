@@ -92,8 +92,8 @@ class AdminerPhpBorgAuth
         $driver = $this->detectDriver($server);
 
         // Auto-redirect to Adminer with credentials in URL
-        $redirectUrl = '?' . http_build_query([
-            'phpborg_token' => $_GET['phpborg_token'],
+        // Don't include phpborg_token to avoid redirect loop
+        $redirectUrl = '/?' . http_build_query([
             $driver => $server,
             'username' => $username,
             'db' => $database,
