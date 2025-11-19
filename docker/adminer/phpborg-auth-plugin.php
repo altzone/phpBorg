@@ -92,6 +92,11 @@ class AdminerPhpBorgAuth
      */
     function loginForm()
     {
+        // If already authenticated via session, let default form handle it
+        if (!empty($_SESSION['phpborg_authenticated'])) {
+            return; // Let Adminer use credentials from credentials() method
+        }
+
         $token = $_GET['phpborg_token'] ?? null;
 
         if (!$token) {
