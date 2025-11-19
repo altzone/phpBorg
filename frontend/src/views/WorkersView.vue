@@ -483,20 +483,19 @@ function setupSSE() {
       // Try to reconnect with fresh token (in case token was refreshed)
       if (useSSE.value && reconnectAttempts < maxReconnectAttempts) {
         console.log(`SSE connection closed, attempting reconnect ${reconnectAttempts}/${maxReconnectAttempts}...`)
+        console.log('Waiting for automatic token refresh by axios interceptor...')
 
-        // Force token refresh before reconnecting
-        try {
-          console.log('Requesting fresh token...')
-          await authStore.refreshToken()
-          console.log('Token refreshed successfully')
-        } catch (refreshError) {
-          console.error('Token refresh failed:', refreshError)
-        }
-
-        // Wait a bit before reconnecting to ensure token is updated
+        // Wait for axios interceptor to refresh the token automatically
+        // The watch on authStore.accessToken will detect the change
         reconnectTimeout = setTimeout(() => {
+          const currentToken = authStore.accessToken
+          if (currentToken !== lastUsedToken) {
+            console.log('Token was refreshed, reconnecting with new token')
+          } else {
+            console.log('Token not refreshed yet, trying with current token anyway')
+          }
           setupSSE()
-        }, 1000)
+        }, 3000) // Give more time for axios interceptor to refresh
       } else {
         // Give up on SSE, use polling
         console.warn('SSE reconnection failed, switching to polling mode')
