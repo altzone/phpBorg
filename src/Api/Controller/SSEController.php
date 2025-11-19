@@ -6,6 +6,9 @@ namespace PhpBorg\Api\Controller;
 
 use PhpBorg\Application;
 use PhpBorg\Repository\JobRepository;
+use PhpBorg\Repository\InstantRecoverySessionRepository;
+use PhpBorg\Repository\ArchiveRepository;
+use PhpBorg\Repository\ServerRepository;
 use PhpBorg\Service\Queue\JobQueue;
 
 /**
@@ -16,11 +19,17 @@ class SSEController extends BaseController
 {
     private readonly JobQueue $jobQueue;
     private readonly JobRepository $jobRepo;
+    private readonly InstantRecoverySessionRepository $sessionRepo;
+    private readonly ArchiveRepository $archiveRepo;
+    private readonly ServerRepository $serverRepo;
 
     public function __construct(Application $app)
     {
         $this->jobQueue = $app->getJobQueue();
         $this->jobRepo = $app->getJobRepository();
+        $this->sessionRepo = $app->getInstantRecoverySessionRepository();
+        $this->archiveRepo = $app->getArchiveRepository();
+        $this->serverRepo = $app->getServerRepository();
     }
 
     /**
@@ -66,6 +75,7 @@ class SSEController extends BaseController
         // Track last sent data to avoid duplicates
         $lastJobsHash = null;
         $lastWorkersHash = null;
+        $lastRecoveryHash = null;
 
         // Stream loop
         $startTime = time();
@@ -155,6 +165,66 @@ class SSEController extends BaseController
                 }
             } catch (\Exception $e) {
                 error_log("SSE workers error: " . $e->getMessage());
+            }
+
+            // INSTANT RECOVERY: Stream active sessions
+            try {
+                $sessions = $this->sessionRepo->findActive();
+
+                // Enrich each session with server and archive info (same logic as InstantRecoveryController)
+                $enrichedSessions = array_map(function($session) {
+                    $sessionData = $session->toArray();
+
+                    // Add server info
+                    $server = $this->serverRepo->findById($session->serverId);
+                    if ($server) {
+                        $sessionData['server_name'] = $server->name;
+                        $sessionData['server_hostname'] = $server->host;
+                    }
+
+                    // Add archive info
+                    $archive = $this->archiveRepo->findById($session->archiveId);
+                    if ($archive) {
+                        $sessionData['archive_name'] = $archive->name;
+                        $sessionData['archive_time'] = $archive->start->format('Y-m-d H:i:s');
+                    }
+
+                    // Calculate connection host
+                    $sessionData['connection_host'] = $session->deploymentLocation === 'local'
+                        ? '127.0.0.1'
+                        : ($server->host ?? 'unknown');
+
+                    // Add default database connection info
+                    if ($session->dbType === 'postgresql') {
+                        $sessionData['db_user'] = 'postgres';
+                        $sessionData['db_name'] = 'postgres';
+                    } elseif ($session->dbType === 'mysql' || $session->dbType === 'mariadb') {
+                        $sessionData['db_user'] = 'root';
+                        $sessionData['db_name'] = 'mysql';
+                    } elseif ($session->dbType === 'mongodb') {
+                        $sessionData['db_user'] = 'admin';
+                        $sessionData['db_name'] = 'admin';
+                    }
+
+                    return $sessionData;
+                }, $sessions);
+
+                $recoveryData = [
+                    'sessions' => $enrichedSessions,
+                    'count' => count($enrichedSessions),
+                    'timestamp' => time()
+                ];
+
+                $recoveryHash = md5(json_encode($recoveryData));
+
+                if ($recoveryHash !== $lastRecoveryHash) {
+                    echo "event: instant_recovery\n";
+                    echo "data: " . json_encode($recoveryData) . "\n\n";
+                    flush();
+                    $lastRecoveryHash = $recoveryHash;
+                }
+            } catch (\Exception $e) {
+                error_log("SSE instant recovery error: " . $e->getMessage());
             }
 
             // TODO: Add more event types

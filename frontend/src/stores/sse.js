@@ -31,6 +31,7 @@ export const useSSEStore = defineStore('sse', () => {
     jobs: [],
     backups: [],
     stats: [],
+    instant_recovery: [],
     all: []
   })
 
@@ -41,7 +42,7 @@ export const useSSEStore = defineStore('sse', () => {
 
   /**
    * Subscribe to SSE events for a specific topic
-   * @param {string} topic - 'workers', 'jobs', 'backups', 'stats', 'all'
+   * @param {string} topic - 'workers', 'jobs', 'backups', 'stats', 'instant_recovery', 'all'
    * @param {Function} callback - Called with event data
    * @returns {Function} Unsubscribe function
    */
@@ -145,6 +146,15 @@ export const useSSEStore = defineStore('sse', () => {
       eventSource.value.addEventListener('stats', (event) => {
         const data = JSON.parse(event.data)
         notifySubscribers('stats', data)
+        connected.value = true
+        connectionType.value = 'sse'
+        reconnectAttempts.value = 0
+      })
+
+      // Instant Recovery updates
+      eventSource.value.addEventListener('instant_recovery', (event) => {
+        const data = JSON.parse(event.data)
+        notifySubscribers('instant_recovery', data)
         connected.value = true
         connectionType.value = 'sse'
         reconnectAttempts.value = 0
@@ -262,6 +272,15 @@ export const useSSEStore = defineStore('sse', () => {
         if (workersResponse.data?.data?.workers) {
           notifySubscribers('workers', {
             workers: workersResponse.data.data.workers
+          })
+        }
+
+        // Fetch instant recovery sessions
+        const recoveryResponse = await api.get('/instant-recovery/active')
+        if (recoveryResponse.data?.data?.sessions) {
+          notifySubscribers('instant_recovery', {
+            sessions: recoveryResponse.data.data.sessions,
+            count: recoveryResponse.data.data.sessions.length
           })
         }
 

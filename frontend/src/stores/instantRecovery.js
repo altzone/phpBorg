@@ -1,14 +1,39 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { instantRecoveryService } from '@/services/instantRecovery'
+import { useSSEStore } from './sse'
 
 export const useInstantRecoveryStore = defineStore('instantRecovery', () => {
+  const sseStore = useSSEStore()
+
   // State
   const activeSessions = ref([])
   const taskBarVisible = ref(false)
   const taskBarExpanded = ref(true)
-  const pollingInterval = ref(null)
   const loading = ref(false)
+
+  // Subscribe to SSE instant_recovery topic
+  let unsubscribe = null
+
+  function init() {
+    // Only subscribe once
+    if (unsubscribe) return
+
+    console.log('[InstantRecovery] Subscribing to SSE instant_recovery topic')
+
+    unsubscribe = sseStore.subscribe('instant_recovery', (data) => {
+      console.log('[InstantRecovery] SSE update received:', data)
+
+      if (data.sessions) {
+        activeSessions.value = data.sessions
+
+        // Auto-show task bar if there are active sessions
+        if (data.sessions.length > 0 && !taskBarVisible.value) {
+          taskBarVisible.value = true
+        }
+      }
+    })
+  }
 
   // Actions
   async function fetchActiveSessions() {
@@ -29,23 +54,18 @@ export const useInstantRecoveryStore = defineStore('instantRecovery', () => {
   }
 
   function startPolling(intervalMs = 10000) {
-    if (pollingInterval.value) {
-      return // Already polling
-    }
-
-    // Fetch immediately
-    fetchActiveSessions()
-
-    // Then poll every intervalMs
-    pollingInterval.value = setInterval(() => {
-      fetchActiveSessions()
-    }, intervalMs)
+    // Deprecated: Now using SSE, but keep for backward compatibility
+    console.warn('[InstantRecovery] startPolling is deprecated, using SSE instead')
+    init()
+    fetchActiveSessions() // Initial fetch
   }
 
   function stopPolling() {
-    if (pollingInterval.value) {
-      clearInterval(pollingInterval.value)
-      pollingInterval.value = null
+    // Deprecated: Now using SSE, but keep for backward compatibility
+    console.warn('[InstantRecovery] stopPolling is deprecated')
+    if (unsubscribe) {
+      unsubscribe()
+      unsubscribe = null
     }
   }
 
@@ -85,6 +105,7 @@ export const useInstantRecoveryStore = defineStore('instantRecovery', () => {
     loading,
 
     // Actions
+    init,
     fetchActiveSessions,
     startPolling,
     stopPolling,
