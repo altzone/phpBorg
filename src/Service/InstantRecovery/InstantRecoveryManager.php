@@ -351,14 +351,16 @@ final class InstantRecoveryManager
         }
 
         // Start Adminer container
+        // Don't use --network host to avoid port 8080 conflict
+        // Map random port to Adminer's internal 8080
         $dockerCmd = sprintf(
             'docker run -d --name %s ' .
-            '--network host ' .
+            '--add-host=host.docker.internal:host-gateway ' .
             '-e ADMINER_DEFAULT_SERVER=%s:%d ' .
             '-p %d:8080 ' .
             '%s',
             escapeshellarg($containerName),
-            escapeshellarg($dbServer),
+            $dbServer === '127.0.0.1' ? 'host.docker.internal' : escapeshellarg($dbServer),
             $dbPort,
             $adminPort,
             $imageName
