@@ -6,6 +6,7 @@ namespace PhpBorg\Service\Queue\Handlers;
 
 use PhpBorg\Entity\Job;
 use PhpBorg\Logger\LoggerInterface;
+use PhpBorg\Logger\UserOperationLogger;
 use PhpBorg\Repository\ArchiveRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Service\Backup\BorgExecutor;
@@ -24,7 +25,8 @@ final class ArchiveDeleteHandler implements JobHandlerInterface
         private readonly BorgExecutor $borgExecutor,
         private readonly ArchiveRepository $archiveRepo,
         private readonly BorgRepositoryRepository $repositoryRepo,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly UserOperationLogger $userLogger
     ) {
     }
 
@@ -60,6 +62,13 @@ final class ArchiveDeleteHandler implements JobHandlerInterface
                 $queue->updateProgress($job->id, 80, "Removing corrupted archive from database...");
                 $this->archiveRepo->deleteById($archiveId);
                 $queue->updateProgress($job->id, 100, "Corrupted archive removed from database.");
+
+                // USER LOG: Corrupted archive cleanup
+                $this->userLogger->warning('archive_delete', "Corrupted archive removed from database (empty name)", [
+                    'archive_id' => $archiveId,
+                    'job_id' => $job->id
+                ]);
+
                 return "Corrupted archive (empty name) removed from database. No Borg operation needed.";
             }
 
@@ -71,6 +80,14 @@ final class ArchiveDeleteHandler implements JobHandlerInterface
             }
 
             $this->logger->info("Deleting archive '{$archive->name}' from repository '{$repository->repoPath}'", 'JOB');
+
+            // USER LOG: Archive deletion started
+            $this->userLogger->info('archive_delete', "Archive deletion started: '{$archive->name}'", [
+                'archive_id' => $archiveId,
+                'archive_name' => $archive->name,
+                'repository_path' => $repository->repoPath,
+                'job_id' => $job->id
+            ]);
 
             // Step 3: Delete from Borg
             $queue->updateProgress($job->id, 50, "Deleting archive from Borg repository...");
@@ -117,11 +134,30 @@ final class ArchiveDeleteHandler implements JobHandlerInterface
             }
 
             $queue->updateProgress($job->id, 100, "Archive deletion completed successfully.");
-            
+
+            // USER LOG: Archive deletion completed successfully
+            $this->userLogger->info('archive_delete', "Archive deleted successfully: '{$archive->name}'", [
+                'archive_id' => $archiveId,
+                'archive_name' => $archive->name,
+                'repository_path' => $repository->repoPath,
+                'freed_space' => $cacheStats['unique_csize'] ?? null,
+                'job_id' => $job->id
+            ]);
+
             return "Archive '{$archive->name}' deleted successfully from repository '{$repository->repoPath}'";
 
         } catch (\Exception $e) {
             $this->logger->error("Archive deletion failed: {$e->getMessage()}", 'JOB');
+
+            // USER LOG: Archive deletion failed
+            $archiveName = isset($archive) ? $archive->name : 'Unknown';
+            $this->userLogger->error('archive_delete', "Archive deletion failed: {$e->getMessage()}", [
+                'archive_id' => $archiveId,
+                'archive_name' => $archiveName,
+                'error' => $e->getMessage(),
+                'job_id' => $job->id
+            ]);
+
             throw new \Exception("Archive deletion failed: {$e->getMessage()}");
         }
     }

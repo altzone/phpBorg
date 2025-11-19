@@ -83,7 +83,8 @@ final class WorkerStartCommand extends Command
             $this->app->getServerManager(),
             $this->app->getServerRepository(),
             $this->app->getConfig(),
-            $logger
+            $logger,
+            $this->app->getUserOperationLogger()
         ));
 
         $worker->registerHandler('backup_create', new BackupCreateHandler(
@@ -107,7 +108,8 @@ final class WorkerStartCommand extends Command
             $this->app->getBorgExecutor(),
             $this->app->getArchiveRepository(),
             $this->app->getBorgRepositoryRepository(),
-            $logger
+            $logger,
+            $this->app->getUserOperationLogger()
         ));
 
         $worker->registerHandler('archive_mount', new ArchiveMountHandler(
@@ -124,7 +126,8 @@ final class WorkerStartCommand extends Command
             $this->app->getServerRepository(),
             $this->app->getSettingRepository(),
             $this->app->getSshExecutor(),
-            $logger
+            $logger,
+            $this->app->getUserOperationLogger()
         ));
 
         $worker->registerHandler('server_stats_collect', new ServerStatsCollectHandler(
@@ -160,7 +163,8 @@ final class WorkerStartCommand extends Command
             $this->app->getSshExecutor(),
             $this->app->getBorgExecutor(),
             $this->app->getDockerRestoreService(),
-            $logger
+            $logger,
+            $this->app->getUserOperationLogger()
         ));
 
         $worker->registerHandler('docker_conflicts_detection', new DockerConflictsDetectionHandler(

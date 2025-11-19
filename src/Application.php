@@ -132,6 +132,16 @@ final class Application
     }
 
     /**
+     * Get instant recovery logger (separate log file for instant recovery operations)
+     */
+    public function getInstantRecoveryLogger(): \PhpBorg\Logger\InstantRecoveryLogger
+    {
+        return $this->getOrCreateService('instantRecoveryLogger', function () {
+            return new \PhpBorg\Logger\InstantRecoveryLogger($this->getSettingRepository());
+        });
+    }
+
+    /**
      * Get or create service
      */
     private function getService(string $name, callable $factory): object

@@ -6,6 +6,7 @@ namespace PhpBorg\Service\Queue\Handlers;
 
 use PhpBorg\Entity\Job;
 use PhpBorg\Logger\LoggerInterface;
+use PhpBorg\Logger\UserOperationLogger;
 use PhpBorg\Repository\ArchiveRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\ServerRepository;
@@ -26,7 +27,8 @@ final class ArchiveRestoreHandler implements JobHandlerInterface
         private readonly ServerRepository $serverRepo,
         private readonly SettingRepository $settingRepo,
         private readonly SshExecutor $sshExecutor,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly UserOperationLogger $userLogger
     ) {
     }
 
@@ -70,6 +72,16 @@ final class ArchiveRestoreHandler implements JobHandlerInterface
             );
         } catch (Exception $e) {
             $this->logger->error("Restore failed: {$e->getMessage()}", 'RESTORE');
+
+            // USER LOG: Archive restore failed
+            $this->userLogger->error('archive_restore', "Archive restore failed: {$e->getMessage()}", [
+                'archive_id' => $archiveId,
+                'server_id' => $serverId,
+                'restore_mode' => $restoreMode,
+                'error' => $e->getMessage(),
+                'job_id' => $job->id
+            ]);
+
             throw new Exception("Archive restore failed: {$e->getMessage()}");
         }
     }
@@ -114,6 +126,19 @@ final class ArchiveRestoreHandler implements JobHandlerInterface
         if (!$server) {
             throw new Exception("Server not found: {$serverId}");
         }
+
+        // USER LOG: Archive restore started
+        $this->userLogger->info('archive_restore', "Archive restore started: '{$archive->name}'", [
+            'archive_id' => $archiveId,
+            'archive_name' => $archive->name,
+            'server_id' => $serverId,
+            'server_name' => $server->name,
+            'restore_mode' => $restoreMode,
+            'destination' => $destination,
+            'files_count' => count($files),
+            'dry_run' => $dryRun,
+            'job_id' => $job->id
+        ]);
 
         $queue->updateProgress($job->id, 20, 'Testing SSH connectivity...');
 
@@ -188,6 +213,19 @@ final class ArchiveRestoreHandler implements JobHandlerInterface
             if ($dryRun) {
                 $message = "[DRY RUN] " . $message;
             }
+
+            // USER LOG: Archive restore completed successfully
+            $this->userLogger->info('archive_restore', "Archive restore completed successfully: '{$archive->name}'", [
+                'archive_id' => $archiveId,
+                'archive_name' => $archive->name,
+                'server_id' => $serverId,
+                'server_name' => $server->name,
+                'restore_mode' => $restoreMode,
+                'destination' => $workingDir,
+                'files_count' => $filesCount,
+                'dry_run' => $dryRun,
+                'job_id' => $job->id
+            ]);
 
             return $message;
 

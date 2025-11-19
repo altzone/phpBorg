@@ -80,6 +80,16 @@ final class DockerRestoreHandler implements JobHandlerInterface
                 $server->name
             );
 
+            // USER LOG: Docker restore started
+            $this->userLogger->info('docker_restore', "Docker restore started from archive '{$archive->name}'", [
+                'server_name' => $server->name,
+                'archive_name' => $archive->name,
+                'operation_id' => $operationId,
+                'restore_type' => $operation->restoreType,
+                'destination' => $operation->destination,
+                'job_id' => $job->id
+            ]);
+
             // Step 1: Stop containers (if needed)
             if (!empty($operation->selectedItems['must_stop'])) {
                 $queue->updateProgress($job->id, 10, "Stopping containers...");
@@ -127,6 +137,16 @@ final class DockerRestoreHandler implements JobHandlerInterface
 
             $this->logger->info("Docker restore completed successfully", $server->name);
 
+            // USER LOG: Docker restore completed
+            $this->userLogger->info('docker_restore', "Docker restore completed successfully", [
+                'server_name' => $server->name,
+                'archive_name' => $archive->name,
+                'operation_id' => $operationId,
+                'rollback_available' => true,
+                'rollback_hours' => 8,
+                'job_id' => $job->id
+            ]);
+
             return "Docker restore completed successfully. Rollback available for 8 hours.";
 
         } catch (\Exception $e) {
@@ -134,6 +154,15 @@ final class DockerRestoreHandler implements JobHandlerInterface
 
             // Mark as failed
             $this->restoreOperationRepo->updateStatus($operationId, 'failed', $e->getMessage());
+
+            // USER LOG: Docker restore failed
+            $this->userLogger->error('docker_restore', "Docker restore failed: {$e->getMessage()}", [
+                'server_name' => $server->name ?? 'Unknown',
+                'archive_name' => $archive->name ?? 'Unknown',
+                'operation_id' => $operationId,
+                'error' => $e->getMessage(),
+                'job_id' => $job->id
+            ]);
 
             // Auto-rollback on failure
             if ($payload['auto_rollback_on_failure'] ?? true) {

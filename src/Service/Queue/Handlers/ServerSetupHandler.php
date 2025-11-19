@@ -7,6 +7,7 @@ namespace PhpBorg\Service\Queue\Handlers;
 use PhpBorg\Config\Configuration;
 use PhpBorg\Entity\Job;
 use PhpBorg\Logger\LoggerInterface;
+use PhpBorg\Logger\UserOperationLogger;
 use PhpBorg\Repository\ServerRepository;
 use PhpBorg\Service\Queue\JobQueue;
 use PhpBorg\Service\Server\ServerManager;
@@ -27,7 +28,8 @@ final class ServerSetupHandler implements JobHandlerInterface
         private readonly ServerManager $serverManager,
         private readonly ServerRepository $serverRepo,
         private readonly Configuration $config,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly UserOperationLogger $userLogger
     ) {
     }
 
@@ -59,6 +61,16 @@ final class ServerSetupHandler implements JobHandlerInterface
 
         $this->logger->info("Starting server setup: {$serverName}", 'JOB');
         $queue->updateProgress($job->id, 10, "Starting server setup for: {$serverName}");
+
+        // USER LOG: Server setup started
+        $this->userLogger->info('server_setup', "Server setup started: '{$serverName}'", [
+            'server_id' => $serverId,
+            'server_name' => $serverName,
+            'hostname' => $hostname,
+            'port' => $port,
+            'ssh_user' => $sshUser,
+            'job_id' => $job->id
+        ]);
 
         try {
             // Step 1: Test SSH connection (idempotent)
@@ -112,10 +124,30 @@ final class ServerSetupHandler implements JobHandlerInterface
             $queue->updateProgress($job->id, 100, "Server setup completed successfully.");
             $this->logger->info("Server setup completed for {$serverName}", 'JOB');
 
+            // USER LOG: Server setup completed successfully
+            $this->userLogger->info('server_setup', "Server setup completed successfully: '{$serverName}'", [
+                'server_id' => $serverId,
+                'server_name' => $serverName,
+                'hostname' => $hostname,
+                'borg_installed' => true,
+                'ssh_configured' => true,
+                'job_id' => $job->id
+            ]);
+
             return "Server '{$serverName}' configured successfully. SSH keys deployed and borg serve access secured.";
 
         } catch (\Exception $e) {
             $this->logger->error("Server setup failed: {$e->getMessage()}", 'JOB');
+
+            // USER LOG: Server setup failed
+            $this->userLogger->error('server_setup', "Server setup failed: {$e->getMessage()}", [
+                'server_id' => $serverId,
+                'server_name' => $serverName,
+                'hostname' => $hostname,
+                'error' => $e->getMessage(),
+                'job_id' => $job->id
+            ]);
+
             throw new \Exception("Server setup failed: {$e->getMessage()}");
         }
     }
