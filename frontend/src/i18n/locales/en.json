@@ -1651,5 +1651,14 @@
     "error_server_not_found": "Server not found",
     "error_load_data": "Failed to load data",
     "success_title": "Restore Started"
+  },
+  "taskbar": {
+    "title": "Task Bar",
+    "running": "Running",
+    "progress": "Progress",
+    "view_details": "View Details",
+    "cancel_job": "Cancel Job",
+    "cancel_confirm": "Are you sure you want to cancel job #{id}?",
+    "no_running_jobs": "No running jobs"
   }
 }

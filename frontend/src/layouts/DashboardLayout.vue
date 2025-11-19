@@ -281,8 +281,8 @@
       </main>
     </div>
 
-    <!-- Instant Recovery Task Bar (Global) -->
-    <InstantRecoveryTaskBar />
+    <!-- Task Bar (Global - All Running Jobs) -->
+    <TaskBar />
   </div>
 </template>
 
@@ -292,16 +292,16 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsStore } from '@/stores/settings'
-import { useInstantRecoveryStore } from '@/stores/instantRecovery'
+import { useTaskBarStore } from '@/stores/taskbar'
 import { useSSEStore } from '@/stores/sse'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
-import InstantRecoveryTaskBar from '@/components/InstantRecoveryTaskBar.vue'
+import TaskBar from '@/components/TaskBar.vue'
 
 const { t } = useI18n()
 const router = useRouter()
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
-const instantRecoveryStore = useInstantRecoveryStore()
+const taskBarStore = useTaskBarStore()
 const sseStore = useSSEStore()
 const mobileMenuOpen = ref(false)
 
@@ -332,13 +332,13 @@ onMounted(() => {
     settingsStore.fetchSettings()
   }
 
-  // Start polling instant recovery sessions (every 10 seconds)
-  instantRecoveryStore.startPolling(10000)
+  // Initialize unified task bar (subscribes to SSE jobs topic)
+  taskBarStore.init()
 })
 
 // Cleanup on unmount
 onUnmounted(() => {
-  instantRecoveryStore.stopPolling()
+  taskBarStore.cleanup()
 })
 </script>
 

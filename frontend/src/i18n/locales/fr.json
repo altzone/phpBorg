@@ -1701,5 +1701,14 @@
     "error_server_not_found": "Serveur introuvable",
     "error_load_data": "Échec du chargement des données",
     "success_title": "Restauration Démarrée"
+  },
+  "taskbar": {
+    "title": "Barre des tâches",
+    "running": "En cours",
+    "progress": "Progression",
+    "view_details": "Voir les détails",
+    "cancel_job": "Annuler la tâche",
+    "cancel_confirm": "Voulez-vous vraiment annuler la tâche #{id} ?",
+    "no_running_jobs": "Aucune tâche en cours"
   }
 }
