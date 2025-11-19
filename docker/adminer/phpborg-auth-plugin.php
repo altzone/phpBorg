@@ -28,6 +28,9 @@ class AdminerPhpBorgAuth
         $username = $_GET['phpborg_username'] ?? 'postgres';
         $password = '';
 
+        // Replace 127.0.0.1 with host.docker.internal for Docker container access
+        $server = str_replace('127.0.0.1', 'host.docker.internal', $server);
+
         // Return credentials array: [server, username, password]
         return [$server, $username, $password];
     }
@@ -79,9 +82,13 @@ class AdminerPhpBorgAuth
         }
 
         // Auto-submit login form with credentials from URL
-        $server = htmlspecialchars($_GET['phpborg_server'] ?? 'host.docker.internal:5432');
-        $username = htmlspecialchars($_GET['phpborg_username'] ?? 'postgres');
-        $database = htmlspecialchars($_GET['phpborg_database'] ?? '');
+        $server = $_GET['phpborg_server'] ?? 'host.docker.internal:5432';
+        $username = $_GET['phpborg_username'] ?? 'postgres';
+        $database = $_GET['phpborg_database'] ?? '';
+
+        // Replace 127.0.0.1 with host.docker.internal for Docker container access
+        $server = str_replace('127.0.0.1', 'host.docker.internal', $server);
+
         $driver = $this->detectDriver($server);
 
         // Auto-redirect to Adminer with credentials in URL
@@ -92,6 +99,10 @@ class AdminerPhpBorgAuth
             'db' => $database,
         ]);
 
+        // Escape for HTML display
+        $serverDisplay = htmlspecialchars($server);
+        $usernameDisplay = htmlspecialchars($username);
+
         ?>
         <script>
         // Auto-redirect after showing message
@@ -100,7 +111,7 @@ class AdminerPhpBorgAuth
         }, 500);
         </script>
         <p class="message">🔐 <strong>Authenticating with phpBorg...</strong></p>
-        <p class="message">Connecting to <code><?php echo $server; ?></code> as <code><?php echo $username; ?></code></p>
+        <p class="message">Connecting to <code><?php echo $serverDisplay; ?></code> as <code><?php echo $usernameDisplay; ?></code></p>
         <p class="message">Redirecting...</p>
         <?php
     }
