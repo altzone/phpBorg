@@ -11,12 +11,28 @@ class AdminerPhpBorgAuth
     private $phpborgApiUrl = 'http://host.docker.internal:8080/api/instant-recovery/validate-admin';
     private $tokenValid = null;
 
+    public function __construct()
+    {
+        // Start session to persist authentication
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+    }
+
     /**
      * Override login credentials
-     * Pre-fill connection details from URL params
+     * Pre-fill connection details from session or URL params
      */
     function credentials()
     {
+        // If authenticated via session, use stored credentials
+        if (!empty($_SESSION['phpborg_authenticated'])) {
+            $server = $_SESSION['phpborg_server'] ?? 'host.docker.internal:5432';
+            $username = $_SESSION['phpborg_username'] ?? 'postgres';
+            return [$server, $username, ''];
+        }
+
+        // Otherwise check token
         $token = $_GET['phpborg_token'] ?? null;
 
         if (!$token || !$this->validateToken($token)) {
@@ -37,10 +53,16 @@ class AdminerPhpBorgAuth
 
     /**
      * Override login validation
-     * Allow passwordless login if token is valid
+     * Allow passwordless login if token is valid OR session authenticated
      */
     function login($login, $password)
     {
+        // Check if already authenticated via session
+        if (!empty($_SESSION['phpborg_authenticated'])) {
+            return true;
+        }
+
+        // Otherwise validate token
         $token = $_GET['phpborg_token'] ?? null;
 
         if (!$token) {
@@ -53,10 +75,15 @@ class AdminerPhpBorgAuth
 
     /**
      * Override database selection
-     * Auto-select database from URL param
+     * Auto-select database from session or URL param
      */
     function database()
     {
+        // Use session if authenticated
+        if (!empty($_SESSION['phpborg_authenticated'])) {
+            return $_SESSION['phpborg_database'] ?? null;
+        }
+
         return $_GET['phpborg_database'] ?? null;
     }
 
@@ -81,6 +108,10 @@ class AdminerPhpBorgAuth
             return;
         }
 
+        // Store authentication and credentials in session
+        $_SESSION['phpborg_authenticated'] = true;
+        $_SESSION['phpborg_auth_time'] = time();
+
         // Auto-submit login form with credentials from URL
         $server = $_GET['phpborg_server'] ?? 'host.docker.internal:5432';
         $username = $_GET['phpborg_username'] ?? 'postgres';
@@ -88,6 +119,11 @@ class AdminerPhpBorgAuth
 
         // Replace 127.0.0.1 with host.docker.internal for Docker container access
         $server = str_replace('127.0.0.1', 'host.docker.internal', $server);
+
+        // Store credentials in session for post-redirect access
+        $_SESSION['phpborg_server'] = $server;
+        $_SESSION['phpborg_username'] = $username;
+        $_SESSION['phpborg_database'] = $database;
 
         $driver = $this->detectDriver($server);
 
