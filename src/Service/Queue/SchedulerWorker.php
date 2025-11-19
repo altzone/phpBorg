@@ -120,15 +120,22 @@ final class SchedulerWorker
                         continue;
                     }
 
+                    // Get server name for display
+                    $server = $this->serverRepository->findById($repository->serverId);
+                    $serverName = $server ? $server->name : "Server #{$repository->serverId}";
+
                     // Create backup job in queue
                     $jobId = $this->queue->push(
                         type: 'backup_create',
                         payload: [
                             'server_id' => $repository->serverId,
+                            'server_name' => $serverName,
                             'backup_job_id' => $job->id,
                             'repository_id' => $job->repositoryId,
+                            'repository_name' => $job->name, // Use backup job name
                             'type' => $repository->type ?? 'backup',
                             'scheduled' => true,
+                            'triggered_by' => 'scheduled',
                         ],
                         queue: 'default',
                         maxAttempts: 3,
