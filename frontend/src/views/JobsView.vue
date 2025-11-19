@@ -344,13 +344,14 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, ref, computed } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useJobStore } from '@/stores/jobs'
 import { useI18n } from 'vue-i18n'
+import { useSSE } from '@/composables/useSSE'
 
 const jobStore = useJobStore()
 const { t } = useI18n()
-let refreshInterval = null
+const { subscribe } = useSSE()
 
 // Filter state
 const showSystemJobs = ref(false)
@@ -365,15 +366,29 @@ const SYSTEM_JOB_TYPES = [
 ]
 
 // Load jobs on mount
-onMounted(() => {
-  loadData()
-  refreshInterval = setInterval(loadData, 5000)
-})
+onMounted(async () => {
+  // Initial data load
+  await loadData()
 
-onUnmounted(() => {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-  }
+  // Subscribe to real-time job updates via global SSE
+  subscribe('jobs', (data) => {
+    console.log('[Jobs] SSE update received:', data)
+
+    // Update job list
+    if (data.jobs) {
+      jobStore.jobs = data.jobs
+    }
+
+    // Update job stats
+    if (data.stats) {
+      jobStore.stats = data.stats
+    }
+
+    // Update specific job progress
+    if (data.job_id && data.progress_info) {
+      jobStore.setProgressInfo(data.job_id, data.progress_info)
+    }
+  })
 })
 
 // Filtered jobs
