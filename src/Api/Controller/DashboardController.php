@@ -102,7 +102,6 @@ class DashboardController extends BaseController
                     'type' => $job->type,
                     'status' => $job->status,
                     'queue' => $job->queue,
-                    'priority' => $job->priority,
                     'created_at' => $job->createdAt->format('Y-m-d H:i:s'),
                     'started_at' => $job->startedAt?->format('Y-m-d H:i:s'),
                     'completed_at' => $job->completedAt?->format('Y-m-d H:i:s'),
