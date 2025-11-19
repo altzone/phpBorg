@@ -92,9 +92,21 @@ class AdminerPhpBorgAuth
      */
     function loginForm()
     {
-        // If already authenticated via session, let default form handle it
+        // If already authenticated via session, auto-submit the form
         if (!empty($_SESSION['phpborg_authenticated'])) {
-            return; // Let Adminer use credentials from credentials() method
+            ?>
+            <script>
+            // Auto-submit login form when page loads
+            window.addEventListener('DOMContentLoaded', function() {
+                const form = document.querySelector('form[action]');
+                if (form) {
+                    form.submit();
+                }
+            });
+            </script>
+            <p class="message">🔐 <strong>Connecting to database...</strong></p>
+            <?php
+            return;
         }
 
         $token = $_GET['phpborg_token'] ?? null;
