@@ -23,6 +23,7 @@ export const useSSEStore = defineStore('sse', () => {
   const maxReconnectAttempts = 3
   const lastUsedToken = ref(null)
   const reconnectTimeout = ref(null)
+  const pollingInterval = ref(null)
 
   // Subscribers by topic
   const subscribers = ref({
@@ -36,6 +37,7 @@ export const useSSEStore = defineStore('sse', () => {
   // Getters
   const isConnected = computed(() => connected.value)
   const isSSE = computed(() => connectionType.value === 'sse')
+  const isPolling = computed(() => connectionType.value === 'polling')
 
   /**
    * Subscribe to SSE events for a specific topic
@@ -185,8 +187,8 @@ export const useSSEStore = defineStore('sse', () => {
             setupSSE()
           }, 3000)
         } else {
-          console.warn('[SSE] Max reconnect attempts reached')
-          connectionType.value = 'error'
+          console.warn('[SSE] Max reconnect attempts reached, switching to polling')
+          setupPolling()
         }
       }
 
@@ -224,12 +226,97 @@ export const useSSEStore = defineStore('sse', () => {
   }
 
   /**
+   * Setup polling fallback (when SSE fails)
+   */
+  async function setupPolling() {
+    console.log('[SSE] Setting up polling fallback...')
+
+    // Clear any existing polling
+    if (pollingInterval.value) {
+      clearInterval(pollingInterval.value)
+      pollingInterval.value = null
+    }
+
+    connectionType.value = 'polling'
+    connected.value = true
+
+    // Poll every 5 seconds
+    const pollData = async () => {
+      try {
+        // Import API services dynamically to avoid circular deps
+        const { default: api } = await import('@/services/api')
+
+        // Fetch jobs
+        const jobsResponse = await api.get('/jobs')
+        if (jobsResponse.data?.data?.jobs) {
+          notifySubscribers('jobs', {
+            jobs: jobsResponse.data.data.jobs,
+            stats: jobsResponse.data.data.stats
+          })
+        }
+
+        // Fetch workers
+        const workersResponse = await api.get('/workers')
+        if (workersResponse.data?.data?.workers) {
+          notifySubscribers('workers', {
+            workers: workersResponse.data.data.workers
+          })
+        }
+
+      } catch (error) {
+        console.error('[SSE] Polling error:', error)
+      }
+    }
+
+    // Initial poll
+    await pollData()
+
+    // Setup interval
+    pollingInterval.value = setInterval(pollData, 5000)
+  }
+
+  /**
    * Reconnect (after token refresh)
    */
   function reconnect() {
     console.log('[SSE] Manual reconnect requested')
     disconnect()
+
+    // Stop polling if active
+    if (pollingInterval.value) {
+      clearInterval(pollingInterval.value)
+      pollingInterval.value = null
+    }
+
+    // Reset reconnect attempts for new try
+    reconnectAttempts.value = 0
+
     setupSSE()
+  }
+
+  /**
+   * Disconnect SSE and polling
+   */
+  function disconnect() {
+    console.log('[SSE] Disconnecting...')
+
+    if (reconnectTimeout.value) {
+      clearTimeout(reconnectTimeout.value)
+      reconnectTimeout.value = null
+    }
+
+    if (eventSource.value) {
+      eventSource.value.close()
+      eventSource.value = null
+    }
+
+    if (pollingInterval.value) {
+      clearInterval(pollingInterval.value)
+      pollingInterval.value = null
+    }
+
+    connected.value = false
+    connectionType.value = 'disconnected'
   }
 
   return {
@@ -238,10 +325,12 @@ export const useSSEStore = defineStore('sse', () => {
     connectionType,
     isConnected,
     isSSE,
+    isPolling,
 
     // Methods
     subscribe,
     setupSSE,
+    setupPolling,
     disconnect,
     reconnect
   }

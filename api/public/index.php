@@ -34,6 +34,7 @@ use PhpBorg\Api\Controller\RoleController;
 use PhpBorg\Api\Controller\ServerController;
 use PhpBorg\Api\Controller\SettingsController;
 use PhpBorg\Api\Controller\StoragePoolController;
+use PhpBorg\Api\Controller\SSEController;
 use PhpBorg\Api\Controller\UserController;
 use PhpBorg\Api\Controller\WorkerController;
 use PhpBorg\Api\Controller\WorkerStreamController;
@@ -213,6 +214,11 @@ try {
     $router->post('/workers/:name/stop', WorkerController::class, 'stop', requireAuth: true);
     $router->post('/workers/:name/restart', WorkerController::class, 'restart', requireAuth: true);
     $router->get('/workers/:name/logs', WorkerController::class, 'logs', requireAuth: true);
+
+    // ===========================================
+    // SSE (Server-Sent Events) Routes (Protected)
+    // ===========================================
+    $router->get('/sse/stream', SSEController::class, 'stream', requireAuth: false); // Uses token in query string
 
     // ===========================================
     // Instant Recovery Routes (Protected)

@@ -14,7 +14,7 @@
     <!-- Dropdown Menu -->
     <div
       v-if="showMenu"
-      class="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
+      class="absolute bottom-full right-0 mb-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-[60]"
     >
       <button
         @click="changeLanguage('fr')"

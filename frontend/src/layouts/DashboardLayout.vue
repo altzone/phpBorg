@@ -222,6 +222,22 @@
 
       <!-- Language Switcher & User Profile (bottom of sidebar) -->
       <div class="border-t border-gray-200 dark:border-gray-700 p-4 space-y-3">
+        <!-- Connection Status Badge -->
+        <div class="flex items-center justify-center">
+          <div v-if="sseStore.isSSE" class="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+            <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span class="text-xs font-medium text-green-700 dark:text-green-400">Real-time</span>
+          </div>
+          <div v-else-if="sseStore.isPolling" class="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+            <div class="w-2 h-2 bg-yellow-500 rounded-full"></div>
+            <span class="text-xs font-medium text-yellow-700 dark:text-yellow-400">Polling</span>
+          </div>
+          <div v-else class="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md">
+            <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
+            <span class="text-xs font-medium text-gray-600 dark:text-gray-400">Disconnected</span>
+          </div>
+        </div>
+
         <LanguageSwitcher />
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3 min-w-0 flex-1">
@@ -282,6 +298,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsStore } from '@/stores/settings'
 import { useInstantRecoveryStore } from '@/stores/instantRecovery'
+import { useSSEStore } from '@/stores/sse'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 import InstantRecoveryTaskBar from '@/components/InstantRecoveryTaskBar.vue'
 
@@ -290,6 +307,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
 const instantRecoveryStore = useInstantRecoveryStore()
+const sseStore = useSSEStore()
 const mobileMenuOpen = ref(false)
 
 const appName = computed(() => {
