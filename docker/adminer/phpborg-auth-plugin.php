@@ -92,37 +92,35 @@ class AdminerPhpBorgAuth
      */
     function loginForm()
     {
-        // If already authenticated via session, auto-submit the form
+        // If already authenticated via session, show auto-submit message
         if (!empty($_SESSION['phpborg_authenticated'])) {
-            // Get Adminer's CSP nonce if available
-            $nonce = '';
-            if (function_exists('get_nonce')) {
-                $nonce = ' nonce="' . get_nonce() . '"';
-            }
             ?>
-            <script<?php echo $nonce; ?>>
-            // Auto-submit login form when page loads
-            (function() {
-                var submitted = false;
-                function trySubmit() {
-                    if (submitted) return;
-                    var form = document.querySelector('form[action]');
-                    if (form) {
-                        submitted = true;
-                        form.submit();
-                    } else {
-                        // Try again after a short delay
-                        setTimeout(trySubmit, 100);
+            <style>
+            /* Hide the form initially */
+            body > form { display: none !important; }
+            </style>
+            <div style="text-align: center; padding: 50px; font-family: sans-serif;">
+                <p style="font-size: 1.2em; margin-bottom: 20px;">🔐 <strong>Connecting to database...</strong></p>
+                <p style="color: #666;">Please wait while we connect you automatically...</p>
+                <div style="margin-top: 30px;">
+                    <button onclick="document.querySelector('form').style.display='block'; this.parentElement.parentElement.remove();"
+                            style="padding: 10px 20px; font-size: 14px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px;">
+                        Show Login Form
+                    </button>
+                </div>
+            </div>
+            <script>
+            // Use setTimeout which is less restricted by CSP
+            setTimeout(function() {
+                var forms = document.querySelectorAll('form');
+                for (var i = 0; i < forms.length; i++) {
+                    if (forms[i].querySelector('input[name="auth[driver]"], select[name="auth[driver]"]')) {
+                        forms[i].submit();
+                        break;
                     }
                 }
-                if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', trySubmit);
-                } else {
-                    trySubmit();
-                }
-            })();
+            }, 500);
             </script>
-            <p class="message">🔐 <strong>Connecting to database...</strong></p>
             <?php
             return;
         }
