@@ -371,14 +371,21 @@ final class InstantRecoveryManager
 
         $result = $this->execute(null, $dockerCmd, 60, 'local', true);
         $containerId = trim($result['stdout'] ?? '');
+        $exitCode = $result['exitCode'] ?? -1;
+        $stderr = $result['stderr'] ?? '';
 
-        $this->logger->debug("Adminer docker run result: stdout='{$containerId}', stderr='{$result['stderr']}', exitCode={$result['exitCode']}");
+        // Log result BEFORE checking
+        $this->logger->info("Docker run exitCode: {$exitCode}");
+        $this->logger->info("Docker run stdout: '{$containerId}'");
+        $this->logger->info("Docker run stderr: '{$stderr}'");
 
-        if (empty($containerId) || strlen($containerId) < 12) {
-            $errorMsg = "Failed to start Adminer container. Exit code: {$result['exitCode']}, stderr: {$result['stderr']}";
+        if ($exitCode !== 0 || empty($containerId) || strlen($containerId) < 12) {
+            $errorMsg = "Failed to start Adminer container. Exit code: {$exitCode}, stderr: {$stderr}, stdout: {$containerId}";
             $this->logger->error($errorMsg);
             throw new \Exception($errorMsg);
         }
+
+        $this->logger->info("Adminer container started with ID: {$containerId}");
 
         // Wait for Adminer to be ready (max 30 seconds)
         $this->logger->info("Waiting for Adminer to be ready (max 30s)...");
