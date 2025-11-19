@@ -245,6 +245,7 @@
       "backup_create": "Create Backup",
       "backup_prune": "Prune Backups",
       "archive_delete": "Delete Archive",
+      "archive_mount": "Mount Archive",
       "repository_delete": "Delete Repository",
       "server_setup": "Setup Server",
       "server_stats_collect": "Collect Statistics",

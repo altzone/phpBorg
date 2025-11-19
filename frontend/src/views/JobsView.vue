@@ -89,21 +89,15 @@
         class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow"
       >
         <!-- Compact Header -->
-        <div class="p-4">
+        <div class="p-4 cursor-pointer" @click="selectedJob = job">
           <div class="flex items-center justify-between">
             <div class="flex-1 flex items-center gap-3">
-              <!-- Job Type & Status -->
+              <!-- Job Type & Badges -->
               <div class="flex-1">
                 <div class="flex items-center gap-2 mb-1 flex-wrap">
                   <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
                     {{ formatJobType(job.type) }}
                   </h3>
-                  <span
-                    :class="getStatusClass(job.status)"
-                    class="px-2 py-0.5 text-xs font-semibold rounded"
-                  >
-                    {{ formatStatus(job.status) }}
-                  </span>
                   <span v-if="isSystemJob(job.type)" class="px-2 py-0.5 text-xs font-semibold rounded bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
                     SYSTEM
                   </span>
@@ -137,19 +131,16 @@
 
               <!-- Actions -->
               <div class="flex items-center gap-2">
-                <button
-                  @click="selectedJob = job"
-                  class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-                  :title="$t('jobs.view_details')"
+                <!-- Status Badge -->
+                <span
+                  :class="getStatusClass(job.status)"
+                  class="px-3 py-1 text-sm font-semibold rounded"
                 >
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                </button>
+                  {{ formatStatus(job.status) }}
+                </span>
                 <button
                   v-if="job.status === 'running' || job.status === 'pending'"
-                  @click="handleCancel(job.id)"
+                  @click.stop="handleCancel(job.id)"
                   class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
                   :title="$t('jobs.cancel_job')"
                 >
@@ -159,7 +150,7 @@
                 </button>
                 <button
                   v-if="job.status === 'failed' && job.attempts < job.max_attempts"
-                  @click="handleRetry(job.id)"
+                  @click.stop="handleRetry(job.id)"
                   class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
                   :title="$t('jobs.retry_job')"
                 >

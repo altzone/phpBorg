@@ -245,6 +245,7 @@
       "backup_create": "Créer une sauvegarde",
       "backup_prune": "Nettoyer les sauvegardes",
       "archive_delete": "Supprimer une archive",
+      "archive_mount": "Monter une archive",
       "repository_delete": "Supprimer un dépôt",
       "server_setup": "Configurer un serveur",
       "server_stats_collect": "Collecter les statistiques",

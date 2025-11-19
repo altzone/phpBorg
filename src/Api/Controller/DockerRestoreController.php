@@ -20,6 +20,7 @@ class DockerRestoreController extends BaseController
     private readonly ArchiveRepository $archiveRepo;
     private readonly DockerRestoreService $restoreService;
     private readonly JobQueue $jobQueue;
+    private readonly \PhpBorg\Repository\ServerRepository $serverRepo;
 
     public function __construct(Application $app)
     {
@@ -27,6 +28,7 @@ class DockerRestoreController extends BaseController
         $this->archiveRepo = $app->getArchiveRepository();
         $this->restoreService = $app->getDockerRestoreService();
         $this->jobQueue = $app->getJobQueue();
+        $this->serverRepo = $app->getServerRepository();
     }
 
     /**
@@ -265,9 +267,17 @@ class DockerRestoreController extends BaseController
                 $operationId = $this->restoreOperationRepo->create($operationData);
             }
 
+            // Get archive and server info for display
+            $archive = $this->archiveRepo->findById((int)$archiveId);
+            $server = $this->serverRepo->findById((int)$serverId);
+
             // Create job for async execution
             $jobPayload = [
                 'operation_id' => $operationId,
+                'archive_id' => (int)$archiveId,
+                'archive_name' => $archive ? $archive->name : "Archive #{$archiveId}",
+                'server_id' => (int)$serverId,
+                'server_name' => $server ? $server->name : "Server #{$serverId}",
                 'create_lvm_snapshot' => $data['create_lvm_snapshot'] ?? false,
                 'lvm_path' => $data['lvm_path'] ?? '/dev/vg_data/lv_docker',
                 'snapshot_size' => $data['snapshot_size'] ?? '20G',

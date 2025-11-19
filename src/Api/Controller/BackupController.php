@@ -176,10 +176,17 @@ class BackupController extends BaseController
                 return;
             }
 
+            // Get server and repository info for display
+            $server = $this->serverRepo->findById($archive->serverId);
+            $repository = $this->repositoryRepo->findByRepoId($archive->repoId);
+
             // Create archive deletion job payload
             $payload = [
                 'archive_id' => $backupId,
                 'archive_name' => $archive->name,
+                'server_id' => $archive->serverId,
+                'server_name' => $server ? $server->name : "Server #{$archive->serverId}",
+                'repository_name' => $repository ? $repository->type : null,
                 'user_id' => $user->id,
             ];
 
@@ -363,11 +370,18 @@ class BackupController extends BaseController
                 }
             }
 
+            // Get server and repository info for display
+            $server = $this->serverRepo->findById($archive->serverId);
+            $repository = $this->repositoryRepo->findByRepoId($archive->repoId);
+
             // Create mount job payload
             $payload = [
                 'archive_id' => $backupId,
+                'archive_name' => $archive->name,
                 'action' => 'mount',
                 'user_id' => $user->id,
+                'server_name' => $server ? $server->name : "Server #{$archive->serverId}",
+                'repository_name' => $repository ? $repository->type : null,
             ];
 
             // Queue the mount job for the worker
@@ -426,11 +440,18 @@ class BackupController extends BaseController
                 return;
             }
 
+            // Get server and repository info for display
+            $server = $this->serverRepo->findById($archive->serverId);
+            $repository = $this->repositoryRepo->findByRepoId($archive->repoId);
+
             // Create unmount job payload
             $payload = [
                 'archive_id' => $backupId,
+                'archive_name' => $archive->name,
                 'action' => 'unmount',
                 'user_id' => $user->id,
+                'server_name' => $server ? $server->name : "Server #{$archive->serverId}",
+                'repository_name' => $repository ? $repository->type : null,
             ];
 
             // Queue the unmount job for the worker
@@ -951,12 +972,19 @@ class BackupController extends BaseController
                 return;
             }
 
+            // Get server and repository info for display
+            $server = $this->serverRepo->findById($serverId);
+            $repository = $this->repositoryRepo->findByRepoId($archive->repoId);
+
             // Create restore job
             $jobId = $this->jobQueue->push(
                 type: 'archive_restore',
                 payload: [
                     'archive_id' => $archiveId,
+                    'archive_name' => $archive->name,
                     'server_id' => $serverId,
+                    'server_name' => $server ? $server->name : "Server #{$serverId}",
+                    'repository_name' => $repository ? $repository->type : null,
                     'files' => $files,
                     'restore_mode' => $restoreMode,
                     'destination' => $destination,
