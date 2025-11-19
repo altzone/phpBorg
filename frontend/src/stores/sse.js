@@ -314,12 +314,22 @@ export const useSSEStore = defineStore('sse', () => {
         }
 
         // Every 30 seconds (6 polls), try to reconnect to SSE
-        // BUT only if we're not in token-expired state
         pollCount++
-        if (pollCount >= 6 && reconnectAttempts.value < maxReconnectAttempts) {
-          console.log('[SSE] Attempting to reconnect to SSE from polling mode...')
+
+        // Check if token has been refreshed since last try
+        const currentToken = authStore.accessToken
+        const tokenChanged = currentToken !== lastUsedToken.value
+
+        if (pollCount >= 6 && (tokenChanged || reconnectAttempts.value < maxReconnectAttempts)) {
+          if (tokenChanged) {
+            console.log('[SSE] Token refreshed detected, attempting to reconnect to SSE...')
+            reconnectAttempts.value = 0 // Reset attempts for fresh token
+          } else {
+            console.log('[SSE] Attempting to reconnect to SSE from polling mode...')
+            reconnectAttempts.value = 0 // Reset attempts for fresh try
+          }
+
           pollCount = 0
-          reconnectAttempts.value = 0 // Reset attempts for fresh try
 
           // Stop polling temporarily
           if (pollingInterval.value) {
