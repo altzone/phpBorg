@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useSSEStore } from './sse'
 
 /**
@@ -32,6 +32,14 @@ export const useTaskBarStore = defineStore('taskbar', () => {
   // Computed
   const hasActivity = computed(() => runningJobs.value.length > 0 || activeSessions.value.length > 0)
   const totalCount = computed(() => runningJobs.value.length + activeSessions.value.length)
+
+  // Watch for activity changes to auto-collapse when empty
+  watch(hasActivity, (newHasActivity) => {
+    if (!newHasActivity) {
+      // No more activity - collapse the taskbar
+      expanded.value = false
+    }
+  })
 
   function isSystemJob(type) {
     return SYSTEM_JOB_TYPES.includes(type)
