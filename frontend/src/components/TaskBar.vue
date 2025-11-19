@@ -289,6 +289,19 @@
 
             <!-- Actions -->
             <div class="flex gap-2">
+              <!-- Open Database Admin Button -->
+              <button
+                v-if="session.admin_port && session.admin_token"
+                @click="openDatabaseAdmin(session)"
+                class="flex-1 px-3 py-2 text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors flex items-center justify-center gap-1"
+                :title="$t('taskbar.open_admin')"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                </svg>
+                <span>🗄️ Admin</span>
+              </button>
+
               <button
                 @click="viewSessionDetails(session)"
                 class="flex-1 px-3 py-2 text-xs font-medium bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
@@ -408,6 +421,26 @@ async function copyConnectionString(session) {
   } catch (err) {
     console.error('Failed to copy:', err)
   }
+}
+
+function openDatabaseAdmin(session) {
+  if (!session.admin_port || !session.admin_token) {
+    return
+  }
+
+  // Build Adminer URL with authentication token
+  const dbServer = session.deployment_location === 'local' ? '127.0.0.1' : (session.server_hostname || 'unknown')
+  const dbUser = session.db_user || (session.db_type === 'postgresql' ? 'postgres' : 'root')
+  const dbName = session.db_name || (session.db_type === 'postgresql' ? 'postgres' : 'mysql')
+
+  const adminerUrl = `http://${window.location.hostname}:${session.admin_port}/` +
+    `?phpborg_token=${session.admin_token}` +
+    `&phpborg_server=${dbServer}:${session.db_port}` +
+    `&phpborg_username=${dbUser}` +
+    `&phpborg_database=${dbName}`
+
+  // Open in new tab
+  window.open(adminerUrl, '_blank')
 }
 
 function viewSessionDetails(session) {

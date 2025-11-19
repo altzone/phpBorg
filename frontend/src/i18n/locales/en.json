@@ -1663,6 +1663,7 @@
     "no_activity": "No activity",
     "instant_recovery": "Instant Recovery",
     "stop_session": "Stop Session",
-    "stop_session_confirm": "Are you sure you want to stop session #{id}?"
+    "stop_session_confirm": "Are you sure you want to stop session #{id}?",
+    "open_admin": "Open Database Admin"
   }
 }

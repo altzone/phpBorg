@@ -107,6 +107,21 @@ final class InstantRecoveryManager
                 $dbInfo['connection_string']
             );
 
+            // Step 4: Start Adminer container for web-based database access
+            try {
+                $adminInfo = $this->startAdminerContainer($recoveryId, $dbType, $port, $deploymentLocation);
+                $this->sessionRepo->updateAdminerInfo(
+                    $recoveryId,
+                    $adminInfo['port'],
+                    $adminInfo['token'],
+                    $adminInfo['container_id']
+                );
+                $this->logger->info("Adminer started on port {$adminInfo['port']}", $server->name);
+            } catch (\Exception $e) {
+                // Non-critical: Adminer failure doesn't stop Instant Recovery
+                $this->logger->warning("Failed to start Adminer: {$e->getMessage()}", $server->name);
+            }
+
             $this->logger->info("Instant recovery started successfully", $server->name);
 
             return $this->sessionRepo->findById($recoveryId);
@@ -148,6 +163,17 @@ final class InstantRecoveryManager
         $criticalErrors = [];
 
         // Best effort cleanup - try everything, collect CRITICAL errors
+
+        // Stop Adminer container first (non-critical)
+        if ($session->adminContainerId) {
+            try {
+                $this->stopAdminerContainer($session->id, $session->adminContainerId);
+            } catch (\Exception $e) {
+                // Non-critical: Log but continue
+                $this->logger->warning("Failed to stop Adminer container: {$e->getMessage()}", $server->name);
+            }
+        }
+
         try {
             // Stop database instance (always try, even if dbPid is 0 - Docker containers managed by name)
             $this->stopDatabaseInstance($server, $session->dbType, $session->dbPid, $session->deploymentLocation);
@@ -280,6 +306,110 @@ final class InstantRecoveryManager
         $this->logger->info("Borg archive mounted successfully", $server->name);
     }
 
+    /**
+     * Start Adminer container for web-based database access
+     *
+     * @return array{port: int, token: string, container_id: string}
+     * @throws \Exception
+     */
+    private function startAdminerContainer(int $sessionId, string $dbType, int $dbPort, string $deploymentLocation): array
+    {
+        // Generate random port for Adminer (30000-40000 range, avoiding 8080)
+        $adminPort = random_int(30000, 40000);
+
+        // Generate secure token for authentication
+        $adminToken = bin2hex(random_bytes(32));
+
+        // Determine database server and credentials based on type
+        $dbServer = $deploymentLocation === 'local' ? '127.0.0.1' : 'host.docker.internal';
+        $dbUser = match($dbType) {
+            'postgresql' => 'postgres',
+            'mysql', 'mariadb' => 'root',
+            'mongodb' => 'admin',
+            default => 'root'
+        };
+        $dbDriver = match($dbType) {
+            'postgresql' => 'pgsql',
+            'mysql', 'mariadb' => 'mysql',
+            'mongodb' => 'mongo',
+            default => 'server'
+        };
+
+        // Build Adminer container name
+        $containerName = "phpborg_adminer_session_{$sessionId}";
+
+        // Check if image exists, build if needed
+        $imageName = 'phpborg/adminer:latest';
+        $imageExists = $this->execute("docker images -q {$imageName}", false);
+
+        if (empty(trim($imageExists))) {
+            $this->logger->info("Building phpBorg Adminer image...");
+            $dockerDir = dirname(__DIR__, 3) . '/docker/adminer';
+            $buildCmd = "docker build -t {$imageName} {$dockerDir}";
+            $this->execute($buildCmd, true);
+        }
+
+        // Start Adminer container
+        $dockerCmd = sprintf(
+            'docker run -d --name %s ' .
+            '--network host ' .
+            '-e ADMINER_DEFAULT_SERVER=%s:%d ' .
+            '-p %d:8080 ' .
+            '%s',
+            escapeshellarg($containerName),
+            escapeshellarg($dbServer),
+            $dbPort,
+            $adminPort,
+            $imageName
+        );
+
+        $containerId = trim($this->execute($dockerCmd, true));
+
+        if (empty($containerId) || strlen($containerId) < 12) {
+            throw new \Exception("Failed to start Adminer container");
+        }
+
+        // Wait for Adminer to be ready (max 10 seconds)
+        $maxAttempts = 20;
+        $attempt = 0;
+        $ready = false;
+
+        while ($attempt < $maxAttempts && !$ready) {
+            usleep(500000); // 0.5 second
+            $attempt++;
+
+            $healthCheck = @file_get_contents("http://127.0.0.1:{$adminPort}/");
+            if ($healthCheck !== false) {
+                $ready = true;
+            }
+        }
+
+        if (!$ready) {
+            // Cleanup container on failure
+            $this->execute("docker stop {$containerName} && docker rm {$containerName}", false);
+            throw new \Exception("Adminer container failed to start within timeout");
+        }
+
+        return [
+            'port' => $adminPort,
+            'token' => $adminToken,
+            'container_id' => substr($containerId, 0, 12)
+        ];
+    }
+
+    /**
+     * Stop Adminer container
+     */
+    private function stopAdminerContainer(int $sessionId, string $containerId): void
+    {
+        $containerName = "phpborg_adminer_session_{$sessionId}";
+
+        // Stop and remove container
+        $this->execute("docker stop {$containerName}", false);
+        $this->execute("docker rm {$containerName}", false);
+
+        $this->logger->info("Adminer container stopped: {$containerId}");
+    }
 
     /**
      * Start database instance on temporary port

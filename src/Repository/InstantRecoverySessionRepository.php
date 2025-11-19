@@ -45,6 +45,19 @@ final class InstantRecoverySessionRepository
     }
 
     /**
+     * Find session by admin token
+     */
+    public function findByAdminToken(string $token): ?InstantRecoverySession
+    {
+        $row = $this->connection->fetchOne(
+            'SELECT * FROM instant_recovery_sessions WHERE admin_token = ?',
+            [$token]
+        );
+
+        return $row ? InstantRecoverySession::fromDatabase($row) : null;
+    }
+
+    /**
      * Find all active sessions
      *
      * @return array<int, InstantRecoverySession>
@@ -124,6 +137,19 @@ final class InstantRecoverySessionRepository
              SET status = ?, started_at = NOW(), db_pid = ?, db_socket = ?, connection_string = ?
              WHERE id = ?',
             ['active', $dbPid, $dbSocket, $connectionString, $id]
+        );
+    }
+
+    /**
+     * Update Adminer container info
+     */
+    public function updateAdminerInfo(int $id, int $adminPort, string $adminToken, string $adminContainerId): void
+    {
+        $this->connection->executeUpdate(
+            'UPDATE instant_recovery_sessions
+             SET admin_port = ?, admin_token = ?, admin_container_id = ?
+             WHERE id = ?',
+            [$adminPort, $adminToken, $adminContainerId, $id]
         );
     }
 

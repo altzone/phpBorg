@@ -346,4 +346,47 @@ final class InstantRecoveryController extends BaseController
             $this->error($e->getMessage(), 500);
         }
     }
+
+    /**
+     * Validate admin token for Adminer access
+     * POST /api/instant-recovery/validate-admin
+     *
+     * Called by Adminer plugin to validate phpborg_token
+     */
+    public function validateAdmin(): void
+    {
+        try {
+            $data = $this->getJsonBody();
+            $token = $data['token'] ?? null;
+
+            if (!$token) {
+                $this->error("Missing token", 400);
+                return;
+            }
+
+            // Find session by admin token
+            $session = $this->sessionRepo->findByAdminToken($token);
+
+            if (!$session) {
+                $this->error("Invalid token", 401);
+                return;
+            }
+
+            // Check if session is still active
+            if (!$session->isActive()) {
+                $this->error("Session is not active", 403);
+                return;
+            }
+
+            // Token is valid
+            $this->success([
+                'valid' => true,
+                'session_id' => $session->id,
+                'db_type' => $session->dbType
+            ]);
+
+        } catch (\Exception $e) {
+            $this->error("Token validation failed: " . $e->getMessage(), 500);
+        }
+    }
 }

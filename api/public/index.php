@@ -228,6 +228,7 @@ try {
     $router->get('/instant-recovery/:id', InstantRecoveryController::class, 'show', requireAuth: true);
     $router->post('/instant-recovery/start', InstantRecoveryController::class, 'start', requireAuth: true);
     $router->post('/instant-recovery/stop/:id', InstantRecoveryController::class, 'stop', requireAuth: true);
+    $router->post('/instant-recovery/validate-admin', InstantRecoveryController::class, 'validateAdmin', requireAuth: false);
     $router->delete('/instant-recovery/:id', InstantRecoveryController::class, 'delete', requireAuth: true);
 
     // ===========================================

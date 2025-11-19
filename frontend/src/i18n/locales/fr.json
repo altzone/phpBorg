@@ -1713,6 +1713,7 @@
     "no_activity": "Aucune activité",
     "instant_recovery": "Récupération instantanée",
     "stop_session": "Arrêter la session",
-    "stop_session_confirm": "Voulez-vous vraiment arrêter la session #{id} ?"
+    "stop_session_confirm": "Voulez-vous vraiment arrêter la session #{id} ?",
+    "open_admin": "Ouvrir l'administration de la base de données"
   }
 }
