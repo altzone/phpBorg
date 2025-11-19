@@ -226,7 +226,7 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
           advanced,
           this.getRestoreConfig
         )
-        this.script = response.data.script
+        this.script = response.data.data?.script || response.data.script
       } catch (error) {
         console.error('Failed to generate script:', error)
         // Error will be handled by component
