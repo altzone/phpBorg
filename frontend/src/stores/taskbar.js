@@ -4,19 +4,22 @@ import { useSSEStore } from './sse'
 
 /**
  * Unified Task Bar Store
- * Displays all running jobs in a Windows-style taskbar
+ * Displays all running jobs + active instant recovery sessions
  * Uses SSE for real-time updates with GET fallback
+ * ALWAYS visible (gray when idle, blue when active)
  */
 export const useTaskBarStore = defineStore('taskbar', () => {
   const sseStore = useSSEStore()
 
   // State
   const runningJobs = ref([])
-  const expanded = ref(true)
+  const activeSessions = ref([])
+  const expanded = ref(false) // Collapsed by default
   const loading = ref(false)
 
-  // Subscribe to SSE jobs topic
-  let unsubscribe = null
+  // Subscribe to SSE topics
+  let unsubscribeJobs = null
+  let unsubscribeInstantRecovery = null
 
   // System jobs to exclude from taskbar
   const SYSTEM_JOB_TYPES = [
@@ -27,8 +30,8 @@ export const useTaskBarStore = defineStore('taskbar', () => {
   ]
 
   // Computed
-  const visible = computed(() => runningJobs.value.length > 0)
-  const runningCount = computed(() => runningJobs.value.length)
+  const hasActivity = computed(() => runningJobs.value.length > 0 || activeSessions.value.length > 0)
+  const totalCount = computed(() => runningJobs.value.length + activeSessions.value.length)
 
   function isSystemJob(type) {
     return SYSTEM_JOB_TYPES.includes(type)
@@ -36,11 +39,12 @@ export const useTaskBarStore = defineStore('taskbar', () => {
 
   function init() {
     // Only subscribe once
-    if (unsubscribe) return
+    if (unsubscribeJobs && unsubscribeInstantRecovery) return
 
-    console.log('[TaskBar] Subscribing to SSE jobs topic')
+    console.log('[TaskBar] Subscribing to SSE topics (jobs + instant_recovery)')
 
-    unsubscribe = sseStore.subscribe('jobs', (data) => {
+    // Subscribe to jobs topic
+    unsubscribeJobs = sseStore.subscribe('jobs', (data) => {
       if (data.jobs) {
         // Filter only running jobs (exclude system jobs)
         const running = data.jobs.filter(job =>
@@ -48,7 +52,15 @@ export const useTaskBarStore = defineStore('taskbar', () => {
         )
         runningJobs.value = running
 
-        console.log(`[TaskBar] SSE update: ${running.length} running jobs (system jobs excluded)`)
+        console.log(`[TaskBar] SSE jobs update: ${running.length} running jobs (system jobs excluded)`)
+      }
+    })
+
+    // Subscribe to instant_recovery topic
+    unsubscribeInstantRecovery = sseStore.subscribe('instant_recovery', (data) => {
+      if (data.sessions) {
+        activeSessions.value = data.sessions
+        console.log(`[TaskBar] SSE instant_recovery update: ${data.sessions.length} active sessions`)
       }
     })
   }
@@ -58,19 +70,24 @@ export const useTaskBarStore = defineStore('taskbar', () => {
   }
 
   function cleanup() {
-    if (unsubscribe) {
-      unsubscribe()
-      unsubscribe = null
+    if (unsubscribeJobs) {
+      unsubscribeJobs()
+      unsubscribeJobs = null
+    }
+    if (unsubscribeInstantRecovery) {
+      unsubscribeInstantRecovery()
+      unsubscribeInstantRecovery = null
     }
   }
 
   return {
     // State
     runningJobs,
+    activeSessions,
     expanded,
     loading,
-    visible,
-    runningCount,
+    hasActivity,
+    totalCount,
 
     // Actions
     init,

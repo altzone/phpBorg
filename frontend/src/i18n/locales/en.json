@@ -1659,6 +1659,10 @@
     "view_details": "View Details",
     "cancel_job": "Cancel Job",
     "cancel_confirm": "Are you sure you want to cancel job #{id}?",
-    "no_running_jobs": "No running jobs"
+    "no_running_jobs": "No running jobs",
+    "no_activity": "No activity",
+    "instant_recovery": "Instant Recovery",
+    "stop_session": "Stop Session",
+    "stop_session_confirm": "Are you sure you want to stop session #{id}?"
   }
 }

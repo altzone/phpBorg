@@ -1709,6 +1709,10 @@
     "view_details": "Voir les détails",
     "cancel_job": "Annuler la tâche",
     "cancel_confirm": "Voulez-vous vraiment annuler la tâche #{id} ?",
-    "no_running_jobs": "Aucune tâche en cours"
+    "no_running_jobs": "Aucune tâche en cours",
+    "no_activity": "Aucune activité",
+    "instant_recovery": "Récupération instantanée",
+    "stop_session": "Arrêter la session",
+    "stop_session_confirm": "Voulez-vous vraiment arrêter la session #{id} ?"
   }
 }

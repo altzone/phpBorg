@@ -1,7 +1,6 @@
 <template>
-  <!-- Task Bar Container - Fixed at bottom of screen -->
+  <!-- Task Bar Container - Fixed at bottom of screen (ALWAYS visible) -->
   <div
-    v-if="taskBarStore.visible"
     class="fixed bottom-0 left-0 right-0 z-40 transition-transform duration-300"
     :class="taskBarStore.expanded ? 'translate-y-0' : 'translate-y-[calc(100%-48px)]'"
   >
@@ -10,7 +9,7 @@
       @click="taskBarStore.toggleExpanded"
       :class="[
         'text-white px-6 py-3 cursor-pointer transition-colors shadow-lg',
-        taskBarStore.runningCount > 0
+        taskBarStore.hasActivity
           ? 'bg-gradient-to-r from-blue-600 to-primary-700 dark:from-blue-800 dark:to-primary-900 hover:from-blue-700 hover:to-primary-800 dark:hover:from-blue-700 dark:hover:to-primary-800'
           : 'bg-gradient-to-r from-gray-600 to-gray-700 dark:from-gray-700 dark:to-gray-800 hover:from-gray-700 hover:to-gray-800'
       ]"
@@ -25,12 +24,12 @@
             <h3 class="font-semibold">{{ $t('taskbar.title') }}</h3>
           </div>
 
-          <!-- Running Jobs Count Badge -->
+          <!-- Total Count Badge (jobs + sessions) -->
           <span
-            v-if="taskBarStore.runningCount > 0"
+            v-if="taskBarStore.totalCount > 0"
             class="px-2.5 py-0.5 text-xs font-bold bg-white text-primary-600 rounded-full animate-pulse"
           >
-            {{ taskBarStore.runningCount }}
+            {{ taskBarStore.totalCount }}
           </span>
         </div>
 
@@ -57,23 +56,24 @@
       <div class="max-w-7xl mx-auto px-6 py-4">
         <!-- Empty State -->
         <div
-          v-if="taskBarStore.runningJobs.length === 0 && !taskBarStore.loading"
+          v-if="!taskBarStore.hasActivity && !taskBarStore.loading"
           class="text-center py-8 text-gray-500 dark:text-gray-400"
         >
           <svg class="w-16 h-16 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-          <p class="text-sm">{{ $t('taskbar.no_running_jobs') }}</p>
+          <p class="text-sm">{{ $t('taskbar.no_activity') }}</p>
         </div>
 
-        <!-- Running Jobs Grid -->
+        <!-- Active Tasks Grid (Jobs + Instant Recovery Sessions) -->
         <div
-          v-if="taskBarStore.runningJobs.length > 0"
+          v-if="taskBarStore.hasActivity"
           class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4"
         >
+          <!-- Running Jobs -->
           <div
             v-for="job in taskBarStore.runningJobs"
-            :key="job.id"
+            :key="'job-' + job.id"
             class="bg-gradient-to-br from-blue-50 to-primary-50 dark:from-blue-900/20 dark:to-primary-900/20 rounded-lg border border-blue-200 dark:border-blue-800 p-4 hover:shadow-md transition-shadow"
           >
             <!-- Job Header -->
@@ -158,6 +158,104 @@
               </button>
             </div>
           </div>
+
+          <!-- Instant Recovery Sessions -->
+          <div
+            v-for="session in taskBarStore.activeSessions"
+            :key="'session-' + session.id"
+            class="bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-lg border border-green-200 dark:border-green-800 p-4 hover:shadow-md transition-shadow"
+          >
+            <!-- Session Header -->
+            <div class="flex items-start justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span class="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wider flex items-center gap-1">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  {{ $t('taskbar.instant_recovery') }}
+                </span>
+              </div>
+              <span class="text-xs text-gray-500 dark:text-gray-400">
+                #{{ session.id }}
+              </span>
+            </div>
+
+            <!-- Session Info -->
+            <div class="space-y-2 mb-3">
+              <!-- Server Name -->
+              <div class="flex items-center gap-2 text-sm">
+                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                </svg>
+                <span class="text-gray-700 dark:text-gray-300 font-medium truncate">
+                  {{ session.server_name || 'Unknown Server' }}
+                </span>
+              </div>
+
+              <!-- DB Type + Port -->
+              <div class="flex items-center gap-2 text-sm">
+                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                </svg>
+                <span class="text-gray-600 dark:text-gray-400 text-xs">
+                  {{ session.db_type || 'PostgreSQL' }} • Port: {{ session.db_port }}
+                </span>
+              </div>
+
+              <!-- Archive Info -->
+              <div v-if="session.archive_name" class="flex items-center gap-2 text-sm">
+                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+                </svg>
+                <span class="text-gray-600 dark:text-gray-400 text-xs truncate" :title="session.archive_name">
+                  {{ session.archive_name }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Connection String (compact) -->
+            <div class="bg-white dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 p-2 mb-2">
+              <div class="flex items-center gap-2">
+                <input
+                  type="text"
+                  readonly
+                  :value="buildConnectionString(session)"
+                  class="flex-1 text-xs font-mono bg-transparent border-0 focus:outline-none text-gray-700 dark:text-gray-300"
+                />
+                <button
+                  @click="copyConnectionString(session)"
+                  class="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+                  :title="$t('common.copy')"
+                >
+                  <svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-2">
+              <button
+                @click="viewSessionDetails(session)"
+                class="flex-1 px-3 py-2 text-xs font-medium bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
+              >
+                {{ $t('taskbar.view_details') }}
+              </button>
+              <button
+                @click="stopSession(session)"
+                :disabled="session.stopping"
+                class="px-3 py-2 text-xs font-medium bg-red-500 hover:bg-red-600 text-white rounded transition-colors disabled:opacity-50"
+                :title="$t('taskbar.stop_session')"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -208,5 +306,45 @@ async function cancelJob(job) {
   }
 
   await jobStore.cancelJob(job.id)
+}
+
+// Instant Recovery helpers
+function buildConnectionString(session) {
+  const host = session.deployment_location === 'local' ? '127.0.0.1' : (session.server_hostname || 'unknown')
+  const user = session.db_user || 'postgres'
+  const dbName = session.db_name || 'postgres'
+  return `postgresql://${user}@${host}:${session.db_port}/${dbName}`
+}
+
+async function copyConnectionString(session) {
+  const connString = session.connection_string || buildConnectionString(session)
+  try {
+    await navigator.clipboard.writeText(connString)
+  } catch (err) {
+    console.error('Failed to copy:', err)
+  }
+}
+
+function viewSessionDetails(session) {
+  // Could navigate to a detailed view
+  console.log('View session details:', session.id)
+}
+
+async function stopSession(session) {
+  if (session.stopping) return
+
+  if (!confirm(t('taskbar.stop_session_confirm', { id: session.id }))) {
+    return
+  }
+
+  session.stopping = true
+
+  try {
+    const { instantRecoveryService } = await import('@/services/instantRecovery')
+    await instantRecoveryService.stop(session.id)
+  } catch (err) {
+    console.error('Failed to stop session:', err)
+    session.stopping = false
+  }
 }
 </script>
