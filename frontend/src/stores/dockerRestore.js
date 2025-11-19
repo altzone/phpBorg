@@ -241,14 +241,18 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
     async createOperation() {
       try {
         const response = await dockerRestoreService.createOperation(this.getRestoreConfig)
-        this.operation = response.data.operation
+        // API wraps in {success, message, data: {operation}}
+        this.operation = response.data.data?.operation || response.data.operation
+        console.log('✅ Operation created:', this.operation?.id)
 
         // Auto-generate script immediately after creating operation
+        console.log('🔄 Generating script...')
         await this.generateScript(false)
+        console.log('✅ Script generated:', this.script ? 'OK' : 'FAILED')
 
-        return response.data.operation
+        return this.operation
       } catch (error) {
-        console.error('Failed to create operation:', error)
+        console.error('❌ Failed to create operation:', error)
         throw error
       }
     },
@@ -276,8 +280,8 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
     async getOperation(operationId) {
       try {
         const response = await dockerRestoreService.getOperation(operationId)
-        this.operation = response.data.operation
-        return response.data.operation
+        this.operation = response.data.data?.operation || response.data.operation
+        return this.operation
       } catch (error) {
         console.error('Failed to get operation:', error)
         throw error
@@ -291,7 +295,7 @@ export const useDockerRestoreStore = defineStore('dockerRestore', {
       this.loadingOperations = true
       try {
         const response = await dockerRestoreService.listOperations(filters)
-        this.operations = response.data.operations
+        this.operations = response.data.data?.operations || response.data.operations
       } catch (error) {
         console.error('Failed to list operations:', error)
         // Error will be handled by component
