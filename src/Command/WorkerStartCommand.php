@@ -155,6 +155,7 @@ final class WorkerStartCommand extends Command
             $this->app->getArchiveRepository(),
             $this->app->getBorgRepositoryRepository(),
             $this->app->getServerRepository(),
+            $this->app->getSettingRepository(),
             $this->app->getSshExecutor(),
             $this->app->getBorgExecutor(),
             $this->app->getDockerRestoreService(),

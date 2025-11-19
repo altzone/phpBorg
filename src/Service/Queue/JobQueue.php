@@ -53,7 +53,7 @@ final class JobQueue
         // Select database
         $this->redis->select($this->config->redisDatabase ?? 0);
 
-        $this->logger->info('Connected to Redis', 'QUEUE');
+        $this->logger->debug('Connected to Redis', 'QUEUE');
     }
 
     /**

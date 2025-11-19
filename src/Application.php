@@ -122,6 +122,16 @@ final class Application
     }
 
     /**
+     * Get user operation logger (separate log file for user-initiated operations)
+     */
+    public function getUserOperationLogger(): \PhpBorg\Logger\UserOperationLogger
+    {
+        return $this->getOrCreateService('userOperationLogger', function () {
+            return new \PhpBorg\Logger\UserOperationLogger($this->getSettingRepository());
+        });
+    }
+
+    /**
      * Get or create service
      */
     private function getService(string $name, callable $factory): object

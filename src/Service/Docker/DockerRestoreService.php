@@ -122,11 +122,21 @@ final class DockerRestoreService
         // PRIORITY 1: Use actual_backed_up_items snapshot (set during backup)
         if (!empty($config['actual_backed_up_items']['compose_projects'])) {
             $actualProjects = $config['actual_backed_up_items']['compose_projects'];
-            foreach ($actualProjects as $projectName) {
-                $composeProjects[] = [
-                    'name' => $projectName,
-                    'path' => '/var/lib/docker/compose/' . $projectName, // Default path (will be detected during restore)
-                ];
+            foreach ($actualProjects as $project) {
+                // New format: array with name and path
+                if (is_array($project) && isset($project['name'])) {
+                    $composeProjects[] = [
+                        'name' => $project['name'],
+                        'path' => $project['path'] ?? null,
+                    ];
+                }
+                // Old format: just project name (legacy compatibility)
+                else {
+                    $composeProjects[] = [
+                        'name' => $project,
+                        'path' => null, // Path unknown for old backups
+                    ];
+                }
             }
             $this->logger->info(sprintf("Using actual backed up projects: %d items", count($composeProjects)), $server->name);
         }
@@ -136,7 +146,7 @@ final class DockerRestoreService
             foreach ($selectedProjects as $projectName) {
                 $composeProjects[] = [
                     'name' => $projectName,
-                    'path' => '/var/lib/docker/compose/' . $projectName,
+                    'path' => null, // Path unknown for old backups
                 ];
             }
             $this->logger->info("Using selectedComposeProjects from config (old archive format)", $server->name);
@@ -301,11 +311,18 @@ final class DockerRestoreService
             $paths[] = "var/lib/docker/volumes/{$volumeName}";
         }
 
-        // Compose projects: stored as full working directory path
-        // We'll extract them using shell pattern matching
-        foreach ($selectedItems['projects'] ?? [] as $projectName) {
-            // Pattern to match any path containing the project name
-            $paths[] = "**/{$projectName}";
+        // Compose projects: Use actual path from backup metadata
+        foreach ($selectedItems['projects'] ?? [] as $project) {
+            if (is_array($project) && isset($project['path']) && !empty($project['path'])) {
+                // Use actual path from backup
+                $paths[] = ltrim($project['path'], '/');
+            } elseif (is_array($project) && isset($project['name'])) {
+                // Fallback: default path pattern
+                $paths[] = "var/lib/docker/compose/{$project['name']}";
+            } else {
+                // Legacy: just project name
+                $paths[] = "var/lib/docker/compose/{$project}";
+            }
         }
 
         // Docker configs: specific files from /etc/docker
@@ -389,11 +406,11 @@ final class DockerRestoreService
         }
 
         // Extract from Borg
-        $repoPath = $repository->repoPath . '::' . $archive->name;
         if ($advanced) {
             $script .= "# Step 3: Extract from Borg archive\n";
-            $script .= "BORG_REPO=\"{$repoPath}\"\n";
+            $script .= "BORG_REPO=\"{$repository->repoPath}\"\n";
             $script .= "BORG_PASSPHRASE=\"{$repository->passphrase}\"\n";
+            $script .= "export BORG_REPO\n";
             $script .= "export BORG_PASSPHRASE\n\n";
         } else {
             $script .= "echo \"📦 Step 3: Extracting from Borg archive...\"\n";
@@ -405,9 +422,14 @@ final class DockerRestoreService
             $extractPaths = $this->convertSelectedItemsToPaths($config['selected_items']);
         }
 
-        $script .= "borg extract --progress {$repoPath}";
+        // Change to destination directory before extraction
         if ($operation->destination === 'alternative') {
-            $script .= " --strip-components=1 --target={$operation->alternativePath}";
+            $script .= "cd {$operation->alternativePath}\n";
+        }
+
+        $script .= "borg extract --progress ::{$archive->name}";
+        if ($operation->destination === 'alternative') {
+            $script .= " --strip-components=1";
         }
 
         // Add selective paths if specified

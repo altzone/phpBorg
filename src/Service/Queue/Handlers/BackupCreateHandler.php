@@ -7,6 +7,7 @@ namespace PhpBorg\Service\Queue\Handlers;
 use PhpBorg\Config\Configuration;
 use PhpBorg\Entity\Job;
 use PhpBorg\Logger\LoggerInterface;
+use PhpBorg\Logger\UserOperationLogger;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Service\Backup\BackupService;
 use PhpBorg\Service\Queue\JobQueue;
@@ -30,7 +31,8 @@ final class BackupCreateHandler implements JobHandlerInterface
         private readonly EncryptionService $encryption,
         private readonly Configuration $config,
         private readonly LoggerInterface $logger,
-        private readonly BackupNotificationService $notificationService
+        private readonly BackupNotificationService $notificationService,
+        private readonly UserOperationLogger $userLogger
     ) {
     }
 

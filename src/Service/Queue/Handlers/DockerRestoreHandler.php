@@ -10,6 +10,7 @@ use PhpBorg\Repository\RestoreOperationRepository;
 use PhpBorg\Repository\ArchiveRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\ServerRepository;
+use PhpBorg\Repository\SettingRepository;
 use PhpBorg\Service\Queue\JobQueue;
 use PhpBorg\Service\Server\SshExecutor;
 use PhpBorg\Service\Backup\BorgExecutor;
@@ -34,6 +35,7 @@ final class DockerRestoreHandler implements JobHandlerInterface
         private readonly ArchiveRepository $archiveRepo,
         private readonly BorgRepositoryRepository $repositoryRepo,
         private readonly ServerRepository $serverRepo,
+        private readonly SettingRepository $settingRepo,
         private readonly SshExecutor $sshExecutor,
         private readonly BorgExecutor $borgExecutor,
         private readonly DockerRestoreService $restoreService,
@@ -275,46 +277,125 @@ final class DockerRestoreHandler implements JobHandlerInterface
         object $job,
         JobQueue $queue
     ): void {
-        $repoPath = $repository->repoPath . '::' . $archive->name;
-        $this->logger->info("Extracting from Borg archive: {$repoPath}", $server->name);
+        $this->logger->info("Extracting from Borg archive: {$repository->repoPath}::{$archive->name}", $server->name);
 
-        // Build extraction command
-        $cmd = sprintf(
-            'cd /tmp && BORG_PASSPHRASE=%s borg extract --progress %s',
-            escapeshellarg($repository->passphrase),
-            escapeshellarg($repoPath)
-        );
+        // Build Borg repository SSH URL (like ArchiveRestoreHandler)
+        $borgRepoUrl = $this->getBorgRepoUrl($repository, $server);
+        $this->logger->info("🔥🔥🔥 NEW CODE LOADED - Borg repo URL: {$borgRepoUrl}", $server->name);
 
-        // Add strip-components for alternative location
+        // Build borg options (BEFORE archive name, like ArchiveRestoreHandler)
+        $borgOptions = ['--progress'];
         if ($operation->destination === 'alternative') {
-            $cmd .= ' --strip-components=1';
+            $borgOptions[] = '--strip-components=1';
         }
+        $optionsStr = implode(' ', $borgOptions);
+
+        // Determine extraction destination
+        $extractPath = $operation->destination === 'alternative'
+            ? $operation->alternativePath
+            : '/';
+
+        // Create destination directory if needed
+        if ($operation->destination === 'alternative') {
+            $mkdirResult = $this->sshExecutor->execute($server, "mkdir -p " . escapeshellarg($extractPath), 30);
+            if ($mkdirResult['exitCode'] !== 0) {
+                throw new RestoreException("Failed to create destination directory: {$mkdirResult['stderr']}");
+            }
+        }
+
+        // Build extraction command with BORG_REPO environment variable
+        // Same format as ArchiveRestoreHandler: options BEFORE ::archive
+        $cmd = sprintf(
+            'export BORG_REPO=%s && export BORG_PASSPHRASE=%s && export BORG_RSH="ssh -i /root/.ssh/phpborg_backup -o StrictHostKeyChecking=no" && cd %s && borg extract %s ::%s',
+            escapeshellarg($borgRepoUrl),
+            escapeshellarg($repository->passphrase),
+            escapeshellarg($extractPath),
+            $optionsStr,
+            escapeshellarg($archive->name)
+        );
 
         // Add specific paths if custom selection
         if ($operation->restoreType === 'custom' && !empty($operation->selectedItems)) {
             $selectedPaths = [];
 
+            $this->logger->info("DEBUG selected_items: " . json_encode($operation->selectedItems), $server->name);
+
+            // Docker volumes
             if (!empty($operation->selectedItems['volumes'])) {
                 foreach ($operation->selectedItems['volumes'] as $volumeName) {
                     $selectedPaths[] = "var/lib/docker/volumes/{$volumeName}";
                 }
+                $this->logger->info("DEBUG Added " . count($operation->selectedItems['volumes']) . " volumes", $server->name);
             }
 
+            // Docker Compose projects
             if (!empty($operation->selectedItems['projects'])) {
+                $this->logger->info("DEBUG Found projects: " . json_encode($operation->selectedItems['projects']), $server->name);
                 foreach ($operation->selectedItems['projects'] as $project) {
-                    if (isset($project['path'])) {
-                        $selectedPaths[] = ltrim($project['path'], '/');
+                    // New format: object with name and path
+                    if (is_array($project)) {
+                        if (isset($project['path']) && !empty($project['path'])) {
+                            // Use actual path from backup metadata
+                            $selectedPaths[] = ltrim($project['path'], '/');
+                            $this->logger->info("DEBUG Added project path: " . $project['path'], $server->name);
+                        } elseif (isset($project['name'])) {
+                            // Fallback: use default path pattern for old backups
+                            $selectedPaths[] = "var/lib/docker/compose/{$project['name']}";
+                            $this->logger->info("DEBUG Added project fallback name: " . $project['name'], $server->name);
+                        }
+                    }
+                    // Old format: just project name string (from current frontend)
+                    else {
+                        // TEMPORARY: Need to lookup path from archive metadata
+                        // For now, we'll need to get it from the backup config
+                        $projectName = $project;
+
+                        // Get path from archive backup config
+                        if ($archive->backupConfig && !empty($archive->backupConfig['actual_backed_up_items']['compose_projects'])) {
+                            foreach ($archive->backupConfig['actual_backed_up_items']['compose_projects'] as $backupProject) {
+                                if (is_array($backupProject) && $backupProject['name'] === $projectName && !empty($backupProject['path'])) {
+                                    $selectedPaths[] = ltrim($backupProject['path'], '/');
+                                    $this->logger->info("DEBUG Added project from backup config: {$projectName} -> {$backupProject['path']}", $server->name);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                $this->logger->info("DEBUG No projects in selected_items", $server->name);
+            }
+
+            // Docker configs: specific files from /etc/docker
+            // Only add if they were actually backed up (present in backup config)
+            if (!empty($operation->selectedItems['configs'])) {
+                $backedUpConfigs = $archive->backupConfig['actual_backed_up_items']['configs'] ?? [];
+                foreach ($operation->selectedItems['configs'] as $configPath) {
+                    $configName = basename($configPath);
+                    // Only extract if this config was actually in the backup
+                    if (in_array($configName, $backedUpConfigs)) {
+                        $selectedPaths[] = ltrim($configPath, '/');
+                        $this->logger->info("DEBUG Added config: {$configPath}", $server->name);
+                    } else {
+                        $this->logger->info("DEBUG Skipping config (not in backup): {$configPath}", $server->name);
                     }
                 }
             }
 
+            // Always include container metadata file
+            $selectedPaths[] = "tmp/phpborg_docker_containers.json";
+
             if (!empty($selectedPaths)) {
-                $cmd .= ' ' . implode(' ', array_map('escapeshellarg', $selectedPaths));
+                // Same as ArchiveRestoreHandler - use escapeshellarg()
+                $pathsList = implode(' ', array_map('escapeshellarg', $selectedPaths));
+                $cmd .= ' ' . $pathsList;
             }
         }
 
         $this->logger->info("Executing Borg extract command", $server->name);
+        $this->logger->info("Full command: {$cmd}", $server->name);
 
+        // Execute directly like ArchiveRestoreHandler
         $result = $this->sshExecutor->execute($server, $cmd, 7200); // 2 hour timeout
 
         if ($result['exitCode'] !== 0 && $result['exitCode'] !== 1) {
@@ -511,5 +592,28 @@ final class DockerRestoreHandler implements JobHandlerInterface
         // Implementation depends on how pre-restore backup was structured
 
         throw new RestoreException("Rollback from backup not yet implemented");
+    }
+
+    /**
+     * Build Borg repository URL for SSH access
+     * Same logic as ArchiveRestoreHandler
+     */
+    private function getBorgRepoUrl(object $repository, object $server): string
+    {
+        // Determine phpborg server host based on backup type
+        if (strtolower($server->backupType) === 'internal') {
+            // Use internal IP from settings for internal backups
+            $internalIpSetting = $this->settingRepo->findByKey('network.internal_ip');
+            $phpborgHost = $internalIpSetting ? $internalIpSetting->value : gethostname();
+        } else {
+            // Use hostname for external backups
+            $phpborgHost = gethostname();
+        }
+
+        return sprintf(
+            'ssh://phpborg@%s%s',
+            $phpborgHost,
+            $repository->repoPath
+        );
     }
 }

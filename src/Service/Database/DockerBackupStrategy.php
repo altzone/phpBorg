@@ -158,12 +158,24 @@ final class DockerBackupStrategy implements DatabaseBackupInterface
                 $actualBackedUpItems['volumes'] = $sourceConfig['selectedVolumes'] ?? [];
             }
 
-            // Add compose projects
+            // Add compose projects with their paths
             if ($backupAllProjects) {
                 $allProjects = $this->getAllComposeProjects($server);
-                $actualBackedUpItems['compose_projects'] = array_keys($allProjects);
+                foreach ($allProjects as $projectName => $projectData) {
+                    $actualBackedUpItems['compose_projects'][] = [
+                        'name' => $projectName,
+                        'path' => $projectData['working_dir'] ?? null,
+                    ];
+                }
             } else {
-                $actualBackedUpItems['compose_projects'] = $sourceConfig['selectedComposeProjects'] ?? [];
+                // For selected projects, also fetch their paths
+                foreach ($sourceConfig['selectedComposeProjects'] ?? [] as $projectName) {
+                    $workingDir = $this->getComposeProjectPath($server, $projectName);
+                    $actualBackedUpItems['compose_projects'][] = [
+                        'name' => $projectName,
+                        'path' => $workingDir,
+                    ];
+                }
             }
 
             // Add standalone containers
