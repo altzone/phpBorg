@@ -160,6 +160,37 @@ export const useJobStore = defineStore('jobs', () => {
     return progressInfo.value.get(jobId) || null
   }
 
+  /**
+   * Set progress info for a specific job (used by SSE)
+   * @param {number} jobId - Job ID
+   * @param {Object} progress - Progress data
+   */
+  function setProgressInfo(jobId, progress) {
+    // Get previous progress for rate calculation
+    const prev = previousProgress.value.get(jobId)
+
+    if (prev && progress.timestamp && progress.original_size) {
+      // Calculate rate (bytes per second)
+      const deltaBytes = progress.original_size - prev.bytes
+      const deltaTime = progress.timestamp - prev.timestamp
+
+      if (deltaTime > 0 && deltaBytes > 0) {
+        // Add transfer rate to progress data (bytes/sec)
+        progress.transfer_rate = deltaBytes / deltaTime
+      }
+    }
+
+    // Store current as previous for next iteration
+    if (progress.timestamp && progress.original_size) {
+      previousProgress.value.set(jobId, {
+        bytes: progress.original_size,
+        timestamp: progress.timestamp
+      })
+    }
+
+    progressInfo.value.set(jobId, progress)
+  }
+
   return {
     // State
     jobs,
@@ -182,5 +213,6 @@ export const useJobStore = defineStore('jobs', () => {
     clearError,
     fetchProgressForRunningJobs,
     getProgressInfo,
+    setProgressInfo,
   }
 })
