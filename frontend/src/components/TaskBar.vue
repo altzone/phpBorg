@@ -125,16 +125,53 @@
                 </div>
               </div>
 
-              <!-- Real-time progress info (from Redis) -->
-              <div v-if="getProgressInfo(job.id)" class="text-xs text-gray-600 dark:text-gray-400 mt-2 space-y-1">
-                <div v-if="getProgressInfo(job.id).message" class="truncate">
+              <!-- Real-time progress info (from Redis via SSE) -->
+              <div v-if="getProgressInfo(job.id)" class="mt-2 space-y-2">
+                <!-- Borg Progress Message -->
+                <div v-if="getProgressInfo(job.id).message" class="text-xs text-gray-700 dark:text-gray-300 truncate">
                   {{ getProgressInfo(job.id).message }}
                 </div>
-                <div v-if="getProgressInfo(job.id).path" class="truncate font-mono">
-                  {{ getProgressInfo(job.id).path }}
+
+                <!-- Current File Path -->
+                <div v-if="getProgressInfo(job.id).path" class="text-xs text-gray-500 dark:text-gray-400 truncate font-mono">
+                  📁 {{ getProgressInfo(job.id).path }}
                 </div>
-                <div v-if="getProgressInfo(job.id).transfer_rate" class="font-medium">
-                  {{ formatTransferRate(getProgressInfo(job.id).transfer_rate) }}
+
+                <!-- Stats Row (Files, Size, Rate) -->
+                <div class="flex items-center gap-3 text-xs">
+                  <!-- Files Count -->
+                  <div v-if="getProgressInfo(job.id).nfiles" class="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    <span class="font-medium">{{ formatNumber(getProgressInfo(job.id).nfiles) }}</span>
+                  </div>
+
+                  <!-- Original Size -->
+                  <div v-if="getProgressInfo(job.id).original_size" class="flex items-center gap-1 text-gray-600 dark:text-gray-400">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                    </svg>
+                    <span>{{ formatBytes(getProgressInfo(job.id).original_size) }}</span>
+                  </div>
+
+                  <!-- Transfer Rate -->
+                  <div v-if="getProgressInfo(job.id).transfer_rate" class="flex items-center gap-1 text-green-600 dark:text-green-400 font-semibold">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                    <span>{{ formatTransferRate(getProgressInfo(job.id).transfer_rate) }}</span>
+                  </div>
+                </div>
+
+                <!-- Compression Stats (if available) -->
+                <div v-if="getProgressInfo(job.id).compressed_size && getProgressInfo(job.id).deduplicated_size" class="flex items-center gap-2 text-xs">
+                  <span class="text-gray-500 dark:text-gray-400">
+                    🗜️ {{ formatBytes(getProgressInfo(job.id).compressed_size) }}
+                  </span>
+                  <span class="text-purple-600 dark:text-purple-400">
+                    ♻️ {{ formatBytes(getProgressInfo(job.id).deduplicated_size) }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -294,6 +331,21 @@ function formatTransferRate(bytesPerSec) {
 
   const mbps = bytesPerSec / (1024 * 1024)
   return `${mbps.toFixed(2)} MB/s`
+}
+
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B'
+
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+
+  return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`
+}
+
+function formatNumber(num) {
+  if (!num) return '0'
+  return num.toLocaleString()
 }
 
 function viewJobDetails(job) {
