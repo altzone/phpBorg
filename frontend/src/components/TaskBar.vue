@@ -91,13 +91,28 @@
 
             <!-- Job Info -->
             <div class="space-y-2 mb-3">
-              <!-- Job Type -->
+              <!-- Job Type + Description/Server -->
               <div class="flex items-center gap-2 text-sm">
                 <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
                 </svg>
-                <span class="text-gray-700 dark:text-gray-300 font-medium">
-                  {{ formatJobType(job.type) }}
+                <div class="flex-1 truncate">
+                  <span class="text-gray-700 dark:text-gray-300 font-medium">
+                    {{ formatJobType(job.type) }}
+                  </span>
+                  <span v-if="job.payload?.description" class="text-gray-500 dark:text-gray-400 text-xs ml-1">
+                    • {{ job.payload.description }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Server Info (if available in payload) -->
+              <div v-if="getServerName(job)" class="flex items-center gap-2 text-sm">
+                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                </svg>
+                <span class="text-gray-600 dark:text-gray-400 text-xs font-medium">
+                  🖥️ {{ getServerName(job) }}
                 </span>
               </div>
 
@@ -155,8 +170,8 @@
                     <span>{{ formatBytes(getProgressInfo(job.id).original_size) }}</span>
                   </div>
 
-                  <!-- Transfer Rate -->
-                  <div v-if="getProgressInfo(job.id).transfer_rate" class="flex items-center gap-1 text-green-600 dark:text-green-400 font-semibold">
+                  <!-- Transfer Rate (highlighted) -->
+                  <div v-if="getProgressInfo(job.id).transfer_rate" class="flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 rounded text-green-700 dark:text-green-400 font-bold">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                     </svg>
@@ -346,6 +361,24 @@ function formatBytes(bytes) {
 function formatNumber(num) {
   if (!num) return '0'
   return num.toLocaleString()
+}
+
+function getServerName(job) {
+  // Try to extract server name from job payload
+  if (job.payload) {
+    // Description might contain server name (e.g., "Backup: virus - system")
+    if (job.payload.description) {
+      const match = job.payload.description.match(/:\s*([^\-]+)/)
+      if (match) {
+        return match[1].trim()
+      }
+    }
+    // Or directly from server_name field
+    if (job.payload.server_name) {
+      return job.payload.server_name
+    }
+  }
+  return null
 }
 
 function viewJobDetails(job) {
