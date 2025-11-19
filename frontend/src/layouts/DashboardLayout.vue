@@ -28,10 +28,10 @@
       </div>
 
       <!-- Navigation -->
-      <nav class="flex-1 overflow-y-auto py-4 px-3 scrollbar-hide">
+      <nav class="flex-1 overflow-y-auto py-3 px-3 scrollbar-hide">
         <!-- Quick Access Section -->
-        <div class="mb-6">
-          <div class="px-3 mb-2 text-xs font-semibold text-primary-600 dark:text-primary-400 uppercase tracking-wider flex items-center gap-2">
+        <div class="mb-4">
+          <div class="px-3 mb-1.5 text-xs font-semibold text-primary-600 dark:text-primary-400 uppercase tracking-wider flex items-center gap-2">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
@@ -65,7 +65,7 @@
         <RouterLink
           to="/"
           @click="mobileMenuOpen = false"
-          class="sidebar-link mb-6"
+          class="sidebar-link mb-4"
           :class="{ 'sidebar-link-active': $route.name === 'dashboard' }"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -75,8 +75,8 @@
         </RouterLink>
 
         <!-- Backup Operations Section -->
-        <div class="mb-6">
-          <div class="px-3 mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+        <div class="mb-4">
+          <div class="px-3 mb-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
             {{ $t('nav.backup_operations') }}
           </div>
           <RouterLink
@@ -104,8 +104,8 @@
         </div>
 
         <!-- Infrastructure Section -->
-        <div class="mb-6">
-          <div class="px-3 mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+        <div class="mb-4">
+          <div class="px-3 mb-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
             {{ $t('nav.infrastructure') }}
           </div>
           <RouterLink
@@ -144,8 +144,8 @@
         </div>
 
         <!-- System Section -->
-        <div class="mb-6">
-          <div class="px-3 mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+        <div class="mb-4">
+          <div class="px-3 mb-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
             {{ $t('nav.system') }}
           </div>
           <RouterLink
@@ -174,8 +174,8 @@
         </div>
 
         <!-- Administration Section (Admin only) -->
-        <div v-if="authStore.isAdmin" class="mb-6">
-          <div class="px-3 mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+        <div v-if="authStore.isAdmin" class="mb-4">
+          <div class="px-3 mb-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
             {{ $t('nav.administration') }}
           </div>
           <RouterLink
@@ -344,7 +344,7 @@ onUnmounted(() => {
 
 <style scoped>
 .sidebar-link {
-  @apply flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors;
+  @apply flex items-center gap-3 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors;
   @apply text-gray-700 dark:text-gray-300;
   @apply hover:bg-gray-100 dark:hover:bg-gray-700;
 }
