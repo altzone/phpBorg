@@ -462,7 +462,7 @@ function setupSSE() {
       reconnectAttempts = 0
     })
 
-    eventSource.onerror = (error) => {
+    eventSource.onerror = async (error) => {
       console.error('SSE Error:', error)
 
       // Increment reconnect attempts
@@ -483,9 +483,20 @@ function setupSSE() {
       // Try to reconnect with fresh token (in case token was refreshed)
       if (useSSE.value && reconnectAttempts < maxReconnectAttempts) {
         console.log(`SSE connection closed, attempting reconnect ${reconnectAttempts}/${maxReconnectAttempts}...`)
+
+        // Force token refresh before reconnecting
+        try {
+          console.log('Requesting fresh token...')
+          await authStore.refreshToken()
+          console.log('Token refreshed successfully')
+        } catch (refreshError) {
+          console.error('Token refresh failed:', refreshError)
+        }
+
+        // Wait a bit before reconnecting to ensure token is updated
         reconnectTimeout = setTimeout(() => {
           setupSSE()
-        }, 2000)
+        }, 1000)
       } else {
         // Give up on SSE, use polling
         console.warn('SSE reconnection failed, switching to polling mode')
