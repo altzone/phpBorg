@@ -48,7 +48,7 @@ class SSEController extends BaseController
         try {
             $app = new Application();
             $jwtService = $app->getJwtService();
-            $payload = $jwtService->verify($token);
+            $payload = $jwtService->validateAccessToken($token);
 
             if (!$payload || !isset($payload['sub'])) {
                 echo "event: error\n";
