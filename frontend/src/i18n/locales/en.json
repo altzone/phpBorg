@@ -37,7 +37,7 @@
     "port": "Port"
   },
   "nav": {
-    "dashboard": "Dashboard",
+    "dashboard": "Home",
     "servers": "Servers",
     "repositories": "Repositories",
     "backups": "Backups",
@@ -63,6 +63,12 @@
     "role_admin": "Administrator",
     "role_operator": "Operator",
     "role_viewer": "Viewer"
+  },
+  "connection": {
+    "realtime": "Real-time",
+    "polling": "Polling",
+    "disconnected": "Disconnected",
+    "status": "Connection Status"
   },
   "servers": {
     "title": "Servers",

@@ -61,23 +61,18 @@
           </RouterLink>
         </div>
 
-        <!-- Monitoring Section -->
-        <div class="mb-6">
-          <div class="px-3 mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-            {{ $t('nav.monitoring') }}
-          </div>
-          <RouterLink
-            to="/"
-            @click="mobileMenuOpen = false"
-            class="sidebar-link"
-            :class="{ 'sidebar-link-active': $route.name === 'dashboard' }"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
-            <span>{{ $t('nav.dashboard') }}</span>
-          </RouterLink>
-        </div>
+        <!-- Home Link -->
+        <RouterLink
+          to="/"
+          @click="mobileMenuOpen = false"
+          class="sidebar-link mb-6"
+          :class="{ 'sidebar-link-active': $route.name === 'dashboard' }"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+          <span>{{ $t('nav.dashboard') }}</span>
+        </RouterLink>
 
         <!-- Backup Operations Section -->
         <div class="mb-6">
@@ -226,15 +221,15 @@
         <div class="flex items-center justify-center">
           <div v-if="sseStore.isSSE" class="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
             <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span class="text-xs font-medium text-green-700 dark:text-green-400">Real-time</span>
+            <span class="text-xs font-medium text-green-700 dark:text-green-400">{{ $t('connection.realtime') }}</span>
           </div>
           <div v-else-if="sseStore.isPolling" class="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
             <div class="w-2 h-2 bg-yellow-500 rounded-full"></div>
-            <span class="text-xs font-medium text-yellow-700 dark:text-yellow-400">Polling</span>
+            <span class="text-xs font-medium text-yellow-700 dark:text-yellow-400">{{ $t('connection.polling') }}</span>
           </div>
           <div v-else class="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md">
             <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
-            <span class="text-xs font-medium text-gray-600 dark:text-gray-400">Disconnected</span>
+            <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ $t('connection.disconnected') }}</span>
           </div>
         </div>
 

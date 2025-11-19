@@ -37,7 +37,7 @@
     "port": "Port"
   },
   "nav": {
-    "dashboard": "Tableau de bord",
+    "dashboard": "Accueil",
     "servers": "Serveurs",
     "repositories": "Dépôts",
     "backups": "Sauvegardes",
@@ -63,6 +63,12 @@
     "role_admin": "Administrateur",
     "role_operator": "Opérateur",
     "role_viewer": "Lecteur"
+  },
+  "connection": {
+    "realtime": "Temps réel",
+    "polling": "Polling",
+    "disconnected": "Déconnecté",
+    "status": "État de la connexion"
   },
   "servers": {
     "title": "Serveurs",
