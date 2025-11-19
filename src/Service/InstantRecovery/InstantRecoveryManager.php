@@ -364,14 +364,22 @@ final class InstantRecoveryManager
             $imageName
         );
 
+        $this->logger->info("Starting Adminer container on port {$adminPort}...");
+        $this->logger->debug("Docker command: {$dockerCmd}");
+
         $result = $this->execute(null, $dockerCmd, 60, 'local', true);
         $containerId = trim($result['stdout'] ?? '');
 
+        $this->logger->debug("Adminer docker run result: stdout='{$containerId}', stderr='{$result['stderr']}', exitCode={$result['exitCode']}");
+
         if (empty($containerId) || strlen($containerId) < 12) {
-            throw new \Exception("Failed to start Adminer container");
+            $errorMsg = "Failed to start Adminer container. Exit code: {$result['exitCode']}, stderr: {$result['stderr']}";
+            $this->logger->error($errorMsg);
+            throw new \Exception($errorMsg);
         }
 
         // Wait for Adminer to be ready (max 30 seconds)
+        $this->logger->info("Waiting for Adminer to be ready (max 30s)...");
         $maxAttempts = 60;
         $attempt = 0;
         $ready = false;
@@ -383,13 +391,24 @@ final class InstantRecoveryManager
             $healthCheck = @file_get_contents("http://127.0.0.1:{$adminPort}/");
             if ($healthCheck !== false) {
                 $ready = true;
+                $this->logger->info("Adminer ready after {$attempt} attempts (" . ($attempt * 0.5) . "s)");
             }
         }
 
         if (!$ready) {
+            // Log container status before cleanup
+            $statusResult = $this->execute(null, "docker ps -a --filter name={$containerName} --format '{{.Status}}'", 10, 'local', false);
+            $containerStatus = trim($statusResult['stdout'] ?? 'unknown');
+            $this->logger->warning("Adminer container status: {$containerStatus}");
+
+            // Get container logs for debugging
+            $logsResult = $this->execute(null, "docker logs {$containerName} 2>&1 | tail -20", 10, 'local', false);
+            $containerLogs = trim($logsResult['stdout'] ?? 'no logs');
+            $this->logger->warning("Adminer container logs: {$containerLogs}");
+
             // Cleanup container on failure
             $this->execute(null, "docker stop {$containerName} && docker rm {$containerName}", 30, 'local', false);
-            throw new \Exception("Adminer container failed to start within timeout");
+            throw new \Exception("Adminer container failed to start within timeout (30s). Last status: {$containerStatus}");
         }
 
         return [
