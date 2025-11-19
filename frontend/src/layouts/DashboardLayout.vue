@@ -28,7 +28,7 @@
       </div>
 
       <!-- Navigation -->
-      <nav class="flex-1 overflow-y-auto py-4 px-3">
+      <nav class="flex-1 overflow-y-auto py-4 px-3 scrollbar-hide">
         <!-- Quick Access Section -->
         <div class="mb-6">
           <div class="px-3 mb-2 text-xs font-semibold text-primary-600 dark:text-primary-400 uppercase tracking-wider flex items-center gap-2">
@@ -352,5 +352,15 @@ onUnmounted(() => {
 .sidebar-link-active {
   @apply bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400;
   @apply hover:bg-primary-100 dark:hover:bg-primary-900/30;
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
 }
 </style>
