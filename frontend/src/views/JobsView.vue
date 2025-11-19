@@ -165,18 +165,35 @@
           </div>
         </div>
 
-        <!-- Real-time Progress (compact) -->
+        <!-- Real-time Progress (compact inline) -->
         <div v-if="job.status === 'running' && jobStore.getProgressInfo(job.id)" class="px-4 pb-4">
           <div class="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-xs">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <svg class="w-3 h-3 text-blue-600 dark:text-blue-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex items-center justify-between gap-4 flex-wrap">
+              <div class="flex items-center gap-3">
+                <svg class="w-3 h-3 text-blue-600 dark:text-blue-400 animate-spin flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                <span class="font-medium text-blue-900 dark:text-blue-300">{{ jobStore.getProgressInfo(job.id).files_count || 0 }} files</span>
+                <span class="text-blue-900 dark:text-blue-300">
+                  <span class="font-semibold">{{ jobStore.getProgressInfo(job.id).files_count || 0 }}</span> files
+                </span>
+                <span class="text-gray-400 dark:text-gray-600">•</span>
+                <span class="text-blue-900 dark:text-blue-300">
+                  <span class="font-mono">{{ formatBytes(jobStore.getProgressInfo(job.id).original_size || 0) }}</span>
+                  <span class="text-gray-500 dark:text-gray-500 mx-1">→</span>
+                  <span class="font-mono">{{ formatBytes(jobStore.getProgressInfo(job.id).compressed_size || 0) }}</span>
+                </span>
+                <span class="text-green-600 dark:text-green-400 font-semibold">({{ calculateCompressionRatio(jobStore.getProgressInfo(job.id).original_size, jobStore.getProgressInfo(job.id).compressed_size) }}%)</span>
+                <span class="text-gray-400 dark:text-gray-600">•</span>
+                <span class="text-blue-600 dark:text-blue-400">
+                  Dedup: <span class="font-mono">{{ formatBytes(jobStore.getProgressInfo(job.id).deduplicated_size || 0) }}</span>
+                  <span class="font-semibold ml-1">({{ calculateDeduplicationRatio(jobStore.getProgressInfo(job.id).original_size, jobStore.getProgressInfo(job.id).deduplicated_size) }}%)</span>
+                </span>
               </div>
-              <div v-if="jobStore.getProgressInfo(job.id).transfer_rate" class="flex items-center gap-1">
-                <span class="font-mono font-semibold text-green-700 dark:text-green-300">{{ formatRate(jobStore.getProgressInfo(job.id).transfer_rate) }}</span>
+              <div v-if="jobStore.getProgressInfo(job.id).transfer_rate" class="flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded">
+                <svg class="w-3 h-3 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+                <span class="font-mono font-bold text-green-700 dark:text-green-300">{{ formatRate(jobStore.getProgressInfo(job.id).transfer_rate) }}</span>
               </div>
             </div>
           </div>
@@ -482,5 +499,15 @@ function formatRate(bytesPerSecond) {
     return (bytesPerSecond / k).toFixed(2) + ' KB/s'
   }
   return bytesPerSecond.toFixed(2) + ' B/s'
+}
+
+function calculateCompressionRatio(original, compressed) {
+  if (!original || !compressed || original === 0) return 0
+  return Math.round((1 - compressed / original) * 100)
+}
+
+function calculateDeduplicationRatio(original, deduplicated) {
+  if (!original || !deduplicated || original === 0) return 0
+  return Math.round((1 - deduplicated / original) * 100)
 }
 </script>
