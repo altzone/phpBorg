@@ -340,13 +340,14 @@ final class InstantRecoveryManager
 
         // Check if image exists, build if needed
         $imageName = 'phpborg/adminer:latest';
-        $imageExists = $this->execute("docker images -q {$imageName}", false);
+        $imageExistsResult = $this->execute(null, "docker images -q {$imageName}", 30, 'local', false);
+        $imageExists = $imageExistsResult['stdout'] ?? '';
 
         if (empty(trim($imageExists))) {
             $this->logger->info("Building phpBorg Adminer image...");
             $dockerDir = dirname(__DIR__, 3) . '/docker/adminer';
             $buildCmd = "docker build -t {$imageName} {$dockerDir}";
-            $this->execute($buildCmd, true);
+            $this->execute(null, $buildCmd, 300, 'local', true);
         }
 
         // Start Adminer container
@@ -363,7 +364,8 @@ final class InstantRecoveryManager
             $imageName
         );
 
-        $containerId = trim($this->execute($dockerCmd, true));
+        $result = $this->execute(null, $dockerCmd, 60, 'local', true);
+        $containerId = trim($result['stdout'] ?? '');
 
         if (empty($containerId) || strlen($containerId) < 12) {
             throw new \Exception("Failed to start Adminer container");
@@ -405,8 +407,8 @@ final class InstantRecoveryManager
         $containerName = "phpborg_adminer_session_{$sessionId}";
 
         // Stop and remove container
-        $this->execute("docker stop {$containerName}", false);
-        $this->execute("docker rm {$containerName}", false);
+        $this->execute(null, "docker stop {$containerName}", 30, 'local', false);
+        $this->execute(null, "docker rm {$containerName}", 30, 'local', false);
 
         $this->logger->info("Adminer container stopped: {$containerId}");
     }
