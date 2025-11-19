@@ -186,9 +186,9 @@ class DockerRestoreController extends BaseController
                 'compose_path_adaptation' => $data['compose_path_adaptation'] ?? 'none',
                 'selected_items' => $data['selected_items'] ?? null,
                 'auto_restart' => $data['auto_restart'] ?? true,
-                'lvm_snapshot_created' => false,
-                'pre_restore_backup_created' => false,
-                'script_executed' => false,
+                'lvm_snapshot_created' => 0,
+                'pre_restore_backup_created' => 0,
+                'script_executed' => 0,
                 'status' => 'draft', // Draft status for preview only
             ];
 
