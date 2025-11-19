@@ -84,41 +84,24 @@ class AdminerPhpBorgAuth
         $database = htmlspecialchars($_GET['phpborg_database'] ?? '');
         $driver = $this->detectDriver($server);
 
+        // Auto-redirect to Adminer with credentials in URL
+        $redirectUrl = '?' . http_build_query([
+            'phpborg_token' => $_GET['phpborg_token'],
+            $driver => $server,
+            'username' => $username,
+            'db' => $database,
+        ]);
+
         ?>
         <script>
-        // Auto-submit login form
-        window.addEventListener('DOMContentLoaded', function() {
-            const form = document.querySelector('form');
-            if (form) {
-                // Set driver (pgsql, mysql, etc.)
-                const driverInput = form.querySelector('input[name="auth[driver]"]');
-                if (driverInput) driverInput.value = '<?php echo $driver; ?>';
-
-                // Set server
-                const serverInput = form.querySelector('input[name="auth[server]"]');
-                if (serverInput) serverInput.value = '<?php echo $server; ?>';
-
-                // Set username
-                const usernameInput = form.querySelector('input[name="auth[username]"]');
-                if (usernameInput) usernameInput.value = '<?php echo $username; ?>';
-
-                // Set password (empty)
-                const passwordInput = form.querySelector('input[name="auth[password]"]');
-                if (passwordInput) passwordInput.value = '';
-
-                // Set database
-                const dbInput = form.querySelector('input[name="auth[db]"]');
-                if (dbInput) dbInput.value = '<?php echo $database; ?>';
-
-                // Auto-submit
-                setTimeout(function() {
-                    form.submit();
-                }, 100);
-            }
-        });
+        // Auto-redirect after showing message
+        setTimeout(function() {
+            window.location.href = '<?php echo $redirectUrl; ?>';
+        }, 500);
         </script>
         <p class="message">🔐 <strong>Authenticating with phpBorg...</strong></p>
         <p class="message">Connecting to <code><?php echo $server; ?></code> as <code><?php echo $username; ?></code></p>
+        <p class="message">Redirecting...</p>
         <?php
     }
 
