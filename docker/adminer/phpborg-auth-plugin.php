@@ -92,37 +92,63 @@ class AdminerPhpBorgAuth
      */
     function loginForm()
     {
-        // If already authenticated via session, show auto-submit message
+        // If already authenticated via session, show simple form that auto-submits
         if (!empty($_SESSION['phpborg_authenticated'])) {
+            // Get driver from session
+            $server = $_SESSION['phpborg_server'] ?? 'host.docker.internal:5432';
+            $username = $_SESSION['phpborg_username'] ?? 'postgres';
+            $database = $_SESSION['phpborg_database'] ?? '';
+            $driver = $this->detectDriver($server);
+
             ?>
-            <style>
-            /* Hide the form initially */
-            body > form { display: none !important; }
-            </style>
-            <div style="text-align: center; padding: 50px; font-family: sans-serif;">
-                <p style="font-size: 1.2em; margin-bottom: 20px;">🔐 <strong>Connecting to database...</strong></p>
-                <p style="color: #666;">Please wait while we connect you automatically...</p>
-                <div style="margin-top: 30px;">
-                    <button onclick="document.querySelector('form').style.display='block'; this.parentElement.parentElement.remove();"
-                            style="padding: 10px 20px; font-size: 14px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px;">
-                        Show Login Form
-                    </button>
-                </div>
-            </div>
-            <script>
-            // Use setTimeout which is less restricted by CSP
-            setTimeout(function() {
-                var forms = document.querySelectorAll('form');
-                for (var i = 0; i < forms.length; i++) {
-                    if (forms[i].querySelector('input[name="auth[driver]"], select[name="auth[driver]"]')) {
-                        forms[i].submit();
-                        break;
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>Connecting...</title>
+                <style>
+                    body {
+                        font-family: sans-serif;
+                        text-align: center;
+                        padding: 50px;
+                        background: #f5f5f5;
                     }
-                }
-            }, 500);
-            </script>
+                    .message {
+                        font-size: 1.2em;
+                        margin-bottom: 20px;
+                        color: #333;
+                    }
+                    .button {
+                        padding: 12px 24px;
+                        font-size: 16px;
+                        cursor: pointer;
+                        background: #007bff;
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        margin-top: 20px;
+                    }
+                    .button:hover {
+                        background: #0056b3;
+                    }
+                </style>
+            </head>
+            <body>
+                <p class="message">🔐 <strong>Connecting to database...</strong></p>
+                <p style="color: #666;">Click the button below to connect</p>
+
+                <form method="post" action="">
+                    <input type="hidden" name="auth[driver]" value="<?php echo htmlspecialchars($driver); ?>">
+                    <input type="hidden" name="auth[server]" value="<?php echo htmlspecialchars($server); ?>">
+                    <input type="hidden" name="auth[username]" value="<?php echo htmlspecialchars($username); ?>">
+                    <input type="hidden" name="auth[password]" value="">
+                    <input type="hidden" name="auth[db]" value="<?php echo htmlspecialchars($database); ?>">
+                    <button type="submit" class="button">Connect to Database</button>
+                </form>
+            </body>
+            </html>
             <?php
-            return;
+            exit;
         }
 
         $token = $_GET['phpborg_token'] ?? null;
