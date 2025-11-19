@@ -3,44 +3,38 @@
  * phpBorg Authentication Plugin for Adminer
  *
  * Validates session access via phpBorg API token
- * Allows passwordless login when valid token is provided
+ * Auto-connects to database without showing login form
  */
 
 class AdminerPhpBorgAuth
 {
-    private $phpborgApiUrl = 'http://127.0.0.1/api/instant-recovery/validate-admin';
+    private $phpborgApiUrl = 'http://host.docker.internal/api/instant-recovery/validate-admin';
+    private $tokenValid = null;
 
     /**
      * Override login credentials
-     * Called before authentication attempt
+     * Pre-fill connection details from URL params
      */
     function credentials()
     {
-        // Get token from query parameter
         $token = $_GET['phpborg_token'] ?? null;
 
-        if (!$token) {
-            return null;
-        }
-
-        // Validate token via phpBorg API
-        if (!$this->validateToken($token)) {
+        if (!$token || !$this->validateToken($token)) {
             return null;
         }
 
         // Extract connection info from query params
-        $server = $_GET['phpborg_server'] ?? '127.0.0.1';
+        $server = $_GET['phpborg_server'] ?? 'host.docker.internal:5432';
         $username = $_GET['phpborg_username'] ?? 'postgres';
-        $password = $_GET['phpborg_password'] ?? '';
-        $database = $_GET['phpborg_database'] ?? '';
+        $password = '';
 
-        // Return credentials (Adminer will use these)
+        // Return credentials array: [server, username, password]
         return [$server, $username, $password];
     }
 
     /**
      * Override login validation
-     * Allow login without password check if token is valid
+     * Allow passwordless login if token is valid
      */
     function login($login, $password)
     {
@@ -50,9 +44,100 @@ class AdminerPhpBorgAuth
             return false;
         }
 
-        // Token validation already done in credentials()
-        // Just verify it's still present
+        // Always allow login if token is valid
         return $this->validateToken($token);
+    }
+
+    /**
+     * Override database selection
+     * Auto-select database from URL param
+     */
+    function database()
+    {
+        return $_GET['phpborg_database'] ?? null;
+    }
+
+    /**
+     * Hide login form and auto-connect
+     */
+    function loginForm()
+    {
+        $token = $_GET['phpborg_token'] ?? null;
+
+        if (!$token) {
+            echo '<p class="error">❌ Access Denied: Missing phpBorg Token</p>';
+            echo '<p class="message">This Adminer instance is managed by <strong>phpBorg Instant Recovery</strong>.</p>';
+            echo '<p class="message">Please access it through the phpBorg dashboard.</p>';
+            return;
+        }
+
+        // Validate token
+        if (!$this->validateToken($token)) {
+            echo '<p class="error">❌ Invalid or Expired Token</p>';
+            echo '<p class="message">Please start a new Instant Recovery session from phpBorg.</p>';
+            return;
+        }
+
+        // Auto-submit login form with credentials from URL
+        $server = htmlspecialchars($_GET['phpborg_server'] ?? 'host.docker.internal:5432');
+        $username = htmlspecialchars($_GET['phpborg_username'] ?? 'postgres');
+        $database = htmlspecialchars($_GET['phpborg_database'] ?? '');
+        $driver = $this->detectDriver($server);
+
+        ?>
+        <script>
+        // Auto-submit login form
+        window.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('form');
+            if (form) {
+                // Set driver (pgsql, mysql, etc.)
+                const driverInput = form.querySelector('input[name="auth[driver]"]');
+                if (driverInput) driverInput.value = '<?php echo $driver; ?>';
+
+                // Set server
+                const serverInput = form.querySelector('input[name="auth[server]"]');
+                if (serverInput) serverInput.value = '<?php echo $server; ?>';
+
+                // Set username
+                const usernameInput = form.querySelector('input[name="auth[username]"]');
+                if (usernameInput) usernameInput.value = '<?php echo $username; ?>';
+
+                // Set password (empty)
+                const passwordInput = form.querySelector('input[name="auth[password]"]');
+                if (passwordInput) passwordInput.value = '';
+
+                // Set database
+                const dbInput = form.querySelector('input[name="auth[db]"]');
+                if (dbInput) dbInput.value = '<?php echo $database; ?>';
+
+                // Auto-submit
+                setTimeout(function() {
+                    form.submit();
+                }, 100);
+            }
+        });
+        </script>
+        <p class="message">🔐 <strong>Authenticating with phpBorg...</strong></p>
+        <p class="message">Connecting to <code><?php echo $server; ?></code> as <code><?php echo $username; ?></code></p>
+        <?php
+    }
+
+    /**
+     * Detect database driver from server string
+     */
+    private function detectDriver($server)
+    {
+        // Check port to detect driver
+        if (strpos($server, ':5432') !== false || strpos($server, ':15432') !== false) {
+            return 'pgsql';
+        } elseif (strpos($server, ':3306') !== false || strpos($server, ':13306') !== false) {
+            return 'server'; // MySQL
+        } elseif (strpos($server, ':27017') !== false) {
+            return 'mongo';
+        }
+
+        // Default to PostgreSQL
+        return 'pgsql';
     }
 
     /**
@@ -60,39 +145,41 @@ class AdminerPhpBorgAuth
      */
     private function validateToken($token)
     {
+        // Cache validation result
+        if ($this->tokenValid !== null) {
+            return $this->tokenValid;
+        }
+
         $context = stream_context_create([
             'http' => [
                 'method' => 'POST',
                 'header' => "Content-Type: application/json\r\n",
                 'content' => json_encode(['token' => $token]),
-                'timeout' => 5
+                'timeout' => 5,
+                'ignore_errors' => true
             ]
         ]);
 
         $response = @file_get_contents($this->phpborgApiUrl, false, $context);
 
         if ($response === false) {
-            error_log('phpBorg token validation failed: Unable to reach API');
+            error_log('[phpBorg Adminer] Token validation failed: Unable to reach API at ' . $this->phpborgApiUrl);
+            $this->tokenValid = false;
             return false;
         }
 
         $data = json_decode($response, true);
 
-        return isset($data['success']) && $data['success'] === true;
+        $this->tokenValid = isset($data['success']) && $data['success'] === true;
+        return $this->tokenValid;
     }
 
     /**
-     * Custom login form message
+     * Hide permanent login checkbox (read-only session)
      */
-    function loginForm()
+    function permanentLogin($create = false)
     {
-        $token = $_GET['phpborg_token'] ?? null;
-
-        if (!$token) {
-            echo '<p class="error">Access denied: Missing phpBorg authentication token</p>';
-            echo '<p class="message">This Adminer instance is managed by phpBorg Instant Recovery.</p>';
-            echo '<p class="message">Please access it through phpBorg dashboard.</p>';
-        }
+        return false; // Disable permanent login
     }
 }
 
