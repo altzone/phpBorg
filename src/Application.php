@@ -126,7 +126,7 @@ final class Application
      */
     public function getUserOperationLogger(): \PhpBorg\Logger\UserOperationLogger
     {
-        return $this->getOrCreateService('userOperationLogger', function () {
+        return $this->getService('userOperationLogger', function () {
             return new \PhpBorg\Logger\UserOperationLogger($this->getSettingRepository());
         });
     }
@@ -136,7 +136,7 @@ final class Application
      */
     public function getInstantRecoveryLogger(): \PhpBorg\Logger\InstantRecoveryLogger
     {
-        return $this->getOrCreateService('instantRecoveryLogger', function () {
+        return $this->getService('instantRecoveryLogger', function () {
             return new \PhpBorg\Logger\InstantRecoveryLogger($this->getSettingRepository());
         });
     }
