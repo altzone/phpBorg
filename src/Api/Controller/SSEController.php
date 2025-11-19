@@ -128,27 +128,30 @@ class SSEController extends BaseController
                 error_log("SSE jobs error: " . $e->getMessage());
             }
 
-            // WORKERS: Stream worker status (use existing WorkerController logic)
+            // WORKERS: Stream worker status
             try {
-                $app = new Application();
-                $workerController = new \PhpBorg\Api\Controller\WorkerController($app);
+                $workers = [];
 
-                // Get workers data (reuse existing method)
-                ob_start();
-                $workerController->list();
-                $output = ob_get_clean();
+                // Get scheduler status
+                $workers[] = $this->getServiceStatus('phpborg-scheduler');
 
-                $workersData = json_decode($output, true);
+                // Get worker pool status (1 to 4)
+                for ($i = 1; $i <= 4; $i++) {
+                    $workers[] = $this->getServiceStatus("phpborg-worker@{$i}");
+                }
 
-                if ($workersData && isset($workersData['data'])) {
-                    $workersHash = md5(json_encode($workersData['data']));
+                $workersData = [
+                    'workers' => $workers,
+                    'total' => count($workers),
+                ];
 
-                    if ($workersHash !== $lastWorkersHash) {
-                        echo "event: workers\n";
-                        echo "data: " . json_encode($workersData['data']) . "\n\n";
-                        flush();
-                        $lastWorkersHash = $workersHash;
-                    }
+                $workersHash = md5(json_encode($workersData));
+
+                if ($workersHash !== $lastWorkersHash) {
+                    echo "event: workers\n";
+                    echo "data: " . json_encode($workersData) . "\n\n";
+                    flush();
+                    $lastWorkersHash = $workersHash;
                 }
             } catch (\Exception $e) {
                 error_log("SSE workers error: " . $e->getMessage());
@@ -161,5 +164,93 @@ class SSEController extends BaseController
             // Sleep to avoid hammering the server
             sleep(1);
         }
+    }
+
+    /**
+     * Get service status using systemctl
+     */
+    private function getServiceStatus(string $serviceName): array
+    {
+        // Get is-active status
+        $activeCommand = sprintf('sudo systemctl is-active %s 2>&1', escapeshellarg($serviceName));
+        exec($activeCommand, $activeOutput, $activeCode);
+        $isActive = trim($activeOutput[0] ?? 'unknown') === 'active';
+
+        // Get detailed status
+        $statusCommand = sprintf('sudo systemctl status %s --no-pager -l 2>&1', escapeshellarg($serviceName));
+        exec($statusCommand, $statusOutput, $statusCode);
+
+        // Parse memory and CPU from status output
+        $memory = null;
+        $cpu = null;
+        $pid = null;
+        $uptime = null;
+
+        foreach ($statusOutput as $line) {
+            if (preg_match('/Memory:\s*([\d.]+[KMGT]?B?)/', $line, $matches)) {
+                $memory = $matches[1];
+            }
+            if (preg_match('/CPU:\s*([\d.]+[a-z]+)/', $line, $matches)) {
+                $cpu = $matches[1];
+            }
+            if (preg_match('/Main PID:\s*(\d+)/', $line, $matches)) {
+                $pid = (int)$matches[1];
+            }
+            if (preg_match('/Active:\s*active\s*\(running\)\s*since\s+(.+);\s*(.+)$/', $line, $matches)) {
+                $uptime = trim($matches[2]);
+            }
+        }
+
+        // Get current running job for worker pool instances
+        $currentJob = null;
+        if (strpos($serviceName, 'phpborg-worker@') === 0) {
+            try {
+                preg_match('/phpborg-worker@(\d+)/', $serviceName, $matches);
+                if (isset($matches[1])) {
+                    $workerTag = "WORKER #{$matches[1]}";
+                    $runningJobs = $this->jobRepo->findByStatus('running');
+                    foreach ($runningJobs as $job) {
+                        if ($job->workerId === $workerTag) {
+                            $currentJob = [
+                                'id' => $job->id,
+                                'type' => $job->type,
+                                'description' => $job->payload['description'] ?? $job->type,
+                                'progress' => $job->progress,
+                            ];
+                            break;
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // Silently fail
+            }
+        }
+
+        return [
+            'name' => $serviceName,
+            'display_name' => $this->getDisplayName($serviceName),
+            'active' => $isActive,
+            'status' => trim($activeOutput[0] ?? 'unknown'),
+            'memory' => $memory,
+            'cpu' => $cpu,
+            'pid' => $pid,
+            'uptime' => $uptime,
+            'current_job' => $currentJob,
+        ];
+    }
+
+    /**
+     * Get display name for service
+     */
+    private function getDisplayName(string $serviceName): string
+    {
+        return match ($serviceName) {
+            'phpborg-scheduler' => 'Scheduler',
+            'phpborg-worker@1' => 'Worker #1',
+            'phpborg-worker@2' => 'Worker #2',
+            'phpborg-worker@3' => 'Worker #3',
+            'phpborg-worker@4' => 'Worker #4',
+            default => $serviceName,
+        };
     }
 }
