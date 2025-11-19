@@ -295,25 +295,28 @@ final class DockerRestoreService
     {
         $paths = [];
 
-        // Volumes: /var/lib/docker/volumes/{volumeName}/_data
+        // Volumes: Borg stores them as /var/lib/docker/volumes/{volumeName}/_data
+        // But we need to specify just the volume directory to get everything
         foreach ($selectedItems['volumes'] ?? [] as $volumeName) {
             $paths[] = "var/lib/docker/volumes/{$volumeName}";
         }
 
-        // Compose projects: from working directory
+        // Compose projects: stored as full working directory path
+        // We'll extract them using shell pattern matching
         foreach ($selectedItems['projects'] ?? [] as $projectName) {
-            // Projects are stored as full path in backup
-            // We need to find them from metadata
-            // For now, we'll add the project name pattern
-            $paths[] = "*/{$projectName}";
+            // Pattern to match any path containing the project name
+            $paths[] = "**/{$projectName}";
         }
 
-        // Docker configs: /etc/docker
+        // Docker configs: specific files from /etc/docker
         if (!empty($selectedItems['configs'])) {
-            $paths[] = "etc/docker";
+            foreach ($selectedItems['configs'] as $configPath) {
+                // Remove leading slash if present
+                $paths[] = ltrim($configPath, '/');
+            }
         }
 
-        // Always include container metadata if exists
+        // Always include container metadata
         $paths[] = "tmp/phpborg_docker_containers.json";
 
         return $paths;

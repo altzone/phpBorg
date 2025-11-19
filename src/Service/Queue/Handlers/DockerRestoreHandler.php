@@ -68,7 +68,7 @@ final class DockerRestoreHandler implements JobHandlerInterface
 
             // Load related entities
             $archive = $this->archiveRepo->findById($operation->archiveId);
-            $repository = $this->repositoryRepo->findByRepoId($archive->repositoryId);
+            $repository = $this->repositoryRepo->findByRepoId($archive->repoId);
             $server = $this->serverRepo->findById($operation->serverId);
 
             $this->logger->info(

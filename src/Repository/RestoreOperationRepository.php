@@ -161,6 +161,57 @@ final class RestoreOperationRepository
     }
 
     /**
+     * Update restore operation (for transitioning from draft to pending)
+     *
+     * @param int $id Operation ID
+     * @param array<string, mixed> $data Updated data
+     * @throws DatabaseException
+     */
+    public function update(int $id, array $data): void
+    {
+        $sql = 'UPDATE restore_operations SET ';
+        $fields = [];
+        $params = [];
+
+        // Fields that can be updated
+        $allowedFields = [
+            'mode', 'restore_type', 'destination', 'alternative_path',
+            'compose_path_adaptation', 'selected_items',
+            'lvm_snapshot_created', 'lvm_snapshot_name',
+            'pre_restore_backup_created', 'pre_restore_backup_archive',
+            'auto_restart', 'stopped_containers', 'status', 'generated_script'
+        ];
+
+        foreach ($allowedFields as $field) {
+            if (array_key_exists($field, $data)) {
+                $fields[] = "{$field} = ?";
+
+                // Handle JSON fields
+                if (in_array($field, ['selected_items', 'stopped_containers'])) {
+                    $params[] = is_array($data[$field]) ? json_encode($data[$field]) : $data[$field];
+                }
+                // Handle boolean fields (cast to int for MySQL)
+                elseif (in_array($field, ['lvm_snapshot_created', 'pre_restore_backup_created', 'auto_restart'])) {
+                    $params[] = (int)$data[$field];
+                }
+                else {
+                    $params[] = $data[$field];
+                }
+            }
+        }
+
+        if (empty($fields)) {
+            return; // Nothing to update
+        }
+
+        $sql .= implode(', ', $fields);
+        $sql .= ', updated_at = NOW() WHERE id = ?';
+        $params[] = $id;
+
+        $this->connection->execute($sql, $params);
+    }
+
+    /**
      * Update restore operation status
      *
      * @throws DatabaseException
