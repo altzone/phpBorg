@@ -167,6 +167,35 @@ export const useSSEStore = defineStore('sse', () => {
         reconnectAttempts.value = 0
       })
 
+      // Handle token expiration errors sent as message events
+      eventSource.value.addEventListener('message', (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data.error && data.error.includes('Expired token')) {
+            console.warn('[SSE] Token expired, switching to polling (refresh page to reconnect)')
+
+            // Close SSE connection
+            if (eventSource.value) {
+              eventSource.value.close()
+              eventSource.value = null
+            }
+
+            // Clear reconnect attempts
+            if (reconnectTimeout.value) {
+              clearTimeout(reconnectTimeout.value)
+              reconnectTimeout.value = null
+            }
+
+            // Don't retry, switch directly to polling
+            reconnectAttempts.value = maxReconnectAttempts
+            console.log('[SSE] Switching to polling mode due to expired token')
+            setupPolling()
+          }
+        } catch (e) {
+          // Not a JSON message or not an error, ignore
+        }
+      })
+
       // Error handling
       eventSource.value.onerror = (error) => {
         console.error('[SSE] Connection error:', error)
@@ -285,8 +314,9 @@ export const useSSEStore = defineStore('sse', () => {
         }
 
         // Every 30 seconds (6 polls), try to reconnect to SSE
+        // BUT only if we're not in token-expired state
         pollCount++
-        if (pollCount >= 6) {
+        if (pollCount >= 6 && reconnectAttempts.value < maxReconnectAttempts) {
           console.log('[SSE] Attempting to reconnect to SSE from polling mode...')
           pollCount = 0
           reconnectAttempts.value = 0 // Reset attempts for fresh try
