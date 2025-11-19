@@ -377,6 +377,13 @@ final class BackupService
                 'success' => true,
                 'reportId' => $reportId,
                 'archiveName' => $archiveName,
+                'stats' => [
+                    'original_size' => (int)($stats['original_size'] ?? 0),
+                    'compressed_size' => (int)($stats['compressed_size'] ?? 0),
+                    'deduplicated_size' => (int)($stats['deduplicated_size'] ?? 0),
+                    'duration' => (float)($archiveData['duration'] ?? 0),
+                    'nfiles' => (int)($stats['nfiles'] ?? 0),
+                ],
             ];
         } catch (BackupException $e) {
             $this->logger->error("Backup failed: {$e->getMessage()}", $server->name);
