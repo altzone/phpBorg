@@ -257,6 +257,7 @@
       "storage_pool_analyze": "Analyze Storage Pool",
       "capabilities_detection": "Capabilities Detection",
       "docker_restore": "Docker Restore",
+      "docker_conflicts_detection": "Docker Conflicts Detection",
       "archive_restore": "Archive Restore",
       "instant_recovery_start": "Start Instant Recovery",
       "instant_recovery_stop": "Stop Instant Recovery"
