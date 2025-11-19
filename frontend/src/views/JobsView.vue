@@ -538,6 +538,15 @@ function getJobServer(job) {
   if (job.payload?.server_name) {
     return job.payload.server_name
   }
+
+  // Try to extract from description (e.g., "Backup: virus - system")
+  if (job.payload?.description) {
+    const match = job.payload.description.match(/:\s*([^\-]+)/)
+    if (match) {
+      return match[1].trim()
+    }
+  }
+
   return null
 }
 

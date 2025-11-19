@@ -224,6 +224,15 @@ final class InstantRecoveryController extends BaseController
                 'archive_id' => $archiveId,
                 'deployment_location' => $deploymentLocation,
                 'db_type' => $dbType,
+                'server_name' => $server->name,
+                'server_id' => $server->id,
+                'archive_name' => $archive->name,
+                'description' => sprintf(
+                    'Démarrage Instant Recovery: %s - %s (%s)',
+                    $server->name,
+                    $archive->name,
+                    $deploymentLocation === 'local' ? 'Local' : 'Remote'
+                ),
             ]);
 
             $this->success([
@@ -258,9 +267,21 @@ final class InstantRecoveryController extends BaseController
                 return;
             }
 
+            // Get server and archive for enriched job description
+            $server = $this->serverRepo->findById($session->serverId);
+            $archive = $this->archiveRepo->findById($session->archiveId);
+
             // Create job to stop instant recovery (executed by worker as phpborg user)
             $jobId = $this->jobQueue->push('instant_recovery_stop', [
                 'session_id' => $id,
+                'server_name' => $server ? $server->name : 'Unknown',
+                'server_id' => $session->serverId,
+                'archive_name' => $archive ? $archive->name : 'Unknown',
+                'description' => sprintf(
+                    'Arrêt Instant Recovery: %s - %s',
+                    $server ? $server->name : 'Unknown',
+                    $archive ? $archive->name : 'Unknown'
+                ),
             ]);
 
             $this->success([
@@ -291,8 +312,20 @@ final class InstantRecoveryController extends BaseController
 
             // If active, stop it first via job
             if ($session->isActive()) {
+                // Get server and archive for enriched job description
+                $server = $this->serverRepo->findById($session->serverId);
+                $archive = $this->archiveRepo->findById($session->archiveId);
+
                 $jobId = $this->jobQueue->push('instant_recovery_stop', [
                     'session_id' => $id,
+                    'server_name' => $server ? $server->name : 'Unknown',
+                    'server_id' => $session->serverId,
+                    'archive_name' => $archive ? $archive->name : 'Unknown',
+                    'description' => sprintf(
+                        'Arrêt Instant Recovery: %s - %s',
+                        $server ? $server->name : 'Unknown',
+                        $archive ? $archive->name : 'Unknown'
+                    ),
                 ]);
 
                 $this->success([
