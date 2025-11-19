@@ -7,6 +7,7 @@ namespace PhpBorg\Service\Queue\Handlers;
 use PhpBorg\Application;
 use PhpBorg\Entity\Job;
 use PhpBorg\Exception\BackupException;
+use PhpBorg\Logger\InstantRecoveryLogger;
 use PhpBorg\Service\Queue\JobQueue;
 
 /**
@@ -20,6 +21,7 @@ final class InstantRecoveryStartHandler implements JobHandlerInterface
     private $archiveRepo;
     private $serverRepo;
     private $logger;
+    private $recoveryLogger;
 
     public function __construct(Application $app)
     {
@@ -29,6 +31,7 @@ final class InstantRecoveryStartHandler implements JobHandlerInterface
         $this->archiveRepo = $app->getArchiveRepository();
         $this->serverRepo = $app->getServerRepository();
         $this->logger = $app->getLogger();
+        $this->recoveryLogger = $app->getInstantRecoveryLogger();
     }
 
     public function handle(Job $job, JobQueue $queue): string
@@ -52,18 +55,54 @@ final class InstantRecoveryStartHandler implements JobHandlerInterface
             throw new BackupException("Server not found for archive {$archiveId}");
         }
 
-        // Start recovery
-        $session = $this->recoveryManager->startRecovery($archive, $server, $dbType, $deploymentLocation);
-
-        $message = "Instant recovery started successfully. Session ID: {$session->id}, Port: {$session->dbPort}";
-        $this->logger->info($message);
-
-        // Return JSON result for frontend parsing
-        return json_encode([
-            'session_id' => $session->id,
-            'port' => $session->dbPort,
-            'message' => $message
+        // INSTANT RECOVERY LOG: Start
+        $this->recoveryLogger->info('start', "Starting instant recovery for archive '{$archive->name}'", [
+            'archive_id' => $archiveId,
+            'archive_name' => $archive->name,
+            'server_id' => $archive->serverId,
+            'server_name' => $server->name,
+            'db_type' => $dbType,
+            'deployment_location' => $deploymentLocation,
+            'job_id' => $job->id
         ]);
+
+        try {
+            // Start recovery
+            $session = $this->recoveryManager->startRecovery($archive, $server, $dbType, $deploymentLocation);
+
+            $message = "Instant recovery started successfully. Session ID: {$session->id}, Port: {$session->dbPort}";
+            $this->logger->info($message);
+
+            // INSTANT RECOVERY LOG: Success
+            $this->recoveryLogger->info('start', "Instant recovery started successfully: session #{$session->id}", [
+                'session_id' => $session->id,
+                'archive_id' => $archiveId,
+                'archive_name' => $archive->name,
+                'server_name' => $server->name,
+                'db_port' => $session->dbPort,
+                'db_type' => $dbType,
+                'deployment_location' => $deploymentLocation,
+                'job_id' => $job->id
+            ]);
+
+            // Return JSON result for frontend parsing
+            return json_encode([
+                'session_id' => $session->id,
+                'port' => $session->dbPort,
+                'message' => $message
+            ]);
+        } catch (\Exception $e) {
+            // INSTANT RECOVERY LOG: Error
+            $this->recoveryLogger->error('start', "Instant recovery start failed: {$e->getMessage()}", [
+                'archive_id' => $archiveId,
+                'archive_name' => $archive->name,
+                'server_name' => $server->name,
+                'db_type' => $dbType,
+                'error' => $e->getMessage(),
+                'job_id' => $job->id
+            ]);
+            throw $e;
+        }
     }
 
     public function getType(): string

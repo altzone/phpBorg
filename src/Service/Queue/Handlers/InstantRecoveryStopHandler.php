@@ -7,6 +7,7 @@ namespace PhpBorg\Service\Queue\Handlers;
 use PhpBorg\Application;
 use PhpBorg\Entity\Job;
 use PhpBorg\Exception\BackupException;
+use PhpBorg\Logger\InstantRecoveryLogger;
 use PhpBorg\Service\Queue\JobQueue;
 
 /**
@@ -19,6 +20,7 @@ final class InstantRecoveryStopHandler implements JobHandlerInterface
     private $sessionRepo;
     private $serverRepo;
     private $logger;
+    private $recoveryLogger;
 
     public function __construct(Application $app)
     {
@@ -27,6 +29,7 @@ final class InstantRecoveryStopHandler implements JobHandlerInterface
         $this->sessionRepo = $app->getInstantRecoverySessionRepository();
         $this->serverRepo = $app->getServerRepository();
         $this->logger = $app->getLogger();
+        $this->recoveryLogger = $app->getInstantRecoveryLogger();
     }
 
     public function handle(Job $job, JobQueue $queue): string
@@ -48,13 +51,40 @@ final class InstantRecoveryStopHandler implements JobHandlerInterface
             throw new BackupException("Server not found for session {$sessionId}");
         }
 
-        // Stop recovery
-        $this->recoveryManager->stopRecovery($session, $server);
+        // INSTANT RECOVERY LOG: Stop
+        $this->recoveryLogger->info('stop', "Stopping instant recovery session #{$sessionId}", [
+            'session_id' => $sessionId,
+            'server_id' => $session->serverId,
+            'server_name' => $server->name,
+            'archive_id' => $session->archiveId,
+            'job_id' => $job->id
+        ]);
 
-        $message = "Instant recovery session {$sessionId} stopped successfully";
-        $this->logger->info($message);
+        try {
+            // Stop recovery
+            $this->recoveryManager->stopRecovery($session, $server);
 
-        return $message;
+            $message = "Instant recovery session {$sessionId} stopped successfully";
+            $this->logger->info($message);
+
+            // INSTANT RECOVERY LOG: Success
+            $this->recoveryLogger->info('stop', "Instant recovery session stopped successfully: #{$sessionId}", [
+                'session_id' => $sessionId,
+                'server_name' => $server->name,
+                'job_id' => $job->id
+            ]);
+
+            return $message;
+        } catch (\Exception $e) {
+            // INSTANT RECOVERY LOG: Error
+            $this->recoveryLogger->error('stop', "Instant recovery stop failed: {$e->getMessage()}", [
+                'session_id' => $sessionId,
+                'server_name' => $server->name,
+                'error' => $e->getMessage(),
+                'job_id' => $job->id
+            ]);
+            throw $e;
+        }
     }
 
     public function getType(): string
