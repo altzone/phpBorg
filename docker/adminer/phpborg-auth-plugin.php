@@ -94,15 +94,33 @@ class AdminerPhpBorgAuth
     {
         // If already authenticated via session, auto-submit the form
         if (!empty($_SESSION['phpborg_authenticated'])) {
+            // Get Adminer's CSP nonce if available
+            $nonce = '';
+            if (function_exists('get_nonce')) {
+                $nonce = ' nonce="' . get_nonce() . '"';
+            }
             ?>
-            <script>
+            <script<?php echo $nonce; ?>>
             // Auto-submit login form when page loads
-            window.addEventListener('DOMContentLoaded', function() {
-                const form = document.querySelector('form[action]');
-                if (form) {
-                    form.submit();
+            (function() {
+                var submitted = false;
+                function trySubmit() {
+                    if (submitted) return;
+                    var form = document.querySelector('form[action]');
+                    if (form) {
+                        submitted = true;
+                        form.submit();
+                    } else {
+                        // Try again after a short delay
+                        setTimeout(trySubmit, 100);
+                    }
                 }
-            });
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', trySubmit);
+                } else {
+                    trySubmit();
+                }
+            })();
             </script>
             <p class="message">🔐 <strong>Connecting to database...</strong></p>
             <?php
