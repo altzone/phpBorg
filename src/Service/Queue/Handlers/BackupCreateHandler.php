@@ -73,6 +73,16 @@ final class BackupCreateHandler implements JobHandlerInterface
                 throw new \Exception("Server #{$serverId} not found");
             }
 
+            // USER LOG: Backup started
+            $this->userLogger->info('backup_create', "Backup started for server '{$server->name}'", [
+                'server_id' => $serverId,
+                'server_name' => $server->name,
+                'type' => $type,
+                'triggered_by' => $triggeredBy,
+                'job_id' => $job->id,
+                'backup_job_id' => $backupJobId
+            ]);
+
             // Step 1: Get repository - either specified or auto-find/create
             $queue->updateProgress($job->id, 20, "Checking repository configuration for {$type}...");
             
@@ -118,6 +128,19 @@ final class BackupCreateHandler implements JobHandlerInterface
             // Clear real-time progress from Redis (job is complete)
             $queue->deleteProgressInfo($job->id);
 
+            // USER LOG: Backup completed successfully
+            $stats = $result['stats'] ?? [];
+            $this->userLogger->info('backup_create', "Backup completed successfully: {$archiveName}", [
+                'server_name' => $server->name,
+                'archive_name' => $archiveName,
+                'type' => $type,
+                'duration' => $stats['duration'] ?? null,
+                'original_size' => $stats['original_size'] ?? null,
+                'compressed_size' => $stats['compressed_size'] ?? null,
+                'deduplicated_size' => $stats['deduplicated_size'] ?? null,
+                'job_id' => $job->id
+            ]);
+
             // Send success notification if backup job ID is provided
             if ($backupJobId) {
                 try {
@@ -138,6 +161,14 @@ final class BackupCreateHandler implements JobHandlerInterface
 
         } catch (\Exception $e) {
             $this->logger->error("Backup failed: {$e->getMessage()}", 'JOB');
+
+            // USER LOG: Backup failed
+            $this->userLogger->error('backup_create', "Backup failed: {$e->getMessage()}", [
+                'server_name' => $server->name ?? 'Unknown',
+                'type' => $type,
+                'error' => $e->getMessage(),
+                'job_id' => $job->id
+            ]);
 
             // Send failure notification if backup job ID is provided
             if ($backupJobId) {

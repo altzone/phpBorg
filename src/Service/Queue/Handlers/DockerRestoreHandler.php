@@ -6,6 +6,7 @@ namespace PhpBorg\Service\Queue\Handlers;
 
 use PhpBorg\Entity\Job;
 use PhpBorg\Logger\LoggerInterface;
+use PhpBorg\Logger\UserOperationLogger;
 use PhpBorg\Repository\RestoreOperationRepository;
 use PhpBorg\Repository\ArchiveRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
@@ -39,7 +40,8 @@ final class DockerRestoreHandler implements JobHandlerInterface
         private readonly SshExecutor $sshExecutor,
         private readonly BorgExecutor $borgExecutor,
         private readonly DockerRestoreService $restoreService,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly UserOperationLogger $userLogger
     ) {
     }
 
