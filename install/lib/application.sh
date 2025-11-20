@@ -31,10 +31,18 @@ install_composer_dependencies() {
         fi
     fi
 
+    # Add git safe directory exception for phpborg user
+    su - phpborg -c "git config --global --add safe.directory ${PHPBORG_ROOT}" >> "${INSTALL_LOG}" 2>&1
+
+    # Create composer cache directory
+    mkdir -p /var/lib/phpborg/.cache/composer
+    chown -R phpborg:phpborg /var/lib/phpborg/.cache
+
     # Run composer install
     log_info "Running composer install (this may take a few minutes)..."
 
-    if su - phpborg -c "cd ${PHPBORG_ROOT} && composer install --no-dev --optimize-autoloader --no-interaction" >> "${INSTALL_LOG}" 2>&1; then
+    # Force PHP 8.3 for composer by setting COMPOSER_PHP_PATH
+    if su - phpborg -c "cd ${PHPBORG_ROOT} && php8.3 /usr/local/bin/composer install --no-dev --optimize-autoloader --no-interaction" >> "${INSTALL_LOG}" 2>&1; then
         log_success "Composer dependencies installed"
         save_state "install_composer_dependencies" "completed"
         return 0
@@ -537,6 +545,11 @@ setup_application() {
         else
             # Install NVM as phpborg user
             log_info "Installing NVM for phpborg user..."
+
+            # Ensure home directory has correct permissions
+            chown -R phpborg:phpborg /var/lib/phpborg
+            chmod 755 /var/lib/phpborg
+
             if su - phpborg -c 'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash' >> "${INSTALL_LOG}" 2>&1; then
                 log_success "NVM installed"
 
