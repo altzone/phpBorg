@@ -328,9 +328,14 @@ create_admin_user() {
     password_hash=$(php -r "echo password_hash('${ADMIN_PASSWORD}', PASSWORD_BCRYPT);")
 
     # Check if admin already exists
-    local existing_admin=$(mysql -N -e "SELECT COUNT(*) FROM \`${DB_NAME}\`.users WHERE username = '${ADMIN_USERNAME}'")
+    local existing_admin=$(mysql -N -e "SELECT COUNT(*) FROM \`${DB_NAME}\`.users WHERE username = '${ADMIN_USERNAME}'" 2>&1)
 
-    if [ "${existing_admin}" -gt 0 ]; then
+    if [ $? -ne 0 ]; then
+        log_error "Failed to query users table: ${existing_admin}"
+        return 1
+    fi
+
+    if [ "${existing_admin}" -gt 0 ] 2>/dev/null; then
         log_warn "Admin user '${ADMIN_USERNAME}' already exists"
 
         if [ "${INSTALL_MODE}" = "interactive" ]; then
@@ -353,7 +358,7 @@ EOF
     # Create admin user
     log_info "Creating admin user: ${ADMIN_USERNAME}"
 
-    mysql "${DB_NAME}" <<-EOF
+    local insert_result=$(mysql "${DB_NAME}" 2>&1 <<-EOF
         INSERT INTO users (username, email, password, role, created_at, updated_at)
         VALUES (
             '${ADMIN_USERNAME}',
@@ -364,8 +369,10 @@ EOF
             NOW()
         );
 EOF
+)
+    local insert_code=$?
 
-    if [ $? -eq 0 ]; then
+    if [ ${insert_code} -eq 0 ]; then
         log_success "Admin user created"
         log_info "Username: ${ADMIN_USERNAME}"
         log_info "Email: ${ADMIN_EMAIL}"
@@ -396,6 +403,7 @@ EOF
         return 0
     else
         log_error "Failed to create admin user"
+        log_error "MySQL error: ${insert_result}"
         return 1
     fi
 }
