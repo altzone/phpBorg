@@ -4,13 +4,13 @@
 # One-line installer for phpBorg v1.0
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/altzone/phpBorg/main/bootstrap.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/altzone/phpBorg/master/bootstrap.sh | sudo bash
 #
-# Or with branch:
-#   curl -fsSL https://raw.githubusercontent.com/altzone/phpBorg/claude/modernize-backup-app-php-011CUoNEPYmChtfxp7Kuz9yV/bootstrap.sh | sudo bash
+# Or with custom branch:
+#   REPO_BRANCH=develop curl -fsSL https://raw.githubusercontent.com/altzone/phpBorg/master/bootstrap.sh | sudo bash
 #
 # Or download and run:
-#   wget https://raw.githubusercontent.com/altzone/phpBorg/main/bootstrap.sh
+#   wget https://raw.githubusercontent.com/altzone/phpBorg/master/bootstrap.sh
 #   sudo bash bootstrap.sh
 #
 
@@ -28,7 +28,7 @@ NC='\033[0m' # No Color
 # Configuration
 INSTALL_DIR="${INSTALL_DIR:-/opt/newphpborg}"
 REPO_URL="${REPO_URL:-https://github.com/altzone/phpBorg.git}"
-REPO_BRANCH="${REPO_BRANCH:-main}"
+REPO_BRANCH="${REPO_BRANCH:-master}"
 
 #
 # Print banner
