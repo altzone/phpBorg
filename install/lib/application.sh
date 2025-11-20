@@ -258,7 +258,7 @@ run_migrations() {
 
     log_info "Running migrations..."
 
-    if su - phpborg -c "cd ${PHPBORG_ROOT} && php8.3 bin/console db:migrate --no-interaction" >> "${INSTALL_LOG}" 2>&1; then
+    if su - phpborg -c "cd ${PHPBORG_ROOT} && php8.3 bin/phpborg db:migrate --no-interaction" >> "${INSTALL_LOG}" 2>&1; then
         log_success "Migrations completed"
         save_state "run_migrations" "completed"
         return 0
@@ -324,7 +324,7 @@ generate_app_secrets() {
     # Generate secrets
     log_info "Generating application secrets..."
 
-    if su - phpborg -c "cd ${PHPBORG_ROOT} && php8.3 bin/console app:generate-secrets" >> "${INSTALL_LOG}" 2>&1; then
+    if su - phpborg -c "cd ${PHPBORG_ROOT} && php8.3 bin/phpborg app:generate-secrets" >> "${INSTALL_LOG}" 2>&1; then
         log_success "Application secrets generated"
     else
         log_debug "No secret generation command or already generated"

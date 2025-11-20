@@ -191,7 +191,7 @@ WorkingDirectory=${PHPBORG_ROOT}
 Environment="PHP_ENV=production"
 
 # Main command
-ExecStart=/usr/bin/php8.3 ${PHPBORG_ROOT}/bin/console scheduler:start
+ExecStart=/usr/bin/php8.3 ${PHPBORG_ROOT}/bin/phpborg scheduler:start
 
 # Restart policy
 Restart=always
@@ -254,7 +254,7 @@ Environment="PHP_ENV=production"
 Environment="WORKER_ID=%i"
 
 # Main command
-ExecStart=/usr/bin/php8.3 ${PHPBORG_ROOT}/bin/console worker:start
+ExecStart=/usr/bin/php8.3 ${PHPBORG_ROOT}/bin/phpborg worker:start --queue=default --worker-id=%i
 
 # Restart policy
 Restart=always
