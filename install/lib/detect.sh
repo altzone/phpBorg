@@ -170,7 +170,15 @@ check_system_requirements() {
 #
 
 detect_php() {
-    if command -v php &> /dev/null; then
+    # Try php8.3 first (preferred), then fallback to generic php
+    if command -v php8.3 &> /dev/null; then
+        local php_version=$(php8.3 -r 'echo PHP_VERSION;')
+        export PHP_INSTALLED=1
+        export PHP_VERSION="${php_version}"
+        export PHP_BINARY=$(command -v php8.3)
+        log_info "PHP ${php_version} detected at ${PHP_BINARY}"
+        return 0
+    elif command -v php &> /dev/null; then
         local php_version=$(php -r 'echo PHP_VERSION;')
         export PHP_INSTALLED=1
         export PHP_VERSION="${php_version}"

@@ -459,7 +459,7 @@ install_composer() {
     fi
 
     local actual_signature
-    actual_signature=$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');")
+    actual_signature=$(${PHP_BINARY} -r "echo hash_file('sha384', '/tmp/composer-setup.php');")
 
     if [ "${expected_signature}" != "${actual_signature}" ]; then
         log_error "Invalid Composer installer signature"
@@ -469,7 +469,7 @@ install_composer() {
 
     log_info "Installing Composer globally"
 
-    if php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer >> "${INSTALL_LOG}" 2>&1; then
+    if ${PHP_BINARY} /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer >> "${INSTALL_LOG}" 2>&1; then
         rm /tmp/composer-setup.php
         detect_composer
         log_success "Composer ${COMPOSER_VERSION} installed"

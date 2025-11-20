@@ -247,7 +247,7 @@ run_migrations() {
 
     log_info "Running migrations..."
 
-    if su - phpborg -c "cd ${PHPBORG_ROOT} && php bin/console db:migrate --no-interaction" >> "${INSTALL_LOG}" 2>&1; then
+    if su - phpborg -c "cd ${PHPBORG_ROOT} && php8.3 bin/console db:migrate --no-interaction" >> "${INSTALL_LOG}" 2>&1; then
         log_success "Migrations completed"
         save_state "run_migrations" "completed"
         return 0
@@ -313,7 +313,7 @@ generate_app_secrets() {
     # Generate secrets
     log_info "Generating application secrets..."
 
-    if su - phpborg -c "cd ${PHPBORG_ROOT} && php bin/console app:generate-secrets" >> "${INSTALL_LOG}" 2>&1; then
+    if su - phpborg -c "cd ${PHPBORG_ROOT} && php8.3 bin/console app:generate-secrets" >> "${INSTALL_LOG}" 2>&1; then
         log_success "Application secrets generated"
     else
         log_debug "No secret generation command or already generated"
@@ -408,7 +408,7 @@ optimize_php_fpm() {
     print_section "Optimizing PHP-FPM Configuration"
 
     # Detect PHP version for config path
-    local php_version=$(php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;')
+    local php_version=$(${PHP_BINARY} -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;')
     local pool_file="/etc/php/${php_version}/fpm/pool.d/phpborg.conf"
 
     # Check if PHP-FPM config directory exists

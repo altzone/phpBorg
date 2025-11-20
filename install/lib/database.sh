@@ -359,7 +359,7 @@ create_admin_user() {
 
     # Hash password (PHP bcrypt)
     local password_hash
-    password_hash=$(php -r "echo password_hash('${ADMIN_PASSWORD}', PASSWORD_BCRYPT);")
+    password_hash=$(${PHP_BINARY} -r "echo password_hash('${ADMIN_PASSWORD}', PASSWORD_BCRYPT);")
 
     # Check if admin already exists
     local existing_admin=$(mysql -N -e "SELECT COUNT(*) FROM \`${DB_NAME}\`.users WHERE username = '${ADMIN_USERNAME}'" 2>&1)

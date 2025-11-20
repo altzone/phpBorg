@@ -12,7 +12,7 @@ DOMAIN="${DOMAIN:-localhost}"
 #
 
 get_php_fpm_socket() {
-    local php_version=$(php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;')
+    local php_version=$(${PHP_BINARY} -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;')
 
     # Check if custom phpborg pool exists
     if [ -S "/run/php/phpborg-fpm.sock" ]; then
@@ -52,7 +52,7 @@ configure_nginx() {
     fi
 
     # Get PHP version
-    local php_version=$(php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;')
+    local php_version=$(${PHP_BINARY} -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;')
 
     # Backup existing config
     backup_file "${config_file}"
@@ -124,7 +124,7 @@ configure_apache() {
     fi
 
     # Get PHP version
-    local php_version=$(php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;')
+    local php_version=$(${PHP_BINARY} -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;')
 
     # Backup existing config
     backup_file "${config_file}"
