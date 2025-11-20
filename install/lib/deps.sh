@@ -12,7 +12,8 @@
 get_php_packages() {
     case "${OS_DISTRO}" in
         debian|ubuntu|linuxmint|pop)
-            echo "php php-cli php-fpm php-mysql php-pgsql php-mongodb php-redis php-xml php-mbstring php-curl php-zip php-gd php-intl php-bcmath php-opcache"
+            # Use php8.3-* packages to ensure correct version from Sury PPA
+            echo "php8.3 php8.3-cli php8.3-fpm php8.3-mysql php8.3-pgsql php8.3-mongodb php8.3-redis php8.3-xml php8.3-mbstring php8.3-curl php8.3-zip php8.3-gd php8.3-intl php8.3-bcmath php8.3-opcache"
             ;;
         rhel|centos|rocky|almalinux|fedora)
             echo "php php-cli php-fpm php-mysqlnd php-pgsql php-pecl-mongodb php-pecl-redis php-xml php-mbstring php-json php-gd php-intl php-bcmath php-opcache"
@@ -334,25 +335,25 @@ setup_php_repo() {
         debian|ubuntu|linuxmint|pop)
             log_info "Adding Sury PHP repository for PHP 8.3"
 
-            # Remove old manual Sury repo if exists (causes 418 error)
+            # Remove old Sury repo if exists
             if [ -f /etc/apt/sources.list.d/sury-php.list ]; then
                 log_info "Removing old Sury repository configuration"
                 rm -f /etc/apt/sources.list.d/sury-php.list
                 rm -f /etc/apt/trusted.gpg.d/sury-php.gpg
             fi
 
-            # Install prerequisites for add-apt-repository
-            run_cmd "apt-get install -y software-properties-common"
+            # Install prerequisites
+            run_cmd "apt-get install -y lsb-release ca-certificates apt-transport-https software-properties-common gnupg2"
 
-            # Add Sury PHP PPA using add-apt-repository (cleaner method)
-            log_info "Adding PPA:ondrej/php"
-            if run_cmd "DEBIAN_FRONTEND=noninteractive LC_ALL=C.UTF-8 add-apt-repository ppa:ondrej/php -y"; then
-                log_success "Sury PHP repository added via PPA"
-                run_cmd "${PKG_UPDATE_CMD}"
-            else
-                log_error "Failed to add Sury PHP PPA"
-                return 1
-            fi
+            # Add Sury PHP repository manually (avoids Launchpad API timeout)
+            log_info "Adding Sury PHP GPG key"
+            run_cmd "curl -fsSL https://packages.sury.org/php/apt.gpg | gpg --dearmor -o /etc/apt/trusted.gpg.d/sury-php.gpg"
+
+            log_info "Adding Sury PHP repository"
+            echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/sury-php.list > /dev/null
+
+            log_success "Sury PHP repository added"
+            run_cmd "${PKG_UPDATE_CMD}"
             ;;
         rhel|centos|rocky|almalinux|fedora)
             log_info "Adding Remi repository for PHP 8.3"
