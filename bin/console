@@ -1,0 +1,161 @@
+#!/usr/bin/env php
+<?php
+/**
+ * phpBorg Console Application
+ *
+ * Simple console wrapper for phpBorg commands
+ */
+
+if (php_sapi_name() !== 'cli') {
+    exit('This script must be run from the command line.' . PHP_EOL);
+}
+
+// Change to project root directory
+chdir(dirname(__DIR__));
+
+// Load environment (simple parser, no dependencies)
+if (file_exists(__DIR__ . '/../.env')) {
+    $lines = file(__DIR__ . '/../.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        // Skip comments
+        if (strpos(trim($line), '#') === 0) {
+            continue;
+        }
+
+        // Parse KEY=VALUE
+        if (strpos($line, '=') !== false) {
+            list($key, $value) = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim($value);
+
+            // Remove quotes
+            $value = trim($value, '"\'');
+
+            if ($key && !isset($_ENV[$key])) {
+                $_ENV[$key] = $value;
+                putenv("$key=$value");
+            }
+        }
+    }
+}
+
+// Get command
+$command = $argv[1] ?? 'help';
+$args = array_slice($argv, 2);
+
+// Route commands
+switch ($command) {
+    case 'db:migrate':
+        // Run migrations
+        if (file_exists(__DIR__ . '/run-migration.php')) {
+            require __DIR__ . '/run-migration.php';
+        } else {
+            echo "Migration script not found.\n";
+            exit(1);
+        }
+        break;
+
+    case 'app:generate-secrets':
+        // Generate application secrets
+        generateSecrets();
+        break;
+
+    case 'cache:clear':
+        // Clear cache
+        clearCache();
+        break;
+
+    case 'help':
+    default:
+        showHelp();
+        break;
+}
+
+/**
+ * Generate application secrets
+ */
+function generateSecrets(): void
+{
+    echo "Generating application secrets...\n";
+
+    // Generate APP_SECRET if not exists
+    $envFile = __DIR__ . '/../.env';
+    if (file_exists($envFile)) {
+        $env = file_get_contents($envFile);
+
+        if (strpos($env, 'APP_SECRET=') === false ||
+            preg_match('/APP_SECRET=\s*$/', $env)) {
+
+            $secret = bin2hex(random_bytes(32));
+            $env = preg_replace(
+                '/APP_SECRET=.*$/m',
+                "APP_SECRET=$secret",
+                $env
+            );
+
+            if (strpos($env, 'APP_SECRET=') === false) {
+                $env .= "\nAPP_SECRET=$secret\n";
+            }
+
+            file_put_contents($envFile, $env);
+            echo "✓ APP_SECRET generated\n";
+        } else {
+            echo "✓ APP_SECRET already exists\n";
+        }
+    }
+
+    echo "Done.\n";
+}
+
+/**
+ * Clear application cache
+ */
+function clearCache(): void
+{
+    echo "Clearing application cache...\n";
+
+    $cacheDirs = [
+        __DIR__ . '/../var/cache',
+        __DIR__ . '/../var/sessions',
+    ];
+
+    foreach ($cacheDirs as $dir) {
+        if (is_dir($dir)) {
+            $files = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::CHILD_FIRST
+            );
+
+            foreach ($files as $file) {
+                if ($file->isDir()) {
+                    @rmdir($file->getRealPath());
+                } else {
+                    @unlink($file->getRealPath());
+                }
+            }
+            echo "✓ Cleared: $dir\n";
+        }
+    }
+
+    echo "Done.\n";
+}
+
+/**
+ * Show help message
+ */
+function showHelp(): void
+{
+    echo <<<HELP
+phpBorg Console Application
+
+Usage:
+  php bin/console <command> [options]
+
+Available commands:
+  db:migrate              Run database migrations
+  app:generate-secrets    Generate application secrets (APP_SECRET)
+  cache:clear            Clear application cache
+  help                   Display this help message
+
+HELP;
+}
