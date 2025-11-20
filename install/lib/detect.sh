@@ -371,7 +371,20 @@ select_webserver() {
         elif [ "${NGINX_INSTALLED}" = "1" ] && systemctl is-active --quiet nginx 2>/dev/null; then
             export WEBSERVER="nginx"
             log_info "Web server: nginx (detected running)"
-        # Prefer Nginx if both installed but neither running
+        # Both installed but neither running - ask user
+        elif [ "${NGINX_INSTALLED}" = "1" ] && [ "${APACHE_INSTALLED}" = "1" ]; then
+            echo ""
+            echo "Both Nginx and Apache are installed but neither is running."
+            echo "1) Nginx (recommended)"
+            echo "2) Apache"
+            read -p "$(echo -e ${CYAN}?${NC}) Select web server [1]: " choice
+            choice="${choice:-1}"
+            case ${choice} in
+                1) export WEBSERVER="nginx" ;;
+                2) export WEBSERVER="apache" ;;
+                *) export WEBSERVER="nginx" ;;
+            esac
+        # Only one installed
         elif [ "${NGINX_INSTALLED}" = "1" ]; then
             export WEBSERVER="nginx"
             log_info "Web server: nginx (auto-selected)"
