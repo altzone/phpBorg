@@ -179,7 +179,7 @@ check_php_version() {
         return 1
     fi
 
-    local required="8.1"
+    local required="8.3"
     if version_ge "${PHP_VERSION}" "${required}"; then
         log_success "PHP ${PHP_VERSION} meets requirement (>= ${required})"
         return 0
