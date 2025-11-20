@@ -93,7 +93,41 @@ secure_mariadb() {
         log_info "MariaDB root accessible without password - securing now"
     else
         log_info "MariaDB already secured (root requires password)"
-        return 0
+
+        # Try to use existing credentials
+        if [ -f "/root/.my.cnf" ]; then
+            log_success "Using existing root credentials from /root/.my.cnf"
+            save_state "secure_mariadb" "completed" "{\"root_password_file\":\"/root/.my.cnf\"}"
+            return 0
+        elif [ -f "/etc/mysql/debian.cnf" ]; then
+            # Debian/Ubuntu systems have debian-sys-maint user
+            log_info "Detected debian-sys-maint credentials in /etc/mysql/debian.cnf"
+
+            # Create .my.cnf from debian.cnf for easy access
+            if [ ! -f "/root/.my.cnf" ]; then
+                local debian_user=$(grep "^user" /etc/mysql/debian.cnf | head -1 | awk '{print $3}')
+                local debian_pass=$(grep "^password" /etc/mysql/debian.cnf | head -1 | awk '{print $3}')
+
+                cat > /root/.my.cnf <<-EOF
+[client]
+user=${debian_user}
+password=${debian_pass}
+EOF
+                chmod 600 /root/.my.cnf
+                log_success "Created /root/.my.cnf from debian-sys-maint credentials"
+            fi
+
+            save_state "secure_mariadb" "completed" "{\"root_password_file\":\"/root/.my.cnf\",\"method\":\"debian-sys-maint\"}"
+            return 0
+        else
+            log_warn "MariaDB secured but no credentials file found"
+            if [ "${INSTALL_MODE}" = "interactive" ]; then
+                echo ""
+                log_warn "Please provide root MySQL credentials manually"
+                return 1
+            fi
+            return 0
+        fi
     fi
 
     # Generate secure root password if not provided
