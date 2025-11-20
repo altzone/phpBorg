@@ -1,14 +1,15 @@
 #!/bin/bash
 #
 # phpBorg Universal Installer
-# Version 1.0.0
+# Version 1.0.1
 #
 # Supports: Debian, Ubuntu, RHEL, CentOS, Fedora, Arch, Alpine
 # Modes: Interactive, Automatic
 # Features: Idempotent, Multi-distribution, State tracking
 #
 
-set -e  # Exit on error
+# Don't exit on error - we handle errors ourselves
+set +e
 
 # Installation directory (can be overridden via environment)
 export PHPBORG_ROOT="${PHPBORG_ROOT:-/opt/newphpborg/phpBorg}"

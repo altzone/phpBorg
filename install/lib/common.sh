@@ -162,16 +162,21 @@ save_state() {
         echo '{}' > "${INSTALL_STATE}"
     fi
 
-    # Update state using jq
+    # Update state using jq (if available)
     if command -v jq &> /dev/null; then
-        local timestamp=$(date -Iseconds)
+        local timestamp=$(date '+%Y-%m-%dT%H:%M:%S')
         jq --arg step "${step}" \
            --arg status "${status}" \
            --arg timestamp "${timestamp}" \
            --argjson data "${data}" \
            '.[$step] = {status: $status, timestamp: $timestamp, data: $data}' \
-           "${INSTALL_STATE}" > "${INSTALL_STATE}.tmp"
-        mv "${INSTALL_STATE}.tmp" "${INSTALL_STATE}"
+           "${INSTALL_STATE}" > "${INSTALL_STATE}.tmp" 2>/dev/null || true
+        if [ -f "${INSTALL_STATE}.tmp" ]; then
+            mv "${INSTALL_STATE}.tmp" "${INSTALL_STATE}"
+        fi
+    else
+        # Fallback: jq will be installed by deps.sh
+        log_debug "State tracking deferred until jq is available"
     fi
 }
 
