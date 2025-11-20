@@ -187,6 +187,9 @@ User=phpborg
 Group=phpborg
 WorkingDirectory=${PHPBORG_ROOT}
 
+# Load environment variables from .env
+EnvironmentFile=${PHPBORG_ROOT}/.env
+
 # Environment
 Environment="PHP_ENV=production"
 
@@ -248,6 +251,9 @@ Type=simple
 User=phpborg
 Group=phpborg
 WorkingDirectory=${PHPBORG_ROOT}
+
+# Load environment variables from .env
+EnvironmentFile=${PHPBORG_ROOT}/.env
 
 # Environment
 Environment="PHP_ENV=production"
