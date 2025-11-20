@@ -45,7 +45,7 @@ server {
     # PHP-FPM configuration (for API only)
     location ~ ^/api/.*\.php$ {
         root __PHPBORG_ROOT__/public;
-        fastcgi_pass unix:/run/php/php__PHP_VERSION__-fpm.sock;
+        fastcgi_pass unix:/run/php/phpborg-__PHP_VERSION__-fpm.sock;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME __PHPBORG_ROOT__/public$fastcgi_script_name;
         include fastcgi_params;
@@ -57,7 +57,7 @@ server {
 
     # Fallback for /api/ requests to index.php
     location ~ ^/api/ {
-        fastcgi_pass unix:/run/php/php__PHP_VERSION__-fpm.sock;
+        fastcgi_pass unix:/run/php/phpborg-__PHP_VERSION__-fpm.sock;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME __PHPBORG_ROOT__/public/index.php;
         include fastcgi_params;
