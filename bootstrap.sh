@@ -174,6 +174,12 @@ clone_repository() {
         log_warn "phpBorg already exists, updating..."
         cd phpBorg || error_exit "Failed to change to phpBorg directory"
 
+        # Check for local modifications
+        if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+            log_warn "Local modifications detected, stashing changes..."
+            git stash save "Bootstrap auto-stash $(date +%Y%m%d_%H%M%S)" > /dev/null 2>&1
+        fi
+
         # Fetch latest changes
         git fetch origin > /dev/null 2>&1 || log_warn "Failed to fetch updates"
 

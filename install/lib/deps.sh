@@ -392,6 +392,9 @@ install_utilities() {
 install_php() {
     print_section "Installing PHP"
 
+    # Detect current PHP version
+    detect_php
+
     # Skip if already acceptable
     if check_php_version 2>/dev/null; then
         log_info "PHP installation not needed"
@@ -399,7 +402,12 @@ install_php() {
         return 0
     fi
 
-    # Setup repository first
+    # If PHP is installed but wrong version, need to upgrade
+    if [ "${PHP_INSTALLED}" = "1" ]; then
+        log_warn "PHP ${PHP_VERSION} found but PHP 8.3+ required - upgrading"
+    fi
+
+    # Setup repository first (will add PPA if needed)
     setup_php_repo
 
     local packages=$(get_php_packages)
