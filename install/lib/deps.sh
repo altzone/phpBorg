@@ -333,27 +333,27 @@ setup_php_repo() {
 
     case "${OS_DISTRO}" in
         debian|ubuntu|linuxmint|pop)
-            log_info "Adding Sury PHP repository for PHP 8.3"
+            log_info "Adding Ondrej PHP PPA for PHP 8.3"
 
-            # Remove old Sury repo if exists
+            # Remove old Sury repo if exists (archived since Aug 2025)
             if [ -f /etc/apt/sources.list.d/sury-php.list ]; then
-                log_info "Removing old Sury repository configuration"
+                log_info "Removing archived Sury repository configuration"
                 rm -f /etc/apt/sources.list.d/sury-php.list
                 rm -f /etc/apt/trusted.gpg.d/sury-php.gpg
             fi
 
             # Install prerequisites
-            run_cmd "apt-get install -y lsb-release ca-certificates apt-transport-https software-properties-common gnupg2"
+            run_cmd "apt-get install -y software-properties-common"
 
-            # Add Sury PHP repository manually (avoids Launchpad API timeout)
-            log_info "Adding Sury PHP GPG key"
-            run_cmd "curl -fsSL https://packages.sury.org/php/apt.gpg | gpg --dearmor -o /etc/apt/trusted.gpg.d/sury-php.gpg"
-
-            log_info "Adding Sury PHP repository"
-            echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/sury-php.list > /dev/null
-
-            log_success "Sury PHP repository added"
-            run_cmd "${PKG_UPDATE_CMD}"
+            # Use PPA (Launchpad) - sury.org is archived since Aug 2025
+            log_info "Adding ppa:ondrej/php (recommended method)"
+            if timeout 30 add-apt-repository ppa:ondrej/php -y >> "${INSTALL_LOG}" 2>&1; then
+                log_success "PHP PPA added successfully"
+                run_cmd "${PKG_UPDATE_CMD}"
+            else
+                log_warn "PPA add failed or timed out, PHP 8.3 may not be available"
+                log_warn "Will attempt to install PHP from system repositories"
+            fi
             ;;
         rhel|centos|rocky|almalinux|fedora)
             log_info "Adding Remi repository for PHP 8.3"
