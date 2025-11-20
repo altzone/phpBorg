@@ -39,7 +39,7 @@ install_npm_dependencies() {
     # Run npm install
     log_info "Running npm install (this may take several minutes)..."
 
-    if su - phpborg -c "cd ${frontend_dir} && npm install --legacy-peer-deps" >> "${INSTALL_LOG}" 2>&1; then
+    if su - phpborg -c "source ~/.nvm/nvm.sh && cd ${frontend_dir} && npm install --legacy-peer-deps" >> "${INSTALL_LOG}" 2>&1; then
         log_success "Frontend dependencies installed"
         save_state "install_npm_dependencies" "completed"
         return 0
@@ -131,7 +131,7 @@ build_frontend() {
     local spinner_pid=$!
 
     # Run build as phpborg user
-    su - phpborg -c "cd ${frontend_dir} && npm run build" >> "${INSTALL_LOG}" 2>&1
+    su - phpborg -c "source ~/.nvm/nvm.sh && cd ${frontend_dir} && npm run build" >> "${INSTALL_LOG}" 2>&1
     local build_result=$?
 
     # Stop spinner

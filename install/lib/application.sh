@@ -478,6 +478,84 @@ setup_application() {
 
     local errors=0
 
+    # Create phpborg user FIRST (required for all subsequent operations)
+    if ! is_step_completed "create_phpborg_user"; then
+        print_section "Creating phpBorg System User"
+
+        # Check if user already exists
+        if id "phpborg" &>/dev/null; then
+            log_info "User 'phpborg' already exists"
+            save_state "create_phpborg_user" "completed"
+        else
+            # Create system user with home directory
+            log_info "Creating system user: phpborg"
+
+            if useradd --system --create-home --home-dir /var/lib/phpborg \
+                       --shell /bin/bash --comment "phpBorg Worker User" phpborg; then
+                log_success "User 'phpborg' created"
+
+                # Set correct ownership of phpBorg installation
+                log_info "Setting ownership of ${PHPBORG_ROOT}"
+                chown -R phpborg:phpborg "${PHPBORG_ROOT}"
+
+                save_state "create_phpborg_user" "completed"
+            else
+                log_error "Failed to create user 'phpborg'"
+                errors=$((errors + 1))
+            fi
+        fi
+    else
+        log_info "phpborg user already created (skipped)"
+    fi
+
+    # Install Node.js via NVM for phpborg user
+    if ! is_step_completed "install_nodejs_nvm"; then
+        print_section "Installing Node.js via NVM"
+
+        # Check if NVM is already installed
+        if su - phpborg -c '[ -d ~/.nvm ]' 2>/dev/null; then
+            log_info "NVM already installed for phpborg user"
+
+            # Check if Node.js is installed
+            if su - phpborg -c 'source ~/.nvm/nvm.sh && node --version' >> "${INSTALL_LOG}" 2>&1; then
+                local node_version=$(su - phpborg -c 'source ~/.nvm/nvm.sh && node --version' 2>/dev/null)
+                log_success "Node.js ${node_version} already installed via NVM"
+                save_state "install_nodejs_nvm" "completed"
+            else
+                # Install Node.js 20
+                log_info "Installing Node.js 20 via NVM..."
+                if su - phpborg -c 'source ~/.nvm/nvm.sh && nvm install 20 && nvm use 20 && nvm alias default 20' >> "${INSTALL_LOG}" 2>&1; then
+                    log_success "Node.js 20 installed via NVM"
+                    save_state "install_nodejs_nvm" "completed"
+                else
+                    log_error "Failed to install Node.js via NVM"
+                    errors=$((errors + 1))
+                fi
+            fi
+        else
+            # Install NVM as phpborg user
+            log_info "Installing NVM for phpborg user..."
+            if su - phpborg -c 'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash' >> "${INSTALL_LOG}" 2>&1; then
+                log_success "NVM installed"
+
+                # Source NVM and install Node.js 20
+                log_info "Installing Node.js 20 via NVM..."
+                if su - phpborg -c 'source ~/.nvm/nvm.sh && nvm install 20 && nvm use 20 && nvm alias default 20' >> "${INSTALL_LOG}" 2>&1; then
+                    log_success "Node.js 20 installed via NVM"
+                    save_state "install_nodejs_nvm" "completed"
+                else
+                    log_error "Failed to install Node.js via NVM"
+                    errors=$((errors + 1))
+                fi
+            else
+                log_error "Failed to install NVM"
+                errors=$((errors + 1))
+            fi
+        fi
+    else
+        log_info "Node.js NVM already installed (skipped)"
+    fi
+
     # Install Composer dependencies
     if ! is_step_completed "install_composer_dependencies"; then
         install_composer_dependencies || errors=$((errors + 1))
