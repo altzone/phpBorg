@@ -343,17 +343,21 @@ setup_php_repo() {
             fi
 
             # Install prerequisites
-            run_cmd "apt-get install -y software-properties-common"
+            run_cmd "apt-get install -y gnupg2 ca-certificates lsb-release"
 
-            # Use PPA (Launchpad) - sury.org is archived since Aug 2025
-            log_info "Adding ppa:ondrej/php (recommended method)"
-            if timeout 30 add-apt-repository ppa:ondrej/php -y >> "${INSTALL_LOG}" 2>&1; then
-                log_success "PHP PPA added successfully"
-                run_cmd "${PKG_UPDATE_CMD}"
-            else
-                log_warn "PPA add failed or timed out, PHP 8.3 may not be available"
-                log_warn "Will attempt to install PHP from system repositories"
+            # Manual PPA setup (avoids Launchpad API issues)
+            # Use ppa.launchpadcontent.net instead of packages.sury.org (archived)
+            log_info "Adding Ondrej PHP GPG key from keyserver"
+            if ! gpg --list-keys 14AA40EC0831756756D7F66C4F4EA0AAE5267A6C >/dev/null 2>&1; then
+                run_cmd "gpg --keyserver keyserver.ubuntu.com --recv-keys 14AA40EC0831756756D7F66C4F4EA0AAE5267A6C"
+                run_cmd "gpg --export 14AA40EC0831756756D7F66C4F4EA0AAE5267A6C | tee /etc/apt/trusted.gpg.d/ondrej-php.gpg > /dev/null"
             fi
+
+            log_info "Adding Ondrej PHP PPA repository"
+            echo "deb http://ppa.launchpad.net/ondrej/php/ubuntu $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/ondrej-php.list > /dev/null
+
+            log_success "PHP PPA configured"
+            run_cmd "${PKG_UPDATE_CMD}"
             ;;
         rhel|centos|rocky|almalinux|fedora)
             log_info "Adding Remi repository for PHP 8.3"
