@@ -3,8 +3,9 @@ server {
     listen [::]:80;
     server_name __DOMAIN__;
 
-    root __PHPBORG_ROOT__/public;
-    index index.php index.html;
+    # Frontend served from dist/
+    root __PHPBORG_ROOT__/frontend/dist;
+    index index.html;
 
     # Logging
     access_log /var/log/nginx/phpborg-access.log;
@@ -19,14 +20,9 @@ server {
     # Max upload size (for backup operations)
     client_max_body_size 100M;
 
-    # Frontend static files
+    # Frontend static files (Vue.js SPA)
     location / {
         try_files $uri $uri/ /index.html;
-    }
-
-    # API endpoints
-    location /api/ {
-        try_files $uri /index.php$is_args$args;
     }
 
     # SSE endpoint
@@ -46,11 +42,24 @@ server {
         chunked_transfer_encoding off;
     }
 
-    # PHP-FPM configuration
-    location ~ \.php$ {
+    # PHP-FPM configuration (for API only)
+    location ~ ^/api/.*\.php$ {
+        root __PHPBORG_ROOT__/public;
         fastcgi_pass unix:/run/php/php__PHP_VERSION__-fpm.sock;
         fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param SCRIPT_FILENAME __PHPBORG_ROOT__/public$fastcgi_script_name;
+        include fastcgi_params;
+
+        fastcgi_buffers 16 16k;
+        fastcgi_buffer_size 32k;
+        fastcgi_read_timeout 300s;
+    }
+
+    # Fallback for /api/ requests to index.php
+    location ~ ^/api/ {
+        fastcgi_pass unix:/run/php/php__PHP_VERSION__-fpm.sock;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME __PHPBORG_ROOT__/public/index.php;
         include fastcgi_params;
 
         fastcgi_buffers 16 16k;
