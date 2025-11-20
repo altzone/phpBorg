@@ -346,7 +346,7 @@ setup_php_repo() {
 
             # Add Sury PHP PPA using add-apt-repository (cleaner method)
             log_info "Adding PPA:ondrej/php"
-            if run_cmd "LC_ALL=C.UTF-8 add-apt-repository ppa:ondrej/php -y"; then
+            if run_cmd "DEBIAN_FRONTEND=noninteractive LC_ALL=C.UTF-8 add-apt-repository ppa:ondrej/php -y"; then
                 log_success "Sury PHP repository added via PPA"
                 run_cmd "${PKG_UPDATE_CMD}"
             else
