@@ -172,10 +172,20 @@ clone_repository() {
     if [ -d "phpBorg/.git" ]; then
         log_warn "phpBorg already exists, updating..."
         cd phpBorg
-        git fetch origin > /dev/null 2>&1
-        git checkout "${REPO_BRANCH}" > /dev/null 2>&1
-        git pull origin "${REPO_BRANCH}" > /dev/null 2>&1
-        log_success "Repository updated"
+
+        # Fetch latest changes
+        git fetch origin > /dev/null 2>&1 || log_warn "Failed to fetch updates"
+
+        # Try to checkout the branch
+        if git checkout "${REPO_BRANCH}" > /dev/null 2>&1; then
+            git pull origin "${REPO_BRANCH}" > /dev/null 2>&1 || log_warn "Failed to pull updates"
+            log_success "Repository updated to ${REPO_BRANCH}"
+        else
+            # Branch doesn't exist, try default branch
+            log_warn "Branch '${REPO_BRANCH}' not found, using current branch"
+            git pull > /dev/null 2>&1 || log_warn "Failed to pull updates"
+            log_success "Repository updated"
+        fi
     else
         # Clone repository
         log_info "Cloning from: ${REPO_URL}"
@@ -241,7 +251,13 @@ display_info() {
 run_installer() {
     log_info "Starting main installer..."
     echo ""
-    sleep 2
+
+    # Verify we're in the right directory
+    if [ ! -f "install.sh" ]; then
+        error_exit "install.sh not found. Current directory: $(pwd)"
+    fi
+
+    sleep 1
 
     # Run the main installer
     bash install.sh
