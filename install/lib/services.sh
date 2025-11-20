@@ -551,6 +551,15 @@ create_log_directories() {
         fi
     done
 
+    # Create main log file with correct permissions
+    local main_log="/var/log/phpborg/phpborg.log"
+    if [ ! -f "${main_log}" ]; then
+        log_info "Creating log file: ${main_log}"
+        touch "${main_log}"
+        chown phpborg:phpborg "${main_log}"
+        chmod 644 "${main_log}"
+    fi
+
     log_success "Log directories created"
     save_state "create_log_directories" "completed"
     return 0
