@@ -204,7 +204,9 @@ setup_ssh_keys() {
     # Generate SSH key
     log_info "Generating ED25519 SSH key pair"
 
-    if su - phpborg -c "ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N '' -C 'phpborg@backup-server'" >> "${INSTALL_LOG}" 2>&1; then
+    # Generate key as root, then fix ownership
+    if ssh-keygen -t ed25519 -f "${key_file}" -N '' -C 'phpborg@backup-server' >> "${INSTALL_LOG}" 2>&1; then
+        chown phpborg:phpborg "${key_file}" "${key_file}.pub"
         chmod 600 "${key_file}"
         chmod 644 "${key_file}.pub"
         log_success "SSH key pair generated"
