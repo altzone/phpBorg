@@ -3,7 +3,7 @@
 Modern enterprise backup solution based on BorgBackup with web interface, comparable to Veeam, Acronis, and Nakivo.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Version](https://img.shields.io/badge/version-1.0.0-green.svg)
+![Version](https://img.shields.io/badge/version-1.0.33-green.svg)
 ![PHP](https://img.shields.io/badge/PHP-8.3-777BB4.svg)
 ![Vue.js](https://img.shields.io/badge/Vue.js-3-4FC08D.svg)
 
@@ -50,10 +50,10 @@ Modern enterprise backup solution based on BorgBackup with web interface, compar
 
 ## 🚀 Quick Installation
 
-### One-Line Install (Ubuntu 22.04)
+### One-Line Install (Ubuntu 22.04/24.04)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/altzone/phpBorg/main/bootstrap.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/altzone/phpBorg/master/install/install.sh | sudo bash
 ```
 
 That's it! The script will:
