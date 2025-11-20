@@ -362,15 +362,26 @@ detect_all_services() {
 
 select_webserver() {
     if [ "${INSTALL_MODE}" = "auto" ]; then
-        # Auto mode: prefer Nginx if both installed
-        if [ "${NGINX_INSTALLED}" = "1" ]; then
+        # Auto mode: prefer already running web server
+        # Check if Apache is running on port 80
+        if [ "${APACHE_INSTALLED}" = "1" ] && systemctl is-active --quiet apache2 2>/dev/null; then
+            export WEBSERVER="apache"
+            log_info "Web server: apache (detected running)"
+        # Check if Nginx is running
+        elif [ "${NGINX_INSTALLED}" = "1" ] && systemctl is-active --quiet nginx 2>/dev/null; then
             export WEBSERVER="nginx"
+            log_info "Web server: nginx (detected running)"
+        # Prefer Nginx if both installed but neither running
+        elif [ "${NGINX_INSTALLED}" = "1" ]; then
+            export WEBSERVER="nginx"
+            log_info "Web server: nginx (auto-selected)"
         elif [ "${APACHE_INSTALLED}" = "1" ]; then
             export WEBSERVER="apache"
+            log_info "Web server: apache (auto-selected)"
         else
             export WEBSERVER="nginx" # Will be installed
+            log_info "Web server: nginx (will be installed)"
         fi
-        log_info "Web server: ${WEBSERVER} (auto-selected)"
         return
     fi
 
