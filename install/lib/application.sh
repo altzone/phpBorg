@@ -440,6 +440,7 @@ optimize_php_fpm() {
 [phpborg]
 user = phpborg
 group = phpborg
+chdir = ${PHPBORG_ROOT}
 listen = /run/php/phpborg-${php_version}-fpm.sock
 listen.owner = www-data
 listen.group = www-data
