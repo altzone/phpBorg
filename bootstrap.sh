@@ -14,7 +14,8 @@
 #   sudo bash bootstrap.sh
 #
 
-set -e
+# Don't exit on error - we handle errors explicitly with error_exit
+set +e
 
 # Colors
 RED='\033[0;31m'
@@ -171,7 +172,7 @@ clone_repository() {
     # Check if already cloned
     if [ -d "phpBorg/.git" ]; then
         log_warn "phpBorg already exists, updating..."
-        cd phpBorg
+        cd phpBorg || error_exit "Failed to change to phpBorg directory"
 
         # Fetch latest changes
         git fetch origin > /dev/null 2>&1 || log_warn "Failed to fetch updates"
