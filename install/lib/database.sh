@@ -393,13 +393,12 @@ EOF
     log_info "Creating admin user: ${ADMIN_USERNAME}"
 
     local insert_result=$(mysql "${DB_NAME}" 2>&1 <<-EOF
-        INSERT INTO users (username, email, password, role, created_at, updated_at)
+        INSERT INTO users (username, email, password, roles, created_at)
         VALUES (
             '${ADMIN_USERNAME}',
             '${ADMIN_EMAIL}',
             '${password_hash}',
-            'ROLE_ADMIN',
-            NOW(),
+            '["ROLE_ADMIN"]',
             NOW()
         );
 EOF
