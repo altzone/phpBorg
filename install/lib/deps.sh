@@ -321,6 +321,9 @@ setup_docker_repo() {
 setup_php_repo() {
     print_section "Setting up PHP Repository"
 
+    # Detect PHP first to check current version
+    detect_php
+
     # Skip if PHP version is acceptable
     if check_php_version 2>/dev/null; then
         log_info "PHP repository setup not needed"
@@ -330,9 +333,22 @@ setup_php_repo() {
     case "${OS_DISTRO}" in
         debian|ubuntu|linuxmint|pop)
             log_info "Adding Sury PHP repository for PHP 8.3"
-            run_cmd "apt-get install -y lsb-release ca-certificates apt-transport-https software-properties-common gnupg2"
-            run_cmd "curl -fsSL https://packages.sury.org/php/apt.gpg | gpg --dearmor -o /etc/apt/trusted.gpg.d/sury-php.gpg"
-            echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/sury-php.list
+
+            # Install prerequisites for add-apt-repository
+            run_cmd "apt-get install -y software-properties-common"
+
+            # Add Sury PHP PPA using add-apt-repository (cleaner method)
+            log_info "Adding PPA:ondrej/php"
+            if run_cmd "LC_ALL=C.UTF-8 add-apt-repository ppa:ondrej/php -y"; then
+                log_success "Sury PHP repository added via PPA"
+            else
+                log_warn "PPA add failed, trying manual method"
+                # Fallback to manual method
+                run_cmd "apt-get install -y lsb-release ca-certificates apt-transport-https gnupg2"
+                run_cmd "curl -fsSL https://packages.sury.org/php/apt.gpg | gpg --dearmor -o /etc/apt/trusted.gpg.d/sury-php.gpg"
+                echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/sury-php.list
+            fi
+
             run_cmd "${PKG_UPDATE_CMD}"
             ;;
         rhel|centos|rocky|almalinux|fedora)
