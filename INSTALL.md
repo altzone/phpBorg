@@ -46,7 +46,38 @@ The installer will automatically install and configure:
 
 ## 🚀 Quick Start (Ubuntu 22.04)
 
-### Fresh Ubuntu 22.04 Installation
+### ⚡ One-Line Installation (Recommended)
+
+The fastest way to install phpBorg on a fresh Ubuntu 22.04 server:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/altzone/phpBorg/main/bootstrap.sh | sudo bash
+```
+
+**With specific branch**:
+```bash
+export REPO_BRANCH=claude/modernize-backup-app-php-011CUoNEPYmChtfxp7Kuz9yV
+curl -fsSL https://raw.githubusercontent.com/altzone/phpBorg/${REPO_BRANCH}/bootstrap.sh | sudo bash
+```
+
+**Or download first (more cautious)**:
+```bash
+wget https://raw.githubusercontent.com/altzone/phpBorg/main/bootstrap.sh
+less bootstrap.sh  # Review the script
+sudo bash bootstrap.sh
+```
+
+The bootstrap script will:
+1. ✓ Check system requirements
+2. ✓ Install prerequisites (git, curl, wget)
+3. ✓ Clone phpBorg repository
+4. ✓ Run the main installer automatically
+
+---
+
+### 📖 Manual Installation
+
+If you prefer manual installation or need more control:
 
 ```bash
 # 1. Update system
