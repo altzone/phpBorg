@@ -334,6 +334,13 @@ setup_php_repo() {
         debian|ubuntu|linuxmint|pop)
             log_info "Adding Sury PHP repository for PHP 8.3"
 
+            # Remove old manual Sury repo if exists (causes 418 error)
+            if [ -f /etc/apt/sources.list.d/sury-php.list ]; then
+                log_info "Removing old Sury repository configuration"
+                rm -f /etc/apt/sources.list.d/sury-php.list
+                rm -f /etc/apt/trusted.gpg.d/sury-php.gpg
+            fi
+
             # Install prerequisites for add-apt-repository
             run_cmd "apt-get install -y software-properties-common"
 
@@ -341,15 +348,11 @@ setup_php_repo() {
             log_info "Adding PPA:ondrej/php"
             if run_cmd "LC_ALL=C.UTF-8 add-apt-repository ppa:ondrej/php -y"; then
                 log_success "Sury PHP repository added via PPA"
+                run_cmd "${PKG_UPDATE_CMD}"
             else
-                log_warn "PPA add failed, trying manual method"
-                # Fallback to manual method
-                run_cmd "apt-get install -y lsb-release ca-certificates apt-transport-https gnupg2"
-                run_cmd "curl -fsSL https://packages.sury.org/php/apt.gpg | gpg --dearmor -o /etc/apt/trusted.gpg.d/sury-php.gpg"
-                echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/sury-php.list
+                log_error "Failed to add Sury PHP PPA"
+                return 1
             fi
-
-            run_cmd "${PKG_UPDATE_CMD}"
             ;;
         rhel|centos|rocky|almalinux|fedora)
             log_info "Adding Remi repository for PHP 8.3"
@@ -694,7 +697,8 @@ install_all_dependencies() {
     install_utilities || errors=$((errors + 1))
     install_php || errors=$((errors + 1))
     install_composer || errors=$((errors + 1))
-    install_nodejs || errors=$((errors + 1))
+    # Node.js installed via NVM in application setup (per-user, not system-wide)
+    log_info "Node.js will be installed via NVM for phpborg user"
     install_database || errors=$((errors + 1))
     install_redis || errors=$((errors + 1))
     install_webserver || errors=$((errors + 1))
