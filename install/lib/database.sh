@@ -232,6 +232,9 @@ create_database() {
         -- Create user if not exists
         CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
 
+        -- Update password in case user already exists (idempotent reinstall)
+        ALTER USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
+
         -- Grant privileges
         GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
 
