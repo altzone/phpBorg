@@ -14,8 +14,11 @@ DOMAIN="${DOMAIN:-localhost}"
 get_php_fpm_socket() {
     local php_version=$(${PHP_BINARY} -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;')
 
-    # Check if custom phpborg pool exists
-    if [ -S "/run/php/phpborg-fpm.sock" ]; then
+    # Check if custom versioned phpborg pool exists
+    if [ -S "/run/php/phpborg-${php_version}-fpm.sock" ]; then
+        echo "/run/php/phpborg-${php_version}-fpm.sock"
+    # Check if old non-versioned phpborg pool exists (backward compatibility)
+    elif [ -S "/run/php/phpborg-fpm.sock" ]; then
         echo "/run/php/phpborg-fpm.sock"
     # Otherwise use default PHP-FPM socket
     elif [ -S "/run/php/php${php_version}-fpm.sock" ]; then

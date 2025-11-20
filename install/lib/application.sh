@@ -38,6 +38,9 @@ install_composer_dependencies() {
     mkdir -p /var/lib/phpborg/.cache/composer
     chown -R phpborg:phpborg /var/lib/phpborg/.cache
 
+    # Ensure phpborg can write to application directory (for composer.lock)
+    chown -R phpborg:phpborg ${PHPBORG_ROOT}
+
     # Run composer install
     log_info "Running composer install (this may take a few minutes)..."
 
@@ -428,13 +431,16 @@ optimize_php_fpm() {
 
     backup_file "${pool_file}"
 
+    # Remove old socket files to prevent conflicts
+    rm -f /run/php/phpborg-*-fpm.sock
+
     log_info "Creating PHP-FPM pool: ${pool_file}"
 
     cat > "${pool_file}" <<EOF
 [phpborg]
 user = phpborg
 group = phpborg
-listen = /run/php/phpborg-fpm.sock
+listen = /run/php/phpborg-${php_version}-fpm.sock
 listen.owner = www-data
 listen.group = www-data
 listen.mode = 0660
