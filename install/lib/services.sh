@@ -210,7 +210,7 @@ PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=${PHPBORG_ROOT}/var ${PHPBORG_ROOT}/logs /tmp
+ReadWritePaths=${PHPBORG_ROOT}/var ${PHPBORG_ROOT}/logs /var/log/phpborg /tmp
 
 # Resource limits
 LimitNOFILE=65536
@@ -276,7 +276,7 @@ PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=${PHPBORG_ROOT}/var ${PHPBORG_ROOT}/logs /tmp
+ReadWritePaths=${PHPBORG_ROOT}/var ${PHPBORG_ROOT}/logs /var/log/phpborg /tmp
 
 # Resource limits
 LimitNOFILE=65536
