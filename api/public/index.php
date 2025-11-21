@@ -38,6 +38,7 @@ use PhpBorg\Api\Controller\SSEController;
 use PhpBorg\Api\Controller\UserController;
 use PhpBorg\Api\Controller\WorkerController;
 use PhpBorg\Api\Controller\WorkerStreamController;
+use PhpBorg\Api\Controller\SetupController;
 
 try {
     // Initialize application
@@ -45,6 +46,13 @@ try {
 
     // Create router
     $router = new Router($app);
+
+    // ===========================================
+    // Setup Wizard Routes (Public - for first run)
+    // ===========================================
+    $router->get('/setup/status', SetupController::class, 'status', requireAuth: true);
+    $router->get('/setup/detect-network', SetupController::class, 'detectNetwork', requireAuth: true);
+    $router->post('/setup/complete', SetupController::class, 'complete', requireAuth: true);
 
     // ===========================================
     // Authentication Routes (Public)

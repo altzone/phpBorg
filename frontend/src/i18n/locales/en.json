@@ -1665,5 +1665,57 @@
     "stop_session": "Stop Session",
     "stop_session_confirm": "Are you sure you want to stop session #{id}?",
     "open_admin": "Open Database Admin"
+  },
+  "setup": {
+    "title": "Initial Setup",
+    "subtitle": "Welcome! Let's configure your backup system.",
+    "optional": "Optional",
+    "next": "Next",
+    "previous": "Previous",
+    "skip": "Skip",
+    "finish": "Finish",
+    "success": "Setup completed successfully!",
+    "step1": {
+      "title": "Application Identity",
+      "description": "Customize the name and regional settings of your system.",
+      "app_name": "Application Name",
+      "app_name_placeholder": "E.g.: My Backup Server",
+      "timezone": "Timezone",
+      "language": "Interface Language"
+    },
+    "step2": {
+      "title": "Network Configuration",
+      "description": "These IP addresses are required for backup connections.",
+      "internal_ip": "Internal IP Address (LAN)",
+      "internal_ip_hint": "Used for servers on the same local network",
+      "external_ip": "External IP Address (WAN)",
+      "external_ip_hint": "Used for remote servers over the Internet",
+      "ip_placeholder": "E.g.: 192.168.1.100",
+      "detecting": "Detecting network interfaces...",
+      "detected": "Auto-detected"
+    },
+    "step3": {
+      "title": "Email Notifications",
+      "description": "Configure email alerts for backups and errors.",
+      "enable_email": "Enable notifications",
+      "enable_email_hint": "Receive alerts for successful or failed backups",
+      "smtp_host": "SMTP Server",
+      "smtp_port": "Port",
+      "smtp_username": "Username",
+      "smtp_password": "Password",
+      "smtp_encryption": "Encryption",
+      "email_from": "From Address",
+      "email_from_name": "From Name"
+    },
+    "step4": {
+      "title": "Backup Settings",
+      "description": "Set default values for your backups.",
+      "retention_days": "Default Retention (days)",
+      "retention_days_hint": "How long to keep backups before automatic deletion"
+    },
+    "errors": {
+      "network_detection": "Unable to detect network interfaces",
+      "save_failed": "Failed to save settings"
+    }
   }
 }

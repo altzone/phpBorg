@@ -1715,5 +1715,57 @@
     "stop_session": "Arrêter la session",
     "stop_session_confirm": "Voulez-vous vraiment arrêter la session #{id} ?",
     "open_admin": "Ouvrir l'administration de la base de données"
+  },
+  "setup": {
+    "title": "Configuration initiale",
+    "subtitle": "Bienvenue ! Configurons votre systeme de sauvegarde.",
+    "optional": "Optionnel",
+    "next": "Suivant",
+    "previous": "Precedent",
+    "skip": "Passer",
+    "finish": "Terminer",
+    "success": "Configuration terminee avec succes !",
+    "step1": {
+      "title": "Identite de l'application",
+      "description": "Personnalisez le nom et les parametres regionaux de votre systeme.",
+      "app_name": "Nom de l'application",
+      "app_name_placeholder": "Ex: Mon Serveur de Backup",
+      "timezone": "Fuseau horaire",
+      "language": "Langue de l'interface"
+    },
+    "step2": {
+      "title": "Configuration reseau",
+      "description": "Ces adresses IP sont necessaires pour les connexions de sauvegarde.",
+      "internal_ip": "Adresse IP interne (LAN)",
+      "internal_ip_hint": "Utilisee pour les serveurs sur le meme reseau local",
+      "external_ip": "Adresse IP externe (WAN)",
+      "external_ip_hint": "Utilisee pour les serveurs distants via Internet",
+      "ip_placeholder": "Ex: 192.168.1.100",
+      "detecting": "Detection des interfaces reseau...",
+      "detected": "Detectee automatiquement"
+    },
+    "step3": {
+      "title": "Notifications par email",
+      "description": "Configurez les alertes email pour les backups et erreurs.",
+      "enable_email": "Activer les notifications",
+      "enable_email_hint": "Recevez des alertes lors des backups reussis ou echoues",
+      "smtp_host": "Serveur SMTP",
+      "smtp_port": "Port",
+      "smtp_username": "Identifiant",
+      "smtp_password": "Mot de passe",
+      "smtp_encryption": "Chiffrement",
+      "email_from": "Adresse expediteur",
+      "email_from_name": "Nom expediteur"
+    },
+    "step4": {
+      "title": "Parametres de sauvegarde",
+      "description": "Definissez les valeurs par defaut pour vos sauvegardes.",
+      "retention_days": "Retention par defaut (jours)",
+      "retention_days_hint": "Duree de conservation des sauvegardes avant suppression automatique"
+    },
+    "errors": {
+      "network_detection": "Impossible de detecter les interfaces reseau",
+      "save_failed": "Echec de la sauvegarde des parametres"
+    }
   }
 }
