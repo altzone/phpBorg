@@ -1,6 +1,7 @@
 # Environment
 .env
 .env.local
+.env.*.local
 
 # Composer
 /vendor/
@@ -28,6 +29,7 @@ Thumbs.db
 /var/cache/
 /var/tmp/
 .phpunit.result.cache
+coverage/
 
 # Build artifacts
 /build/
@@ -37,3 +39,25 @@ Thumbs.db
 /frontend/dist/
 /frontend/.vite/
 /frontend/.vite-inspect/
+
+# Claude Code
+.claude/
+
+# Temporary files
+*.tmp
+*.bak
+*.old
+/tmp/
+
+# Runtime data
+/var/
+!var/.gitkeep
+
+# SSH keys (never commit)
+*.pem
+id_rsa*
+*.key
+
+# Database dumps
+*.sql
+!schema.sql
