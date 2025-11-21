@@ -261,68 +261,34 @@ run_cmd_silent() {
 run_with_progress() {
     local title="$1"
     local cmd="$2"
-    local show_output="${3:-0}"  # 0=collapsed, 1=expanded
-    local max_lines="${4:-10}"   # Max lines to show
 
     local temp_output=$(mktemp)
     local pid
     local exit_code
+    local start_time=$(date +%s)
 
     # Print title
     echo ""
     echo -e "${CYAN}┌─ ${title}${NC}"
+    echo -e "${CYAN}│${NC} ⏳ Running..."
 
     # Start command in background
     eval "${cmd}" > "${temp_output}" 2>&1 &
     pid=$!
 
-    # Show progress while running
-    local spinner=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
-    local spin_idx=0
-    local last_lines=""
-    local line_count=0
-
-    while kill -0 "${pid}" 2>/dev/null; do
-        # Update spinner
-        printf "\r${CYAN}│${NC} ${spinner[spin_idx]} Running..."
-        spin_idx=$(( (spin_idx + 1) % 10 ))
-
-        # Show last few lines if expanded mode
-        if [ "${show_output}" = "1" ]; then
-            local current_lines=$(tail -${max_lines} "${temp_output}" 2>/dev/null)
-            if [ "${current_lines}" != "${last_lines}" ]; then
-                # Clear previous output
-                if [ -n "${last_lines}" ]; then
-                    local old_count=$(echo "${last_lines}" | wc -l)
-                    for ((i=0; i<old_count; i++)); do
-                        printf "\033[1A\033[2K"
-                    done
-                fi
-                printf "\r\033[2K"
-
-                # Print new output
-                echo "${current_lines}" | while IFS= read -r line; do
-                    echo -e "${CYAN}│${NC}   ${line:0:70}"
-                done
-                last_lines="${current_lines}"
-            fi
-        fi
-
-        sleep 0.1
-    done
-
-    # Get exit code
+    # Wait for completion
     wait "${pid}"
     exit_code=$?
 
-    # Clear spinner line
-    printf "\r\033[2K"
+    # Calculate elapsed time
+    local end_time=$(date +%s)
+    local elapsed=$((end_time - start_time))
 
     # Log full output
     cat "${temp_output}" >> "${INSTALL_LOG}"
 
     if [ ${exit_code} -eq 0 ]; then
-        echo -e "${GREEN}└─ ✓ Done${NC}"
+        echo -e "${GREEN}└─ ✓ Done${NC} (${elapsed}s)"
     else
         echo -e "${RED}└─ ✗ Failed (exit ${exit_code})${NC}"
 
