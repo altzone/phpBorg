@@ -381,16 +381,23 @@ setup_php_repo() {
 }
 
 #
-# Package installation
+# Package installation with progress display
 #
+
+install_packages_with_progress() {
+    local title="$1"
+    local packages="$2"
+
+    run_with_progress "${title}" "${PKG_INSTALL_CMD} ${packages}"
+    return $?
+}
 
 install_utilities() {
     print_section "Installing Utility Packages"
 
     local packages=$(get_utility_packages)
-    log_info "Installing: ${packages}"
 
-    if run_cmd "${PKG_INSTALL_CMD} ${packages}"; then
+    if install_packages_with_progress "Installing utilities" "${packages}"; then
         log_success "Utility packages installed"
         save_state "install_utilities" "completed"
         return 0
@@ -422,9 +429,8 @@ install_php() {
     setup_php_repo
 
     local packages=$(get_php_packages)
-    log_info "Installing: ${packages}"
 
-    if run_cmd "${PKG_INSTALL_CMD} ${packages}"; then
+    if install_packages_with_progress "Installing PHP 8.3" "${packages}"; then
         # Re-detect PHP
         detect_php
 
@@ -496,9 +502,8 @@ install_nodejs() {
     setup_nodejs_repo
 
     local packages=$(get_nodejs_packages)
-    log_info "Installing: ${packages}"
 
-    if run_cmd "${PKG_INSTALL_CMD} ${packages}"; then
+    if install_packages_with_progress "Installing Node.js" "${packages}"; then
         # Re-detect Node.js
         detect_nodejs
         detect_npm
@@ -527,9 +532,8 @@ install_database() {
     fi
 
     local packages=$(get_database_packages)
-    log_info "Installing: ${packages}"
 
-    if run_cmd "${PKG_INSTALL_CMD} ${packages}"; then
+    if install_packages_with_progress "Installing MariaDB" "${packages}"; then
         detect_mysql
         log_success "MariaDB installed"
         save_state "install_database" "completed"
@@ -550,9 +554,8 @@ install_redis() {
     fi
 
     local packages=$(get_redis_packages)
-    log_info "Installing: ${packages}"
 
-    if run_cmd "${PKG_INSTALL_CMD} ${packages}"; then
+    if install_packages_with_progress "Installing Redis" "${packages}"; then
         detect_redis
         log_success "Redis installed"
         save_state "install_redis" "completed"
@@ -578,9 +581,10 @@ install_webserver() {
     fi
 
     local packages=$(get_webserver_packages "${WEBSERVER}")
-    log_info "Installing: ${packages}"
+    local server_name="Nginx"
+    [ "${WEBSERVER}" = "apache" ] && server_name="Apache"
 
-    if run_cmd "${PKG_INSTALL_CMD} ${packages}"; then
+    if install_packages_with_progress "Installing ${server_name}" "${packages}"; then
         if [ "${WEBSERVER}" = "nginx" ]; then
             detect_nginx
             log_success "Nginx installed"
@@ -610,9 +614,8 @@ install_docker() {
     setup_docker_repo
 
     local packages=$(get_docker_packages)
-    log_info "Installing: ${packages}"
 
-    if run_cmd "${PKG_INSTALL_CMD} ${packages}"; then
+    if install_packages_with_progress "Installing Docker" "${packages}"; then
         detect_docker
 
         if check_docker_version; then
@@ -640,9 +643,8 @@ install_borgbackup() {
     fi
 
     local packages=$(get_borg_packages)
-    log_info "Installing: ${packages}"
 
-    if run_cmd "${PKG_INSTALL_CMD} ${packages}"; then
+    if install_packages_with_progress "Installing BorgBackup" "${packages}"; then
         detect_borgbackup
 
         if check_borg_version; then
@@ -668,9 +670,7 @@ install_fuse_overlayfs() {
         return 0
     fi
 
-    log_info "Installing: fuse-overlayfs"
-
-    if run_cmd "${PKG_INSTALL_CMD} fuse-overlayfs"; then
+    if install_packages_with_progress "Installing fuse-overlayfs" "fuse-overlayfs"; then
         detect_fuse_overlayfs
         log_success "fuse-overlayfs installed"
         save_state "install_fuse_overlayfs" "completed"
@@ -690,7 +690,7 @@ install_all_dependencies() {
 
     # Update package cache
     print_section "Updating Package Cache"
-    if run_cmd "${PKG_UPDATE_CMD}"; then
+    if run_with_progress "Updating package cache" "${PKG_UPDATE_CMD}"; then
         log_success "Package cache updated"
     else
         log_warn "Failed to update package cache (continuing anyway)"
