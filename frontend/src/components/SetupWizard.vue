@@ -332,12 +332,12 @@
               </div>
             </div>
 
-            <!-- Step 4: Backup Settings (Optional) -->
+            <!-- Step 4: Retention Policy (Optional) -->
             <div v-if="currentStep === 3" class="space-y-6">
               <div class="text-center mb-8">
                 <div class="w-20 h-20 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
                 </div>
                 <h2 class="text-xl font-semibold text-white">{{ $t('setup.step4.title') }}</h2>
@@ -347,18 +347,155 @@
                 </span>
               </div>
 
-              <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-6 space-y-5">
-                <!-- Retention Days -->
-                <div>
-                  <label class="block text-sm font-medium text-white mb-2">{{ $t('setup.step4.retention_days') }}</label>
-                  <p class="text-blue-200 text-xs mb-2">{{ $t('setup.step4.retention_days_hint') }}</p>
-                  <input
-                    v-model="form.backup_retention_days"
-                    type="number"
-                    min="1"
-                    max="365"
-                    class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-white/40 focus:ring-0"
-                  />
+              <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-6 space-y-6">
+                <!-- Info Banner -->
+                <div class="rounded-xl bg-blue-500/20 border border-blue-400/30 p-4">
+                  <div class="flex items-start space-x-3">
+                    <svg class="h-5 w-5 text-blue-300 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div class="text-sm text-blue-100">
+                      <p class="font-medium mb-1">{{ $t('setup.step4.info_title') }}</p>
+                      <p class="text-blue-200">{{ $t('setup.step4.info_description') }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Retention Settings -->
+                <div class="space-y-5">
+                  <!-- Daily -->
+                  <div class="flex items-center justify-between space-x-4">
+                    <div class="flex-1">
+                      <label class="block text-sm font-semibold text-white mb-1">
+                        {{ $t('setup.step4.daily_backups') }}
+                      </label>
+                      <p class="text-xs text-blue-200">{{ $t('setup.step4.daily_hint') }}</p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                      <input
+                        v-model.number="form.keep_daily"
+                        type="range"
+                        min="0"
+                        max="90"
+                        class="w-24 h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white"
+                      />
+                      <input
+                        v-model.number="form.keep_daily"
+                        type="number"
+                        min="0"
+                        max="365"
+                        class="w-16 px-2 py-2 text-center bg-white/10 border border-white/20 rounded-lg text-white focus:border-white/40 focus:ring-0"
+                      />
+                      <span class="text-sm text-blue-200 w-10">{{ $t('setup.step4.days') }}</span>
+                    </div>
+                  </div>
+
+                  <!-- Weekly -->
+                  <div class="flex items-center justify-between space-x-4">
+                    <div class="flex-1">
+                      <label class="block text-sm font-semibold text-white mb-1">
+                        {{ $t('setup.step4.weekly_backups') }}
+                      </label>
+                      <p class="text-xs text-blue-200">{{ $t('setup.step4.weekly_hint') }}</p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                      <input
+                        v-model.number="form.keep_weekly"
+                        type="range"
+                        min="0"
+                        max="52"
+                        class="w-24 h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white"
+                      />
+                      <input
+                        v-model.number="form.keep_weekly"
+                        type="number"
+                        min="0"
+                        max="52"
+                        class="w-16 px-2 py-2 text-center bg-white/10 border border-white/20 rounded-lg text-white focus:border-white/40 focus:ring-0"
+                      />
+                      <span class="text-sm text-blue-200 w-10">{{ $t('setup.step4.weeks') }}</span>
+                    </div>
+                  </div>
+
+                  <!-- Monthly -->
+                  <div class="flex items-center justify-between space-x-4">
+                    <div class="flex-1">
+                      <label class="block text-sm font-semibold text-white mb-1">
+                        {{ $t('setup.step4.monthly_backups') }}
+                      </label>
+                      <p class="text-xs text-blue-200">{{ $t('setup.step4.monthly_hint') }}</p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                      <input
+                        v-model.number="form.keep_monthly"
+                        type="range"
+                        min="0"
+                        max="24"
+                        class="w-24 h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white"
+                      />
+                      <input
+                        v-model.number="form.keep_monthly"
+                        type="number"
+                        min="0"
+                        max="60"
+                        class="w-16 px-2 py-2 text-center bg-white/10 border border-white/20 rounded-lg text-white focus:border-white/40 focus:ring-0"
+                      />
+                      <span class="text-sm text-blue-200 w-10">{{ $t('setup.step4.months') }}</span>
+                    </div>
+                  </div>
+
+                  <!-- Yearly -->
+                  <div class="flex items-center justify-between space-x-4">
+                    <div class="flex-1">
+                      <label class="block text-sm font-semibold text-white mb-1">
+                        {{ $t('setup.step4.yearly_backups') }}
+                      </label>
+                      <p class="text-xs text-blue-200">{{ $t('setup.step4.yearly_hint') }}</p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                      <input
+                        v-model.number="form.keep_yearly"
+                        type="range"
+                        min="0"
+                        max="10"
+                        class="w-24 h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white"
+                      />
+                      <input
+                        v-model.number="form.keep_yearly"
+                        type="number"
+                        min="0"
+                        max="10"
+                        class="w-16 px-2 py-2 text-center bg-white/10 border border-white/20 rounded-lg text-white focus:border-white/40 focus:ring-0"
+                      />
+                      <span class="text-sm text-blue-200 w-10">{{ $t('setup.step4.years') }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Preview -->
+                <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+                  <h4 class="text-sm font-semibold text-white mb-3">{{ $t('setup.step4.preview') }}</h4>
+                  <div class="space-y-2 text-sm text-blue-100">
+                    <div v-if="form.keep_daily > 0" class="flex items-center justify-between">
+                      <span>{{ $t('setup.step4.last') }} <strong>{{ form.keep_daily }}</strong> {{ $t('setup.step4.daily_backups').toLowerCase() }}</span>
+                      <span class="text-xs text-blue-300">~ {{ form.keep_daily }} {{ $t('setup.step4.days') }}</span>
+                    </div>
+                    <div v-if="form.keep_weekly > 0" class="flex items-center justify-between">
+                      <span>{{ $t('setup.step4.last') }} <strong>{{ form.keep_weekly }}</strong> {{ $t('setup.step4.weekly_backups').toLowerCase() }}</span>
+                      <span class="text-xs text-blue-300">~ {{ Math.ceil(form.keep_weekly * 7 / 30) }} {{ $t('setup.step4.months') }}</span>
+                    </div>
+                    <div v-if="form.keep_monthly > 0" class="flex items-center justify-between">
+                      <span>{{ $t('setup.step4.last') }} <strong>{{ form.keep_monthly }}</strong> {{ $t('setup.step4.monthly_backups').toLowerCase() }}</span>
+                      <span class="text-xs text-blue-300">~ {{ Math.ceil(form.keep_monthly / 12) }} {{ $t('setup.step4.years') }}</span>
+                    </div>
+                    <div v-if="form.keep_yearly > 0" class="flex items-center justify-between">
+                      <span>{{ $t('setup.step4.last') }} <strong>{{ form.keep_yearly }}</strong> {{ $t('setup.step4.yearly_backups').toLowerCase() }}</span>
+                      <span class="text-xs text-blue-300">{{ form.keep_yearly }} {{ $t('setup.step4.years') }}</span>
+                    </div>
+                    <div v-if="retentionTotalPeriods === 0" class="text-yellow-300 font-medium mt-2">
+                      {{ $t('setup.step4.no_retention_warning') }}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -485,7 +622,11 @@ const form = ref({
   smtp_encryption: 'tls',
   email_from: '',
   email_from_name: '',
-  backup_retention_days: 30,
+  // Retention policy
+  keep_daily: 7,
+  keep_weekly: 4,
+  keep_monthly: 6,
+  keep_yearly: 1,
 })
 
 const timezones = [
@@ -516,6 +657,13 @@ const canProceed = computed(() => {
     return form.value.internal_ip && form.value.external_ip
   }
   return true // Optional steps
+})
+
+const retentionTotalPeriods = computed(() => {
+  return (form.value.keep_daily > 0 ? 1 : 0) +
+         (form.value.keep_weekly > 0 ? 1 : 0) +
+         (form.value.keep_monthly > 0 ? 1 : 0) +
+         (form.value.keep_yearly > 0 ? 1 : 0)
 })
 
 // Watch language change to update UI locale

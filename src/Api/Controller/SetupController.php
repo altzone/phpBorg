@@ -126,9 +126,18 @@ class SetupController extends BaseController
                 }
             }
 
-            // Optional backup settings
-            if (!empty($data['backup_retention_days'])) {
-                $this->saveOrCreateSetting('backup.retention_days', (string)$data['backup_retention_days'], 'backup', 'integer', 'Default backup retention in days');
+            // Optional retention policy settings (use same keys as SettingsView)
+            if (isset($data['keep_daily'])) {
+                $this->saveOrCreateSetting('backup.retention.daily', (string)$data['keep_daily'], 'backup', 'integer', 'Keep N daily backups');
+            }
+            if (isset($data['keep_weekly'])) {
+                $this->saveOrCreateSetting('backup.retention.weekly', (string)$data['keep_weekly'], 'backup', 'integer', 'Keep N weekly backups');
+            }
+            if (isset($data['keep_monthly'])) {
+                $this->saveOrCreateSetting('backup.retention.monthly', (string)$data['keep_monthly'], 'backup', 'integer', 'Keep N monthly backups');
+            }
+            if (isset($data['keep_yearly'])) {
+                $this->saveOrCreateSetting('backup.retention.yearly', (string)$data['keep_yearly'], 'backup', 'integer', 'Keep N yearly backups');
             }
 
             // Mark setup as completed
@@ -161,9 +170,13 @@ class SetupController extends BaseController
             'app_name' => 'phpBorg',
             'timezone' => $timezone,
             'language' => 'fr',
-            'backup_retention_days' => 30,
             'smtp_port' => 587,
             'smtp_encryption' => 'tls',
+            // Retention policy defaults
+            'keep_daily' => 7,
+            'keep_weekly' => 4,
+            'keep_monthly' => 6,
+            'keep_yearly' => 1,
         ];
     }
 

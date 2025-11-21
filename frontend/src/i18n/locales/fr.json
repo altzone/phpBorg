@@ -1758,10 +1758,25 @@
       "email_from_name": "Nom expediteur"
     },
     "step4": {
-      "title": "Parametres de sauvegarde",
-      "description": "Definissez les valeurs par defaut pour vos sauvegardes.",
-      "retention_days": "Retention par defaut (jours)",
-      "retention_days_hint": "Duree de conservation des sauvegardes avant suppression automatique"
+      "title": "Politique de retention",
+      "description": "Definissez combien de sauvegardes conserver pour chaque periode.",
+      "info_title": "Politique de retention expliquee",
+      "info_description": "Borg conservera le nombre specifie de sauvegardes pour chaque periode. Mettez 0 pour desactiver une periode.",
+      "daily_backups": "Sauvegardes quotidiennes",
+      "daily_hint": "Conserver les N dernieres sauvegardes quotidiennes",
+      "weekly_backups": "Sauvegardes hebdomadaires",
+      "weekly_hint": "Conserver les N dernieres sauvegardes hebdomadaires",
+      "monthly_backups": "Sauvegardes mensuelles",
+      "monthly_hint": "Conserver les N dernieres sauvegardes mensuelles",
+      "yearly_backups": "Sauvegardes annuelles",
+      "yearly_hint": "Conserver les N dernieres sauvegardes annuelles",
+      "days": "jours",
+      "weeks": "sem.",
+      "months": "mois",
+      "years": "ans",
+      "preview": "Apercu de la politique",
+      "last": "Les",
+      "no_retention_warning": "Aucune retention configuree - les sauvegardes ne seront pas conservees automatiquement"
     },
     "errors": {
       "network_detection": "Impossible de detecter les interfaces reseau",

@@ -1708,10 +1708,25 @@
       "email_from_name": "From Name"
     },
     "step4": {
-      "title": "Backup Settings",
-      "description": "Set default values for your backups.",
-      "retention_days": "Default Retention (days)",
-      "retention_days_hint": "How long to keep backups before automatic deletion"
+      "title": "Retention Policy",
+      "description": "Set how many backups to keep for each period.",
+      "info_title": "Retention Policy Explained",
+      "info_description": "Borg will keep the specified number of backups for each period. Set to 0 to disable a period.",
+      "daily_backups": "Daily Backups",
+      "daily_hint": "Keep last N daily backups",
+      "weekly_backups": "Weekly Backups",
+      "weekly_hint": "Keep last N weekly backups",
+      "monthly_backups": "Monthly Backups",
+      "monthly_hint": "Keep last N monthly backups",
+      "yearly_backups": "Yearly Backups",
+      "yearly_hint": "Keep last N yearly backups",
+      "days": "days",
+      "weeks": "weeks",
+      "months": "months",
+      "years": "years",
+      "preview": "Policy Preview",
+      "last": "Last",
+      "no_retention_warning": "No retention configured - backups won't be kept automatically"
     },
     "errors": {
       "network_detection": "Unable to detect network interfaces",

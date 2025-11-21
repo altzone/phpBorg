@@ -32,9 +32,14 @@ async function checkSetupStatus() {
   if (!authStore.isAuthenticated) return
 
   try {
+    console.log('[App] Checking setup status...')
     const status = await setupService.getStatus()
+    console.log('[App] Setup status:', status)
     if (status.setup_required) {
+      console.log('[App] Setup required, showing wizard')
       showSetupWizard.value = true
+    } else {
+      console.log('[App] Setup already completed')
     }
   } catch (error) {
     console.error('[App] Failed to check setup status:', error)
