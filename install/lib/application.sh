@@ -659,12 +659,67 @@ setup_application() {
         log_info "PHP-FPM already optimized (skipped)"
     fi
 
+    # Build Adminer Docker image (for Instant Recovery)
+    if ! is_step_completed "build_adminer_image"; then
+        build_adminer_image || errors=$((errors + 1))
+    else
+        log_info "Adminer image already built (skipped)"
+    fi
+
     if [ ${errors} -eq 0 ]; then
         log_success "Application setup completed successfully"
         save_state "application_setup" "completed"
         return 0
     else
         log_error "Application setup completed with ${errors} error(s)"
+        return 1
+    fi
+}
+
+#
+# Build Adminer Docker image for Instant Recovery
+#
+build_adminer_image() {
+    print_section "Building Adminer Docker Image"
+
+    # Check if Docker is available
+    if ! command -v docker &> /dev/null; then
+        log_warn "Docker not installed, skipping Adminer image build"
+        save_state "build_adminer_image" "completed"
+        return 0
+    fi
+
+    # Check if Docker is running
+    if ! docker info &> /dev/null; then
+        log_warn "Docker not running, skipping Adminer image build"
+        save_state "build_adminer_image" "completed"
+        return 0
+    fi
+
+    local docker_dir="${PHPBORG_ROOT}/docker/adminer"
+
+    # Check if Dockerfile exists
+    if [ ! -f "${docker_dir}/Dockerfile" ]; then
+        log_warn "Adminer Dockerfile not found at ${docker_dir}/Dockerfile"
+        save_state "build_adminer_image" "completed"
+        return 0
+    fi
+
+    # Check if image already exists
+    if docker images | grep -q "phpborg/adminer"; then
+        log_info "Adminer image already exists"
+        save_state "build_adminer_image" "completed"
+        return 0
+    fi
+
+    log_info "Building phpborg/adminer:latest image..."
+
+    if run_with_progress "Building Adminer image" "docker build -t phpborg/adminer:latest ${docker_dir}"; then
+        log_success "Adminer Docker image built successfully"
+        save_state "build_adminer_image" "completed"
+        return 0
+    else
+        log_error "Failed to build Adminer Docker image"
         return 1
     fi
 }
