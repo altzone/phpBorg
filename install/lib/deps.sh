@@ -481,7 +481,7 @@ install_composer() {
 
     log_info "Installing Composer globally"
 
-    if run_with_spinner "Installing Composer" "${PHP_BINARY} /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer"; then
+    if run_with_progress "Installing Composer binary" "${PHP_BINARY} /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer 2>&1" 1 5; then
         rm -f /tmp/composer-setup.php
         detect_composer
         log_success "Composer ${COMPOSER_VERSION} installed"
