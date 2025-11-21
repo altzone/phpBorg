@@ -403,6 +403,28 @@
           </div>
         </div>
       </div>
+
+      <!-- Toast notifications -->
+      <div class="fixed top-4 right-4 z-[60] space-y-2">
+        <div
+          v-for="toast in toasts"
+          :key="toast.id"
+          :class="[
+            'flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg max-w-sm animate-slide-in',
+            toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+          ]"
+        >
+          <div class="flex-1">
+            <p class="font-semibold">{{ toast.title }}</p>
+            <p v-if="toast.message" class="text-sm mt-1 opacity-90">{{ toast.message }}</p>
+          </div>
+          <button @click="removeToast(toast.id)" class="flex-shrink-0 hover:opacity-75">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
   </Teleport>
 </template>
@@ -410,7 +432,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useToast } from 'vue-toastification'
 import setupService from '@/services/setup'
 
 const props = defineProps({
@@ -423,7 +444,21 @@ const props = defineProps({
 const emit = defineEmits(['complete', 'close'])
 
 const { t, locale } = useI18n()
-const toast = useToast()
+
+// Simple toast system
+const toasts = ref([])
+let toastIdCounter = 0
+
+function showToast(title, message = '', type = 'success', duration = 5000) {
+  const id = ++toastIdCounter
+  toasts.value.push({ id, title, message, type })
+  setTimeout(() => removeToast(id), duration)
+}
+
+function removeToast(id) {
+  const index = toasts.value.findIndex(t => t.id === id)
+  if (index !== -1) toasts.value.splice(index, 1)
+}
 
 const currentStep = ref(0)
 const saving = ref(false)
@@ -520,7 +555,7 @@ async function loadNetworkInfo() {
     }
   } catch (error) {
     console.error('Failed to detect network:', error)
-    toast.error(t('setup.errors.network_detection'))
+    showToast(t('setup.errors.network_detection'), '', 'error')
   } finally {
     loadingNetwork.value = false
   }
@@ -559,11 +594,11 @@ async function completeSetup() {
   saving.value = true
   try {
     await setupService.complete(form.value)
-    toast.success(t('setup.success'))
+    showToast(t('setup.success'), '', 'success')
     emit('complete')
   } catch (error) {
     console.error('Setup failed:', error)
-    toast.error(error.response?.data?.error?.message || t('setup.errors.save_failed'))
+    showToast(t('setup.errors.save_failed'), error.response?.data?.error?.message || '', 'error')
   } finally {
     saving.value = false
   }
