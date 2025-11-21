@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # phpBorg Universal Installer
-# Version 1.0.1
+# Version 1.0.2
 #
 # Supports: Debian, Ubuntu, RHEL, CentOS, Fedora, Arch, Alpine
 # Modes: Interactive, Automatic
@@ -16,6 +16,58 @@ export PHPBORG_ROOT="${PHPBORG_ROOT:-/opt/newphpborg/phpBorg}"
 
 # Installation mode (interactive or auto)
 export INSTALL_MODE="${INSTALL_MODE:-interactive}"
+
+# GitHub repository
+GITHUB_REPO="altzone/phpBorg"
+GITHUB_BRANCH="${GITHUB_BRANCH:-master}"
+
+#
+# Bootstrap: Clone repository if not present
+#
+bootstrap_repository() {
+    # Check if we're running from curl (no local files)
+    if [ ! -f "${PHPBORG_ROOT}/install/lib/common.sh" ]; then
+        echo "Bootstrapping phpBorg installation..."
+
+        # Check for git
+        if ! command -v git &> /dev/null; then
+            echo "Installing git..."
+            if command -v apt-get &> /dev/null; then
+                apt-get update && apt-get install -y git
+            elif command -v dnf &> /dev/null; then
+                dnf install -y git
+            elif command -v yum &> /dev/null; then
+                yum install -y git
+            elif command -v pacman &> /dev/null; then
+                pacman -Sy --noconfirm git
+            else
+                echo "ERROR: Cannot install git. Please install it manually."
+                exit 1
+            fi
+        fi
+
+        # Create parent directory
+        mkdir -p "$(dirname ${PHPBORG_ROOT})"
+
+        # Clone repository
+        if [ -d "${PHPBORG_ROOT}" ]; then
+            echo "Updating existing installation..."
+            cd "${PHPBORG_ROOT}"
+            git fetch origin
+            git checkout "${GITHUB_BRANCH}"
+            git pull origin "${GITHUB_BRANCH}"
+        else
+            echo "Cloning phpBorg repository..."
+            git clone -b "${GITHUB_BRANCH}" "https://github.com/${GITHUB_REPO}.git" "${PHPBORG_ROOT}"
+        fi
+
+        # Re-execute the script from the cloned repository
+        exec "${PHPBORG_ROOT}/install.sh" "$@"
+    fi
+}
+
+# Bootstrap if needed
+bootstrap_repository "$@"
 
 # Load common functions
 if [ -f "${PHPBORG_ROOT}/install/lib/common.sh" ]; then
