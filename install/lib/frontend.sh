@@ -36,11 +36,13 @@ install_npm_dependencies() {
         fi
     fi
 
-    # Run npm install
+    # Run npm install with progress display
     log_info "Running npm install (this may take several minutes)..."
 
     # Must cd first, then source NVM to ensure proper PATH
-    if su - phpborg -c "cd ${frontend_dir} && source ~/.nvm/nvm.sh && npm install --legacy-peer-deps" >> "${INSTALL_LOG}" 2>&1; then
+    local npm_cmd="su - phpborg -c 'cd ${frontend_dir} && source ~/.nvm/nvm.sh && npm install --legacy-peer-deps 2>&1'"
+
+    if run_with_progress "Installing frontend dependencies (npm)" "${npm_cmd}" 1 5; then
         log_success "Frontend dependencies installed"
         save_state "install_npm_dependencies" "completed"
         return 0
@@ -117,37 +119,19 @@ build_frontend() {
         fi
     fi
 
-    # Run build
+    # Run build with progress display
     log_info "Building frontend (this may take several minutes)..."
-    echo -e "${YELLOW}Please wait...${NC}"
 
-    # Show spinner in background
-    (
-        while true; do
-            for spin in '⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏'; do
-                echo -ne "\r${CYAN}${spin}${NC} Building frontend..."
-                sleep 0.1
-            done
-        done
-    ) &
-    local spinner_pid=$!
+    # Run build as phpborg user with progress
+    local build_cmd="su - phpborg -c 'cd ${frontend_dir} && source ~/.nvm/nvm.sh && npx vite build 2>&1'"
 
-    # Run build as phpborg user
-    # Use npx to ensure vite is found in node_modules/.bin
-    su - phpborg -c "cd ${frontend_dir} && source ~/.nvm/nvm.sh && npx vite build" >> "${INSTALL_LOG}" 2>&1
-    local build_result=$?
-
-    # Stop spinner
-    kill "${spinner_pid}" 2>/dev/null
-    wait "${spinner_pid}" 2>/dev/null
-    echo -ne "\r"
-
-    if [ ${build_result} -eq 0 ]; then
+    if run_with_progress "Building Vue.js frontend (vite)" "${build_cmd}" 1 8; then
         log_success "Frontend built successfully"
         save_state "build_frontend" "completed"
         return 0
     else
         log_error "Frontend build failed"
+        log_error "Check ${INSTALL_LOG} for details"
         return 1
     fi
 }

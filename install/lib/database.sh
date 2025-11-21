@@ -82,31 +82,187 @@ enable_mariadb() {
 }
 
 #
+# Test MySQL connection with given credentials
+#
+test_mysql_connection() {
+    local user="$1"
+    local password="$2"
+    local host="${3:-localhost}"
+
+    if [ -z "${password}" ]; then
+        mysql -u "${user}" -h "${host}" -e "SELECT 1" &>/dev/null
+    else
+        mysql -u "${user}" -p"${password}" -h "${host}" -e "SELECT 1" &>/dev/null
+    fi
+    return $?
+}
+
+#
+# Prompt for MySQL credentials interactively
+#
+prompt_mysql_credentials() {
+    echo ""
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║       MariaDB/MySQL Credentials Required                 ║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo "MariaDB is already installed and secured."
+    echo "Please provide root (or admin) credentials to continue."
+    echo ""
+
+    local mysql_user mysql_pass mysql_host
+
+    prompt "MySQL admin user" "root" mysql_user
+    prompt_password "MySQL admin password" mysql_pass
+    prompt "MySQL host" "localhost" mysql_host
+
+    # Test connection
+    echo ""
+    log_info "Testing connection..."
+
+    if test_mysql_connection "${mysql_user}" "${mysql_pass}" "${mysql_host}"; then
+        log_success "Connection successful!"
+
+        # Save credentials
+        cat > /root/.my.cnf <<-EOF
+[client]
+user=${mysql_user}
+password=${mysql_pass}
+host=${mysql_host}
+EOF
+        chmod 600 /root/.my.cnf
+        log_info "Credentials saved to /root/.my.cnf"
+        return 0
+    else
+        log_error "Connection failed with provided credentials"
+        return 1
+    fi
+}
+
+#
+# Show manual database setup instructions
+#
+show_manual_db_instructions() {
+    local db_name="${1:-phpborg_new}"
+    local db_user="${2:-phpborg_new}"
+    local db_pass="${3:-CHANGE_ME_SECURE_PASSWORD}"
+
+    echo ""
+    echo -e "${YELLOW}╔══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║          Manual Database Setup Required                  ║${NC}"
+    echo -e "${YELLOW}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo "Unable to connect to MySQL automatically."
+    echo "Please run the following commands manually as MySQL root:"
+    echo ""
+    echo -e "${CYAN}┌──────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${GREEN}mysql -u root -p${NC}"
+    echo ""
+    echo -e "${WHITE}-- Create database${NC}"
+    echo "CREATE DATABASE IF NOT EXISTS \`${db_name}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+    echo ""
+    echo -e "${WHITE}-- Create user and grant privileges${NC}"
+    echo "CREATE USER IF NOT EXISTS '${db_user}'@'localhost' IDENTIFIED BY '${db_pass}';"
+    echo "GRANT ALL PRIVILEGES ON \`${db_name}\`.* TO '${db_user}'@'localhost';"
+    echo "FLUSH PRIVILEGES;"
+    echo ""
+    echo -e "${WHITE}-- Import schema${NC}"
+    echo "USE ${db_name};"
+    echo "SOURCE ${PHPBORG_ROOT}/install/schema.sql;"
+    echo "SOURCE ${PHPBORG_ROOT}/install/data.sql;"
+    echo -e "${CYAN}└──────────────────────────────────────────────────────────┘${NC}"
+    echo ""
+    echo "After running these commands, update ${PHPBORG_ROOT}/.env with:"
+    echo "  DB_HOST=localhost"
+    echo "  DB_NAME=${db_name}"
+    echo "  DB_USER=${db_user}"
+    echo "  DB_PASSWORD=${db_pass}"
+    echo ""
+
+    # Store values for later reference
+    export MANUAL_DB_NAME="${db_name}"
+    export MANUAL_DB_USER="${db_user}"
+    export MANUAL_DB_PASS="${db_pass}"
+}
+
+#
 # Secure MariaDB installation
 #
-
 secure_mariadb() {
     print_section "Securing MariaDB Installation"
 
-    # Check if already secured
+    # Method 1: Check if root accessible without password
     if mysql -u root -e "SELECT 1" &>/dev/null; then
         log_info "MariaDB root accessible without password - securing now"
-    else
-        log_info "MariaDB already secured (root requires password)"
 
-        # Try to use existing credentials
-        if [ -f "/root/.my.cnf" ]; then
+        # Generate secure root password if not provided
+        if [ -z "${DB_ROOT_PASSWORD}" ]; then
+            DB_ROOT_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-24)
+            log_info "Generated root password"
+        fi
+
+        # Execute secure installation commands
+        log_info "Setting root password and removing anonymous users"
+
+        mysql -u root <<-EOF
+            -- Set root password
+            ALTER USER 'root'@'localhost' IDENTIFIED BY '${DB_ROOT_PASSWORD}';
+
+            -- Remove anonymous users
+            DELETE FROM mysql.user WHERE User='';
+
+            -- Disallow root login remotely
+            DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+
+            -- Remove test database
+            DROP DATABASE IF EXISTS test;
+            DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
+
+            -- Reload privilege tables
+            FLUSH PRIVILEGES;
+EOF
+
+        if [ $? -eq 0 ]; then
+            # Save root password to file
+            cat > /root/.my.cnf <<-EOF
+[client]
+user=root
+password=${DB_ROOT_PASSWORD}
+EOF
+            chmod 600 /root/.my.cnf
+
+            log_success "MariaDB secured"
+            log_info "Root password saved to /root/.my.cnf"
+
+            save_state "secure_mariadb" "completed" "{\"root_password_file\":\"/root/.my.cnf\"}"
+            return 0
+        else
+            log_error "Failed to secure MariaDB"
+            return 1
+        fi
+    fi
+
+    # MariaDB is already secured - need to find credentials
+    log_info "MariaDB already secured (root requires password)"
+
+    # Method 2: Check for existing /root/.my.cnf
+    if [ -f "/root/.my.cnf" ]; then
+        if mysql -e "SELECT 1" &>/dev/null; then
             log_success "Using existing root credentials from /root/.my.cnf"
             save_state "secure_mariadb" "completed" "{\"root_password_file\":\"/root/.my.cnf\"}"
             return 0
-        elif [ -f "/etc/mysql/debian.cnf" ]; then
-            # Debian/Ubuntu systems have debian-sys-maint user
-            log_info "Detected debian-sys-maint credentials in /etc/mysql/debian.cnf"
+        fi
+    fi
 
-            # Create .my.cnf from debian.cnf for easy access
-            if [ ! -f "/root/.my.cnf" ]; then
-                local debian_user=$(grep "^user" /etc/mysql/debian.cnf | head -1 | awk '{print $3}')
-                local debian_pass=$(grep "^password" /etc/mysql/debian.cnf | head -1 | awk '{print $3}')
+    # Method 3: Try debian-sys-maint (Debian/Ubuntu)
+    if [ -f "/etc/mysql/debian.cnf" ]; then
+        log_info "Trying debian-sys-maint credentials..."
+        local debian_user=$(grep "^user" /etc/mysql/debian.cnf | head -1 | awk -F'=' '{print $2}' | tr -d ' ')
+        local debian_pass=$(grep "^password" /etc/mysql/debian.cnf | head -1 | awk -F'=' '{print $2}' | tr -d ' ')
+
+        if [ -n "${debian_user}" ] && [ -n "${debian_pass}" ]; then
+            if test_mysql_connection "${debian_user}" "${debian_pass}"; then
+                log_success "Connected using debian-sys-maint credentials"
 
                 cat > /root/.my.cnf <<-EOF
 [client]
@@ -114,65 +270,52 @@ user=${debian_user}
 password=${debian_pass}
 EOF
                 chmod 600 /root/.my.cnf
-                log_success "Created /root/.my.cnf from debian-sys-maint credentials"
-            fi
+                log_info "Credentials saved to /root/.my.cnf"
 
-            save_state "secure_mariadb" "completed" "{\"root_password_file\":\"/root/.my.cnf\",\"method\":\"debian-sys-maint\"}"
-            return 0
-        else
-            log_warn "MariaDB secured but no credentials file found"
-            if [ "${INSTALL_MODE}" = "interactive" ]; then
-                echo ""
-                log_warn "Please provide root MySQL credentials manually"
-                return 1
+                save_state "secure_mariadb" "completed" "{\"root_password_file\":\"/root/.my.cnf\",\"method\":\"debian-sys-maint\"}"
+                return 0
             fi
-            return 0
         fi
     fi
 
-    # Generate secure root password if not provided
-    if [ -z "${DB_ROOT_PASSWORD}" ]; then
-        DB_ROOT_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-24)
-        log_info "Generated root password"
-    fi
+    # Method 4: Interactive mode - ask user
+    if [ "${INSTALL_MODE}" = "interactive" ]; then
+        echo ""
+        log_warn "Could not find valid MySQL credentials automatically"
 
-    # Execute secure installation commands
-    log_info "Setting root password and removing anonymous users"
+        if confirm "Do you want to enter MySQL credentials?" "y"; then
+            if prompt_mysql_credentials; then
+                save_state "secure_mariadb" "completed" "{\"root_password_file\":\"/root/.my.cnf\",\"method\":\"user-provided\"}"
+                return 0
+            fi
 
-    mysql -u root <<-EOF
-        -- Set root password
-        ALTER USER 'root'@'localhost' IDENTIFIED BY '${DB_ROOT_PASSWORD}';
+            # Second attempt failed - offer manual setup
+            echo ""
+            if confirm "Would you like to see manual setup instructions?" "y"; then
+                prompt "Database name" "phpborg_new" MANUAL_DB_NAME
+                prompt "Database user" "phpborg_new" MANUAL_DB_USER
 
-        -- Remove anonymous users
-        DELETE FROM mysql.user WHERE User='';
+                local gen_pass=$(openssl rand -base64 16 | tr -d "=+/")
+                prompt "Database password" "${gen_pass}" MANUAL_DB_PASS
 
-        -- Disallow root login remotely
-        DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+                show_manual_db_instructions "${MANUAL_DB_NAME}" "${MANUAL_DB_USER}" "${MANUAL_DB_PASS}"
 
-        -- Remove test database
-        DROP DATABASE IF EXISTS test;
-        DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
+                echo ""
+                log_warn "Please complete manual setup before continuing"
+                read -p "Press Enter when ready to continue (or Ctrl+C to exit)..."
 
-        -- Reload privilege tables
-        FLUSH PRIVILEGES;
-EOF
+                # Mark as manual setup
+                save_state "secure_mariadb" "completed" "{\"method\":\"manual\"}"
+                return 0
+            fi
+        fi
 
-    if [ $? -eq 0 ]; then
-        # Save root password to file
-        cat > /root/.my.cnf <<-EOF
-[client]
-user=root
-password=${DB_ROOT_PASSWORD}
-EOF
-        chmod 600 /root/.my.cnf
-
-        log_success "MariaDB secured"
-        log_info "Root password saved to /root/.my.cnf"
-
-        save_state "secure_mariadb" "completed" "{\"root_password_file\":\"/root/.my.cnf\"}"
-        return 0
+        log_error "Cannot proceed without MySQL credentials"
+        return 1
     else
-        log_error "Failed to secure MariaDB"
+        # Auto mode - fail gracefully
+        log_error "MariaDB secured but no credentials available (auto mode)"
+        log_error "Please run installer in interactive mode or provide credentials"
         return 1
     fi
 }

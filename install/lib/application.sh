@@ -41,16 +41,19 @@ install_composer_dependencies() {
     # Ensure phpborg can write to application directory (for composer.lock)
     chown -R phpborg:phpborg ${PHPBORG_ROOT}
 
-    # Run composer install
+    # Run composer install with progress display
     log_info "Running composer install (this may take a few minutes)..."
 
-    # Force PHP 8.3 for composer by setting COMPOSER_PHP_PATH
-    if su - phpborg -c "cd ${PHPBORG_ROOT} && php8.3 /usr/local/bin/composer install --no-dev --optimize-autoloader --no-interaction" >> "${INSTALL_LOG}" 2>&1; then
+    # Force PHP 8.3 for composer - use run_with_progress for nice display
+    local composer_cmd="su - phpborg -c 'cd ${PHPBORG_ROOT} && php8.3 /usr/local/bin/composer install --no-dev --optimize-autoloader --no-interaction 2>&1'"
+
+    if run_with_progress "Installing PHP dependencies (composer)" "${composer_cmd}" 1 5; then
         log_success "Composer dependencies installed"
         save_state "install_composer_dependencies" "completed"
         return 0
     else
         log_error "Failed to install composer dependencies"
+        log_error "Check ${INSTALL_LOG} for details"
         return 1
     fi
 }
