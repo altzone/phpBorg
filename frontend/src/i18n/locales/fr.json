@@ -713,7 +713,7 @@
       "save": "Enregistrer les paramètres email",
       "test_modal_title": "Envoyer un email de test",
       "test_recipient": "Email du destinataire *",
-      "test_placeholder": "votre.email@example.com",
+      "test_placeholder": "votre.email{'@'}example.com",
       "test_help": "Entrez l'adresse email où vous souhaitez recevoir le message de test",
       "test_cancel": "Annuler",
       "test_sending": "Envoi en cours...",
@@ -1757,7 +1757,7 @@
       "email_from": "Adresse expediteur",
       "email_from_name": "Nom expediteur",
       "test_email": "Tester",
-      "test_email_placeholder": "votre.email@example.com",
+      "test_email_placeholder": "votre.email{'@'}example.com",
       "test_email_success": "Email de test envoye avec succes !",
       "test_email_error": "Echec de l'envoi de l'email de test"
     },
