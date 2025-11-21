@@ -263,44 +263,31 @@ run_with_progress() {
     local cmd="$2"
 
     local temp_output=$(mktemp)
-    local pid
     local exit_code
     local start_time=$(date +%s)
 
     # Print title
     echo ""
     echo -e "${CYAN}┌─ ${title}${NC}"
-    echo -e "${CYAN}│${NC} ⏳ Running..."
 
-    # Start command in background
-    eval "${cmd}" > "${temp_output}" 2>&1 &
-    pid=$!
+    # Run command and show output in real-time with prefix
+    eval "${cmd}" 2>&1 | while IFS= read -r line; do
+        echo -e "${CYAN}│${NC} ${line}"
+    done
 
-    # Wait for completion
-    wait "${pid}"
-    exit_code=$?
+    # Get exit code from pipefail
+    exit_code=${PIPESTATUS[0]}
 
     # Calculate elapsed time
     local end_time=$(date +%s)
     local elapsed=$((end_time - start_time))
 
-    # Log full output
-    cat "${temp_output}" >> "${INSTALL_LOG}"
-
     if [ ${exit_code} -eq 0 ]; then
         echo -e "${GREEN}└─ ✓ Done${NC} (${elapsed}s)"
     else
         echo -e "${RED}└─ ✗ Failed (exit ${exit_code})${NC}"
-
-        # Show last lines on error
-        echo ""
-        echo -e "${RED}Last output:${NC}"
-        tail -5 "${temp_output}" | while IFS= read -r line; do
-            echo -e "  ${line:0:80}"
-        done
     fi
 
-    rm -f "${temp_output}"
     return ${exit_code}
 }
 
