@@ -437,6 +437,14 @@ optimize_php_fpm() {
     # Remove old socket files to prevent conflicts
     rm -f /run/php/phpborg-*-fpm.sock
 
+    # Create log directory and files BEFORE configuring the pool
+    log_info "Creating PHP-FPM log directory"
+    mkdir -p /var/log/phpborg
+    touch /var/log/phpborg/php-fpm.log
+    touch /var/log/phpborg/php-fpm-slow.log
+    chown -R phpborg:phpborg /var/log/phpborg
+    chmod 755 /var/log/phpborg
+
     log_info "Creating PHP-FPM pool: ${pool_file}"
 
     cat > "${pool_file}" <<EOF
