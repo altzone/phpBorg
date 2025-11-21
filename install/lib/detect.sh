@@ -282,35 +282,106 @@ detect_redis() {
     fi
 }
 
+#
+# Detect what's listening on port 80 using ss
+#
+detect_webserver_listening() {
+    # Check what process is listening on port 80
+    local listening_process=$(ss -tlnp 2>/dev/null | grep ':80 ' | grep -oP 'users:\(\("\K[^"]+' | head -1)
+
+    if [ -n "${listening_process}" ]; then
+        export WEBSERVER_LISTENING="${listening_process}"
+        log_info "Port 80 is used by: ${listening_process}"
+        return 0
+    else
+        export WEBSERVER_LISTENING=""
+        log_debug "Nothing listening on port 80"
+        return 1
+    fi
+}
+
 detect_nginx() {
-    if command -v nginx &> /dev/null; then
+    # First check if nginx is actually listening (any port)
+    if ss -tlnp 2>/dev/null | grep -q 'nginx'; then
         local nginx_version=$(nginx -v 2>&1 | grep -oP '\d+\.\d+\.\d+' | head -1)
         export NGINX_INSTALLED=1
+        export NGINX_RUNNING=1
         export NGINX_VERSION="${nginx_version}"
         export NGINX_BINARY=$(command -v nginx)
-        log_info "Nginx ${nginx_version} detected"
+        log_info "Nginx ${nginx_version} detected (listening)"
+        return 0
+    # Fallback: check if service is running
+    elif systemctl is-active --quiet nginx 2>/dev/null; then
+        local nginx_version=$(nginx -v 2>&1 | grep -oP '\d+\.\d+\.\d+' | head -1)
+        export NGINX_INSTALLED=1
+        export NGINX_RUNNING=1
+        export NGINX_VERSION="${nginx_version}"
+        export NGINX_BINARY=$(command -v nginx)
+        log_info "Nginx ${nginx_version} detected (service running)"
+        return 0
+    # Just binary present but not running
+    elif command -v nginx &> /dev/null; then
+        local nginx_version=$(nginx -v 2>&1 | grep -oP '\d+\.\d+\.\d+' | head -1)
+        export NGINX_INSTALLED=1
+        export NGINX_RUNNING=0
+        export NGINX_VERSION="${nginx_version}"
+        export NGINX_BINARY=$(command -v nginx)
+        log_info "Nginx ${nginx_version} detected (not running)"
         return 0
     else
         export NGINX_INSTALLED=0
+        export NGINX_RUNNING=0
         log_debug "Nginx not installed"
         return 1
     fi
 }
 
 detect_apache() {
-    if command -v apache2 &> /dev/null || command -v httpd &> /dev/null; then
-        local apache_binary=$(command -v apache2 || command -v httpd)
+    # First check if apache is actually listening (any port)
+    if ss -tlnp 2>/dev/null | grep -qE 'apache2|httpd'; then
+        local apache_binary="apache2"
+        command -v apache2 &>/dev/null || apache_binary="httpd"
         local apache_version=$(${apache_binary} -v 2>&1 | grep -oP '\d+\.\d+\.\d+' | head -1)
         export APACHE_INSTALLED=1
+        export APACHE_RUNNING=1
         export APACHE_VERSION="${apache_version}"
         export APACHE_BINARY="${apache_binary}"
-        log_info "Apache ${apache_version} detected"
+        log_info "Apache ${apache_version} detected (listening)"
         return 0
-    else
-        export APACHE_INSTALLED=0
-        log_debug "Apache not installed"
-        return 1
+    # Fallback: check if service is running
+    elif systemctl is-active --quiet apache2 2>/dev/null || systemctl is-active --quiet httpd 2>/dev/null; then
+        local apache_binary="apache2"
+        command -v apache2 &>/dev/null || apache_binary="httpd"
+        local apache_version=$(${apache_binary} -v 2>&1 | grep -oP '\d+\.\d+\.\d+' | head -1)
+        export APACHE_INSTALLED=1
+        export APACHE_RUNNING=1
+        export APACHE_VERSION="${apache_version}"
+        export APACHE_BINARY="${apache_binary}"
+        log_info "Apache ${apache_version} detected (service running)"
+        return 0
+    # Check if properly installed (binary + config dir)
+    elif command -v apache2 &> /dev/null || command -v httpd &> /dev/null; then
+        local apache_binary="apache2"
+        command -v apache2 &>/dev/null || apache_binary="httpd"
+
+        # Must have config directory with sites-available (Debian) or conf.d (RHEL)
+        if [ -d "/etc/apache2/sites-available" ] || [ -d "/etc/httpd/conf.d" ]; then
+            local apache_version=$(${apache_binary} -v 2>&1 | grep -oP '\d+\.\d+\.\d+' | head -1)
+            export APACHE_INSTALLED=1
+            export APACHE_RUNNING=0
+            export APACHE_VERSION="${apache_version}"
+            export APACHE_BINARY="${apache_binary}"
+            log_info "Apache ${apache_version} detected (not running)"
+            return 0
+        else
+            log_debug "Apache binary found but not properly configured (missing sites-available)"
+        fi
     fi
+
+    export APACHE_INSTALLED=0
+    export APACHE_RUNNING=0
+    log_debug "Apache not installed"
+    return 1
 }
 
 detect_borgbackup() {
@@ -366,23 +437,29 @@ detect_all_services() {
 
 #
 # Web server selection
+# Priority: running webserver > installed and configured > install nginx
 #
 
 select_webserver() {
-    if [ "${INSTALL_MODE}" = "auto" ]; then
-        # Auto mode: prefer already running web server
-        # Check if Apache is running on port 80
-        if [ "${APACHE_INSTALLED}" = "1" ] && systemctl is-active --quiet apache2 2>/dev/null; then
-            export WEBSERVER="apache"
-            log_info "Web server: apache (detected running)"
-        # Check if Nginx is running
-        elif [ "${NGINX_INSTALLED}" = "1" ] && systemctl is-active --quiet nginx 2>/dev/null; then
+    # Priority 1: Use webserver that's actually running on port 80
+    if [ "${NGINX_RUNNING}" = "1" ]; then
+        export WEBSERVER="nginx"
+        log_info "Web server: nginx (running on port 80)"
+        return
+    elif [ "${APACHE_RUNNING}" = "1" ]; then
+        export WEBSERVER="apache"
+        log_info "Web server: apache (running on port 80)"
+        return
+    fi
+
+    # Priority 2: Both installed and properly configured - ask user
+    if [ "${NGINX_INSTALLED}" = "1" ] && [ "${APACHE_INSTALLED}" = "1" ]; then
+        if [ "${INSTALL_MODE}" = "auto" ]; then
             export WEBSERVER="nginx"
-            log_info "Web server: nginx (detected running)"
-        # Both installed but neither running - ask user
-        elif [ "${NGINX_INSTALLED}" = "1" ] && [ "${APACHE_INSTALLED}" = "1" ]; then
+            log_info "Web server: nginx (auto-selected, both available)"
+        else
             echo ""
-            echo "Both Nginx and Apache are installed but neither is running."
+            echo "Both Nginx and Apache are installed."
             echo "1) Nginx (recommended)"
             echo "2) Apache"
             echo -ne "${CYAN}?${NC} Select web server [1]: "
@@ -393,42 +470,22 @@ select_webserver() {
                 2) export WEBSERVER="apache" ;;
                 *) export WEBSERVER="nginx" ;;
             esac
-        # Only one installed
-        elif [ "${NGINX_INSTALLED}" = "1" ]; then
-            export WEBSERVER="nginx"
-            log_info "Web server: nginx (auto-selected)"
-        elif [ "${APACHE_INSTALLED}" = "1" ]; then
-            export WEBSERVER="apache"
-            log_info "Web server: apache (auto-selected)"
-        else
-            export WEBSERVER="nginx" # Will be installed
-            log_info "Web server: nginx (will be installed)"
         fi
         return
     fi
 
-    # Interactive mode
-    if [ "${NGINX_INSTALLED}" = "1" ] && [ "${APACHE_INSTALLED}" = "1" ]; then
-        echo ""
-        echo "Both Nginx and Apache are installed."
-        echo "1) Nginx (recommended)"
-        echo "2) Apache"
-        echo -ne "${CYAN}?${NC} Select web server [1]: "
-        read choice < /dev/tty
-        choice="${choice:-1}"
-        case ${choice} in
-            1) export WEBSERVER="nginx" ;;
-            2) export WEBSERVER="apache" ;;
-            *) export WEBSERVER="nginx" ;;
-        esac
-    elif [ "${NGINX_INSTALLED}" = "1" ]; then
+    # Priority 3: One is installed and properly configured
+    if [ "${NGINX_INSTALLED}" = "1" ]; then
         export WEBSERVER="nginx"
-        log_info "Using Nginx (detected)"
+        log_info "Web server: nginx (installed)"
+        return
     elif [ "${APACHE_INSTALLED}" = "1" ]; then
         export WEBSERVER="apache"
-        log_info "Using Apache (detected)"
-    else
-        export WEBSERVER="nginx"
-        log_info "Nginx will be installed"
+        log_info "Web server: apache (installed)"
+        return
     fi
+
+    # Priority 4: Nothing properly installed - will install nginx
+    export WEBSERVER="nginx"
+    log_info "Web server: nginx (will be installed)"
 }
