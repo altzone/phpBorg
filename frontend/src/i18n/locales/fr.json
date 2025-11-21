@@ -1755,7 +1755,11 @@
       "smtp_password": "Mot de passe",
       "smtp_encryption": "Chiffrement",
       "email_from": "Adresse expediteur",
-      "email_from_name": "Nom expediteur"
+      "email_from_name": "Nom expediteur",
+      "test_email": "Tester",
+      "test_email_placeholder": "votre.email@example.com",
+      "test_email_success": "Email de test envoye avec succes !",
+      "test_email_error": "Echec de l'envoi de l'email de test"
     },
     "step4": {
       "title": "Politique de retention",

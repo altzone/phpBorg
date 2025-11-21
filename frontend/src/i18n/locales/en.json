@@ -1705,7 +1705,11 @@
       "smtp_password": "Password",
       "smtp_encryption": "Encryption",
       "email_from": "From Address",
-      "email_from_name": "From Name"
+      "email_from_name": "From Name",
+      "test_email": "Test",
+      "test_email_placeholder": "your.email@example.com",
+      "test_email_success": "Test email sent successfully!",
+      "test_email_error": "Failed to send test email"
     },
     "step4": {
       "title": "Retention Policy",

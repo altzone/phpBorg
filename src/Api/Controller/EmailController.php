@@ -47,11 +47,25 @@ class EmailController extends BaseController
                 return;
             }
 
-            // Get SMTP settings
-            $settings = $this->settingRepository->findByCategory('email');
+            // Check if inline SMTP config is provided (for setup wizard testing before save)
             $smtpSettings = [];
-            foreach ($settings as $setting) {
-                $smtpSettings[$setting->key] = $setting->getTypedValue();
+            if (!empty($data['smtp_config'])) {
+                $config = $data['smtp_config'];
+                $smtpSettings = [
+                    'smtp.host' => $config['host'] ?? '',
+                    'smtp.port' => $config['port'] ?? 587,
+                    'smtp.username' => $config['username'] ?? '',
+                    'smtp.password' => $config['password'] ?? '',
+                    'smtp.encryption' => $config['encryption'] ?? 'tls',
+                    'smtp.from_email' => $config['from_email'] ?? '',
+                    'smtp.from_name' => $config['from_name'] ?? 'phpBorg',
+                ];
+            } else {
+                // Get SMTP settings from database
+                $settings = $this->settingRepository->findByCategory('smtp');
+                foreach ($settings as $setting) {
+                    $smtpSettings[$setting->key] = $setting->getTypedValue();
+                }
             }
 
             // Validate required settings

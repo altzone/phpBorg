@@ -99,30 +99,30 @@ class SetupController extends BaseController
             $this->saveOrCreateSetting('network.internal_ip', $data['internal_ip'], 'network', 'string', 'Internal IP address');
             $this->saveOrCreateSetting('network.external_ip', $data['external_ip'], 'network', 'string', 'External IP address');
 
-            // Optional email settings
+            // Optional email settings - use smtp.* keys to match SettingsView and EmailService
             if (!empty($data['email_enabled'])) {
-                $this->saveOrCreateSetting('email.enabled', $data['email_enabled'] ? 'true' : 'false', 'email', 'boolean', 'Enable email notifications');
+                $this->saveOrCreateSetting('smtp.enabled', $data['email_enabled'] ? 'true' : 'false', 'smtp', 'boolean', 'Enable email notifications');
 
                 if (!empty($data['smtp_host'])) {
-                    $this->saveOrCreateSetting('email.smtp_host', $data['smtp_host'], 'email', 'string', 'SMTP server host');
+                    $this->saveOrCreateSetting('smtp.host', $data['smtp_host'], 'smtp', 'string', 'SMTP server host');
                 }
                 if (!empty($data['smtp_port'])) {
-                    $this->saveOrCreateSetting('email.smtp_port', (string)$data['smtp_port'], 'email', 'integer', 'SMTP server port');
+                    $this->saveOrCreateSetting('smtp.port', (string)$data['smtp_port'], 'smtp', 'integer', 'SMTP server port');
                 }
                 if (!empty($data['smtp_username'])) {
-                    $this->saveOrCreateSetting('email.smtp_username', $data['smtp_username'], 'email', 'string', 'SMTP username');
+                    $this->saveOrCreateSetting('smtp.username', $data['smtp_username'], 'smtp', 'string', 'SMTP username');
                 }
                 if (!empty($data['smtp_password'])) {
-                    $this->saveOrCreateSetting('email.smtp_password', $data['smtp_password'], 'email', 'string', 'SMTP password');
+                    $this->saveOrCreateSetting('smtp.password', $data['smtp_password'], 'smtp', 'string', 'SMTP password');
                 }
                 if (!empty($data['smtp_encryption'])) {
-                    $this->saveOrCreateSetting('email.smtp_encryption', $data['smtp_encryption'], 'email', 'string', 'SMTP encryption (tls/ssl)');
+                    $this->saveOrCreateSetting('smtp.encryption', $data['smtp_encryption'], 'smtp', 'string', 'SMTP encryption (tls/ssl)');
                 }
                 if (!empty($data['email_from'])) {
-                    $this->saveOrCreateSetting('email.from_address', $data['email_from'], 'email', 'string', 'From email address');
+                    $this->saveOrCreateSetting('smtp.from_email', $data['email_from'], 'smtp', 'string', 'From email address');
                 }
                 if (!empty($data['email_from_name'])) {
-                    $this->saveOrCreateSetting('email.from_name', $data['email_from_name'], 'email', 'string', 'From name');
+                    $this->saveOrCreateSetting('smtp.from_name', $data['email_from_name'], 'smtp', 'string', 'From name');
                 }
             }
 
