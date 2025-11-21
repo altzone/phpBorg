@@ -602,6 +602,11 @@ optimize_mariadb() {
 
     backup_file "${my_cnf}"
 
+    # Ensure log directory exists
+    mkdir -p /var/log/mysql
+    chown mysql:mysql /var/log/mysql
+    chmod 750 /var/log/mysql
+
     cat > "${my_cnf}" <<-'EOF'
 [mysqld]
 # phpBorg Optimization Settings
@@ -633,18 +638,17 @@ performance_schema = ON
 character-set-server = utf8mb4
 collation-server = utf8mb4_unicode_ci
 
-# Logging
+# Slow query logging (useful for debugging)
 slow_query_log = 1
 slow_query_log_file = /var/log/mysql/mariadb-slow.log
 long_query_time = 2
 log_queries_not_using_indexes = 0
 
-# Binary logging (for replication/backup)
-log_bin = /var/log/mysql/mariadb-bin
-log_bin_index = /var/log/mysql/mariadb-bin.index
-binlog_format = ROW
-expire_logs_days = 7
-max_binlog_size = 100M
+# Binary logging disabled (not needed for phpBorg standalone)
+# Enable if you need replication or point-in-time recovery
+# log_bin = /var/log/mysql/mariadb-bin
+# binlog_format = ROW
+# expire_logs_days = 7
 EOF
 
     if [ $? -eq 0 ]; then
