@@ -27,39 +27,56 @@ GITHUB_BRANCH="${GITHUB_BRANCH:-master}"
 bootstrap_repository() {
     # Check if we're running from curl (no local files)
     if [ ! -f "${PHPBORG_ROOT}/install/lib/common.sh" ]; then
+        echo ""
+        echo "╔══════════════════════════════════════════════════════════╗"
+        echo "║         phpBorg Universal Installer - Bootstrap          ║"
+        echo "╚══════════════════════════════════════════════════════════╝"
+        echo ""
         echo "Bootstrapping phpBorg installation..."
 
         # Check for git
         if ! command -v git &> /dev/null; then
-            echo "Installing git..."
+            echo "→ Installing git..."
             if command -v apt-get &> /dev/null; then
-                apt-get update && apt-get install -y git
+                apt-get update -qq && apt-get install -y -qq git
             elif command -v dnf &> /dev/null; then
-                dnf install -y git
+                dnf install -y -q git
             elif command -v yum &> /dev/null; then
-                yum install -y git
+                yum install -y -q git
             elif command -v pacman &> /dev/null; then
-                pacman -Sy --noconfirm git
+                pacman -Sy --noconfirm --quiet git
             else
                 echo "ERROR: Cannot install git. Please install it manually."
                 exit 1
             fi
+            echo "✓ Git installed"
         fi
 
         # Create parent directory
         mkdir -p "$(dirname ${PHPBORG_ROOT})"
 
-        # Clone repository
-        if [ -d "${PHPBORG_ROOT}" ]; then
-            echo "Updating existing installation..."
+        # Clone or update repository
+        if [ -d "${PHPBORG_ROOT}/.git" ]; then
+            echo "→ Updating existing repository..."
             cd "${PHPBORG_ROOT}"
-            git fetch origin
-            git checkout "${GITHUB_BRANCH}"
-            git pull origin "${GITHUB_BRANCH}"
+            git fetch origin --quiet
+            git checkout "${GITHUB_BRANCH}" --quiet 2>/dev/null || true
+            git reset --hard "origin/${GITHUB_BRANCH}" --quiet
+            echo "✓ Repository updated"
         else
-            echo "Cloning phpBorg repository..."
-            git clone -b "${GITHUB_BRANCH}" "https://github.com/${GITHUB_REPO}.git" "${PHPBORG_ROOT}"
+            # Remove incomplete installation if exists
+            if [ -d "${PHPBORG_ROOT}" ]; then
+                echo "→ Removing incomplete installation..."
+                rm -rf "${PHPBORG_ROOT}"
+            fi
+            echo "→ Cloning phpBorg repository..."
+            git clone -b "${GITHUB_BRANCH}" --quiet "https://github.com/${GITHUB_REPO}.git" "${PHPBORG_ROOT}"
+            echo "✓ Repository cloned"
         fi
+
+        echo ""
+        echo "→ Starting installation..."
+        echo ""
 
         # Re-execute the script from the cloned repository
         exec "${PHPBORG_ROOT}/install.sh" "$@"
