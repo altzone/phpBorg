@@ -385,7 +385,8 @@ select_webserver() {
             echo "Both Nginx and Apache are installed but neither is running."
             echo "1) Nginx (recommended)"
             echo "2) Apache"
-            read -p "$(echo -e ${CYAN}?${NC}) Select web server [1]: " choice
+            echo -ne "${CYAN}?${NC} Select web server [1]: "
+            read choice < /dev/tty
             choice="${choice:-1}"
             case ${choice} in
                 1) export WEBSERVER="nginx" ;;
@@ -412,7 +413,8 @@ select_webserver() {
         echo "Both Nginx and Apache are installed."
         echo "1) Nginx (recommended)"
         echo "2) Apache"
-        read -p "$(echo -e ${CYAN}?${NC}) Select web server [1]: " choice
+        echo -ne "${CYAN}?${NC} Select web server [1]: "
+        read choice < /dev/tty
         choice="${choice:-1}"
         case ${choice} in
             1) export WEBSERVER="nginx" ;;

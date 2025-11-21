@@ -90,11 +90,14 @@ prompt() {
     fi
 
     # Interactive mode: ask user
+    # IMPORTANT: Read from /dev/tty to work with curl | bash
     if [ -n "${default}" ]; then
-        read -p "$(echo -e ${CYAN}?${NC}) ${question} [${default}]: " response
+        echo -ne "${CYAN}?${NC} ${question} [${default}]: "
+        read response < /dev/tty
         response="${response:-${default}}"
     else
-        read -p "$(echo -e ${CYAN}?${NC}) ${question}: " response
+        echo -ne "${CYAN}?${NC} ${question}: "
+        read response < /dev/tty
     fi
 
     eval "${var_name}='${response}'"
@@ -117,7 +120,9 @@ prompt_password() {
     fi
 
     # Interactive mode: ask with masked input
-    read -sp "$(echo -e ${CYAN}?${NC}) ${question}: " response
+    # IMPORTANT: Read from /dev/tty to work with curl | bash
+    echo -ne "${CYAN}?${NC} ${question}: "
+    read -s response < /dev/tty
     echo ""
 
     if [ -z "${response}" ] && [ -n "${default}" ]; then
@@ -137,12 +142,14 @@ confirm() {
     fi
 
     # Interactive mode: ask user
-    local prompt_text="$(echo -e ${CYAN}?${NC}) ${question} [y/N]: "
+    # IMPORTANT: Read from /dev/tty to work with curl | bash
     if [ "${default}" = "y" ]; then
-        prompt_text="$(echo -e ${CYAN}?${NC}) ${question} [Y/n]: "
+        echo -ne "${CYAN}?${NC} ${question} [Y/n]: "
+    else
+        echo -ne "${CYAN}?${NC} ${question} [y/N]: "
     fi
 
-    read -p "${prompt_text}" response
+    read response < /dev/tty
     response="${response:-${default}}"
 
     [[ "${response}" =~ ^[Yy] ]]

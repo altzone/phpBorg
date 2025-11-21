@@ -302,7 +302,8 @@ EOF
 
                 echo ""
                 log_warn "Please complete manual setup before continuing"
-                read -p "Press Enter when ready to continue (or Ctrl+C to exit)..."
+                echo -n "Press Enter when ready to continue (or Ctrl+C to exit)..."
+                read < /dev/tty
 
                 # Mark as manual setup
                 save_state "secure_mariadb" "completed" "{\"method\":\"manual\"}"
