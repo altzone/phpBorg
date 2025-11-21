@@ -3,7 +3,7 @@
 Modern enterprise backup solution based on BorgBackup with web interface, comparable to Veeam, Acronis, and Nakivo.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Version](https://img.shields.io/badge/version-1.0.33-green.svg)
+![Version](https://img.shields.io/badge/version-1.0.34-green.svg)
 ![PHP](https://img.shields.io/badge/PHP-8.3-777BB4.svg)
 ![Vue.js](https://img.shields.io/badge/Vue.js-3-4FC08D.svg)
 
@@ -53,7 +53,7 @@ Modern enterprise backup solution based on BorgBackup with web interface, compar
 ### One-Line Install (Ubuntu 22.04/24.04)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/altzone/phpBorg/master/install/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/altzone/phpBorg/master/install.sh | sudo bash
 ```
 
 That's it! The script will:
@@ -79,9 +79,9 @@ That's it! The script will:
 
 ## 📖 Documentation
 
-- **[Installation Guide](INSTALL.md)** - Complete installation instructions
-- **[Installer Project](docs/INSTALLER_PROJECT.md)** - Technical documentation
-- **[Project Instructions](CLAUDE.md)** - Development notes and architecture
+- **[Installation Guide](docs/INSTALL.md)** - Complete installation instructions
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment
+- **[Architecture](docs/architecture/)** - Technical documentation
 
 ---
 
@@ -266,7 +266,7 @@ Built with:
 
 ## 📞 Support
 
-- **Documentation**: [INSTALL.md](INSTALL.md)
+- **Documentation**: [docs/](docs/)
 - **Issues**: [GitHub Issues](https://github.com/altzone/phpBorg/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/altzone/phpBorg/discussions)
 
