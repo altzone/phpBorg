@@ -196,83 +196,6 @@ deploy_frontend() {
     fi
 }
 
-#
-# Create index.php for API routing
-#
-
-create_api_index() {
-    print_section "Creating API Router"
-
-    local index_file="${PHPBORG_ROOT}/public/index.php"
-
-    # Check if index.php already exists
-    if [ -f "${index_file}" ]; then
-        log_info "index.php already exists"
-
-        # Check if it's a phpBorg API router
-        if grep -q "phpBorg API Router" "${index_file}"; then
-            log_info "API router already configured"
-            save_state "create_api_index" "completed"
-            return 0
-        fi
-
-        # Backup existing file
-        backup_file "${index_file}"
-    fi
-
-    # Create API router
-    log_info "Creating API router: ${index_file}"
-
-    cat > "${index_file}" <<'EOF'
-<?php
-
-/**
- * phpBorg API Router
- * Entry point for all API requests
- */
-
-declare(strict_types=1);
-
-// Load environment and configuration
-require_once dirname(__DIR__) . '/vendor/autoload.php';
-
-// Load .env file
-$dotenv = Dotenv\Dotenv::createImmutable(dirname(__DIR__));
-$dotenv->load();
-
-// Check if this is an API request
-$requestUri = $_SERVER['REQUEST_URI'] ?? '/';
-
-if (strpos($requestUri, '/api/') === 0) {
-    // API request - handle with application
-    require_once dirname(__DIR__) . '/src/bootstrap.php';
-
-    $app = new PhpBorg\Application();
-    $app->run();
-} else {
-    // Not an API request - should be handled by frontend (index.html)
-    // This file should not be reached for non-API requests
-    // Nginx/Apache should serve index.html directly
-    http_response_code(404);
-    header('Content-Type: application/json');
-    echo json_encode([
-        'error' => 'Not Found',
-        'message' => 'API endpoint not found'
-    ]);
-}
-EOF
-
-    if [ $? -eq 0 ]; then
-        chown phpborg:phpborg "${index_file}"
-        chmod 644 "${index_file}"
-        log_success "API router created"
-        save_state "create_api_index" "completed"
-        return 0
-    else
-        log_error "Failed to create API router"
-        return 1
-    fi
-}
 
 #
 # Verify frontend deployment
@@ -368,13 +291,6 @@ setup_frontend() {
         deploy_frontend || errors=$((errors + 1))
     else
         log_info "Frontend already deployed (skipped)"
-    fi
-
-    # Create API router
-    if ! is_step_completed "create_api_index"; then
-        create_api_index || errors=$((errors + 1))
-    else
-        log_info "API router already created (skipped)"
     fi
 
     # Verify deployment
