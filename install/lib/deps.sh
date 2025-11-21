@@ -332,31 +332,34 @@ setup_php_repo() {
     fi
 
     case "${OS_DISTRO}" in
-        debian|ubuntu|linuxmint|pop)
-            log_info "Adding Ondrej PHP PPA for PHP 8.3"
-
-            # Remove old Sury repo if exists (archived since Aug 2025)
-            if [ -f /etc/apt/sources.list.d/sury-php.list ]; then
-                log_info "Removing archived Sury repository configuration"
-                rm -f /etc/apt/sources.list.d/sury-php.list
-                rm -f /etc/apt/trusted.gpg.d/sury-php.gpg
-            fi
+        ubuntu|linuxmint|pop)
+            log_info "Adding Ondrej PHP PPA for PHP 8.3 (Ubuntu)"
 
             # Install prerequisites
-            run_cmd "apt-get install -y gnupg2 ca-certificates lsb-release"
+            run_cmd "apt-get install -y gnupg2 ca-certificates lsb-release software-properties-common"
 
-            # Manual PPA setup (avoids Launchpad API issues)
-            # Use ppa.launchpadcontent.net instead of packages.sury.org (archived)
-            log_info "Adding Ondrej PHP GPG key from keyserver"
-            if ! gpg --list-keys 14AA40EC0831756756D7F66C4F4EA0AAE5267A6C >/dev/null 2>&1; then
-                run_cmd "gpg --keyserver keyserver.ubuntu.com --recv-keys 14AA40EC0831756756D7F66C4F4EA0AAE5267A6C"
-                run_cmd "gpg --export 14AA40EC0831756756D7F66C4F4EA0AAE5267A6C | tee /etc/apt/trusted.gpg.d/ondrej-php.gpg > /dev/null"
-            fi
-
-            log_info "Adding Ondrej PHP PPA repository"
-            echo "deb http://ppa.launchpad.net/ondrej/php/ubuntu $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/ondrej-php.list > /dev/null
+            # Add PPA the proper way
+            run_cmd "add-apt-repository -y ppa:ondrej/php"
 
             log_success "PHP PPA configured"
+            run_cmd "${PKG_UPDATE_CMD}"
+            ;;
+        debian)
+            log_info "Adding Sury PHP repository for PHP 8.3 (Debian)"
+
+            # Install prerequisites
+            run_cmd "apt-get install -y gnupg2 ca-certificates lsb-release apt-transport-https"
+
+            # Add Sury GPG key
+            log_info "Adding Sury PHP GPG key"
+            curl -fsSL https://packages.sury.org/php/apt.gpg | gpg --dearmor -o /usr/share/keyrings/sury-php.gpg
+
+            # Add repository with signed-by
+            local codename=$(lsb_release -sc)
+            log_info "Adding Sury PHP repository for ${codename}"
+            echo "deb [signed-by=/usr/share/keyrings/sury-php.gpg] https://packages.sury.org/php/ ${codename} main" | tee /etc/apt/sources.list.d/sury-php.list > /dev/null
+
+            log_success "PHP Sury repository configured"
             run_cmd "${PKG_UPDATE_CMD}"
             ;;
         rhel|centos|rocky|almalinux|fedora)
@@ -448,6 +451,13 @@ install_composer() {
         return 0
     fi
 
+    # Ensure PHP is detected (should be installed by now)
+    detect_php
+    if [ -z "${PHP_BINARY}" ] || [ ! -x "${PHP_BINARY}" ]; then
+        log_error "PHP not found - cannot install Composer"
+        return 1
+    fi
+
     log_info "Downloading Composer installer"
 
     local expected_signature
@@ -463,21 +473,23 @@ install_composer() {
 
     if [ "${expected_signature}" != "${actual_signature}" ]; then
         log_error "Invalid Composer installer signature"
-        rm /tmp/composer-setup.php
+        log_error "Expected: ${expected_signature}"
+        log_error "Actual: ${actual_signature}"
+        rm -f /tmp/composer-setup.php
         return 1
     fi
 
     log_info "Installing Composer globally"
 
     if ${PHP_BINARY} /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer >> "${INSTALL_LOG}" 2>&1; then
-        rm /tmp/composer-setup.php
+        rm -f /tmp/composer-setup.php
         detect_composer
         log_success "Composer ${COMPOSER_VERSION} installed"
         save_state "install_composer" "completed"
         return 0
     else
         log_error "Failed to install Composer"
-        rm /tmp/composer-setup.php
+        rm -f /tmp/composer-setup.php
         return 1
     fi
 }
