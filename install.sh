@@ -1,15 +1,18 @@
 #!/bin/bash
 #
 # phpBorg Universal Installer
-# Version 1.0.2
+# Version 1.0.3
 #
 # Supports: Debian, Ubuntu, RHEL, CentOS, Fedora, Arch, Alpine
 # Modes: Interactive, Automatic
 # Features: Idempotent, Multi-distribution, State tracking
 #
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/altzone/phpBorg/master/install.sh | sudo bash
+#
 
-# Don't exit on error - we handle errors ourselves
-set +e
+# Exit on error during bootstrap only
+set -e
 
 # Installation directory (can be overridden via environment)
 export PHPBORG_ROOT="${PHPBORG_ROOT:-/opt/newphpborg/phpBorg}"
@@ -22,69 +25,107 @@ GITHUB_REPO="altzone/phpBorg"
 GITHUB_BRANCH="${GITHUB_BRANCH:-master}"
 
 #
-# Bootstrap: Clone repository if not present
+# Check if running as root
 #
-bootstrap_repository() {
-    # Check if we're running from curl (no local files)
-    if [ ! -f "${PHPBORG_ROOT}/install/lib/common.sh" ]; then
-        echo ""
-        echo "╔══════════════════════════════════════════════════════════╗"
-        echo "║         phpBorg Universal Installer - Bootstrap          ║"
-        echo "╚══════════════════════════════════════════════════════════╝"
-        echo ""
-        echo "Bootstrapping phpBorg installation..."
-
-        # Check for git
-        if ! command -v git &> /dev/null; then
-            echo "→ Installing git..."
-            if command -v apt-get &> /dev/null; then
-                apt-get update -qq && apt-get install -y -qq git
-            elif command -v dnf &> /dev/null; then
-                dnf install -y -q git
-            elif command -v yum &> /dev/null; then
-                yum install -y -q git
-            elif command -v pacman &> /dev/null; then
-                pacman -Sy --noconfirm --quiet git
-            else
-                echo "ERROR: Cannot install git. Please install it manually."
-                exit 1
-            fi
-            echo "✓ Git installed"
-        fi
-
-        # Create parent directory
-        mkdir -p "$(dirname ${PHPBORG_ROOT})"
-
-        # Clone or update repository
-        if [ -d "${PHPBORG_ROOT}/.git" ]; then
-            echo "→ Updating existing repository..."
-            cd "${PHPBORG_ROOT}"
-            git fetch origin --quiet
-            git checkout "${GITHUB_BRANCH}" --quiet 2>/dev/null || true
-            git reset --hard "origin/${GITHUB_BRANCH}" --quiet
-            echo "✓ Repository updated"
-        else
-            # Remove incomplete installation if exists
-            if [ -d "${PHPBORG_ROOT}" ]; then
-                echo "→ Removing incomplete installation..."
-                rm -rf "${PHPBORG_ROOT}"
-            fi
-            echo "→ Cloning phpBorg repository..."
-            git clone -b "${GITHUB_BRANCH}" --quiet "https://github.com/${GITHUB_REPO}.git" "${PHPBORG_ROOT}"
-            echo "✓ Repository cloned"
-        fi
-
-        echo ""
-        echo "→ Starting installation..."
-        echo ""
-
-        # Re-execute the script from the cloned repository
-        exec "${PHPBORG_ROOT}/install.sh" "$@"
+check_root() {
+    if [ "$EUID" -ne 0 ]; then
+        echo "ERROR: This script must be run as root"
+        echo "Usage: curl -fsSL https://raw.githubusercontent.com/altzone/phpBorg/master/install.sh | sudo bash"
+        exit 1
     fi
 }
 
-# Bootstrap if needed
+#
+# Install git if not present
+#
+install_git() {
+    if command -v git &> /dev/null; then
+        return 0
+    fi
+
+    echo "→ Git not found, installing..."
+
+    if command -v apt-get &> /dev/null; then
+        apt-get update -qq && apt-get install -y -qq git
+    elif command -v dnf &> /dev/null; then
+        dnf install -y -q git
+    elif command -v yum &> /dev/null; then
+        yum install -y -q git
+    elif command -v pacman &> /dev/null; then
+        pacman -Sy --noconfirm --quiet git
+    elif command -v apk &> /dev/null; then
+        apk add --quiet git
+    else
+        echo "ERROR: Cannot detect package manager to install git."
+        echo "Please install git manually and re-run the installer."
+        exit 1
+    fi
+
+    # Verify installation
+    if ! command -v git &> /dev/null; then
+        echo "ERROR: Failed to install git"
+        exit 1
+    fi
+
+    echo "✓ Git installed"
+}
+
+#
+# Bootstrap: Clone repository if not present
+#
+bootstrap_repository() {
+    # Check if we already have the full installation
+    if [ -f "${PHPBORG_ROOT}/install/lib/common.sh" ]; then
+        return 0
+    fi
+
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════╗"
+    echo "║         phpBorg Universal Installer - Bootstrap          ║"
+    echo "╚══════════════════════════════════════════════════════════╝"
+    echo ""
+
+    # Check root first
+    check_root
+
+    # Install git if needed
+    install_git
+
+    # Create parent directory
+    mkdir -p "$(dirname ${PHPBORG_ROOT})"
+
+    # Clone or update repository
+    if [ -d "${PHPBORG_ROOT}/.git" ]; then
+        echo "→ Updating existing repository..."
+        cd "${PHPBORG_ROOT}"
+        git fetch origin --quiet
+        git checkout "${GITHUB_BRANCH}" --quiet 2>/dev/null || true
+        git reset --hard "origin/${GITHUB_BRANCH}" --quiet
+        echo "✓ Repository updated"
+    else
+        # Remove incomplete installation if exists
+        if [ -d "${PHPBORG_ROOT}" ]; then
+            echo "→ Removing incomplete installation..."
+            rm -rf "${PHPBORG_ROOT}"
+        fi
+        echo "→ Cloning phpBorg repository from GitHub..."
+        git clone -b "${GITHUB_BRANCH}" --quiet "https://github.com/${GITHUB_REPO}.git" "${PHPBORG_ROOT}"
+        echo "✓ Repository cloned to ${PHPBORG_ROOT}"
+    fi
+
+    echo ""
+    echo "→ Starting installation..."
+    echo ""
+
+    # Re-execute the script from the cloned repository
+    exec "${PHPBORG_ROOT}/install.sh" "$@"
+}
+
+# Always run bootstrap check
 bootstrap_repository "$@"
+
+# After bootstrap, disable exit on error (we handle errors ourselves)
+set +e
 
 # Load common functions
 if [ -f "${PHPBORG_ROOT}/install/lib/common.sh" ]; then
