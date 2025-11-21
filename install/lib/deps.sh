@@ -458,38 +458,26 @@ install_composer() {
         return 1
     fi
 
-    log_info "Downloading Composer installer"
+    # Fast method: Download pre-built composer.phar directly
+    # Much faster than using the installer script (seconds vs minutes)
+    log_info "Downloading Composer binary (latest stable)"
 
-    local expected_signature
-    expected_signature=$(curl -fsSL https://composer.github.io/installer.sig)
+    if curl -sS https://getcomposer.org/download/latest-stable/composer.phar -o /usr/local/bin/composer; then
+        chmod +x /usr/local/bin/composer
 
-    if ! curl -fsSL https://getcomposer.org/installer -o /tmp/composer-setup.php; then
-        log_error "Failed to download Composer installer"
-        return 1
-    fi
-
-    local actual_signature
-    actual_signature=$(${PHP_BINARY} -r "echo hash_file('sha384', '/tmp/composer-setup.php');")
-
-    if [ "${expected_signature}" != "${actual_signature}" ]; then
-        log_error "Invalid Composer installer signature"
-        log_error "Expected: ${expected_signature}"
-        log_error "Actual: ${actual_signature}"
-        rm -f /tmp/composer-setup.php
-        return 1
-    fi
-
-    log_info "Installing Composer globally"
-
-    if run_with_progress "Installing Composer binary" "${PHP_BINARY} /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer 2>&1" 1 5; then
-        rm -f /tmp/composer-setup.php
-        detect_composer
-        log_success "Composer ${COMPOSER_VERSION} installed"
-        save_state "install_composer" "completed"
-        return 0
+        # Verify it works
+        if /usr/local/bin/composer --version >> "${INSTALL_LOG}" 2>&1; then
+            detect_composer
+            log_success "Composer ${COMPOSER_VERSION} installed"
+            save_state "install_composer" "completed"
+            return 0
+        else
+            log_error "Composer binary downloaded but not working"
+            rm -f /usr/local/bin/composer
+            return 1
+        fi
     else
-        log_error "Failed to install Composer"
-        rm -f /tmp/composer-setup.php
+        log_error "Failed to download Composer"
         return 1
     fi
 }
