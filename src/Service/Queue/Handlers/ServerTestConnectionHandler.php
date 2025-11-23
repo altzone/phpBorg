@@ -67,17 +67,18 @@ class ServerTestConnectionHandler implements JobHandlerInterface
                 exec($borgCommand, $borgOutput, $borgReturnCode);
                 $borgVersion = $borgReturnCode === 0 ? trim(implode("\n", $borgOutput)) : null;
 
-                $queue->updateProgress($job->id, 100, 'Connection successful');
-
                 $this->logger->info('SSH connection test successful', 'SSH_TEST', [
                     'hostname' => $hostname,
                     'borg_version' => $borgVersion,
                 ]);
 
-                $job->result_data = [
+                // Store result as JSON in progress output
+                $resultJson = json_encode([
                     'success' => true,
                     'borg_version' => $borgVersion,
-                ];
+                ]);
+
+                $queue->updateProgress($job->id, 100, $resultJson);
 
                 return 'completed';
             }
@@ -88,11 +89,14 @@ class ServerTestConnectionHandler implements JobHandlerInterface
                 'output' => $outputStr,
             ]);
 
-            $job->result_data = [
+            // Store error result as JSON
+            $resultJson = json_encode([
                 'success' => false,
                 'error' => 'SSH connection failed',
                 'output' => $outputStr,
-            ];
+            ]);
+
+            $queue->updateProgress($job->id, 0, $resultJson);
 
             return 'failed';
 
@@ -108,8 +112,9 @@ class ServerTestConnectionHandler implements JobHandlerInterface
             'error' => $message,
         ]);
 
-        $queue->updateProgress($job->id, 0, "Failed: {$message}");
-        $job->result_data = ['error' => $message];
+        // Store error as JSON
+        $resultJson = json_encode(['error' => $message]);
+        $queue->updateProgress($job->id, 0, $resultJson);
 
         return 'failed';
     }

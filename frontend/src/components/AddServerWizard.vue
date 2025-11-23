@@ -601,7 +601,16 @@ const testConnection = async () => {
         eventSource.close()
         testing.value = false
 
-        const resultData = data.result_data || {}
+        // Parse JSON output if present
+        let resultData = {}
+        if (data.output) {
+          try {
+            resultData = JSON.parse(data.output)
+          } catch (e) {
+            console.error('Failed to parse job output:', e)
+          }
+        }
+
         connectionResult.value = {
           success: resultData.success === true,
           message: resultData.success
@@ -613,7 +622,16 @@ const testConnection = async () => {
         eventSource.close()
         testing.value = false
 
-        const resultData = data.result_data || {}
+        // Parse JSON output if present
+        let resultData = {}
+        if (data.output) {
+          try {
+            resultData = JSON.parse(data.output)
+          } catch (e) {
+            console.error('Failed to parse job output:', e)
+          }
+        }
+
         connectionResult.value = {
           success: false,
           message: resultData.error || t('server_wizard.step3.manual.connection_failed')
