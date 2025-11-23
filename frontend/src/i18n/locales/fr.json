@@ -1786,5 +1786,106 @@
       "network_detection": "Impossible de detecter les interfaces reseau",
       "save_failed": "Echec de la sauvegarde des parametres"
     }
+  },
+  "server_wizard": {
+    "title": "Assistant d'ajout de serveur",
+    "subtitle": "Configuration guidee en 4 etapes",
+    "steps": {
+      "basic_info": "Informations",
+      "choose_method": "Methode",
+      "configure": "Configuration",
+      "complete": "Termine"
+    },
+    "step1": {
+      "title": "Informations du serveur",
+      "description": "Saisissez les informations de base du serveur distant a sauvegarder",
+      "name": "Nom du serveur",
+      "name_placeholder": "Ex: serveur-web-prod",
+      "hostname": "Nom d'hote ou IP",
+      "hostname_placeholder": "Ex: 192.168.1.100 ou server.example.com",
+      "port": "Port SSH",
+      "username": "Utilisateur SSH",
+      "description": "Description (optionnel)",
+      "description_placeholder": "Ex: Serveur web de production avec MySQL"
+    },
+    "step2": {
+      "title": "Choisissez la methode de connexion",
+      "description": "Selectionnez la methode qui convient le mieux a votre environnement",
+      "easy": "Facile",
+      "automatic": "Automatique",
+      "professional": "Pro",
+      "method1_title": "Cle SSH manuelle",
+      "method1_desc": "Copiez manuellement la cle publique sur le serveur distant",
+      "method2_title": "Mot de passe SSH",
+      "method2_desc": "Installation automatique via mot de passe SSH",
+      "method3_title": "Script curl bash",
+      "method3_desc": "One-liner professionnel avec callback automatique"
+    },
+    "step3": {
+      "manual": {
+        "title": "Configuration manuelle de la cle SSH",
+        "description": "Suivez ces etapes pour configurer l'acces SSH au serveur distant",
+        "public_key": "Cle publique SSH de phpBorg",
+        "copy": "Copier",
+        "loading": "Chargement...",
+        "instructions_title": "Instructions",
+        "step1": "Copiez la cle publique ci-dessus",
+        "step2": "Connectez-vous au serveur distant en SSH",
+        "step3": "Ajoutez la cle au fichier /root/.ssh/authorized_keys",
+        "step4": "Cliquez sur 'Tester la connexion' ci-dessous",
+        "test_button": "Tester la connexion",
+        "testing": "Test en cours...",
+        "connection_success": "Connexion SSH reussie !",
+        "connection_failed": "Connexion SSH echouee",
+        "borg_version": "Version Borg"
+      },
+      "password": {
+        "title": "Installation automatique par mot de passe",
+        "description": "phpBorg va installer BorgBackup et configurer les cles SSH automatiquement",
+        "password": "Mot de passe SSH",
+        "password_placeholder": "Entrez le mot de passe SSH",
+        "use_sudo": "Utiliser sudo (si utilisateur non-root)",
+        "warning_title": "Attention",
+        "warning_text": "Le mot de passe sera utilise une seule fois pour installer borg et deployer les cles SSH. Il ne sera pas stocke.",
+        "start_button": "Demarrer l'installation",
+        "installing": "Installation en cours...",
+        "starting": "Demarrage...",
+        "failed": "Installation echouee"
+      },
+      "oneliner": {
+        "title": "Installation en une ligne",
+        "description": "Methode professionnelle : generez un script a executer sur le serveur distant",
+        "generate_button": "Generer le script d'installation",
+        "generating": "Generation...",
+        "command": "Commande a executer sur le serveur distant",
+        "copy": "Copier",
+        "instructions_title": "Instructions",
+        "step1": "Copiez la commande ci-dessus",
+        "step2": "Connectez-vous au serveur distant en SSH",
+        "step3": "Executez la commande en tant que root (avec sudo)",
+        "expires": "Expire le",
+        "waiting": "En attente de l'installation...",
+        "completed": "Installation terminee !",
+        "server_info": "Informations du serveur",
+        "detected_hostname": "Nom d'hote",
+        "ip_address": "Adresse IP",
+        "borg_version": "Version Borg",
+        "os_info": "Systeme"
+      }
+    },
+    "step4": {
+      "title": "Configuration terminee !",
+      "description": "Le serveur est pret a etre ajoute a phpBorg",
+      "summary": "Recapitulatif",
+      "name": "Nom",
+      "hostname": "Hote",
+      "port": "Port",
+      "method": "Methode"
+    },
+    "previous": "Precedent",
+    "next": "Suivant",
+    "cancel": "Annuler",
+    "create_server": "Creer le serveur",
+    "creating": "Creation..."
   }
 }

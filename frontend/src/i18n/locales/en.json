@@ -1736,5 +1736,106 @@
       "network_detection": "Unable to detect network interfaces",
       "save_failed": "Failed to save settings"
     }
+  },
+  "server_wizard": {
+    "title": "Add Server Wizard",
+    "subtitle": "Guided setup in 4 steps",
+    "steps": {
+      "basic_info": "Basic Info",
+      "choose_method": "Method",
+      "configure": "Configure",
+      "complete": "Complete"
+    },
+    "step1": {
+      "title": "Server Information",
+      "description": "Enter the basic information for the remote server to backup",
+      "name": "Server Name",
+      "name_placeholder": "Ex: web-server-prod",
+      "hostname": "Hostname or IP",
+      "hostname_placeholder": "Ex: 192.168.1.100 or server.example.com",
+      "port": "SSH Port",
+      "username": "SSH Username",
+      "description": "Description (optional)",
+      "description_placeholder": "Ex: Production web server with MySQL"
+    },
+    "step2": {
+      "title": "Choose Connection Method",
+      "description": "Select the method that best suits your environment",
+      "easy": "Easy",
+      "automatic": "Automatic",
+      "professional": "Pro",
+      "method1_title": "Manual SSH Key",
+      "method1_desc": "Manually copy the public key to the remote server",
+      "method2_title": "SSH Password",
+      "method2_desc": "Automatic installation via SSH password",
+      "method3_title": "curl bash Script",
+      "method3_desc": "Professional one-liner with automatic callback"
+    },
+    "step3": {
+      "manual": {
+        "title": "Manual SSH Key Configuration",
+        "description": "Follow these steps to configure SSH access to the remote server",
+        "public_key": "phpBorg SSH Public Key",
+        "copy": "Copy",
+        "loading": "Loading...",
+        "instructions_title": "Instructions",
+        "step1": "Copy the public key above",
+        "step2": "SSH into the remote server",
+        "step3": "Add the key to /root/.ssh/authorized_keys",
+        "step4": "Click 'Test Connection' below",
+        "test_button": "Test Connection",
+        "testing": "Testing...",
+        "connection_success": "SSH connection successful!",
+        "connection_failed": "SSH connection failed",
+        "borg_version": "Borg Version"
+      },
+      "password": {
+        "title": "Automatic Installation via Password",
+        "description": "phpBorg will install BorgBackup and configure SSH keys automatically",
+        "password": "SSH Password",
+        "password_placeholder": "Enter SSH password",
+        "use_sudo": "Use sudo (if non-root user)",
+        "warning_title": "Warning",
+        "warning_text": "The password will be used once to install borg and deploy SSH keys. It will not be stored.",
+        "start_button": "Start Installation",
+        "installing": "Installing...",
+        "starting": "Starting...",
+        "failed": "Installation failed"
+      },
+      "oneliner": {
+        "title": "One-Line Installation",
+        "description": "Professional method: generate a script to run on the remote server",
+        "generate_button": "Generate Install Script",
+        "generating": "Generating...",
+        "command": "Command to run on remote server",
+        "copy": "Copy",
+        "instructions_title": "Instructions",
+        "step1": "Copy the command above",
+        "step2": "SSH into the remote server",
+        "step3": "Run the command as root (with sudo)",
+        "expires": "Expires",
+        "waiting": "Waiting for installation...",
+        "completed": "Installation completed!",
+        "server_info": "Server Information",
+        "detected_hostname": "Hostname",
+        "ip_address": "IP Address",
+        "borg_version": "Borg Version",
+        "os_info": "OS"
+      }
+    },
+    "step4": {
+      "title": "Setup Complete!",
+      "description": "The server is ready to be added to phpBorg",
+      "summary": "Summary",
+      "name": "Name",
+      "hostname": "Host",
+      "port": "Port",
+      "method": "Method"
+    },
+    "previous": "Previous",
+    "next": "Next",
+    "cancel": "Cancel",
+    "create_server": "Create Server",
+    "creating": "Creating..."
   }
 }
