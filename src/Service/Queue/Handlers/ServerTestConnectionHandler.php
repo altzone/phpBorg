@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace PhpBorg\Service\Queue\Handlers;
 
 use PhpBorg\Entity\Job;
+use PhpBorg\Logger\LoggerInterface;
 use PhpBorg\Service\Queue\JobQueue;
-use Psr\Log\LoggerInterface;
 
 /**
  * Handler for testing SSH connection to a server
