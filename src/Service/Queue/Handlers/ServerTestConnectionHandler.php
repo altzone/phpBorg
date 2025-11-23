@@ -30,7 +30,7 @@ class ServerTestConnectionHandler implements JobHandlerInterface
             return $this->fail($job, $queue, 'Missing hostname parameter');
         }
 
-        $this->logger->info('Testing SSH connection', [
+        $this->logger->info('Testing SSH connection', 'SSH_TEST', [
             'hostname' => $hostname,
             'port' => $port,
             'username' => $username,
@@ -69,7 +69,7 @@ class ServerTestConnectionHandler implements JobHandlerInterface
 
                 $queue->updateProgress($job->id, 100, 'Connection successful');
 
-                $this->logger->info('SSH connection test successful', [
+                $this->logger->info('SSH connection test successful', 'SSH_TEST', [
                     'hostname' => $hostname,
                     'borg_version' => $borgVersion,
                 ]);
@@ -83,7 +83,7 @@ class ServerTestConnectionHandler implements JobHandlerInterface
             }
 
             // Connection failed
-            $this->logger->warning('SSH connection test failed', [
+            $this->logger->warning('SSH connection test failed', 'SSH_TEST', [
                 'hostname' => $hostname,
                 'output' => $outputStr,
             ]);
@@ -103,7 +103,7 @@ class ServerTestConnectionHandler implements JobHandlerInterface
 
     private function fail(Job $job, JobQueue $queue, string $message): string
     {
-        $this->logger->error('Server test connection failed', [
+        $this->logger->error('Server test connection failed', 'SSH_TEST', [
             'job_id' => $job->id,
             'error' => $message,
         ]);
