@@ -1800,7 +1800,8 @@
         "start_button": "Start Installation",
         "installing": "Installing...",
         "starting": "Starting...",
-        "failed": "Installation failed"
+        "failed": "Installation failed",
+        "success": "Installation successful!"
       },
       "oneliner": {
         "title": "One-Line Installation",

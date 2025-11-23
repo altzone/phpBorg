@@ -571,24 +571,60 @@ const testConnection = async () => {
   connectionResult.value = null
 
   try {
+    // Start connection test job
     const response = await api.post('/server-wizard/test-connection', {
       hostname: form.value.hostname,
       port: form.value.port,
       username: form.value.username
     })
 
-    connectionResult.value = {
-      success: true,
-      message: response.data.message || t('server_wizard.step3.manual.connection_success'),
-      borg_version: response.data.data.borg_version
+    const jobId = response.data.data.job_id
+
+    // Monitor job progress via SSE
+    const eventSource = new EventSource(`/api/jobs/${jobId}/progress`)
+
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data)
+
+      if (data.status === 'completed') {
+        eventSource.close()
+        testing.value = false
+
+        const resultData = data.result_data || {}
+        connectionResult.value = {
+          success: resultData.success === true,
+          message: resultData.success
+            ? t('server_wizard.step3.manual.connection_success')
+            : (resultData.error || t('server_wizard.step3.manual.connection_failed')),
+          borg_version: resultData.borg_version
+        }
+      } else if (data.status === 'failed') {
+        eventSource.close()
+        testing.value = false
+
+        const resultData = data.result_data || {}
+        connectionResult.value = {
+          success: false,
+          message: resultData.error || t('server_wizard.step3.manual.connection_failed')
+        }
+      }
     }
+
+    eventSource.onerror = () => {
+      eventSource.close()
+      testing.value = false
+      connectionResult.value = {
+        success: false,
+        message: t('server_wizard.step3.manual.connection_failed')
+      }
+    }
+
   } catch (error) {
+    testing.value = false
     connectionResult.value = {
       success: false,
       message: error.response?.data?.error?.message || t('server_wizard.step3.manual.connection_failed')
     }
-  } finally {
-    testing.value = false
   }
 }
 
@@ -607,32 +643,42 @@ const setupWithPassword = async () => {
 
     setupJobId.value = response.data.data.job_id
 
-    // Poll job progress
-    const progressInterval = setInterval(async () => {
-      try {
-        const progressResponse = await api.get(`/jobs/${setupJobId.value}/progress`)
-        const progress = progressResponse.data.data
+    // Monitor job progress via SSE
+    const eventSource = new EventSource(`/api/jobs/${setupJobId.value}/progress`)
 
-        setupProgress.value = {
-          percent: progress.progress_percent || 0,
-          message: progress.progress_message || ''
-        }
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data)
 
-        if (progress.status === 'completed') {
-          clearInterval(progressInterval)
-          setupInProgress.value = false
-        } else if (progress.status === 'failed') {
-          clearInterval(progressInterval)
-          setupInProgress.value = false
-          setupProgress.value = {
-            percent: 0,
-            message: t('server_wizard.step3.password.failed')
-          }
-        }
-      } catch (error) {
-        console.error('Failed to get progress:', error)
+      setupProgress.value = {
+        percent: data.progress_percent || 0,
+        message: data.progress_message || ''
       }
-    }, 1000)
+
+      if (data.status === 'completed') {
+        eventSource.close()
+        setupInProgress.value = false
+        setupProgress.value = {
+          percent: 100,
+          message: t('server_wizard.step3.password.success')
+        }
+      } else if (data.status === 'failed') {
+        eventSource.close()
+        setupInProgress.value = false
+        setupProgress.value = {
+          percent: 0,
+          message: data.result_data?.error || t('server_wizard.step3.password.failed')
+        }
+      }
+    }
+
+    eventSource.onerror = () => {
+      eventSource.close()
+      setupInProgress.value = false
+      setupProgress.value = {
+        percent: 0,
+        message: t('server_wizard.step3.password.failed')
+      }
+    }
 
   } catch (error) {
     setupInProgress.value = false

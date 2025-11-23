@@ -1850,7 +1850,8 @@
         "start_button": "Demarrer l'installation",
         "installing": "Installation en cours...",
         "starting": "Demarrage...",
-        "failed": "Installation echouee"
+        "failed": "Installation echouee",
+        "success": "Installation reussie !"
       },
       "oneliner": {
         "title": "Installation en une ligne",

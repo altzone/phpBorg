@@ -74,43 +74,18 @@ class ServerWizardController extends BaseController
             $port = $data['port'] ?? 22;
             $username = $data['username'] ?? 'root';
 
-            // Test SSH connection using phpborg's key
-            $command = sprintf(
-                'ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=no -p %d %s@%s "echo ok" 2>&1',
-                $port,
-                escapeshellarg($username),
-                escapeshellarg($hostname)
-            );
+            // Create job for testing SSH connection
+            $job = $this->jobQueue->push('server_test_connection', [
+                'hostname' => $hostname,
+                'port' => $port,
+                'username' => $username,
+            ]);
 
-            exec($command, $output, $returnCode);
+            $this->success([
+                'job_id' => $job->id,
+                'message' => 'Connection test started. Use SSE to monitor progress.',
+            ], 'Connection test job created', 202);
 
-            if ($returnCode === 0 && in_array('ok', $output)) {
-                // Test if borg is installed
-                $borgCommand = sprintf(
-                    'ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=no -p %d %s@%s "borg --version" 2>&1',
-                    $port,
-                    escapeshellarg($username),
-                    escapeshellarg($hostname)
-                );
-
-                exec($borgCommand, $borgOutput, $borgReturnCode);
-                $borgInstalled = $borgReturnCode === 0;
-                $borgVersion = $borgInstalled ? trim($borgOutput[0] ?? '') : null;
-
-                $this->success([
-                    'connection' => 'success',
-                    'borg_installed' => $borgInstalled,
-                    'borg_version' => $borgVersion,
-                    'message' => 'SSH connection successful!'
-                ]);
-            } else {
-                $this->error(
-                    'SSH connection failed. Make sure the public key is added to authorized_keys on the remote server.',
-                    400,
-                    'CONNECTION_FAILED',
-                    ['output' => implode("\n", $output)]
-                );
-            }
         } catch (\Exception $e) {
             $this->error($e->getMessage(), 500, 'TEST_CONNECTION_ERROR');
         }
