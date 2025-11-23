@@ -591,8 +591,9 @@ const testConnection = async () => {
       return
     }
 
-    // Monitor job progress via SSE
-    const eventSource = new EventSource(`/api/jobs/${jobId}/progress`)
+    // Monitor job progress via SSE (pass token in URL for EventSource)
+    const token = localStorage.getItem('access_token')
+    const eventSource = new EventSource(`/api/jobs/${jobId}/progress?token=${token}`)
 
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data)
@@ -672,8 +673,9 @@ const setupWithPassword = async () => {
 
     setupJobId.value = response.data.data.job_id
 
-    // Monitor job progress via SSE
-    const eventSource = new EventSource(`/api/jobs/${setupJobId.value}/progress`)
+    // Monitor job progress via SSE (pass token in URL for EventSource)
+    const token = localStorage.getItem('access_token')
+    const eventSource = new EventSource(`/api/jobs/${setupJobId.value}/progress?token=${token}`)
 
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data)
