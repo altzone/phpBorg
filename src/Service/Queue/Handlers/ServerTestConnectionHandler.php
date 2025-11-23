@@ -73,7 +73,7 @@ class ServerTestConnectionHandler implements JobHandlerInterface
 
                 $queue->updateProgress($job->id, 100, $resultJson);
 
-                return null; // Return null to avoid concatenating to output in markCompleted()
+                return ''; // Return empty string to avoid concatenating to output in markCompleted()
             }
 
             // Connection failed
@@ -91,14 +91,14 @@ class ServerTestConnectionHandler implements JobHandlerInterface
 
             $queue->updateProgress($job->id, 0, $resultJson);
 
-            return null; // Return null to avoid concatenating to output
+            return ''; // Return empty string to avoid concatenating to output
 
         } catch (\Exception $e) {
             return $this->fail($job, $queue, $e->getMessage());
         }
     }
 
-    private function fail(Job $job, JobQueue $queue, string $message): ?string
+    private function fail(Job $job, JobQueue $queue, string $message): string
     {
         $this->logger->error('Server test connection failed', 'SSH_TEST', [
             'job_id' => $job->id,
@@ -109,6 +109,6 @@ class ServerTestConnectionHandler implements JobHandlerInterface
         $resultJson = json_encode(['error' => $message]);
         $queue->updateProgress($job->id, 0, $resultJson);
 
-        return null; // Return null to avoid concatenating to output
+        return ''; // Return empty string to avoid concatenating to output
     }
 }
