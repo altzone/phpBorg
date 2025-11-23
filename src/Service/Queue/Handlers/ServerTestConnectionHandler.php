@@ -37,9 +37,6 @@ class ServerTestConnectionHandler implements JobHandlerInterface
         ]);
 
         try {
-            // Update job progress
-            $queue->updateProgress($job->id, 10, 'Testing SSH connection...');
-
             // Test SSH connection
             $command = sprintf(
                 'ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=no -p %d %s@%s "echo ok" 2>&1',
@@ -48,15 +45,11 @@ class ServerTestConnectionHandler implements JobHandlerInterface
                 escapeshellarg($hostname)
             );
 
-            $queue->updateProgress($job->id, 50, 'Connecting to server...');
-
             exec($command, $output, $returnCode);
             $outputStr = implode("\n", $output);
 
             if ($returnCode === 0 && str_contains($outputStr, 'ok')) {
                 // Connection successful, try to get Borg version
-                $queue->updateProgress($job->id, 75, 'Checking Borg installation...');
-
                 $borgCommand = sprintf(
                     'ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=no -p %d %s@%s "borg --version 2>&1" 2>&1',
                     $port,
@@ -72,7 +65,7 @@ class ServerTestConnectionHandler implements JobHandlerInterface
                     'borg_version' => $borgVersion,
                 ]);
 
-                // Store result as JSON in progress output
+                // Store result as JSON in output (will be parsed by frontend)
                 $resultJson = json_encode([
                     'success' => true,
                     'borg_version' => $borgVersion,
