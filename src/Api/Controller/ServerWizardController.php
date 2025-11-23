@@ -22,12 +22,14 @@ class ServerWizardController extends BaseController
     private readonly ServerManager $serverManager;
     private readonly JobQueue $jobQueue;
     private readonly ServerRepository $serverRepo;
+    private readonly \PhpBorg\Repository\SettingRepository $settingRepo;
 
     public function __construct(Application $app)
     {
         $this->serverManager = $app->getServerManager();
         $this->jobQueue = $app->getJobQueue();
         $this->serverRepo = $app->getServerRepository();
+        $this->settingRepo = $app->getSettingRepository();
     }
 
     /**
@@ -37,19 +39,19 @@ class ServerWizardController extends BaseController
     public function getPublicKey(): void
     {
         try {
-            $publicKeyPath = '/home/phpborg/.ssh/id_rsa.pub';
+            // Read public key from database settings
+            $setting = $this->settingRepo->findByKey('phpborg_ssh_public_key');
 
-            if (!file_exists($publicKeyPath)) {
-                // Generate key if it doesn't exist
-                $this->generatePhpBorgSSHKey();
+            if (!$setting || !$setting->value) {
+                $this->error('SSH public key not found in settings. Please run installer.', 500, 'PUBLIC_KEY_NOT_FOUND');
+                return;
             }
 
-            $publicKey = trim(file_get_contents($publicKeyPath));
+            $publicKey = trim($setting->value);
 
             $this->success([
                 'public_key' => $publicKey,
                 'key_type' => $this->getKeyType($publicKey),
-                'fingerprint' => $this->getKeyFingerprint($publicKeyPath),
             ]);
         } catch (\Exception $e) {
             $this->error($e->getMessage(), 500, 'PUBLIC_KEY_ERROR');
@@ -263,8 +265,9 @@ class ServerWizardController extends BaseController
                 return;
             }
 
-            // Get phpborg public key
-            $publicKey = trim(file_get_contents('/home/phpborg/.ssh/id_rsa.pub'));
+            // Get phpborg public key from database
+            $setting = $this->settingRepo->findByKey('phpborg_ssh_public_key');
+            $publicKey = trim($setting ? $setting->value : '');
 
             // Get callback URL
             $serverUrl = $_SERVER['HTTP_HOST'] ?? 'backup.local';
@@ -383,32 +386,6 @@ class ServerWizardController extends BaseController
 
     // ========== Private Helper Methods ==========
 
-    private function generatePhpBorgSSHKey(): void
-    {
-        $sshDir = '/home/phpborg/.ssh';
-        $keyPath = "{$sshDir}/id_rsa";
-
-        if (!is_dir($sshDir)) {
-            mkdir($sshDir, 0700, true);
-            chown($sshDir, 'phpborg');
-            chgrp($sshDir, 'phpborg');
-        }
-
-        exec("ssh-keygen -t rsa -b 4096 -f {$keyPath} -N '' -C 'phpborg@backup'", $output, $returnCode);
-
-        if ($returnCode !== 0) {
-            throw new \Exception('Failed to generate SSH key');
-        }
-
-        chown($keyPath, 'phpborg');
-        chgrp($keyPath, 'phpborg');
-        chmod($keyPath, 0600);
-
-        chown("{$keyPath}.pub", 'phpborg');
-        chgrp("{$keyPath}.pub", 'phpborg');
-        chmod("{$keyPath}.pub", 0644);
-    }
-
     private function getKeyType(string $publicKey): string
     {
         if (str_starts_with($publicKey, 'ssh-rsa')) {
@@ -417,17 +394,6 @@ class ServerWizardController extends BaseController
             return 'Ed25519';
         } elseif (str_starts_with($publicKey, 'ecdsa-sha2-')) {
             return 'ECDSA';
-        }
-        return 'Unknown';
-    }
-
-    private function getKeyFingerprint(string $publicKeyPath): string
-    {
-        exec("ssh-keygen -lf {$publicKeyPath} 2>&1", $output, $returnCode);
-        if ($returnCode === 0 && isset($output[0])) {
-            // Extract fingerprint from output: "2048 SHA256:xxxxx user@host (RSA)"
-            $parts = explode(' ', $output[0]);
-            return $parts[1] ?? 'Unknown';
         }
         return 'Unknown';
     }
