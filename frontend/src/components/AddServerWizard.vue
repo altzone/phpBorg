@@ -591,54 +591,68 @@ const testConnection = async () => {
       return
     }
 
-    // Monitor job progress via SSE (pass token in URL for EventSource)
+    // Monitor job progress via global SSE stream (pass token in URL for EventSource)
     const token = localStorage.getItem('access_token')
-    const eventSource = new EventSource(`/api/jobs/${jobId}/progress?token=${token}`)
+    const eventSource = new EventSource(`/api/sse/stream?token=${token}`)
 
-    eventSource.onmessage = (event) => {
+    eventSource.addEventListener('jobs', (event) => {
       const data = JSON.parse(event.data)
 
-      if (data.status === 'completed') {
-        eventSource.close()
-        testing.value = false
+      // Check if this update is for our job
+      if (data.job_id && data.job_id === jobId) {
+        // This is real-time progress for our specific job
+        const progressInfo = data.progress_info
 
-        // Parse JSON output if present
-        let resultData = {}
-        if (data.output) {
-          try {
-            resultData = JSON.parse(data.output)
-          } catch (e) {
-            console.error('Failed to parse job output:', e)
+        if (progressInfo) {
+          console.log('Job progress:', progressInfo)
+          // Progress updates are handled here if needed
+        }
+      } else if (data.jobs) {
+        // This is a jobs list update, find our job
+        const ourJob = data.jobs.find(j => j.id === jobId)
+
+        if (ourJob && ourJob.status === 'completed') {
+          eventSource.close()
+          testing.value = false
+
+          // Parse JSON output if present
+          let resultData = {}
+          if (ourJob.progress_output) {
+            try {
+              resultData = JSON.parse(ourJob.progress_output)
+            } catch (e) {
+              console.error('Failed to parse job output:', e)
+            }
           }
-        }
 
-        connectionResult.value = {
-          success: resultData.success === true,
-          message: resultData.success
-            ? t('server_wizard.step3.manual.connection_success')
-            : (resultData.error || t('server_wizard.step3.manual.connection_failed')),
-          borg_version: resultData.borg_version
-        }
-      } else if (data.status === 'failed') {
-        eventSource.close()
-        testing.value = false
-
-        // Parse JSON output if present
-        let resultData = {}
-        if (data.output) {
-          try {
-            resultData = JSON.parse(data.output)
-          } catch (e) {
-            console.error('Failed to parse job output:', e)
+          connectionResult.value = {
+            success: resultData.success === true,
+            message: resultData.success
+              ? t('server_wizard.step3.manual.connection_success')
+              : (resultData.error || t('server_wizard.step3.manual.connection_failed')),
+            borg_version: resultData.borg_version
           }
-        }
+        } else if (ourJob && ourJob.status === 'failed') {
+          eventSource.close()
+          testing.value = false
 
-        connectionResult.value = {
-          success: false,
-          message: resultData.error || t('server_wizard.step3.manual.connection_failed')
+          // Parse JSON output if present
+          let resultData = {}
+          if (ourJob.progress_output) {
+            try {
+              resultData = JSON.parse(ourJob.progress_output)
+            } catch (e) {
+              console.error('Failed to parse job output:', e)
+            }
+          }
+
+          connectionResult.value = {
+            success: false,
+            message: resultData.error || t('server_wizard.step3.manual.connection_failed')
+          }
         }
       }
-    }
+    })
 
     eventSource.onerror = () => {
       eventSource.close()
@@ -673,34 +687,53 @@ const setupWithPassword = async () => {
 
     setupJobId.value = response.data.data.job_id
 
-    // Monitor job progress via SSE (pass token in URL for EventSource)
+    // Monitor job progress via global SSE stream (pass token in URL for EventSource)
     const token = localStorage.getItem('access_token')
-    const eventSource = new EventSource(`/api/jobs/${setupJobId.value}/progress?token=${token}`)
+    const eventSource = new EventSource(`/api/sse/stream?token=${token}`)
 
-    eventSource.onmessage = (event) => {
+    eventSource.addEventListener('jobs', (event) => {
       const data = JSON.parse(event.data)
 
-      setupProgress.value = {
-        percent: data.progress_percent || 0,
-        message: data.progress_message || ''
-      }
+      // Check if this update is for our job
+      if (data.job_id && data.job_id === setupJobId.value) {
+        // This is real-time progress for our specific job
+        const progressInfo = data.progress_info
 
-      if (data.status === 'completed') {
-        eventSource.close()
-        setupInProgress.value = false
-        setupProgress.value = {
-          percent: 100,
-          message: t('server_wizard.step3.password.success')
+        if (progressInfo) {
+          setupProgress.value = {
+            percent: progressInfo.percent || 0,
+            message: progressInfo.output || ''
+          }
         }
-      } else if (data.status === 'failed') {
-        eventSource.close()
-        setupInProgress.value = false
-        setupProgress.value = {
-          percent: 0,
-          message: data.result_data?.error || t('server_wizard.step3.password.failed')
+      } else if (data.jobs) {
+        // This is a jobs list update, find our job
+        const ourJob = data.jobs.find(j => j.id === setupJobId.value)
+
+        if (ourJob) {
+          // Update progress from job data
+          setupProgress.value = {
+            percent: ourJob.progress || 0,
+            message: ourJob.progress_output || ''
+          }
+
+          if (ourJob.status === 'completed') {
+            eventSource.close()
+            setupInProgress.value = false
+            setupProgress.value = {
+              percent: 100,
+              message: t('server_wizard.step3.password.success')
+            }
+          } else if (ourJob.status === 'failed') {
+            eventSource.close()
+            setupInProgress.value = false
+            setupProgress.value = {
+              percent: 0,
+              message: ourJob.result_data?.error || t('server_wizard.step3.password.failed')
+            }
+          }
         }
       }
-    }
+    })
 
     eventSource.onerror = () => {
       eventSource.close()
