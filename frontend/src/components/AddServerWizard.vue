@@ -578,7 +578,18 @@ const testConnection = async () => {
       username: form.value.username
     })
 
-    const jobId = response.data.data.job_id
+    console.log('Test connection response:', response.data)
+    const jobId = response.data.data?.job_id || response.data.job_id
+
+    if (!jobId) {
+      console.error('No job_id in response:', response.data)
+      testing.value = false
+      connectionResult.value = {
+        success: false,
+        message: t('server_wizard.step3.manual.connection_failed')
+      }
+      return
+    }
 
     // Monitor job progress via SSE
     const eventSource = new EventSource(`/api/jobs/${jobId}/progress`)
