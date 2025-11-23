@@ -9,6 +9,7 @@ use PhpBorg\Exception\PhpBorgException;
 use PhpBorg\Repository\ArchiveRepository;
 use PhpBorg\Repository\ArchiveMountRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
+use PhpBorg\Repository\ServerRepository;
 use PhpBorg\Service\Backup\BorgExecutor;
 use PhpBorg\Service\Queue\JobQueue;
 
@@ -20,6 +21,7 @@ class BackupController extends BaseController
     private readonly ArchiveRepository $archiveRepo;
     private readonly ArchiveMountRepository $mountRepo;
     private readonly BorgRepositoryRepository $repositoryRepo;
+    private readonly ServerRepository $serverRepo;
     private readonly BorgExecutor $borgExecutor;
     private readonly JobQueue $jobQueue;
 
@@ -28,6 +30,7 @@ class BackupController extends BaseController
         $this->archiveRepo = $app->getArchiveRepository();
         $this->mountRepo = $app->getArchiveMountRepository();
         $this->repositoryRepo = $app->getBorgRepositoryRepository();
+        $this->serverRepo = $app->getServerRepository();
         $this->borgExecutor = $app->getBorgExecutor();
         $this->jobQueue = $app->getJobQueue();
     }

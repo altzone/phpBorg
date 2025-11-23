@@ -291,9 +291,16 @@
       </div>
     </div>
 
-    <!-- Create/Edit Modal -->
+    <!-- Add Server Wizard -->
+    <AddServerWizard
+      :is-open="showCreateModal"
+      @close="closeModal"
+      @created="handleSaved"
+    />
+
+    <!-- Edit Modal -->
     <ServerFormModal
-      v-if="showCreateModal || showEditModal"
+      v-if="showEditModal"
       :server="editingServer"
       @close="closeModal"
       @saved="handleSaved"
@@ -350,6 +357,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useServerStore } from '@/stores/server'
+import AddServerWizard from '@/components/AddServerWizard.vue'
 import ServerFormModal from '@/components/ServerFormModal.vue'
 import DeleteConfirmModal from '@/components/DeleteConfirmModal.vue'
 

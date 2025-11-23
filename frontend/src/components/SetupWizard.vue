@@ -328,6 +328,39 @@
                       />
                     </div>
                   </div>
+
+                  <!-- Test Email Button -->
+                  <div class="pt-4 border-t border-white/10">
+                    <div class="flex items-center space-x-4">
+                      <div class="flex-1">
+                        <input
+                          v-model="testEmailAddress"
+                          type="email"
+                          class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-white/40 focus:ring-0"
+                          :placeholder="$t('setup.step3.test_email_placeholder')"
+                        />
+                      </div>
+                      <button
+                        @click="sendTestEmail"
+                        :disabled="testingEmail || !testEmailAddress || !form.smtp_host"
+                        :class="[
+                          'px-6 py-3 rounded-xl font-medium transition-all flex items-center space-x-2',
+                          testingEmail || !testEmailAddress || !form.smtp_host
+                            ? 'bg-white/20 text-white/50 cursor-not-allowed'
+                            : 'bg-green-500 text-white hover:bg-green-600'
+                        ]"
+                      >
+                        <span v-if="testingEmail" class="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"></span>
+                        <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                        </svg>
+                        <span>{{ $t('setup.step3.test_email') }}</span>
+                      </button>
+                    </div>
+                    <p v-if="testEmailResult" :class="['text-sm mt-2', testEmailResult.success ? 'text-green-300' : 'text-red-300']">
+                      {{ testEmailResult.message }}
+                    </p>
+                  </div>
                 </template>
               </div>
             </div>
@@ -570,6 +603,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import setupService from '@/services/setup'
+import api from '@/services/api'
 
 const props = defineProps({
   show: {
@@ -600,6 +634,9 @@ function removeToast(id) {
 const currentStep = ref(0)
 const saving = ref(false)
 const loadingNetwork = ref(false)
+const testingEmail = ref(false)
+const testEmailAddress = ref('')
+const testEmailResult = ref(null)
 
 const steps = ['identity', 'network', 'email', 'backup']
 
@@ -749,6 +786,42 @@ async function completeSetup() {
     showToast(t('setup.errors.save_failed'), error.response?.data?.error?.message || '', 'error')
   } finally {
     saving.value = false
+  }
+}
+
+async function sendTestEmail() {
+  if (!testEmailAddress.value || !form.value.smtp_host) return
+
+  testingEmail.value = true
+  testEmailResult.value = null
+
+  try {
+    // Send test email with inline SMTP config (not saved yet)
+    const response = await api.post('/email/test', {
+      to: testEmailAddress.value,
+      // Pass SMTP config inline for testing before save
+      smtp_config: {
+        host: form.value.smtp_host,
+        port: form.value.smtp_port,
+        username: form.value.smtp_username,
+        password: form.value.smtp_password,
+        encryption: form.value.smtp_encryption,
+        from_email: form.value.email_from || form.value.smtp_username,
+        from_name: form.value.email_from_name || form.value.app_name || 'phpBorg'
+      }
+    })
+
+    testEmailResult.value = {
+      success: true,
+      message: response.data?.message || t('setup.step3.test_email_success')
+    }
+  } catch (error) {
+    testEmailResult.value = {
+      success: false,
+      message: error.response?.data?.error || t('setup.step3.test_email_error')
+    }
+  } finally {
+    testingEmail.value = false
   }
 }
 </script>
