@@ -75,14 +75,14 @@ class ServerWizardController extends BaseController
             $username = $data['username'] ?? 'root';
 
             // Create job for testing SSH connection
-            $job = $this->jobQueue->push('server_test_connection', [
+            $jobId = $this->jobQueue->push('server_test_connection', [
                 'hostname' => $hostname,
                 'port' => $port,
                 'username' => $username,
             ]);
 
             $this->success([
-                'job_id' => $job->id,
+                'job_id' => $jobId,
                 'message' => 'Connection test started. Use SSE to monitor progress.',
             ], 'Connection test job created', 202);
 
