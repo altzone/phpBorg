@@ -1,18 +1,18 @@
 <template>
   <div v-if="isOpen" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-    <div class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl shadow-2xl border border-white/10 w-full max-w-4xl max-h-[90vh] overflow-hidden">
+    <div class="bg-white dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 w-full max-w-4xl max-h-[90vh] overflow-hidden">
       <!-- Header -->
       <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-8 h-8 text-gray-900 dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
           </svg>
           <div>
-            <h2 class="text-xl font-bold text-white">{{ $t('server_wizard.title') }}</h2>
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white">{{ $t('server_wizard.title') }}</h2>
             <p class="text-blue-100 text-sm">{{ $t('server_wizard.subtitle') }}</p>
           </div>
         </div>
-        <button @click="close" class="text-white/80 hover:text-white transition">
+        <button @click="close" class="text-gray-900 dark:text-white/80 hover:text-gray-900 dark:text-white transition">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -20,22 +20,22 @@
       </div>
 
       <!-- Progress Steps -->
-      <div class="bg-slate-800/50 px-6 py-4 border-b border-white/5">
+      <div class="bg-gray-100 dark:bg-gray-50 dark:bg-slate-800/50 px-6 py-4 border-b border-gray-200 dark:border-white/5">
         <div class="flex items-center justify-between max-w-2xl mx-auto">
           <div v-for="(step, index) in steps" :key="index" class="flex items-center" :class="{ 'flex-1': index < steps.length - 1 }">
             <div class="flex flex-col items-center">
               <div
                 class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition"
-                :class="currentStep > index ? 'bg-green-500 text-white' : currentStep === index ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-400'"
+                :class="currentStep > index ? 'bg-green-500 text-gray-900 dark:text-white' : currentStep === index ? 'bg-blue-500 text-gray-900 dark:text-white' : 'bg-gray-300 dark:bg-slate-700 text-gray-600 dark:text-gray-600 dark:text-slate-400'"
               >
                 <svg v-if="currentStep > index" class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
                 </svg>
                 <span v-else>{{ index + 1 }}</span>
               </div>
-              <span class="text-xs mt-1 text-slate-400">{{ step }}</span>
+              <span class="text-xs mt-1 text-gray-600 dark:text-gray-600 dark:text-slate-400">{{ step }}</span>
             </div>
-            <div v-if="index < steps.length - 1" class="flex-1 h-0.5 mx-2 -mt-6" :class="currentStep > index ? 'bg-green-500' : 'bg-slate-700'"></div>
+            <div v-if="index < steps.length - 1" class="flex-1 h-0.5 mx-2 -mt-6" :class="currentStep > index ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-700'"></div>
           </div>
         </div>
       </div>
@@ -45,56 +45,56 @@
 
         <!-- Step 1: Basic Info -->
         <div v-if="currentStep === 0">
-          <h3 class="text-xl font-semibold text-white mb-4">{{ $t('server_wizard.step1.title') }}</h3>
-          <p class="text-slate-400 mb-6">{{ $t('server_wizard.step1.description') }}</p>
+          <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">{{ $t('server_wizard.step1.title') }}</h3>
+          <p class="text-gray-600 dark:text-slate-400 mb-6">{{ $t('server_wizard.step1.description') }}</p>
 
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-white mb-2">{{ $t('server_wizard.step1.name') }} *</label>
+              <label class="block text-sm font-medium text-gray-900 dark:text-white mb-2">{{ $t('server_wizard.step1.name') }} *</label>
               <input
                 v-model="form.name"
                 type="text"
-                class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                class="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-4 py-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 :placeholder="$t('server_wizard.step1.name_placeholder')"
               />
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-white mb-2">{{ $t('server_wizard.step1.hostname') }} *</label>
+              <label class="block text-sm font-medium text-gray-900 dark:text-white mb-2">{{ $t('server_wizard.step1.hostname') }} *</label>
               <input
                 v-model="form.hostname"
                 type="text"
-                class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                class="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-4 py-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 :placeholder="$t('server_wizard.step1.hostname_placeholder')"
               />
             </div>
 
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-white mb-2">{{ $t('server_wizard.step1.port') }}</label>
+                <label class="block text-sm font-medium text-gray-900 dark:text-white mb-2">{{ $t('server_wizard.step1.port') }}</label>
                 <input
                   v-model.number="form.port"
                   type="number"
-                  class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  class="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-4 py-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
               <div>
-                <label class="block text-sm font-medium text-white mb-2">{{ $t('server_wizard.step1.username') }}</label>
+                <label class="block text-sm font-medium text-gray-900 dark:text-white mb-2">{{ $t('server_wizard.step1.username') }}</label>
                 <input
                   v-model="form.username"
                   type="text"
-                  class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  class="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-4 py-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-white mb-2">{{ $t('server_wizard.step1.description') }}</label>
+              <label class="block text-sm font-medium text-gray-900 dark:text-white mb-2">{{ $t('server_wizard.step1.description') }}</label>
               <textarea
                 v-model="form.description"
                 rows="3"
-                class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                class="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-4 py-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                 :placeholder="$t('server_wizard.step1.description_placeholder')"
               ></textarea>
             </div>
@@ -103,25 +103,25 @@
 
         <!-- Step 2: Choose Method -->
         <div v-if="currentStep === 1">
-          <h3 class="text-xl font-semibold text-white mb-4">{{ $t('server_wizard.step2.title') }}</h3>
-          <p class="text-slate-400 mb-6">{{ $t('server_wizard.step2.description') }}</p>
+          <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">{{ $t('server_wizard.step2.title') }}</h3>
+          <p class="text-gray-600 dark:text-slate-400 mb-6">{{ $t('server_wizard.step2.description') }}</p>
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <!-- Method 1: Manual -->
             <div
               @click="form.method = 'manual'"
               class="border-2 rounded-xl p-6 cursor-pointer transition hover:shadow-lg"
-              :class="form.method === 'manual' ? 'border-blue-500 bg-blue-500/10' : 'border-slate-600 hover:border-slate-500'"
+              :class="form.method === 'manual' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-300 dark:border-slate-600 hover:border-slate-500'"
             >
               <div class="flex items-center justify-center w-12 h-12 rounded-full mb-4 mx-auto"
                 :class="form.method === 'manual' ? 'bg-blue-500' : 'bg-slate-700'"
               >
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-6 h-6 text-gray-900 dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                 </svg>
               </div>
-              <h4 class="text-lg font-semibold text-white text-center mb-2">{{ $t('server_wizard.step2.method1_title') }}</h4>
-              <p class="text-sm text-slate-400 text-center">{{ $t('server_wizard.step2.method1_desc') }}</p>
+              <h4 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">{{ $t('server_wizard.step2.method1_title') }}</h4>
+              <p class="text-sm text-gray-600 dark:text-slate-400 text-center">{{ $t('server_wizard.step2.method1_desc') }}</p>
               <div class="mt-4 flex items-center justify-center gap-2">
                 <span class="px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">{{ $t('server_wizard.step2.easy') }}</span>
               </div>
@@ -131,17 +131,17 @@
             <div
               @click="form.method = 'password'"
               class="border-2 rounded-xl p-6 cursor-pointer transition hover:shadow-lg"
-              :class="form.method === 'password' ? 'border-blue-500 bg-blue-500/10' : 'border-slate-600 hover:border-slate-500'"
+              :class="form.method === 'password' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-300 dark:border-slate-600 hover:border-slate-500'"
             >
               <div class="flex items-center justify-center w-12 h-12 rounded-full mb-4 mx-auto"
                 :class="form.method === 'password' ? 'bg-blue-500' : 'bg-slate-700'"
               >
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-6 h-6 text-gray-900 dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
-              <h4 class="text-lg font-semibold text-white text-center mb-2">{{ $t('server_wizard.step2.method2_title') }}</h4>
-              <p class="text-sm text-slate-400 text-center">{{ $t('server_wizard.step2.method2_desc') }}</p>
+              <h4 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">{{ $t('server_wizard.step2.method2_title') }}</h4>
+              <p class="text-sm text-gray-600 dark:text-slate-400 text-center">{{ $t('server_wizard.step2.method2_desc') }}</p>
               <div class="mt-4 flex items-center justify-center gap-2">
                 <span class="px-3 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full">{{ $t('server_wizard.step2.automatic') }}</span>
               </div>
@@ -151,17 +151,17 @@
             <div
               @click="form.method = 'oneliner'"
               class="border-2 rounded-xl p-6 cursor-pointer transition hover:shadow-lg"
-              :class="form.method === 'oneliner' ? 'border-blue-500 bg-blue-500/10' : 'border-slate-600 hover:border-slate-500'"
+              :class="form.method === 'oneliner' ? 'border-blue-500 bg-blue-500/10' : 'border-gray-300 dark:border-slate-600 hover:border-slate-500'"
             >
               <div class="flex items-center justify-center w-12 h-12 rounded-full mb-4 mx-auto"
                 :class="form.method === 'oneliner' ? 'bg-blue-500' : 'bg-slate-700'"
               >
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-6 h-6 text-gray-900 dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
-              <h4 class="text-lg font-semibold text-white text-center mb-2">{{ $t('server_wizard.step2.method3_title') }}</h4>
-              <p class="text-sm text-slate-400 text-center">{{ $t('server_wizard.step2.method3_desc') }}</p>
+              <h4 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">{{ $t('server_wizard.step2.method3_title') }}</h4>
+              <p class="text-sm text-gray-600 dark:text-slate-400 text-center">{{ $t('server_wizard.step2.method3_desc') }}</p>
               <div class="mt-4 flex items-center justify-center gap-2">
                 <span class="px-3 py-1 bg-purple-500/20 text-purple-400 text-xs rounded-full">{{ $t('server_wizard.step2.professional') }}</span>
               </div>
@@ -174,16 +174,16 @@
 
           <!-- Method 1: Manual SSH Key -->
           <div v-if="form.method === 'manual'">
-            <h3 class="text-xl font-semibold text-white mb-4">{{ $t('server_wizard.step3.manual.title') }}</h3>
-            <p class="text-slate-400 mb-6">{{ $t('server_wizard.step3.manual.description') }}</p>
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">{{ $t('server_wizard.step3.manual.title') }}</h3>
+            <p class="text-gray-600 dark:text-slate-400 mb-6">{{ $t('server_wizard.step3.manual.description') }}</p>
 
             <div class="space-y-4">
-              <div class="bg-slate-800 rounded-lg p-4 border border-slate-600">
+              <div class="bg-gray-50 dark:bg-slate-800 rounded-lg p-4 border border-gray-300 dark:border-slate-600">
                 <div class="flex items-center justify-between mb-2">
-                  <label class="text-sm font-medium text-white">{{ $t('server_wizard.step3.manual.public_key') }}</label>
+                  <label class="text-sm font-medium text-gray-900 dark:text-white">{{ $t('server_wizard.step3.manual.public_key') }}</label>
                   <button
                     @click="copyToClipboard(publicKey)"
-                    class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded transition"
+                    class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-gray-900 dark:text-white text-sm rounded transition"
                   >
                     {{ $t('server_wizard.step3.manual.copy') }}
                   </button>
@@ -204,7 +204,7 @@
               <button
                 @click="testConnection"
                 :disabled="testing"
-                class="w-full px-4 py-3 bg-green-500 hover:bg-green-600 disabled:bg-slate-600 text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
+                class="w-full px-4 py-3 bg-green-500 hover:bg-green-600 disabled:bg-slate-600 text-gray-900 dark:text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
               >
                 <svg v-if="testing" class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -220,7 +220,7 @@
                 <p class="text-sm font-medium" :class="connectionResult.success ? 'text-green-400' : 'text-red-400'">
                   {{ connectionResult.message }}
                 </p>
-                <p v-if="connectionResult.borg_version" class="text-xs text-slate-400 mt-1">
+                <p v-if="connectionResult.borg_version" class="text-xs text-gray-600 dark:text-slate-400 mt-1">
                   {{ $t('server_wizard.step3.manual.borg_version') }}: {{ connectionResult.borg_version }}
                 </p>
               </div>
@@ -229,16 +229,16 @@
 
           <!-- Method 2: Password -->
           <div v-if="form.method === 'password'">
-            <h3 class="text-xl font-semibold text-white mb-4">{{ $t('server_wizard.step3.password.title') }}</h3>
-            <p class="text-slate-400 mb-6">{{ $t('server_wizard.step3.password.description') }}</p>
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">{{ $t('server_wizard.step3.password.title') }}</h3>
+            <p class="text-gray-600 dark:text-slate-400 mb-6">{{ $t('server_wizard.step3.password.description') }}</p>
 
             <div class="space-y-4">
               <div>
-                <label class="block text-sm font-medium text-white mb-2">{{ $t('server_wizard.step3.password.password') }} *</label>
+                <label class="block text-sm font-medium text-gray-900 dark:text-white mb-2">{{ $t('server_wizard.step3.password.password') }} *</label>
                 <input
                   v-model="form.password"
                   type="password"
-                  class="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  class="w-full bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-4 py-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   :placeholder="$t('server_wizard.step3.password.password_placeholder')"
                 />
               </div>
@@ -248,9 +248,9 @@
                   v-model="form.useSudo"
                   type="checkbox"
                   id="useSudo"
-                  class="w-5 h-5 text-blue-500 bg-slate-800 border-slate-600 rounded focus:ring-blue-500"
+                  class="w-5 h-5 text-blue-500 bg-gray-50 dark:bg-slate-800 border-gray-300 dark:border-slate-600 rounded focus:ring-blue-500"
                 />
-                <label for="useSudo" class="text-sm text-white">
+                <label for="useSudo" class="text-sm text-gray-900 dark:text-white">
                   {{ $t('server_wizard.step3.password.use_sudo') }}
                 </label>
               </div>
@@ -264,7 +264,7 @@
               <button
                 @click="setupWithPassword"
                 :disabled="!form.password || setupInProgress"
-                class="w-full px-4 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-600 text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
+                class="w-full px-4 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-600 text-gray-900 dark:text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
               >
                 <svg v-if="setupInProgress" class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -275,7 +275,7 @@
 
               <div v-if="setupProgress" class="space-y-2">
                 <div class="flex items-center justify-between text-sm">
-                  <span class="text-slate-400">{{ setupProgress.message }}</span>
+                  <span class="text-gray-600 dark:text-slate-400">{{ setupProgress.message }}</span>
                   <span class="text-blue-400">{{ setupProgress.percent }}%</span>
                 </div>
                 <div class="w-full bg-slate-700 rounded-full h-2">
@@ -287,26 +287,26 @@
 
           <!-- Method 3: One-Liner -->
           <div v-if="form.method === 'oneliner'">
-            <h3 class="text-xl font-semibold text-white mb-4">{{ $t('server_wizard.step3.oneliner.title') }}</h3>
-            <p class="text-slate-400 mb-6">{{ $t('server_wizard.step3.oneliner.description') }}</p>
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">{{ $t('server_wizard.step3.oneliner.title') }}</h3>
+            <p class="text-gray-600 dark:text-slate-400 mb-6">{{ $t('server_wizard.step3.oneliner.description') }}</p>
 
             <div class="space-y-4">
               <button
                 v-if="!oneLinerToken"
                 @click="generateOneLiner"
                 :disabled="generatingToken"
-                class="w-full px-4 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-600 text-white rounded-lg font-medium transition"
+                class="w-full px-4 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-600 text-gray-900 dark:text-white rounded-lg font-medium transition"
               >
                 {{ generatingToken ? $t('server_wizard.step3.oneliner.generating') : $t('server_wizard.step3.oneliner.generate_button') }}
               </button>
 
               <div v-if="oneLinerToken" class="space-y-4">
-                <div class="bg-slate-800 rounded-lg p-4 border border-slate-600">
+                <div class="bg-gray-50 dark:bg-slate-800 rounded-lg p-4 border border-gray-300 dark:border-slate-600">
                   <div class="flex items-center justify-between mb-2">
-                    <label class="text-sm font-medium text-white">{{ $t('server_wizard.step3.oneliner.command') }}</label>
+                    <label class="text-sm font-medium text-gray-900 dark:text-white">{{ $t('server_wizard.step3.oneliner.command') }}</label>
                     <button
                       @click="copyToClipboard(oneLinerToken.one_liner)"
-                      class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded transition"
+                      class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-gray-900 dark:text-white text-sm rounded transition"
                     >
                       {{ $t('server_wizard.step3.oneliner.copy') }}
                     </button>
@@ -323,7 +323,7 @@
                   </ol>
                 </div>
 
-                <div class="flex items-center justify-between text-sm text-slate-400">
+                <div class="flex items-center justify-between text-sm text-gray-600 dark:text-slate-400">
                   <span>{{ $t('server_wizard.step3.oneliner.expires') }}: {{ oneLinerToken.expires_at }}</span>
                   <span v-if="installStatus === 'pending'" class="text-yellow-400 flex items-center gap-2">
                     <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
@@ -359,31 +359,31 @@
         <div v-if="currentStep === 3">
           <div class="text-center py-8">
             <div class="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
-              <svg class="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <svg class="w-12 h-12 text-gray-900 dark:text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
               </svg>
             </div>
-            <h3 class="text-2xl font-bold text-white mb-2">{{ $t('server_wizard.step4.title') }}</h3>
-            <p class="text-slate-400 mb-8">{{ $t('server_wizard.step4.description') }}</p>
+            <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">{{ $t('server_wizard.step4.title') }}</h3>
+            <p class="text-gray-600 dark:text-slate-400 mb-8">{{ $t('server_wizard.step4.description') }}</p>
 
-            <div class="bg-slate-800 rounded-lg p-6 text-left max-w-md mx-auto mb-6">
-              <h4 class="text-sm font-semibold text-white mb-4">{{ $t('server_wizard.step4.summary') }}</h4>
+            <div class="bg-gray-50 dark:bg-slate-800 rounded-lg p-6 text-left max-w-md mx-auto mb-6">
+              <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-4">{{ $t('server_wizard.step4.summary') }}</h4>
               <div class="space-y-2 text-sm">
                 <div class="flex justify-between">
-                  <span class="text-slate-400">{{ $t('server_wizard.step4.name') }}:</span>
-                  <span class="text-white font-medium">{{ form.name }}</span>
+                  <span class="text-gray-600 dark:text-slate-400">{{ $t('server_wizard.step4.name') }}:</span>
+                  <span class="text-gray-900 dark:text-white font-medium">{{ form.name }}</span>
                 </div>
                 <div class="flex justify-between">
-                  <span class="text-slate-400">{{ $t('server_wizard.step4.hostname') }}:</span>
-                  <span class="text-white font-medium">{{ form.hostname }}</span>
+                  <span class="text-gray-600 dark:text-slate-400">{{ $t('server_wizard.step4.hostname') }}:</span>
+                  <span class="text-gray-900 dark:text-white font-medium">{{ form.hostname }}</span>
                 </div>
                 <div class="flex justify-between">
-                  <span class="text-slate-400">{{ $t('server_wizard.step4.port') }}:</span>
-                  <span class="text-white font-medium">{{ form.port }}</span>
+                  <span class="text-gray-600 dark:text-slate-400">{{ $t('server_wizard.step4.port') }}:</span>
+                  <span class="text-gray-900 dark:text-white font-medium">{{ form.port }}</span>
                 </div>
                 <div class="flex justify-between">
-                  <span class="text-slate-400">{{ $t('server_wizard.step4.method') }}:</span>
-                  <span class="text-white font-medium">{{ getMethodName(form.method) }}</span>
+                  <span class="text-gray-600 dark:text-slate-400">{{ $t('server_wizard.step4.method') }}:</span>
+                  <span class="text-gray-900 dark:text-white font-medium">{{ getMethodName(form.method) }}</span>
                 </div>
               </div>
             </div>
@@ -393,11 +393,11 @@
       </div>
 
       <!-- Footer -->
-      <div class="bg-slate-800/50 px-6 py-4 border-t border-white/5 flex items-center justify-between">
+      <div class="bg-gray-50 dark:bg-slate-800/50 px-6 py-4 border-t border-white/5 flex items-center justify-between">
         <button
           v-if="currentStep > 0"
           @click="previousStep"
-          class="px-4 py-2 text-slate-400 hover:text-white transition"
+          class="px-4 py-2 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:text-white transition"
         >
           {{ $t('server_wizard.previous') }}
         </button>
@@ -406,7 +406,7 @@
         <div class="flex gap-3">
           <button
             @click="close"
-            class="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
+            class="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-gray-900 dark:text-white rounded-lg transition"
           >
             {{ $t('server_wizard.cancel') }}
           </button>
@@ -414,7 +414,7 @@
             v-if="currentStep < 3"
             @click="nextStep"
             :disabled="!canProceed"
-            class="px-6 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-600 text-white rounded-lg transition"
+            class="px-6 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-600 text-gray-900 dark:text-white rounded-lg transition"
           >
             {{ $t('server_wizard.next') }}
           </button>
@@ -422,7 +422,7 @@
             v-if="currentStep === 3"
             @click="createServer"
             :disabled="creating"
-            class="px-6 py-2 bg-green-500 hover:bg-green-600 disabled:bg-slate-600 text-white rounded-lg transition flex items-center gap-2"
+            class="px-6 py-2 bg-green-500 hover:bg-green-600 disabled:bg-slate-600 text-gray-900 dark:text-white rounded-lg transition flex items-center gap-2"
           >
             <svg v-if="creating" class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
