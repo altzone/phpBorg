@@ -32,6 +32,7 @@ use PhpBorg\Api\Controller\JobController;
 use PhpBorg\Api\Controller\RepositoryController;
 use PhpBorg\Api\Controller\RoleController;
 use PhpBorg\Api\Controller\ServerController;
+use PhpBorg\Api\Controller\ServerWizardController;
 use PhpBorg\Api\Controller\SettingsController;
 use PhpBorg\Api\Controller\StoragePoolController;
 use PhpBorg\Api\Controller\SSEController;
@@ -80,6 +81,17 @@ try {
     $router->get('/servers/:id/delete-stats', ServerController::class, 'deleteStats', requireAuth: true);
     $router->get('/servers/:id/capabilities', ServerController::class, 'capabilities', requireAuth: true);
     $router->post('/servers/:id/detect-capabilities', ServerController::class, 'detectCapabilities', requireAuth: true);
+
+    // ===========================================
+    // Server Add Wizard Routes (Protected/Public)
+    // ===========================================
+    $router->get('/server-wizard/public-key', ServerWizardController::class, 'getPublicKey', requireAuth: true);
+    $router->post('/server-wizard/test-connection', ServerWizardController::class, 'testConnection', requireAuth: true);
+    $router->post('/server-wizard/setup-with-password', ServerWizardController::class, 'setupWithPassword', requireAuth: true);
+    $router->post('/server-wizard/generate-install-token', ServerWizardController::class, 'generateInstallToken', requireAuth: true);
+    $router->get('/server-wizard/install-script/:token', ServerWizardController::class, 'serveInstallScript', requireAuth: false); // Public for curl
+    $router->post('/server-wizard/install-callback/:token', ServerWizardController::class, 'installCallback', requireAuth: false); // Public webhook
+    $router->get('/server-wizard/install-status/:token', ServerWizardController::class, 'getInstallStatus', requireAuth: true);
 
     // ===========================================
     // Job Queue Routes (Protected)

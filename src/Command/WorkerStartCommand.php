@@ -16,6 +16,7 @@ use PhpBorg\Service\Queue\Handlers\InstantRecoveryStartHandler;
 use PhpBorg\Service\Queue\Handlers\InstantRecoveryStopHandler;
 use PhpBorg\Service\Queue\Handlers\RepositoryDeleteHandler;
 use PhpBorg\Service\Queue\Handlers\ServerSetupHandler;
+use PhpBorg\Service\Queue\Handlers\ServerSetupPasswordHandler;
 use PhpBorg\Service\Queue\Handlers\ServerStatsCollectHandler;
 use PhpBorg\Service\Queue\Handlers\StoragePoolAnalyzeHandler;
 use PhpBorg\Service\Queue\Handlers\TestJobHandler;
@@ -86,6 +87,8 @@ final class WorkerStartCommand extends Command
             $logger,
             $this->app->getUserOperationLogger()
         ));
+
+        $worker->registerHandler('server_setup_password', new ServerSetupPasswordHandler($logger));
 
         $worker->registerHandler('backup_create', new BackupCreateHandler(
             $this->app->getBackupService(),
