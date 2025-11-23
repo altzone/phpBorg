@@ -253,6 +253,7 @@
       "archive_mount": "Monter une archive",
       "repository_delete": "Supprimer un dépôt",
       "server_setup": "Configurer un serveur",
+      "server_test_connection": "Test de connexion serveur",
       "server_stats_collect": "Collecter les statistiques",
       "storage_pool_analyze": "Analyser le pool de stockage",
       "capabilities_detection": "Détection des capacités",

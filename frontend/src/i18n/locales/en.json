@@ -253,6 +253,7 @@
       "archive_mount": "Mount Archive",
       "repository_delete": "Delete Repository",
       "server_setup": "Setup Server",
+      "server_test_connection": "Server Connection Test",
       "server_stats_collect": "Collect Statistics",
       "storage_pool_analyze": "Analyze Storage Pool",
       "capabilities_detection": "Capabilities Detection",
