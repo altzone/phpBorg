@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PhpBorg\Service\Queue\Handlers;
 
-use PhpBorg\Service\Queue\Job;
+use PhpBorg\Entity\Job;
 use PhpBorg\Service\Queue\JobQueue;
 use Psr\Log\LoggerInterface;
 
