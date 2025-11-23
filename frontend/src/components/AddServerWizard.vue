@@ -617,9 +617,9 @@ const testConnection = async () => {
 
           // Parse JSON output if present
           let resultData = {}
-          if (ourJob.progress_output) {
+          if (ourJob.output) {
             try {
-              resultData = JSON.parse(ourJob.progress_output)
+              resultData = JSON.parse(ourJob.output)
             } catch (e) {
               console.error('Failed to parse job output:', e)
             }
@@ -638,9 +638,9 @@ const testConnection = async () => {
 
           // Parse JSON output if present
           let resultData = {}
-          if (ourJob.progress_output) {
+          if (ourJob.output) {
             try {
-              resultData = JSON.parse(ourJob.progress_output)
+              resultData = JSON.parse(ourJob.output)
             } catch (e) {
               console.error('Failed to parse job output:', e)
             }
@@ -713,7 +713,7 @@ const setupWithPassword = async () => {
           // Update progress from job data
           setupProgress.value = {
             percent: ourJob.progress || 0,
-            message: ourJob.progress_output || ''
+            message: ourJob.output || ''
           }
 
           if (ourJob.status === 'completed') {
