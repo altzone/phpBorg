@@ -34,7 +34,8 @@
     "compression": "Compression",
     "encryption": "Encryption",
     "copy": "Copy",
-    "port": "Port"
+    "port": "Port",
+    "optional": "Optional"
   },
   "nav": {
     "dashboard": "Home",
