@@ -44,6 +44,7 @@
     "jobs": "Aufgaben",
     "workers": "Workers",
     "settings": "Einstellungen",
+    "phpborg_backup": "phpBorg-Sicherung",
     "logout": "Abmelden",
     "quick_access": "Schnellzugriff",
     "new_backup": "Neues Backup",
@@ -387,7 +388,68 @@
       "monitor": "Sie können den Fortschritt im Aufgaben-Bereich verfolgen."
     },
     "avg_transfer_rate": "Durchschnittlicher Durchsatz",
-    "average_speed": "Durchschnittsgeschwindigkeit"
+    "average_speed": "Durchschnittsgeschwindigkeit",
+    "selfBackup": {
+      "title": "phpBorg-Sicherung",
+      "description": "Erstellen und verwalten Sie vollständige Sicherungen Ihrer phpBorg-Installation",
+      "createBackup": "Sicherung erstellen",
+      "createFirstBackup": "Erste Sicherung erstellen",
+      "noBackups": "Keine Sicherungen",
+      "noBackupsFiltered": "Keine Sicherungen gefunden",
+      "noBackupsDescription": "Erstellen Sie Ihre erste Sicherung, um Ihre phpBorg-Installation zu schützen",
+      "createBackupDescription": "Eine vollständige Sicherung umfasst die Datenbank, den Quellcode, Konfigurationen, SSH-Schlüssel und systemd-Dienste.",
+      "notes": "Notizen",
+      "notesPlaceholder": "Fügen Sie eine Beschreibung für diese Sicherung hinzu (optional)",
+      "backupInfo": "Inhalt der Sicherung:",
+      "encrypted": "Verschlüsselt",
+      "unencrypted": "Nicht verschlüsselt",
+      "backupIncludes": {
+        "database": "Vollständige Datenbank (SQL-Dump)",
+        "code": "phpBorg-Quellcode",
+        "configs": "Konfigurationsdateien (.env)",
+        "sshKeys": "SSH-Schlüssel für Backups",
+        "systemd": "Systemd-Dienste"
+      },
+      "stats": {
+        "totalBackups": "Sicherungen gesamt",
+        "totalSize": "Gesamtgröße",
+        "encrypted": "Verschlüsselt",
+        "encryptionRate": "verschlüsselt"
+      },
+      "types": {
+        "manual": "Manuell",
+        "scheduled": "Geplant",
+        "pre_update": "Vor Update",
+        "pre_restore": "Vor Wiederherstellung"
+      },
+      "filters": {
+        "allTypes": "Alle Typen",
+        "allEncryption": "Alle (verschlüsselt/unverschlüsselt)"
+      },
+      "table": {
+        "filename": "Dateiname",
+        "type": "Typ",
+        "size": "Größe",
+        "encryption": "Verschlüsselung",
+        "createdAt": "Erstellt am",
+        "actions": "Aktionen"
+      },
+      "actions": {
+        "download": "Herunterladen",
+        "restore": "Wiederherstellen",
+        "delete": "Löschen"
+      },
+      "restoreBackup": "Sicherung wiederherstellen",
+      "restoreWarning": "Warnung: Kritische Operation",
+      "restoreWarningDescription": "Die Wiederherstellung ersetzt ALLE aktuellen Daten (DB + Code + Konfigurationen). Diese Operation ist unwiderruflich!",
+      "backupDetails": "Sicherungsdetails",
+      "createPreRestoreBackup": "Sicherheitssicherung vor Wiederherstellung erstellen",
+      "createPreRestoreBackupDescription": "Empfohlen: Erstellt automatisch eine Sicherung des aktuellen Zustands vor der Wiederherstellung",
+      "restoreConfirmation": "Sind Sie sicher, dass Sie diese Sicherung wiederherstellen möchten?",
+      "confirmRestore": "Wiederherstellung bestätigen",
+      "deleteBackup": "Sicherung löschen",
+      "deleteConfirmation": "Möchten Sie diese Sicherung wirklich löschen? Diese Aktion ist unwiderruflich."
+    }
   },
   "backup_jobs": {
     "title": "Geplante Aufgaben",

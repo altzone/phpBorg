@@ -106,6 +106,12 @@ const router = createRouter({
           component: () => import('@/views/WorkersView.vue'),
           meta: { requiresRole: 'ROLE_ADMIN' },
         },
+        {
+          path: 'phpborg-backup',
+          name: 'phpborg-backup',
+          component: () => import('@/views/PhpBorgBackupView.vue'),
+          meta: { requiresRole: 'ROLE_ADMIN' },
+        },
       ],
     },
   ],
