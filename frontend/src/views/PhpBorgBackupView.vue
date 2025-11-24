@@ -167,7 +167,7 @@
         <p class="text-gray-500 dark:text-gray-400 mb-6">
           {{ $t('backup.selfBackup.noBackupsDescription') }}
         </p>
-        <button @click="openCreateModal" class="btn-primary">
+        <button @click="openCreateModal" class="btn-primary mx-auto">
           {{ $t('backup.selfBackup.createFirstBackup') }}
         </button>
       </div>
