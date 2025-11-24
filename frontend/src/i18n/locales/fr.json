@@ -820,7 +820,8 @@
       "borg": "Borg",
       "security": "Sécurité",
       "network": "Réseau",
-      "system": "Système"
+      "system": "Système",
+      "update": "Mise à jour"
     },
     "general": {
       "title": "Paramètres généraux",
@@ -922,7 +923,43 @@
       "stats_note": "Note : Après modification, redémarrez le scheduler depuis la page Workers pour appliquer la nouvelle valeur.",
       "save": "Enregistrer les paramètres système"
     },
+    "update": {
+      "title": "Mise à jour phpBorg",
+      "current_version": "Version actuelle",
+      "commit": "Commit",
+      "branch": "Branche",
+      "date": "Date",
+      "author": "Auteur",
+      "message": "Message",
+      "check_title": "Vérifier les mises à jour",
+      "check_button": "Vérifier les mises à jour",
+      "available_title": "Mise à jour disponible !",
+      "available_description": "{commits} nouveau(x) commit(s) disponible(s)",
+      "changelog_title": "Journal des modifications",
+      "install_button": "Installer la mise à jour",
+      "updating": "Mise à jour en cours...",
+      "warning_title": "Attention",
+      "warning_message": "phpBorg créera automatiquement une sauvegarde avant la mise à jour et reviendra en arrière en cas de problème.",
+      "uptodate_title": "À jour",
+      "uptodate_description": "Votre installation phpBorg est à jour.",
+      "not_checked": "Cliquez sur 'Vérifier les mises à jour' pour voir si une nouvelle version est disponible.",
+      "update_available_toast": "{commits} mise(s) à jour disponible(s)",
+      "uptodate_toast": "phpBorg est à jour",
+      "check_error": "Échec de la vérification des mises à jour",
+      "confirm_message": "Êtes-vous sûr de vouloir mettre à jour phpBorg ? Une sauvegarde sera créée automatiquement avant la mise à jour.",
+      "update_started": "Mise à jour démarrée. Vous pouvez suivre la progression dans la file des tâches.",
+      "update_error": "Échec du démarrage de la mise à jour",
+      "update_job_title": "Mise à jour phpBorg"
+    },
     "save_success": "Paramètres enregistrés avec succès !"
+  },
+  "update": {
+    "banner": {
+      "title": "Mise à jour disponible !",
+      "description": "{commits} nouveau(x) commit(s) disponible(s)",
+      "view_update": "Voir la mise à jour",
+      "dismiss": "Ignorer"
+    }
   },
   "restore_wizard": {
     "title": "Parcourir & Restaurer",

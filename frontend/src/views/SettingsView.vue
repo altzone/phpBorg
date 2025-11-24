@@ -398,6 +398,11 @@
             </div>
           </form>
         </div>
+
+        <!-- Update Settings -->
+        <div v-show="activeTab === 'update'">
+          <UpdateSettings />
+        </div>
       </div>
     </div>
 
@@ -454,13 +459,16 @@
 <script setup>
 import { ref, onMounted, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useSettingsStore } from '@/stores/settings'
 import { emailService } from '@/services/email'
+import UpdateSettings from '@/components/UpdateSettings.vue'
 
 const { t } = useI18n()
+const route = useRoute()
 const settingsStore = useSettingsStore()
 
-const activeTab = ref('general')
+const activeTab = ref(route.query.tab || 'general')
 
 // Test Email Modal
 const showTestEmailModal = ref(false)
@@ -479,6 +487,7 @@ const tabs = computed(() => [
   { id: 'security', label: t('settings.tabs.security') },
   { id: 'network', label: t('settings.tabs.network') },
   { id: 'system', label: t('settings.tabs.system') },
+  { id: 'update', label: t('settings.tabs.update') },
 ])
 
 const generalForm = reactive({})

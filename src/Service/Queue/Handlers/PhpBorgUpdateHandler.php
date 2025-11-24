@@ -1,0 +1,486 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PhpBorg\Service\Queue\Handlers;
+
+use PhpBorg\Config\Configuration;
+use PhpBorg\Entity\Job;
+use PhpBorg\Exception\BackupException;
+use PhpBorg\Logger\LoggerInterface;
+use PhpBorg\Repository\PhpBorgBackupRepository;
+use PhpBorg\Service\Queue\JobQueue;
+
+/**
+ * Handler for phpBorg self-update
+ *
+ * Process:
+ * 1. Pre-checks (git clean, disk space, dependencies)
+ * 2. Create pre-update backup (MANDATORY)
+ * 3. Git pull (update code)
+ * 4. Composer install
+ * 5. NPM build frontend
+ * 6. Run database migrations
+ * 7. Restart services
+ * 8. Health check (auto-rollback on failure)
+ */
+final class PhpBorgUpdateHandler implements JobHandlerInterface
+{
+    private const MIN_DISK_SPACE_GB = 2;
+
+    public function __construct(
+        private readonly Configuration $config,
+        private readonly PhpBorgBackupRepository $backupRepository,
+        private readonly LoggerInterface $logger
+    ) {
+    }
+
+    public function handle(Job $job, JobQueue $queue): string
+    {
+        $payload = $job->payload;
+        $targetCommit = $payload['target_commit'] ?? null;
+
+        $this->logger->info("Starting phpBorg update", 'PHPBORG_UPDATE', [
+            'target_commit' => $targetCommit
+        ]);
+
+        $phpborgRoot = $this->getPhpBorgRoot();
+        $preUpdateBackupId = null;
+        $currentCommit = $this->getCurrentCommit($phpborgRoot);
+
+        try {
+            // Step 1: Pre-checks
+            $this->logger->info("Running pre-update checks...", 'PHPBORG_UPDATE');
+            $this->preChecks($phpborgRoot);
+
+            // Step 2: Create pre-update backup (MANDATORY)
+            $this->logger->info("Creating pre-update backup...", 'PHPBORG_UPDATE');
+            $preUpdateBackupId = $this->createPreUpdateBackup();
+            $this->logger->info("Pre-update backup created", 'PHPBORG_UPDATE', [
+                'backup_id' => $preUpdateBackupId
+            ]);
+
+            // Step 3: Git update
+            $this->logger->info("Updating code from git...", 'PHPBORG_UPDATE');
+            $this->gitUpdate($phpborgRoot, $targetCommit);
+            $newCommit = $this->getCurrentCommit($phpborgRoot);
+            $this->logger->info("Code updated", 'PHPBORG_UPDATE', [
+                'from' => substr($currentCommit, 0, 7),
+                'to' => substr($newCommit, 0, 7)
+            ]);
+
+            // Step 4: Composer install
+            $this->logger->info("Installing PHP dependencies...", 'PHPBORG_UPDATE');
+            $this->composerInstall($phpborgRoot);
+
+            // Step 5: NPM build
+            $this->logger->info("Building frontend...", 'PHPBORG_UPDATE');
+            $this->npmBuild($phpborgRoot);
+
+            // Step 6: Database migrations
+            $this->logger->info("Running database migrations...", 'PHPBORG_UPDATE');
+            $this->runMigrations($phpborgRoot);
+
+            // Step 7: Restart services
+            $this->logger->info("Restarting services...", 'PHPBORG_UPDATE');
+            $this->restartServices();
+
+            // Step 8: Health check
+            $this->logger->info("Running health check...", 'PHPBORG_UPDATE');
+            $healthCheck = $this->healthCheck();
+
+            if (!$healthCheck['healthy']) {
+                throw new \Exception("Health check failed: " . $healthCheck['error']);
+            }
+
+            $message = sprintf(
+                "phpBorg updated successfully from %s to %s",
+                substr($currentCommit, 0, 7),
+                substr($newCommit, 0, 7)
+            );
+
+            $this->logger->info($message, 'PHPBORG_UPDATE');
+
+            return $message;
+
+        } catch (\Exception $e) {
+            $this->logger->error("Update failed, attempting rollback...", 'PHPBORG_UPDATE', [
+                'error' => $e->getMessage()
+            ]);
+
+            // Auto-rollback if we have a pre-update backup
+            if ($preUpdateBackupId) {
+                try {
+                    $this->logger->info("Rolling back to pre-update backup", 'PHPBORG_UPDATE', [
+                        'backup_id' => $preUpdateBackupId
+                    ]);
+
+                    $this->rollback($preUpdateBackupId);
+
+                    throw new \Exception(
+                        "Update failed and rolled back to previous version. Error: " . $e->getMessage()
+                    );
+                } catch (\Exception $rollbackError) {
+                    throw new \Exception(
+                        "Update failed AND rollback failed! Manual intervention required. " .
+                        "Update error: " . $e->getMessage() . " | " .
+                        "Rollback error: " . $rollbackError->getMessage()
+                    );
+                }
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Pre-update checks
+     */
+    private function preChecks(string $phpborgRoot): void
+    {
+        // Check git repo is clean
+        exec("cd {$phpborgRoot} && git status --porcelain 2>&1", $output, $exitCode);
+
+        if ($exitCode !== 0) {
+            throw new \Exception("Git status check failed");
+        }
+
+        if (!empty($output) && count($output) > 0) {
+            $this->logger->warning("Git working directory has uncommitted changes", 'PHPBORG_UPDATE', [
+                'changes' => implode("\n", $output)
+            ]);
+            // Don't block update, just warn
+        }
+
+        // Check disk space
+        $diskFree = disk_free_space($phpborgRoot);
+        $diskFreeGB = $diskFree / 1024 / 1024 / 1024;
+
+        if ($diskFreeGB < self::MIN_DISK_SPACE_GB) {
+            throw new \Exception(
+                sprintf("Insufficient disk space: %.2f GB free (minimum: %d GB)", $diskFreeGB, self::MIN_DISK_SPACE_GB)
+            );
+        }
+
+        // Check required binaries
+        $required = ['git', 'composer', 'npm', 'mysql'];
+        foreach ($required as $bin) {
+            exec("which {$bin} 2>&1", $output, $exitCode);
+            if ($exitCode !== 0) {
+                throw new \Exception("Required binary not found: {$bin}");
+            }
+        }
+
+        $this->logger->info("Pre-checks passed", 'PHPBORG_UPDATE', [
+            'disk_free_gb' => round($diskFreeGB, 2)
+        ]);
+    }
+
+    /**
+     * Create pre-update backup
+     */
+    private function createPreUpdateBackup(): int
+    {
+        // Trigger phpborg_backup_create job with type "pre_update"
+        $handler = new PhpBorgBackupCreateHandler(
+            $this->config,
+            new \PhpBorg\Database\Connection(
+                $this->config->dbHost,
+                $this->config->dbPort,
+                $this->config->dbName,
+                $this->config->dbUser,
+                $this->config->dbPassword
+            ),
+            $this->backupRepository,
+            new \PhpBorg\Repository\SettingRepository(
+                new \PhpBorg\Database\Connection(
+                    $this->config->dbHost,
+                    $this->config->dbPort,
+                    $this->config->dbName,
+                    $this->config->dbUser,
+                    $this->config->dbPassword
+                )
+            ),
+            $this->logger
+        );
+
+        $job = new Job(
+            id: 0,
+            type: 'phpborg_backup_create',
+            queueName: 'default',
+            payload: [
+                'backup_type' => 'pre_update',
+                'notes' => 'Automatic backup before update'
+            ],
+            priority: 10,
+            maxRetries: 0,
+            createdAt: new \DateTimeImmutable(),
+            status: 'processing',
+            startedAt: new \DateTimeImmutable(),
+            attempts: 1
+        );
+
+        $handler->handle($job, new JobQueue(
+            $this->config,
+            new \PhpBorg\Repository\JobRepository(
+                new \PhpBorg\Database\Connection(
+                    $this->config->dbHost,
+                    $this->config->dbPort,
+                    $this->config->dbName,
+                    $this->config->dbUser,
+                    $this->config->dbPassword
+                )
+            ),
+            $this->logger
+        ));
+
+        // Get last created pre_update backup
+        $latestBackup = $this->backupRepository->findLatestPreUpdate();
+        if (!$latestBackup) {
+            throw new BackupException("Failed to create pre-update backup");
+        }
+
+        return $latestBackup->id;
+    }
+
+    /**
+     * Update code via git pull
+     */
+    private function gitUpdate(string $phpborgRoot, ?string $targetCommit): void
+    {
+        // Fetch latest
+        exec("cd {$phpborgRoot} && git fetch origin 2>&1", $output, $exitCode);
+        if ($exitCode !== 0) {
+            throw new \Exception("Git fetch failed: " . implode("\n", $output));
+        }
+
+        // Checkout target or pull master
+        if ($targetCommit) {
+            exec("cd {$phpborgRoot} && git checkout {$targetCommit} 2>&1", $output, $exitCode);
+            if ($exitCode !== 0) {
+                throw new \Exception("Git checkout failed: " . implode("\n", $output));
+            }
+        } else {
+            exec("cd {$phpborgRoot} && git pull origin master 2>&1", $output, $exitCode);
+            if ($exitCode !== 0) {
+                throw new \Exception("Git pull failed: " . implode("\n", $output));
+            }
+        }
+
+        $this->logger->info("Git update completed", 'PHPBORG_UPDATE');
+    }
+
+    /**
+     * Install PHP dependencies
+     */
+    private function composerInstall(string $phpborgRoot): void
+    {
+        $cmd = "cd {$phpborgRoot} && composer install --no-dev --optimize-autoloader --no-interaction 2>&1";
+        exec($cmd, $output, $exitCode);
+
+        if ($exitCode !== 0) {
+            throw new \Exception("Composer install failed: " . implode("\n", $output));
+        }
+
+        $this->logger->info("Composer dependencies installed", 'PHPBORG_UPDATE');
+    }
+
+    /**
+     * Build frontend
+     */
+    private function npmBuild(string $phpborgRoot): void
+    {
+        // npm ci (clean install)
+        exec("cd {$phpborgRoot}/frontend && npm ci 2>&1", $output, $exitCode);
+        if ($exitCode !== 0) {
+            $this->logger->warning("npm ci failed, trying npm install", 'PHPBORG_UPDATE');
+            exec("cd {$phpborgRoot}/frontend && npm install 2>&1", $output, $exitCode);
+            if ($exitCode !== 0) {
+                throw new \Exception("npm install failed: " . implode("\n", $output));
+            }
+        }
+
+        // npm run build
+        exec("cd {$phpborgRoot}/frontend && npm run build 2>&1", $output, $exitCode);
+        if ($exitCode !== 0) {
+            throw new \Exception("npm build failed: " . implode("\n", $output));
+        }
+
+        $this->logger->info("Frontend built successfully", 'PHPBORG_UPDATE');
+    }
+
+    /**
+     * Run database migrations
+     */
+    private function runMigrations(string $phpborgRoot): void
+    {
+        // Check if run-migration.php exists
+        $migrationScript = "{$phpborgRoot}/bin/run-migration.php";
+        if (!file_exists($migrationScript)) {
+            $this->logger->info("No migration script found, skipping migrations", 'PHPBORG_UPDATE');
+            return;
+        }
+
+        exec("php {$migrationScript} 2>&1", $output, $exitCode);
+
+        // Non-zero exit code might just mean no new migrations
+        if ($exitCode !== 0 && strpos(implode("\n", $output), 'No new migrations') === false) {
+            $this->logger->warning("Migrations returned non-zero exit code", 'PHPBORG_UPDATE', [
+                'output' => implode("\n", $output)
+            ]);
+        }
+
+        $this->logger->info("Database migrations completed", 'PHPBORG_UPDATE');
+    }
+
+    /**
+     * Restart services
+     */
+    private function restartServices(): void
+    {
+        // Restart workers (except worker #1 which is running this job)
+        foreach ([2, 3, 4] as $workerNum) {
+            exec("sudo systemctl restart phpborg-worker@{$workerNum} 2>&1", $output, $exitCode);
+            if ($exitCode !== 0) {
+                $this->logger->warning("Failed to restart worker #{$workerNum}", 'PHPBORG_UPDATE', [
+                    'output' => implode("\n", $output)
+                ]);
+            }
+        }
+
+        // Restart scheduler
+        exec("sudo systemctl restart phpborg-scheduler 2>&1", $output, $exitCode);
+        if ($exitCode !== 0) {
+            $this->logger->warning("Failed to restart scheduler", 'PHPBORG_UPDATE', [
+                'output' => implode("\n", $output)
+            ]);
+        }
+
+        // Wait for services to start
+        sleep(3);
+
+        $this->logger->info("Services restarted", 'PHPBORG_UPDATE');
+    }
+
+    /**
+     * Health check
+     *
+     * @return array{healthy: bool, error: ?string}
+     */
+    private function healthCheck(): array
+    {
+        $errors = [];
+
+        // Check workers
+        foreach ([1, 2, 3, 4] as $workerNum) {
+            exec("systemctl is-active phpborg-worker@{$workerNum} 2>&1", $output, $exitCode);
+            if ($exitCode !== 0) {
+                $errors[] = "Worker #{$workerNum} not running";
+            }
+        }
+
+        // Check scheduler
+        exec("systemctl is-active phpborg-scheduler 2>&1", $output, $exitCode);
+        if ($exitCode !== 0) {
+            $errors[] = "Scheduler not running";
+        }
+
+        // Check database connection
+        try {
+            $conn = new \PhpBorg\Database\Connection(
+                $this->config->dbHost,
+                $this->config->dbPort,
+                $this->config->dbName,
+                $this->config->dbUser,
+                $this->config->dbPassword
+            );
+            $conn->execute("SELECT 1");
+        } catch (\Exception $e) {
+            $errors[] = "Database connection failed: " . $e->getMessage();
+        }
+
+        if (!empty($errors)) {
+            return [
+                'healthy' => false,
+                'error' => implode(", ", $errors)
+            ];
+        }
+
+        return [
+            'healthy' => true,
+            'error' => null
+        ];
+    }
+
+    /**
+     * Rollback to backup
+     */
+    private function rollback(int $backupId): void
+    {
+        $this->logger->info("Starting rollback", 'PHPBORG_UPDATE', [
+            'backup_id' => $backupId
+        ]);
+
+        // Use PhpBorgBackupRestoreHandler
+        $handler = new PhpBorgBackupRestoreHandler(
+            $this->config,
+            new \PhpBorg\Database\Connection(
+                $this->config->dbHost,
+                $this->config->dbPort,
+                $this->config->dbName,
+                $this->config->dbUser,
+                $this->config->dbPassword
+            ),
+            $this->backupRepository,
+            $this->logger
+        );
+
+        $job = new Job(
+            id: 0,
+            type: 'phpborg_backup_restore',
+            queueName: 'default',
+            payload: [
+                'backup_id' => $backupId,
+                'create_pre_restore_backup' => false // Don't create backup when rolling back
+            ],
+            priority: 10,
+            maxRetries: 0,
+            createdAt: new \DateTimeImmutable(),
+            status: 'processing',
+            startedAt: new \DateTimeImmutable(),
+            attempts: 1
+        );
+
+        $handler->handle($job, new JobQueue(
+            $this->config,
+            new \PhpBorg\Repository\JobRepository(
+                new \PhpBorg\Database\Connection(
+                    $this->config->dbHost,
+                    $this->config->dbPort,
+                    $this->config->dbName,
+                    $this->config->dbUser,
+                    $this->config->dbPassword
+                )
+            ),
+            $this->logger
+        ));
+
+        $this->logger->info("Rollback completed", 'PHPBORG_UPDATE');
+    }
+
+    /**
+     * Get current git commit
+     */
+    private function getCurrentCommit(string $phpborgRoot): string
+    {
+        return trim(shell_exec("cd {$phpborgRoot} && git rev-parse HEAD") ?? '');
+    }
+
+    /**
+     * Get phpBorg root directory
+     */
+    private function getPhpBorgRoot(): string
+    {
+        return dirname(__DIR__, 4);
+    }
+}

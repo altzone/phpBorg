@@ -495,6 +495,16 @@ final class Application
         );
     }
 
+    public function getPhpBorgUpdateService(): \PhpBorg\Service\PhpBorgUpdateService
+    {
+        return $this->getService(\PhpBorg\Service\PhpBorgUpdateService::class, fn() =>
+            new \PhpBorg\Service\PhpBorgUpdateService(
+                $this->config,
+                $this->logger
+            )
+        );
+    }
+
     /**
      * Cleanup resources
      */

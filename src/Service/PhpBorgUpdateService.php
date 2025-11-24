@@ -1,0 +1,191 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PhpBorg\Service;
+
+use PhpBorg\Config\Configuration;
+use PhpBorg\Logger\LoggerInterface;
+
+/**
+ * Service for checking and managing phpBorg updates
+ *
+ * Features:
+ * - Check for available updates from git remote
+ * - Get changelog between versions
+ * - Get current version info
+ */
+final class PhpBorgUpdateService
+{
+    private const GIT_REMOTE = 'origin';
+    private const GIT_BRANCH = 'master';
+
+    public function __construct(
+        private readonly Configuration $config,
+        private readonly LoggerInterface $logger
+    ) {
+    }
+
+    /**
+     * Check if updates are available
+     *
+     * @return array{available: bool, current_commit: string, latest_commit: string, commits_behind: int, error: ?string}
+     */
+    public function checkForUpdates(): array
+    {
+        try {
+            $gitDir = $this->getGitDirectory();
+
+            // Fetch latest from remote
+            $this->logger->info("Fetching latest updates from git remote", 'PHPBORG_UPDATE');
+            exec("cd {$gitDir} && git fetch " . self::GIT_REMOTE . " " . self::GIT_BRANCH . " 2>&1", $output, $exitCode);
+
+            if ($exitCode !== 0) {
+                throw new \Exception("Failed to fetch from remote: " . implode("\n", $output));
+            }
+
+            // Get current commit
+            $currentCommit = trim(shell_exec("cd {$gitDir} && git rev-parse HEAD") ?? '');
+
+            // Get latest remote commit (use FETCH_HEAD which is updated by git fetch)
+            $latestCommit = trim(shell_exec("cd {$gitDir} && git rev-parse FETCH_HEAD") ?? '');
+
+            // Count commits behind
+            $commitsBehind = 0;
+            if ($currentCommit !== $latestCommit) {
+                $commitsBehind = (int)trim(shell_exec("cd {$gitDir} && git rev-list --count HEAD..FETCH_HEAD") ?? '0');
+            }
+
+            $this->logger->info("Update check completed", 'PHPBORG_UPDATE', [
+                'current' => substr($currentCommit, 0, 7),
+                'latest' => substr($latestCommit, 0, 7),
+                'commits_behind' => $commitsBehind
+            ]);
+
+            return [
+                'available' => $currentCommit !== $latestCommit,
+                'current_commit' => $currentCommit,
+                'current_commit_short' => substr($currentCommit, 0, 7),
+                'latest_commit' => $latestCommit,
+                'latest_commit_short' => substr($latestCommit, 0, 7),
+                'commits_behind' => $commitsBehind,
+                'error' => null
+            ];
+
+        } catch (\Exception $e) {
+            $this->logger->error("Failed to check for updates", 'PHPBORG_UPDATE', [
+                'error' => $e->getMessage()
+            ]);
+
+            return [
+                'available' => false,
+                'current_commit' => '',
+                'current_commit_short' => '',
+                'latest_commit' => '',
+                'latest_commit_short' => '',
+                'commits_behind' => 0,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Get changelog between current and latest version
+     *
+     * @return array{commits: array<array{hash: string, author: string, date: string, message: string}>, error: ?string}
+     */
+    public function getChangelog(): array
+    {
+        try {
+            $gitDir = $this->getGitDirectory();
+
+            // Get commits between HEAD and FETCH_HEAD
+            $format = '--pretty=format:{"hash":"%H","hash_short":"%h","author":"%an","date":"%ai","message":"%s"}';
+            $cmd = "cd {$gitDir} && git log HEAD..FETCH_HEAD {$format} 2>&1";
+
+            exec($cmd, $output, $exitCode);
+
+            if ($exitCode !== 0) {
+                throw new \Exception("Failed to get changelog: " . implode("\n", $output));
+            }
+
+            $commits = [];
+            foreach ($output as $line) {
+                if (empty(trim($line))) {
+                    continue;
+                }
+
+                $commit = json_decode($line, true);
+                if ($commit) {
+                    $commits[] = $commit;
+                }
+            }
+
+            return [
+                'commits' => $commits,
+                'error' => null
+            ];
+
+        } catch (\Exception $e) {
+            $this->logger->error("Failed to get changelog", 'PHPBORG_UPDATE', [
+                'error' => $e->getMessage()
+            ]);
+
+            return [
+                'commits' => [],
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Get current version info
+     *
+     * @return array{commit: string, commit_short: string, branch: string, date: string, author: string, message: string}
+     */
+    public function getCurrentVersion(): array
+    {
+        try {
+            $gitDir = $this->getGitDirectory();
+
+            $commit = trim(shell_exec("cd {$gitDir} && git rev-parse HEAD") ?? '');
+            $commitShort = substr($commit, 0, 7);
+            $branch = trim(shell_exec("cd {$gitDir} && git rev-parse --abbrev-ref HEAD") ?? '');
+            $date = trim(shell_exec("cd {$gitDir} && git log -1 --format=%ai") ?? '');
+            $author = trim(shell_exec("cd {$gitDir} && git log -1 --format=%an") ?? '');
+            $message = trim(shell_exec("cd {$gitDir} && git log -1 --format=%s") ?? '');
+
+            return [
+                'commit' => $commit,
+                'commit_short' => $commitShort,
+                'branch' => $branch,
+                'date' => $date,
+                'author' => $author,
+                'message' => $message
+            ];
+
+        } catch (\Exception $e) {
+            $this->logger->error("Failed to get current version", 'PHPBORG_UPDATE', [
+                'error' => $e->getMessage()
+            ]);
+
+            return [
+                'commit' => '',
+                'commit_short' => '',
+                'branch' => '',
+                'date' => '',
+                'author' => '',
+                'message' => ''
+            ];
+        }
+    }
+
+    /**
+     * Get git repository directory
+     */
+    private function getGitDirectory(): string
+    {
+        // phpBorg root is 4 levels up from this file
+        return dirname(__DIR__, 2);
+    }
+}

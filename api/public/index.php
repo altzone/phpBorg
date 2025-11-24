@@ -27,6 +27,7 @@ use PhpBorg\Api\Controller\BackupWizardController;
 use PhpBorg\Api\Controller\DashboardController;
 use PhpBorg\Api\Controller\DockerRestoreController;
 use PhpBorg\Api\Controller\PhpBorgBackupController;
+use PhpBorg\Api\Controller\PhpBorgUpdateController;
 use PhpBorg\Api\Controller\EmailController;
 use PhpBorg\Api\Controller\InstantRecoveryController;
 use PhpBorg\Api\Controller\JobController;
@@ -275,6 +276,14 @@ try {
     $router->post('/phpborg-backups/:id/restore', PhpBorgBackupController::class, 'restore', requireAuth: true);
     $router->get('/phpborg-backups/:id/download', PhpBorgBackupController::class, 'download', requireAuth: true);
     $router->delete('/phpborg-backups/:id', PhpBorgBackupController::class, 'delete', requireAuth: true);
+
+    // ===========================================
+    // phpBorg Self-Update Routes (Protected - Admin only)
+    // ===========================================
+    $router->get('/phpborg-update/check', PhpBorgUpdateController::class, 'check', requireAuth: true);
+    $router->get('/phpborg-update/version', PhpBorgUpdateController::class, 'version', requireAuth: true);
+    $router->get('/phpborg-update/changelog', PhpBorgUpdateController::class, 'changelog', requireAuth: true);
+    $router->post('/phpborg-update/start', PhpBorgUpdateController::class, 'start', requireAuth: true);
 
     // ===========================================
     // Future Routes (To be implemented)

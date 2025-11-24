@@ -17,6 +17,8 @@ use PhpBorg\Service\Queue\Handlers\InstantRecoveryStopHandler;
 use PhpBorg\Service\Queue\Handlers\PhpBorgBackupCleanupHandler;
 use PhpBorg\Service\Queue\Handlers\PhpBorgBackupCreateHandler;
 use PhpBorg\Service\Queue\Handlers\PhpBorgBackupRestoreHandler;
+use PhpBorg\Service\Queue\Handlers\PhpBorgUpdateCheckHandler;
+use PhpBorg\Service\Queue\Handlers\PhpBorgUpdateHandler;
 use PhpBorg\Service\Queue\Handlers\RepositoryDeleteHandler;
 use PhpBorg\Service\Queue\Handlers\ServerSetupHandler;
 use PhpBorg\Service\Queue\Handlers\ServerSetupPasswordHandler;
@@ -199,6 +201,17 @@ final class WorkerStartCommand extends Command
         $worker->registerHandler('phpborg_backup_cleanup', new PhpBorgBackupCleanupHandler(
             $this->app->getPhpBorgBackupRepository(),
             $this->app->getSettingRepository(),
+            $logger
+        ));
+
+        $worker->registerHandler('phpborg_update_check', new PhpBorgUpdateCheckHandler(
+            $this->app->getPhpBorgUpdateService(),
+            $logger
+        ));
+
+        $worker->registerHandler('phpborg_update', new PhpBorgUpdateHandler(
+            $this->app->getConfig(),
+            $this->app->getPhpBorgBackupRepository(),
             $logger
         ));
 

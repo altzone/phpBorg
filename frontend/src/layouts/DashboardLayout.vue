@@ -286,6 +286,9 @@
         </div>
       </header>
 
+      <!-- Update Banner -->
+      <UpdateBanner />
+
       <!-- Page content -->
       <main class="p-4 sm:p-6 lg:p-8">
         <RouterView />
@@ -307,6 +310,7 @@ import { useTaskBarStore } from '@/stores/taskbar'
 import { useSSEStore } from '@/stores/sse'
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
 import TaskBar from '@/components/TaskBar.vue'
+import UpdateBanner from '@/components/UpdateBanner.vue'
 
 const { t } = useI18n()
 const router = useRouter()

@@ -819,7 +819,8 @@
       "borg": "Borg",
       "security": "Security",
       "network": "Network",
-      "system": "System"
+      "system": "System",
+      "update": "Update"
     },
     "general": {
       "title": "General Settings",
@@ -921,7 +922,43 @@
       "stats_note": "Note: After modification, restart the scheduler from the Workers page to apply the new value.",
       "save": "Save System Settings"
     },
+    "update": {
+      "title": "phpBorg Update",
+      "current_version": "Current Version",
+      "commit": "Commit",
+      "branch": "Branch",
+      "date": "Date",
+      "author": "Author",
+      "message": "Message",
+      "check_title": "Check for Updates",
+      "check_button": "Check for Updates",
+      "available_title": "Update Available!",
+      "available_description": "{commits} new commit(s) available",
+      "changelog_title": "Changelog",
+      "install_button": "Install Update",
+      "updating": "Updating...",
+      "warning_title": "Warning",
+      "warning_message": "phpBorg will automatically create a backup before updating and will roll back if any issues occur.",
+      "uptodate_title": "Up to Date",
+      "uptodate_description": "Your phpBorg installation is up to date.",
+      "not_checked": "Click 'Check for Updates' to see if a new version is available.",
+      "update_available_toast": "{commits} update(s) available",
+      "uptodate_toast": "phpBorg is up to date",
+      "check_error": "Failed to check for updates",
+      "confirm_message": "Are you sure you want to update phpBorg? A backup will be created automatically before the update.",
+      "update_started": "Update started. You can monitor progress in the job queue.",
+      "update_error": "Failed to start update",
+      "update_job_title": "phpBorg Update"
+    },
     "save_success": "Settings saved successfully!"
+  },
+  "update": {
+    "banner": {
+      "title": "Update Available!",
+      "description": "{commits} new commit(s) available",
+      "view_update": "View Update",
+      "dismiss": "Dismiss"
+    }
   },
   "restore_wizard": {
     "title": "Browse & Restore",
