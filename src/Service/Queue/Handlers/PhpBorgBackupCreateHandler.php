@@ -215,7 +215,7 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
      */
     private function loadBackupSettings(): array
     {
-        $storagePath = $this->settingRepository->findByKey('backup_storage_path')?->value ?? '/opt/backups/phpborg-self-backups';
+        $storagePath = $this->settingRepository->findByKey('backup_storage_path')?->value ?? '/opt/backups';
         $encryptionEnabled = ($this->settingRepository->findByKey('backup_encryption_enabled')?->value ?? '0') === '1';
         $encryptionPassphrase = $this->settingRepository->findByKey('backup_encryption_passphrase')?->value ?? '';
         $retentionCount = (int)($this->settingRepository->findByKey('backup_retention_count')?->value ?? '3');

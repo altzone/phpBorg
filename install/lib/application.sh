@@ -252,24 +252,44 @@ run_migrations() {
 
     cd "${PHPBORG_ROOT}" || return 1
 
-    # Check if migration command exists
-    if [ ! -f "bin/console" ]; then
-        log_warn "bin/console not found, skipping migrations"
+    # Check if migrations directory exists
+    if [ ! -d "migrations" ]; then
+        log_warn "migrations directory not found, skipping migrations"
         save_state "run_migrations" "completed"
         return 0
     fi
 
     log_info "Running migrations..."
 
-    if su - phpborg -c "cd ${PHPBORG_ROOT} && php8.3 bin/phpborg db:migrate --no-interaction" >> "${INSTALL_LOG}" 2>&1; then
-        log_success "Migrations completed"
-        save_state "run_migrations" "completed"
-        return 0
+    # Find all SQL migration files and execute them
+    local migration_count=0
+    local failed_count=0
+
+    for migration_file in migrations/*.sql; do
+        if [ -f "${migration_file}" ]; then
+            local migration_name=$(basename "${migration_file}")
+            log_info "  → Executing migration: ${migration_name}"
+
+            if su - phpborg -c "cd ${PHPBORG_ROOT} && ${PHP_BINARY} bin/run-migration.php ${migration_file}" >> "${INSTALL_LOG}" 2>&1; then
+                log_success "    ✓ ${migration_name} completed"
+                migration_count=$((migration_count + 1))
+            else
+                log_warn "    ✗ ${migration_name} failed or already applied"
+                failed_count=$((failed_count + 1))
+            fi
+        fi
+    done
+
+    if [ ${migration_count} -eq 0 ] && [ ${failed_count} -eq 0 ]; then
+        log_info "No migrations to run"
+    elif [ ${migration_count} -gt 0 ]; then
+        log_success "Migrations completed: ${migration_count} applied, ${failed_count} failed/skipped"
     else
-        log_warn "Migrations failed or not applicable"
-        save_state "run_migrations" "completed"
-        return 0
+        log_warn "All migrations failed or were already applied"
     fi
+
+    save_state "run_migrations" "completed"
+    return 0
 }
 
 #
