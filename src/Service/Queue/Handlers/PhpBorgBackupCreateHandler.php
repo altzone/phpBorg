@@ -215,10 +215,10 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
      */
     private function loadBackupSettings(): array
     {
-        $storagePath = $this->settingRepository->get('backup_storage_path', '/opt/backups/phpborg-self-backups');
-        $encryptionEnabled = $this->settingRepository->get('backup_encryption_enabled', '0') === '1';
-        $encryptionPassphrase = $this->settingRepository->get('backup_encryption_passphrase', '');
-        $retentionCount = (int)$this->settingRepository->get('backup_retention_count', '3');
+        $storagePath = $this->settingRepository->findByKey('backup_storage_path')?->value ?? '/opt/backups/phpborg-self-backups';
+        $encryptionEnabled = ($this->settingRepository->findByKey('backup_encryption_enabled')?->value ?? '0') === '1';
+        $encryptionPassphrase = $this->settingRepository->findByKey('backup_encryption_passphrase')?->value ?? '';
+        $retentionCount = (int)($this->settingRepository->findByKey('backup_retention_count')?->value ?? '3');
 
         if ($encryptionEnabled && empty($encryptionPassphrase)) {
             throw new BackupException("Encryption is enabled but passphrase is not set");

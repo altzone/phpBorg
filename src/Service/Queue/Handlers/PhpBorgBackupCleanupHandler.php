@@ -36,7 +36,7 @@ final class PhpBorgBackupCleanupHandler implements JobHandlerInterface
 
         try {
             // Load retention count from settings
-            $retentionCount = (int)$this->settingRepository->get('backup_retention_count', '3');
+            $retentionCount = (int)($this->settingRepository->findByKey('backup_retention_count')?->value ?? '3');
 
             $this->logger->info("Retention policy: Keep {$retentionCount} most recent backups");
 
