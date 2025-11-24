@@ -267,6 +267,7 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
         // Use a temporary error file to capture stderr
         $errorFile = $outputPath . '.err';
 
+        // Try with --routines first
         $cmd = sprintf(
             'mysqldump --host=%s --port=%d --user=%s --password=%s --single-transaction --routines --triggers %s > %s 2> %s',
             escapeshellarg($this->config->dbHost),
@@ -284,6 +285,29 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
 
         // Read error output
         $errorOutput = file_exists($errorFile) ? file_get_contents($errorFile) : '';
+
+        // If mysql.proc is corrupted (error 1728), retry without --routines
+        if ($exitCode !== 0 && strpos($errorOutput, 'mysql.proc') !== false) {
+            $this->logger->warning("mysql.proc table issue detected, retrying without --routines", 'PHPBORG_BACKUP');
+
+            @unlink($outputPath);
+            @unlink($errorFile);
+
+            $cmd = sprintf(
+                'mysqldump --host=%s --port=%d --user=%s --password=%s --single-transaction --skip-routines --triggers %s > %s 2> %s',
+                escapeshellarg($this->config->dbHost),
+                $this->config->dbPort,
+                escapeshellarg($this->config->dbUser),
+                escapeshellarg($this->config->dbPassword),
+                escapeshellarg($this->config->dbName),
+                escapeshellarg($outputPath),
+                escapeshellarg($errorFile)
+            );
+
+            exec($cmd, $output, $exitCode);
+            $errorOutput = file_exists($errorFile) ? file_get_contents($errorFile) : '';
+        }
+
         @unlink($errorFile);
 
         if ($exitCode !== 0 || !file_exists($outputPath) || filesize($outputPath) === 0) {
