@@ -512,7 +512,11 @@
       "restoreConfirmation": "Möchten Sie diese Sicherung wirklich wiederherstellen?",
       "confirmRestore": "Wiederherstellung bestätigen",
       "deleteBackup": "Sicherung löschen",
-      "deleteConfirmation": "Möchten Sie diese Sicherung wirklich löschen? Diese Aktion ist unwiderruflich."
+      "deleteConfirmation": "Möchten Sie diese Sicherung wirklich löschen? Diese Aktion ist unwiderruflich.",
+      "backupCreated": "Sicherung erstellt",
+      "backupCreatedDescription": "Die Sicherung wurde erfolgreich erstellt",
+      "backupFailed": "Sicherung fehlgeschlagen",
+      "backupFailedDescription": "Die Erstellung der Sicherung ist fehlgeschlagen"
     }
   },
   "backup_jobs": {

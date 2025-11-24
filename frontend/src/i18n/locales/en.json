@@ -512,7 +512,11 @@
       "restoreConfirmation": "Are you sure you want to restore this backup?",
       "confirmRestore": "Confirm Restore",
       "deleteBackup": "Delete Backup",
-      "deleteConfirmation": "Are you sure you want to delete this backup? This action is irreversible."
+      "deleteConfirmation": "Are you sure you want to delete this backup? This action is irreversible.",
+      "backupCreated": "Backup Created",
+      "backupCreatedDescription": "The backup was created successfully",
+      "backupFailed": "Backup Failed",
+      "backupFailedDescription": "The backup creation failed"
     }
   },
   "backup_jobs": {

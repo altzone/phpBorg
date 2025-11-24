@@ -519,6 +519,39 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- Toast Notifications -->
+    <div class="fixed bottom-4 right-4 z-50 space-y-3">
+      <div
+        v-for="toast in toasts"
+        :key="toast.id"
+        :class="[
+          'max-w-md rounded-lg shadow-lg p-4 transform transition-all duration-300',
+          toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white',
+          'animate-slide-in'
+        ]"
+      >
+        <div class="flex items-start gap-3">
+          <div class="flex-shrink-0">
+            <svg v-if="toast.type === 'success'" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <svg v-else class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold">{{ toast.title }}</p>
+            <p v-if="toast.message" class="text-sm mt-1 opacity-90">{{ toast.message }}</p>
+          </div>
+          <button @click="removeToast(toast.id)" class="flex-shrink-0 hover:opacity-75">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -526,6 +559,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { usePhpBorgBackupStore } from '@/stores/phpborgBackup'
 import { storeToRefs } from 'pinia'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const backupStore = usePhpBorgBackupStore()
 const { backups, stats, loading } = storeToRefs(backupStore)
@@ -690,9 +726,55 @@ function formatDateTime(dateString) {
   return new Date(dateString).toLocaleString()
 }
 
+// Toast notifications
+const toasts = ref([])
+let toastIdCounter = 0
+
+function showToast(title, message = '', type = 'success', duration = 5000) {
+  const id = ++toastIdCounter
+  toasts.value.push({ id, title, message, type })
+
+  setTimeout(() => {
+    removeToast(id)
+  }, duration)
+}
+
+function removeToast(id) {
+  const index = toasts.value.findIndex(t => t.id === id)
+  if (index !== -1) {
+    toasts.value.splice(index, 1)
+  }
+}
+
+// Use global SSE for real-time updates
+import { useSSE } from '@/composables/useSSE'
+const { subscribe } = useSSE()
+
 // Lifecycle
 onMounted(() => {
   refreshData()
+
+  // Subscribe to backup events via SSE
+  subscribe('jobs', async (data) => {
+    // Listen for phpborg_backup_create job completion
+    if (data.job && data.job.type === 'phpborg_backup_create') {
+      if (data.job.status === 'completed') {
+        showToast(
+          t('backup.selfBackup.backupCreated'),
+          t('backup.selfBackup.backupCreatedDescription'),
+          'success'
+        )
+        await refreshData()
+      } else if (data.job.status === 'failed') {
+        showToast(
+          t('backup.selfBackup.backupFailed'),
+          data.job.error || t('backup.selfBackup.backupFailedDescription'),
+          'error',
+          8000
+        )
+      }
+    }
+  })
 })
 </script>
 

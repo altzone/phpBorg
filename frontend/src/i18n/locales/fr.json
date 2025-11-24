@@ -512,7 +512,11 @@
       "restoreConfirmation": "Êtes-vous sûr de vouloir restaurer cette sauvegarde ?",
       "confirmRestore": "Confirmer la restauration",
       "deleteBackup": "Supprimer la sauvegarde",
-      "deleteConfirmation": "Voulez-vous vraiment supprimer cette sauvegarde ? Cette action est irréversible."
+      "deleteConfirmation": "Voulez-vous vraiment supprimer cette sauvegarde ? Cette action est irréversible.",
+      "backupCreated": "Sauvegarde créée",
+      "backupCreatedDescription": "La sauvegarde a été créée avec succès",
+      "backupFailed": "Échec de la sauvegarde",
+      "backupFailedDescription": "La création de la sauvegarde a échoué"
     }
   },
   "backup_jobs": {
