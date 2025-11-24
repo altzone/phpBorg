@@ -32,13 +32,26 @@
       <button
         @click="changeLanguage('en')"
         :class="[
-          'w-full px-4 py-2 text-left flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 last:rounded-b-lg transition-colors',
+          'w-full px-4 py-2 text-left flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors',
           currentLanguage === 'en' ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'
         ]"
       >
         <span class="text-2xl">🇬🇧</span>
         <span class="font-medium">English</span>
         <svg v-if="currentLanguage === 'en'" class="w-5 h-5 ml-auto" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+        </svg>
+      </button>
+      <button
+        @click="changeLanguage('de')"
+        :class="[
+          'w-full px-4 py-2 text-left flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 last:rounded-b-lg transition-colors',
+          currentLanguage === 'de' ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'
+        ]"
+      >
+        <span class="text-2xl">🇩🇪</span>
+        <span class="font-medium">Deutsch</span>
+        <svg v-if="currentLanguage === 'de'" class="w-5 h-5 ml-auto" fill="currentColor" viewBox="0 0 20 20">
           <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
         </svg>
       </button>
