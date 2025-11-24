@@ -1,0 +1,318 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PhpBorg\Api\Controller;
+
+use PhpBorg\Application;
+use PhpBorg\Api\Middleware\AuthMiddleware;
+use PhpBorg\Repository\PhpBorgBackupRepository;
+use PhpBorg\Service\Queue\JobQueue;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+
+/**
+ * API Controller for phpBorg self-backup management
+ *
+ * Endpoints:
+ * - GET    /api/phpborg-backups              List all backups
+ * - GET    /api/phpborg-backups/:id          Get backup details
+ * - GET    /api/phpborg-backups/stats        Get backup statistics
+ * - POST   /api/phpborg-backups              Create manual backup
+ * - POST   /api/phpborg-backups/:id/restore  Restore from backup
+ * - POST   /api/phpborg-backups/cleanup      Trigger cleanup
+ * - DELETE /api/phpborg-backups/:id          Delete backup
+ * - GET    /api/phpborg-backups/:id/download Download backup file
+ */
+final class PhpBorgBackupController extends BaseController
+{
+    private readonly PhpBorgBackupRepository $backupRepository;
+    private readonly JobQueue $jobQueue;
+    private readonly AuthMiddleware $authMiddleware;
+
+    public function __construct(Application $app)
+    {
+        parent::__construct($app);
+        $this->backupRepository = $app->getPhpBorgBackupRepository();
+        $this->jobQueue = $app->getJobQueue();
+        $this->authMiddleware = new AuthMiddleware($app);
+    }
+
+    /**
+     * GET /api/phpborg-backups - List all backups
+     */
+    public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $user = $this->authMiddleware->authenticate($request);
+
+        try {
+            $backups = $this->backupRepository->findAll();
+
+            $data = array_map(fn($backup) => $backup->toArray(), $backups);
+
+            return $this->success($data, 'Backups retrieved successfully');
+
+        } catch (\Exception $e) {
+            return $this->error('Failed to retrieve backups: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * GET /api/phpborg-backups/:id - Get backup details
+     */
+    public function show(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $user = $this->authMiddleware->authenticate($request);
+
+        $id = (int)$args['id'];
+
+        try {
+            $backup = $this->backupRepository->findById($id);
+
+            if (!$backup) {
+                return $this->error('Backup not found', 404);
+            }
+
+            return $this->success($backup->toArray(), 'Backup retrieved successfully');
+
+        } catch (\Exception $e) {
+            return $this->error('Failed to retrieve backup: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * GET /api/phpborg-backups/stats - Get backup statistics
+     */
+    public function stats(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $user = $this->authMiddleware->authenticate($request);
+
+        try {
+            $stats = $this->backupRepository->getStats();
+
+            // Add human-readable total size
+            $stats['total_size_human'] = $this->formatBytes($stats['total_size']);
+
+            return $this->success($stats, 'Statistics retrieved successfully');
+
+        } catch (\Exception $e) {
+            return $this->error('Failed to retrieve statistics: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * POST /api/phpborg-backups - Create manual backup
+     *
+     * Body: {
+     *   "notes": "Optional description"
+     * }
+     */
+    public function create(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $user = $this->authMiddleware->authenticate($request);
+
+        // Admin only
+        if ($user->role !== 'ROLE_ADMIN') {
+            return $this->error('Admin access required', 403);
+        }
+
+        $body = $request->getParsedBody();
+        $notes = $body['notes'] ?? null;
+
+        try {
+            // Create job for backup creation
+            $jobId = $this->jobQueue->push('phpborg_backup_create', [
+                'backup_type' => 'manual',
+                'user_id' => $user->id,
+                'notes' => $notes
+            ], 10); // High priority
+
+            return $this->success([
+                'job_id' => $jobId,
+                'message' => 'Backup creation started'
+            ], 'Backup job created successfully', 202);
+
+        } catch (\Exception $e) {
+            return $this->error('Failed to create backup: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * POST /api/phpborg-backups/:id/restore - Restore from backup
+     *
+     * Body: {
+     *   "create_pre_restore_backup": true
+     * }
+     */
+    public function restore(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $user = $this->authMiddleware->authenticate($request);
+
+        // Admin only
+        if ($user->role !== 'ROLE_ADMIN') {
+            return $this->error('Admin access required', 403);
+        }
+
+        $id = (int)$args['id'];
+        $body = $request->getParsedBody();
+        $createPreRestoreBackup = $body['create_pre_restore_backup'] ?? true;
+
+        try {
+            $backup = $this->backupRepository->findById($id);
+
+            if (!$backup) {
+                return $this->error('Backup not found', 404);
+            }
+
+            if (!$backup->exists()) {
+                return $this->error('Backup file not found on disk', 404);
+            }
+
+            // Create job for restore
+            $jobId = $this->jobQueue->push('phpborg_backup_restore', [
+                'backup_id' => $id,
+                'user_id' => $user->id,
+                'create_pre_restore_backup' => $createPreRestoreBackup
+            ], 10); // High priority
+
+            return $this->success([
+                'job_id' => $jobId,
+                'backup' => $backup->toArray(),
+                'message' => 'Restore operation started'
+            ], 'Restore job created successfully', 202);
+
+        } catch (\Exception $e) {
+            return $this->error('Failed to start restore: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * POST /api/phpborg-backups/cleanup - Trigger cleanup
+     */
+    public function cleanup(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $user = $this->authMiddleware->authenticate($request);
+
+        // Admin only
+        if ($user->role !== 'ROLE_ADMIN') {
+            return $this->error('Admin access required', 403);
+        }
+
+        try {
+            // Create job for cleanup
+            $jobId = $this->jobQueue->push('phpborg_backup_cleanup', [], 5); // Medium priority
+
+            return $this->success([
+                'job_id' => $jobId,
+                'message' => 'Cleanup started'
+            ], 'Cleanup job created successfully', 202);
+
+        } catch (\Exception $e) {
+            return $this->error('Failed to trigger cleanup: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * DELETE /api/phpborg-backups/:id - Delete backup
+     */
+    public function delete(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $user = $this->authMiddleware->authenticate($request);
+
+        // Admin only
+        if ($user->role !== 'ROLE_ADMIN') {
+            return $this->error('Admin access required', 403);
+        }
+
+        $id = (int)$args['id'];
+
+        try {
+            $backup = $this->backupRepository->findById($id);
+
+            if (!$backup) {
+                return $this->error('Backup not found', 404);
+            }
+
+            // Delete file from disk
+            if (file_exists($backup->filepath)) {
+                if (!unlink($backup->filepath)) {
+                    return $this->error('Failed to delete backup file', 500);
+                }
+            }
+
+            // Delete database record
+            $this->backupRepository->delete($id);
+
+            return $this->success([
+                'deleted_backup' => $backup->toArray()
+            ], 'Backup deleted successfully');
+
+        } catch (\Exception $e) {
+            return $this->error('Failed to delete backup: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * GET /api/phpborg-backups/:id/download - Download backup file
+     */
+    public function download(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $user = $this->authMiddleware->authenticate($request);
+
+        // Admin only
+        if ($user->role !== 'ROLE_ADMIN') {
+            return $this->error('Admin access required', 403);
+        }
+
+        $id = (int)$args['id'];
+
+        try {
+            $backup = $this->backupRepository->findById($id);
+
+            if (!$backup) {
+                return $this->error('Backup not found', 404);
+            }
+
+            if (!$backup->exists()) {
+                return $this->error('Backup file not found on disk', 404);
+            }
+
+            // Read file content
+            $fileContent = file_get_contents($backup->filepath);
+
+            if ($fileContent === false) {
+                return $this->error('Failed to read backup file', 500);
+            }
+
+            // Set headers for file download
+            $response = $response
+                ->withHeader('Content-Type', 'application/gzip')
+                ->withHeader('Content-Disposition', 'attachment; filename="' . $backup->filename . '"')
+                ->withHeader('Content-Length', (string)$backup->sizeBytes);
+
+            $response->getBody()->write($fileContent);
+
+            return $response;
+
+        } catch (\Exception $e) {
+            return $this->error('Failed to download backup: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Format bytes to human-readable size
+     */
+    private function formatBytes(int $bytes): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        $size = (float)$bytes;
+        $unitIndex = 0;
+
+        while ($size >= 1024 && $unitIndex < count($units) - 1) {
+            $size /= 1024;
+            $unitIndex++;
+        }
+
+        return round($size, 2) . ' ' . $units[$unitIndex];
+    }
+}

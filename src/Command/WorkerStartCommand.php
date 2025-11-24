@@ -14,6 +14,9 @@ use PhpBorg\Service\Queue\Handlers\DockerConflictsDetectionHandler;
 use PhpBorg\Service\Queue\Handlers\DockerRestoreHandler;
 use PhpBorg\Service\Queue\Handlers\InstantRecoveryStartHandler;
 use PhpBorg\Service\Queue\Handlers\InstantRecoveryStopHandler;
+use PhpBorg\Service\Queue\Handlers\PhpBorgBackupCleanupHandler;
+use PhpBorg\Service\Queue\Handlers\PhpBorgBackupCreateHandler;
+use PhpBorg\Service\Queue\Handlers\PhpBorgBackupRestoreHandler;
 use PhpBorg\Service\Queue\Handlers\RepositoryDeleteHandler;
 use PhpBorg\Service\Queue\Handlers\ServerSetupHandler;
 use PhpBorg\Service\Queue\Handlers\ServerSetupPasswordHandler;
@@ -175,6 +178,27 @@ final class WorkerStartCommand extends Command
 
         $worker->registerHandler('docker_conflicts_detection', new DockerConflictsDetectionHandler(
             $this->app->getDockerRestoreService(),
+            $logger
+        ));
+
+        $worker->registerHandler('phpborg_backup_create', new PhpBorgBackupCreateHandler(
+            $this->app->getConfig(),
+            $this->app->getConnection(),
+            $this->app->getPhpBorgBackupRepository(),
+            $this->app->getSettingRepository(),
+            $logger
+        ));
+
+        $worker->registerHandler('phpborg_backup_restore', new PhpBorgBackupRestoreHandler(
+            $this->app->getConfig(),
+            $this->app->getConnection(),
+            $this->app->getPhpBorgBackupRepository(),
+            $logger
+        ));
+
+        $worker->registerHandler('phpborg_backup_cleanup', new PhpBorgBackupCleanupHandler(
+            $this->app->getPhpBorgBackupRepository(),
+            $this->app->getSettingRepository(),
             $logger
         ));
 

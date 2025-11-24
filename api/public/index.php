@@ -26,6 +26,7 @@ use PhpBorg\Api\Controller\BackupScheduleController;
 use PhpBorg\Api\Controller\BackupWizardController;
 use PhpBorg\Api\Controller\DashboardController;
 use PhpBorg\Api\Controller\DockerRestoreController;
+use PhpBorg\Api\Controller\PhpBorgBackupController;
 use PhpBorg\Api\Controller\EmailController;
 use PhpBorg\Api\Controller\InstantRecoveryController;
 use PhpBorg\Api\Controller\JobController;
@@ -262,6 +263,18 @@ try {
     $router->get('/docker-restore', DockerRestoreController::class, 'list', requireAuth: true);
     $router->get('/docker-restore/:id', DockerRestoreController::class, 'show', requireAuth: true);
     $router->post('/docker-restore/:id/rollback', DockerRestoreController::class, 'rollback', requireAuth: true);
+
+    // ===========================================
+    // phpBorg Self-Backup Routes (Protected - Admin only)
+    // ===========================================
+    $router->get('/phpborg-backups', PhpBorgBackupController::class, 'index', requireAuth: true);
+    $router->get('/phpborg-backups/stats', PhpBorgBackupController::class, 'stats', requireAuth: true);
+    $router->post('/phpborg-backups', PhpBorgBackupController::class, 'create', requireAuth: true);
+    $router->post('/phpborg-backups/cleanup', PhpBorgBackupController::class, 'cleanup', requireAuth: true);
+    $router->get('/phpborg-backups/:id', PhpBorgBackupController::class, 'show', requireAuth: true);
+    $router->post('/phpborg-backups/:id/restore', PhpBorgBackupController::class, 'restore', requireAuth: true);
+    $router->get('/phpborg-backups/:id/download', PhpBorgBackupController::class, 'download', requireAuth: true);
+    $router->delete('/phpborg-backups/:id', PhpBorgBackupController::class, 'delete', requireAuth: true);
 
     // ===========================================
     // Future Routes (To be implemented)

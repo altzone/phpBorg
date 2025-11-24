@@ -1,0 +1,28 @@
+# phpBorg Self-Backup Sudoers Configuration
+#
+# This file must be installed as /etc/sudoers.d/phpborg-self-backup
+# with permissions 0440 (read-only for root)
+#
+# Purpose: Allow phpborg user to manage workers during backup/restore operations
+#
+# Installation:
+#   sudo cp docs/sudoers-phpborg-self-backup /etc/sudoers.d/phpborg-self-backup
+#   sudo chmod 0440 /etc/sudoers.d/phpborg-self-backup
+#   sudo visudo -c  # Verify syntax
+#
+# Security Notes:
+# - phpborg user can only control phpborg-worker@ services
+# - Required for backup handler to stop workers #2-#4 during backup
+# - Worker #1 stays active to execute the backup job
+# - Systemd daemon-reload needed after restoring systemd files
+
+# Allow phpborg user to manage phpborg-worker services
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl stop phpborg-worker@*
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl start phpborg-worker@*
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl restart phpborg-worker@*
+
+# Allow phpborg user to reload systemd daemon after restore
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl daemon-reload
+
+# Allow phpborg user to copy systemd service files during restore
+phpborg ALL=(ALL) NOPASSWD: /bin/cp -f /tmp/phpborg_restore_*/systemd/phpborg-* /etc/systemd/system/
