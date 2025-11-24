@@ -16,6 +16,7 @@ use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\DatabaseInfoRepository;
 use PhpBorg\Repository\InstantRecoverySessionRepository;
 use PhpBorg\Repository\JobRepository;
+use PhpBorg\Repository\PhpBorgBackupRepository;
 use PhpBorg\Repository\RefreshTokenRepository;
 use PhpBorg\Repository\ReportRepository;
 use PhpBorg\Repository\ServerRepository;
@@ -172,6 +173,13 @@ final class Application
     {
         return $this->getService(ArchiveRepository::class, fn() =>
             new ArchiveRepository($this->connection)
+        );
+    }
+
+    public function getPhpBorgBackupRepository(): PhpBorgBackupRepository
+    {
+        return $this->getService(PhpBorgBackupRepository::class, fn() =>
+            new PhpBorgBackupRepository($this->connection)
         );
     }
 
