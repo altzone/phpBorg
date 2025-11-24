@@ -451,6 +451,69 @@
       "deleteConfirmation": "Voulez-vous vraiment supprimer cette sauvegarde ? Cette action est irréversible."
     }
   },
+  "backup": {
+    "selfBackup": {
+      "title": "Sauvegarde phpBorg",
+      "description": "Créez et gérez des sauvegardes complètes de votre installation phpBorg",
+      "createBackup": "Créer une sauvegarde",
+      "createFirstBackup": "Créer la première sauvegarde",
+      "noBackups": "Aucune sauvegarde",
+      "noBackupsFiltered": "Aucune sauvegarde trouvée",
+      "noBackupsDescription": "Créez votre première sauvegarde pour protéger votre installation phpBorg",
+      "createBackupDescription": "Une sauvegarde complète inclut la base de données, le code source, les configurations, les clés SSH et les services systemd.",
+      "notes": "Notes",
+      "notesPlaceholder": "Ajoutez une description pour cette sauvegarde (optionnel)",
+      "backupInfo": "Contenu de la sauvegarde :",
+      "encrypted": "Chiffré",
+      "unencrypted": "Non chiffré",
+      "backupIncludes": {
+        "database": "Base de données complète (dump SQL)",
+        "code": "Code source phpBorg",
+        "configs": "Fichiers de configuration (.env)",
+        "sshKeys": "Clés SSH pour les backups",
+        "systemd": "Services systemd"
+      },
+      "stats": {
+        "totalBackups": "Total sauvegardes",
+        "totalSize": "Taille totale",
+        "encrypted": "Chiffrées",
+        "encryptionRate": "chiffrées"
+      },
+      "types": {
+        "manual": "Manuelle",
+        "scheduled": "Programmée",
+        "preUpdate": "Pré-mise à jour",
+        "preRestore": "Pré-restauration"
+      },
+      "filters": {
+        "allTypes": "Tous les types",
+        "allEncryption": "Tous (chiffré/non chiffré)"
+      },
+      "table": {
+        "filename": "Nom du fichier",
+        "type": "Type",
+        "size": "Taille",
+        "encryption": "Chiffrement",
+        "createdAt": "Créée le",
+        "actions": "Actions"
+      },
+      "actions": {
+        "download": "Télécharger",
+        "restore": "Restaurer",
+        "delete": "Supprimer"
+      },
+      "restoreBackup": "Restaurer la sauvegarde",
+      "restoreWarning": "Attention : Opération critique",
+      "restoreWarningDescription": "La restauration remplacera TOUTES les données actuelles (DB + code + configs). Cette opération est irréversible !",
+      "backupDetails": "Détails de la sauvegarde",
+      "createPreRestoreBackup": "Créer une sauvegarde de sécurité avant restauration",
+      "createPreRestoreBackupDescription": "Recommandé : crée automatiquement une sauvegarde de l'état actuel avant la restauration",
+      "restoreConfirmation": "Êtes-vous sûr de vouloir restaurer cette sauvegarde ?",
+      "confirmRestore": "Confirmer la restauration",
+      "deleteBackup": "Supprimer la sauvegarde",
+      "deleteConfirmation": "Voulez-vous vraiment supprimer cette sauvegarde ? Cette action est irréversible."
+    }
+  },
   "backup_jobs": {
     "title": "Tâches planifiées",
     "subtitle": "Gérer les planifications de sauvegarde automatique pour vos dépôts",

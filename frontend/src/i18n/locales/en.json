@@ -451,6 +451,69 @@
       "deleteConfirmation": "Are you sure you want to delete this backup? This action is irreversible."
     }
   },
+  "backup": {
+    "selfBackup": {
+      "title": "phpBorg Backup",
+      "description": "Create and manage complete backups of your phpBorg installation",
+      "createBackup": "Create Backup",
+      "createFirstBackup": "Create First Backup",
+      "noBackups": "No backups",
+      "noBackupsFiltered": "No backups found",
+      "noBackupsDescription": "Create your first backup to protect your phpBorg installation",
+      "createBackupDescription": "A complete backup includes the database, source code, configurations, SSH keys, and systemd services.",
+      "notes": "Notes",
+      "notesPlaceholder": "Add a description for this backup (optional)",
+      "backupInfo": "Backup contents:",
+      "encrypted": "Encrypted",
+      "unencrypted": "Unencrypted",
+      "backupIncludes": {
+        "database": "Complete database (SQL dump)",
+        "code": "phpBorg source code",
+        "configs": "Configuration files (.env)",
+        "sshKeys": "SSH keys for backups",
+        "systemd": "Systemd services"
+      },
+      "stats": {
+        "totalBackups": "Total Backups",
+        "totalSize": "Total Size",
+        "encrypted": "Encrypted",
+        "encryptionRate": "encrypted"
+      },
+      "types": {
+        "manual": "Manual",
+        "scheduled": "Scheduled",
+        "preUpdate": "Pre-Update",
+        "preRestore": "Pre-Restore"
+      },
+      "filters": {
+        "allTypes": "All Types",
+        "allEncryption": "All (encrypted/unencrypted)"
+      },
+      "table": {
+        "filename": "Filename",
+        "type": "Type",
+        "size": "Size",
+        "encryption": "Encryption",
+        "createdAt": "Created",
+        "actions": "Actions"
+      },
+      "actions": {
+        "download": "Download",
+        "restore": "Restore",
+        "delete": "Delete"
+      },
+      "restoreBackup": "Restore Backup",
+      "restoreWarning": "Warning: Critical Operation",
+      "restoreWarningDescription": "Restoration will replace ALL current data (DB + code + configs). This operation is irreversible!",
+      "backupDetails": "Backup Details",
+      "createPreRestoreBackup": "Create safety backup before restoration",
+      "createPreRestoreBackupDescription": "Recommended: automatically creates a backup of the current state before restoration",
+      "restoreConfirmation": "Are you sure you want to restore this backup?",
+      "confirmRestore": "Confirm Restore",
+      "deleteBackup": "Delete Backup",
+      "deleteConfirmation": "Are you sure you want to delete this backup? This action is irreversible."
+    }
+  },
   "backup_jobs": {
     "title": "Scheduled Jobs",
     "subtitle": "Manage automatic backup schedules for your repositories",
