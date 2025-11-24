@@ -1,8 +1,5 @@
 import { defineStore } from 'pinia'
 import phpborgBackupService from '@/services/phpborgBackup'
-import { useToast } from 'vue-toastification'
-
-const toast = useToast()
 
 export const usePhpBorgBackupStore = defineStore('phpborgBackup', {
   state: () => ({
@@ -66,7 +63,6 @@ export const usePhpBorgBackupStore = defineStore('phpborgBackup', {
         this.backups = response.data || []
       } catch (error) {
         this.error = error.response?.data?.error?.message || error.message
-        toast.error(`Failed to load backups: ${this.error}`)
         throw error
       } finally {
         this.loading = false
@@ -94,15 +90,9 @@ export const usePhpBorgBackupStore = defineStore('phpborgBackup', {
 
       try {
         const response = await phpborgBackupService.create(notes)
-
-        toast.success('Backup creation started', {
-          timeout: 3000
-        })
-
         return response.data
       } catch (error) {
         this.error = error.response?.data?.error?.message || error.message
-        toast.error(`Failed to create backup: ${this.error}`)
         throw error
       } finally {
         this.loading = false
@@ -118,15 +108,9 @@ export const usePhpBorgBackupStore = defineStore('phpborgBackup', {
 
       try {
         const response = await phpborgBackupService.restore(backupId, createPreRestoreBackup)
-
-        toast.success('Restore operation started', {
-          timeout: 3000
-        })
-
         return response.data
       } catch (error) {
         this.error = error.response?.data?.error?.message || error.message
-        toast.error(`Failed to start restore: ${this.error}`)
         throw error
       } finally {
         this.loading = false
@@ -142,15 +126,9 @@ export const usePhpBorgBackupStore = defineStore('phpborgBackup', {
 
       try {
         const response = await phpborgBackupService.cleanup()
-
-        toast.success('Cleanup started', {
-          timeout: 3000
-        })
-
         return response.data
       } catch (error) {
         this.error = error.response?.data?.error?.message || error.message
-        toast.error(`Failed to trigger cleanup: ${this.error}`)
         throw error
       } finally {
         this.loading = false
@@ -170,13 +148,10 @@ export const usePhpBorgBackupStore = defineStore('phpborgBackup', {
         // Remove from local state
         this.backups = this.backups.filter(b => b.id !== backupId)
 
-        toast.success('Backup deleted successfully')
-
         // Reload stats
         await this.loadStats()
       } catch (error) {
         this.error = error.response?.data?.error?.message || error.message
-        toast.error(`Failed to delete backup: ${this.error}`)
         throw error
       } finally {
         this.loading = false
