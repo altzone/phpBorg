@@ -720,4 +720,38 @@ onMounted(() => {
 .badge-sm {
   @apply text-xs px-2 py-0.5;
 }
+
+/* Modal Styles */
+.modal-overlay {
+  @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50;
+}
+
+.modal-container {
+  @apply bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden;
+}
+
+.modal-header {
+  @apply flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700;
+}
+
+.modal-title {
+  @apply text-xl font-semibold text-gray-900 dark:text-white;
+}
+
+.modal-close {
+  @apply text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors;
+}
+
+.modal-body {
+  @apply p-6 overflow-y-auto;
+  max-height: calc(90vh - 180px);
+}
+
+.modal-footer {
+  @apply flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700;
+}
+
+.label {
+  @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2;
+}
 </style>
