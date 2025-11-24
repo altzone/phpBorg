@@ -419,8 +419,8 @@
       "types": {
         "manual": "Manuelle",
         "scheduled": "Programmée",
-        "pre_update": "Pré-mise à jour",
-        "pre_restore": "Pré-restauration"
+        "preUpdate": "Pré-mise à jour",
+        "preRestore": "Pré-restauration"
       },
       "filters": {
         "allTypes": "Tous les types",

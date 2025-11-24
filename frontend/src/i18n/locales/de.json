@@ -419,8 +419,8 @@
       "types": {
         "manual": "Manuell",
         "scheduled": "Geplant",
-        "pre_update": "Vor Update",
-        "pre_restore": "Vor Wiederherstellung"
+        "preUpdate": "Vor Update",
+        "preRestore": "Vor Wiederherstellung"
       },
       "filters": {
         "allTypes": "Alle Typen",
