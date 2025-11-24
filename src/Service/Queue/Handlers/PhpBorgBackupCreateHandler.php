@@ -49,7 +49,7 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
         $userId = $payload['user_id'] ?? null;
         $notes = $payload['notes'] ?? null;
 
-        $this->logger->info("Starting phpBorg backup creation", [
+        $this->logger->info("Starting phpBorg backup creation", 'PHPBORG_BACKUP', [
             'type' => $backupType,
             'user_id' => $userId
         ]);
@@ -61,7 +61,7 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
 
             // Step 2: Load settings
             $settings = $this->loadBackupSettings();
-            $this->logger->info("Backup settings loaded", [
+            $this->logger->info("Backup settings loaded", 'PHPBORG_BACKUP', [
                 'storage_path' => $settings['storage_path'],
                 'encryption' => $settings['encryption_enabled'] ? 'enabled' : 'disabled'
             ]);
@@ -149,7 +149,7 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
                     $settings['encryption_enabled'] ? 'encrypted' : 'unencrypted'
                 );
 
-                $this->logger->info($message, ['backup_id' => $backupId]);
+                $this->logger->info($message, 'PHPBORG_BACKUP', ['backup_id' => $backupId]);
 
                 return $message;
 
@@ -282,7 +282,7 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
             throw new BackupException("Database dump failed: " . implode("\n", $output));
         }
 
-        $this->logger->info("Database dumped successfully", [
+        $this->logger->info("Database dumped successfully", 'PHPBORG_BACKUP', [
             'size' => filesize($outputPath)
         ]);
     }
@@ -395,7 +395,7 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
             throw new BackupException("Failed to create tar archive: " . implode("\n", $output));
         }
 
-        $this->logger->info("Tar archive created successfully", [
+        $this->logger->info("Tar archive created successfully", 'PHPBORG_BACKUP', [
             'size' => filesize($outputPath)
         ]);
     }

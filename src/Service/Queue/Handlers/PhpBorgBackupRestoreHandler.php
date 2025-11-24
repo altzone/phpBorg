@@ -45,7 +45,7 @@ final class PhpBorgBackupRestoreHandler implements JobHandlerInterface
             throw new BackupException("Backup ID is required for restore");
         }
 
-        $this->logger->info("Starting phpBorg restore", [
+        $this->logger->info("Starting phpBorg restore", 'PHPBORG_BACKUP', [
             'backup_id' => $backupId,
             'user_id' => $userId
         ]);
@@ -88,7 +88,7 @@ final class PhpBorgBackupRestoreHandler implements JobHandlerInterface
 
                 // Step 6: Verify metadata
                 $metadata = $this->loadMetadata($workDir);
-                $this->logger->info("Backup metadata loaded", [
+                $this->logger->info("Backup metadata loaded", 'PHPBORG_BACKUP', [
                     'created_at' => $metadata['created_at'],
                     'versions' => $metadata['versions']
                 ]);
