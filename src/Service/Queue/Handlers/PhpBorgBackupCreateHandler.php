@@ -44,7 +44,7 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
 
     public function handle(Job $job, JobQueue $queue): string
     {
-        $payload = json_decode($job->payload, true);
+        $payload = $job->payload;
         $backupType = $payload['backup_type'] ?? 'manual';
         $userId = $payload['user_id'] ?? null;
         $notes = $payload['notes'] ?? null;

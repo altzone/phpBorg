@@ -36,7 +36,7 @@ final class PhpBorgBackupRestoreHandler implements JobHandlerInterface
 
     public function handle(Job $job, JobQueue $queue): string
     {
-        $payload = json_decode($job->payload, true);
+        $payload = $job->payload;
         $backupId = $payload['backup_id'] ?? null;
         $userId = $payload['user_id'] ?? null;
         $createPreRestoreBackup = $payload['create_pre_restore_backup'] ?? true;
