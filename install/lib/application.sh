@@ -157,6 +157,7 @@ set_permissions() {
     # Writable directories
     log_info "Setting writable directories"
     local writable_dirs=(
+        ".git"
         "var"
         "var/cache"
         "var/log"
@@ -167,7 +168,8 @@ set_permissions() {
 
     for dir in "${writable_dirs[@]}"; do
         if [ -d "${PHPBORG_ROOT}/${dir}" ]; then
-            chmod 775 "${PHPBORG_ROOT}/${dir}"
+            chmod -R 775 "${PHPBORG_ROOT}/${dir}"
+            chown -R phpborg:phpborg "${PHPBORG_ROOT}/${dir}"
         else
             mkdir -p "${PHPBORG_ROOT}/${dir}"
             chmod 775 "${PHPBORG_ROOT}/${dir}"
@@ -420,7 +422,7 @@ create_storage_pool() {
 
     if mkdir -p "${storage_dir}"; then
         chown phpborg:phpborg "${storage_dir}"
-        chmod 755 "${storage_dir}"
+        chmod 775 "${storage_dir}"
         log_success "Storage pool created: ${storage_dir}"
 
         # Export for use by other scripts

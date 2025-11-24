@@ -21,6 +21,11 @@ RestartSec=5
 MemoryMax=512M
 CPUQuota=50%
 
+# Filesystem access
+ReadWritePaths=/opt/newphpborg/phpBorg
+ReadWritePaths=/opt/backups
+ReadWritePaths=/tmp
+
 # Logging
 StandardOutput=journal
 StandardError=journal
@@ -28,7 +33,7 @@ SyslogIdentifier=phpborg-scheduler
 
 # Security hardening
 NoNewPrivileges=true
-PrivateTmp=true
+PrivateTmp=false
 
 [Install]
 WantedBy=multi-user.target

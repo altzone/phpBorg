@@ -23,6 +23,11 @@ RestartSec=10
 MemoryMax=2G
 CPUQuota=100%
 
+# Filesystem access
+ReadWritePaths=/opt/newphpborg/phpBorg
+ReadWritePaths=/opt/backups
+ReadWritePaths=/tmp
+
 # Logging
 StandardOutput=journal
 StandardError=journal
