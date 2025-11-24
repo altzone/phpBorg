@@ -264,22 +264,31 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
      */
     private function dumpDatabase(string $outputPath): void
     {
+        // Use a temporary error file to capture stderr
+        $errorFile = $outputPath . '.err';
+
         $cmd = sprintf(
-            'mysqldump --host=%s --port=%d --user=%s --password=%s --single-transaction --routines --triggers %s > %s 2>&1',
+            'mysqldump --host=%s --port=%d --user=%s --password=%s --single-transaction --routines --triggers %s > %s 2> %s',
             escapeshellarg($this->config->dbHost),
             $this->config->dbPort,
             escapeshellarg($this->config->dbUser),
             escapeshellarg($this->config->dbPassword),
             escapeshellarg($this->config->dbName),
-            escapeshellarg($outputPath)
+            escapeshellarg($outputPath),
+            escapeshellarg($errorFile)
         );
 
         $output = [];
         $exitCode = 0;
         exec($cmd, $output, $exitCode);
 
+        // Read error output
+        $errorOutput = file_exists($errorFile) ? file_get_contents($errorFile) : '';
+        @unlink($errorFile);
+
         if ($exitCode !== 0 || !file_exists($outputPath) || filesize($outputPath) === 0) {
-            throw new BackupException("Database dump failed: " . implode("\n", $output));
+            $error = !empty($errorOutput) ? $errorOutput : 'Unknown error';
+            throw new BackupException("Database dump failed: " . $error);
         }
 
         $this->logger->info("Database dumped successfully", 'PHPBORG_BACKUP', [
