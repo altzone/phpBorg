@@ -107,11 +107,11 @@ final class PhpBorgBackupController extends BaseController
         $notes = $body['notes'] ?? null;
 
         try {
-            // Create job for backup creation
+            // Create job for backup creation (worker1 queue - only processed by worker #1)
             $jobId = $this->jobQueue->push('phpborg_backup_create', [
                 'backup_type' => 'manual',
                 'notes' => $notes
-            ], 'default', 1); // default queue, 1 max attempt
+            ], 'worker1', 1); // worker1 queue, 1 max attempt
 
             $this->success([
                 'job_id' => $jobId,
@@ -155,11 +155,11 @@ final class PhpBorgBackupController extends BaseController
                 return;
             }
 
-            // Create job for restore
+            // Create job for restore (worker1 queue - only processed by worker #1)
             $jobId = $this->jobQueue->push('phpborg_backup_restore', [
                 'backup_id' => $id,
                 'create_pre_restore_backup' => $createPreRestoreBackup
-            ], 'default', 1); // default queue, 1 max attempt
+            ], 'worker1', 1); // worker1 queue, 1 max attempt
 
             $this->success([
                 'job_id' => $jobId,

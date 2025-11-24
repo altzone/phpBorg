@@ -55,9 +55,10 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
         ]);
 
         try {
-            // Step 1: Stop workers #2, #3, #4 (keep #1 active)
-            $this->logger->info("Stopping background workers...");
-            $this->stopWorkers();
+            // Note: We don't stop other workers anymore to avoid deadlock
+            // The backup job runs on any available worker, and stopping workers
+            // while one of them is executing the backup creates a deadlock
+            $this->logger->info("Starting backup process...");
 
             // Step 2: Load settings
             $settings = $this->loadBackupSettings();
@@ -161,9 +162,8 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
             }
 
         } finally {
-            // Always restart workers
-            $this->logger->info("Restarting background workers...");
-            $this->startWorkers();
+            // Workers are not stopped anymore, so no need to restart
+            $this->logger->info("Backup handler finished");
         }
     }
 
