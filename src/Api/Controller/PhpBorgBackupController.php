@@ -213,8 +213,13 @@ final class PhpBorgBackupController extends BaseController
 
             // Delete file from disk
             if (file_exists($backup->filepath)) {
-                if (!unlink($backup->filepath)) {
-                    $this->error('Failed to delete backup file', 500);
+                try {
+                    if (!@unlink($backup->filepath)) {
+                        $error = error_get_last();
+                        throw new \Exception($error['message'] ?? 'Unknown error');
+                    }
+                } catch (\Throwable $e) {
+                    $this->error('Failed to delete backup file: ' . $e->getMessage(), 500);
                     return;
                 }
             }

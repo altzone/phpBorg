@@ -241,16 +241,15 @@
               <td class="table-cell">
                 <div class="flex items-center gap-2">
                   <!-- Download -->
-                  <a
-                    :href="getDownloadUrl(backup.id)"
+                  <button
+                    @click="downloadBackup(backup)"
                     :title="$t('backup.selfBackup.actions.download')"
                     class="btn-icon-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                    download
                   >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
-                  </a>
+                  </button>
 
                   <!-- Restore -->
                   <button
@@ -597,6 +596,11 @@ async function refreshData() {
 
 function getDownloadUrl(backupId) {
   return backupStore.getDownloadUrl(backupId)
+}
+
+function downloadBackup(backup) {
+  // Force file download using window.location
+  window.location.href = backupStore.getDownloadUrl(backup.id)
 }
 
 function openCreateModal() {

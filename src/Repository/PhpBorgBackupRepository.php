@@ -178,7 +178,7 @@ final class PhpBorgBackupRepository
             ]
         );
 
-        return $this->connection->lastInsertId();
+        return $this->connection->getLastInsertId();
     }
 
     /**
