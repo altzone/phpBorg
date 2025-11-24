@@ -157,16 +157,16 @@ get_borg_packages() {
 get_utility_packages() {
     case "${OS_DISTRO}" in
         debian|ubuntu|linuxmint|pop)
-            echo "curl wget git unzip jq openssl fuse-overlayfs acl sudo"
+            echo "curl wget git unzip jq openssl fuse-overlayfs acl sudo sshpass"
             ;;
         rhel|centos|rocky|almalinux|fedora)
-            echo "curl wget git unzip jq openssl fuse-overlayfs acl sudo"
+            echo "curl wget git unzip jq openssl fuse-overlayfs acl sudo sshpass"
             ;;
         arch|manjaro)
-            echo "curl wget git unzip jq openssl fuse-overlayfs acl sudo"
+            echo "curl wget git unzip jq openssl fuse-overlayfs acl sudo sshpass"
             ;;
         alpine)
-            echo "curl wget git unzip jq openssl fuse-overlayfs acl sudo"
+            echo "curl wget git unzip jq openssl fuse-overlayfs acl sudo sshpass"
             ;;
     esac
 }
