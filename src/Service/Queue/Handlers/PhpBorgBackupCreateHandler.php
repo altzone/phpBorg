@@ -179,7 +179,7 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
             exec($cmd, $output, $exitCode);
 
             if ($exitCode !== 0) {
-                $this->logger->warning("Failed to stop worker #{$workerNum}", [
+                $this->logger->warning("Failed to stop worker #{$workerNum}", 'PHPBORG_BACKUP', [
                     'output' => implode("\n", $output)
                 ]);
             }
@@ -201,7 +201,7 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
             exec($cmd, $output, $exitCode);
 
             if ($exitCode !== 0) {
-                $this->logger->warning("Failed to start worker #{$workerNum}", [
+                $this->logger->warning("Failed to start worker #{$workerNum}", 'PHPBORG_BACKUP', [
                     'output' => implode("\n", $output)
                 ]);
             }
@@ -310,7 +310,7 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
             $result = $this->connection->fetchOne('SELECT VERSION() as version');
             $mysqlVersion = $result['version'] ?? null;
         } catch (\Exception $e) {
-            $this->logger->warning("Could not get MySQL version: " . $e->getMessage());
+            $this->logger->warning("Could not get MySQL version: " . $e->getMessage(), 'PHPBORG_BACKUP');
         }
 
         // Node.js version
@@ -449,7 +449,7 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
                 $this->logger->info("Deleted old backup record: {$backup->filename}");
 
             } catch (\Exception $e) {
-                $this->logger->error("Failed to delete old backup: {$backup->filename}", [
+                $this->logger->error("Failed to delete old backup: {$backup->filename}", 'PHPBORG_BACKUP', [
                     'error' => $e->getMessage()
                 ]);
             }

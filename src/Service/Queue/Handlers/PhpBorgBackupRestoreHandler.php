@@ -127,7 +127,7 @@ final class PhpBorgBackupRestoreHandler implements JobHandlerInterface
                 return $message;
 
             } catch (\Exception $e) {
-                $this->logger->error("Restore failed, attempting rollback...", [
+                $this->logger->error("Restore failed, attempting rollback...", 'PHPBORG_BACKUP', [
                     'error' => $e->getMessage()
                 ]);
 
@@ -166,7 +166,7 @@ final class PhpBorgBackupRestoreHandler implements JobHandlerInterface
             exec($cmd, $output, $exitCode);
 
             if ($exitCode !== 0) {
-                $this->logger->warning("Failed to stop worker #{$workerNum}", [
+                $this->logger->warning("Failed to stop worker #{$workerNum}", 'PHPBORG_BACKUP', [
                     'output' => implode("\n", $output)
                 ]);
             }
@@ -188,7 +188,7 @@ final class PhpBorgBackupRestoreHandler implements JobHandlerInterface
             exec($cmd, $output, $exitCode);
 
             if ($exitCode !== 0) {
-                $this->logger->warning("Failed to start worker #{$workerNum}", [
+                $this->logger->warning("Failed to start worker #{$workerNum}", 'PHPBORG_BACKUP', [
                     'output' => implode("\n", $output)
                 ]);
             }
@@ -402,7 +402,7 @@ final class PhpBorgBackupRestoreHandler implements JobHandlerInterface
         $phpborgBackupPath = $workDir . '/phpborg';
 
         if (!is_dir($phpborgBackupPath)) {
-            $this->logger->warning("phpBorg codebase not found in backup, skipping");
+            $this->logger->warning("phpBorg codebase not found in backup, skipping", 'PHPBORG_BACKUP');
             return;
         }
 
@@ -432,7 +432,7 @@ final class PhpBorgBackupRestoreHandler implements JobHandlerInterface
         $sshKeysPath = $workDir . '/ssh_keys';
 
         if (!is_dir($sshKeysPath)) {
-            $this->logger->warning("SSH keys not found in backup, skipping");
+            $this->logger->warning("SSH keys not found in backup, skipping", 'PHPBORG_BACKUP');
             return;
         }
 
@@ -464,7 +464,7 @@ final class PhpBorgBackupRestoreHandler implements JobHandlerInterface
         $systemdPath = $workDir . '/systemd';
 
         if (!is_dir($systemdPath)) {
-            $this->logger->warning("Systemd services not found in backup, skipping");
+            $this->logger->warning("Systemd services not found in backup, skipping", 'PHPBORG_BACKUP');
             return;
         }
 
