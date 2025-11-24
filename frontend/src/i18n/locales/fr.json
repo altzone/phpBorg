@@ -516,7 +516,8 @@
       "backupCreated": "Sauvegarde créée",
       "backupCreatedDescription": "La sauvegarde a été créée avec succès",
       "backupFailed": "Échec de la sauvegarde",
-      "backupFailedDescription": "La création de la sauvegarde a échoué"
+      "backupFailedDescription": "La création de la sauvegarde a échoué",
+      "downloadFailed": "Échec du téléchargement de la sauvegarde"
     }
   },
   "backup_jobs": {

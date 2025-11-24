@@ -516,7 +516,8 @@
       "backupCreated": "Sicherung erstellt",
       "backupCreatedDescription": "Die Sicherung wurde erfolgreich erstellt",
       "backupFailed": "Sicherung fehlgeschlagen",
-      "backupFailedDescription": "Die Erstellung der Sicherung ist fehlgeschlagen"
+      "backupFailedDescription": "Die Erstellung der Sicherung ist fehlgeschlagen",
+      "downloadFailed": "Fehler beim Herunterladen der Sicherung"
     }
   },
   "backup_jobs": {

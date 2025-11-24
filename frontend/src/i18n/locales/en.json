@@ -516,7 +516,8 @@
       "backupCreated": "Backup Created",
       "backupCreatedDescription": "The backup was created successfully",
       "backupFailed": "Backup Failed",
-      "backupFailedDescription": "The backup creation failed"
+      "backupFailedDescription": "The backup creation failed",
+      "downloadFailed": "Failed to download backup"
     }
   },
   "backup_jobs": {

@@ -634,9 +634,42 @@ function getDownloadUrl(backupId) {
   return backupStore.getDownloadUrl(backupId)
 }
 
-function downloadBackup(backup) {
-  // Force file download using window.location
-  window.location.href = backupStore.getDownloadUrl(backup.id)
+async function downloadBackup(backup) {
+  try {
+    const token = localStorage.getItem('access_token')
+    const url = backupStore.getDownloadUrl(backup.id)
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error('Download failed')
+    }
+
+    // Get the blob
+    const blob = await response.blob()
+
+    // Create download link
+    const downloadUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = backup.filename
+    document.body.appendChild(link)
+    link.click()
+
+    // Cleanup
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(downloadUrl)
+  } catch (error) {
+    showToast(
+      t('common.error'),
+      t('backup.selfBackup.downloadFailed'),
+      'error'
+    )
+  }
 }
 
 function openCreateModal() {
