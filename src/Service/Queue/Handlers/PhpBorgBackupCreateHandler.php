@@ -268,7 +268,7 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
         $errorFile = $outputPath . '.err';
 
         $cmd = sprintf(
-            'mysqldump --host=%s --port=%d --user=%s --password=%s --single-transaction --routines --triggers %s > %s 2> %s',
+            'mysqldump --host=%s --port=%d --user=%s --password=%s --single-transaction --skip-routines --triggers %s > %s 2> %s',
             escapeshellarg($this->config->dbHost),
             $this->config->dbPort,
             escapeshellarg($this->config->dbUser),
