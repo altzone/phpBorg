@@ -23,9 +23,16 @@ RestartSec=10
 MemoryMax=2G
 CPUQuota=100%
 
-# Filesystem access
-ReadWritePaths=/opt/newphpborg/phpBorg
+# Security
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/newphpborg/phpBorg/var
+ReadWritePaths=/opt/newphpborg/phpBorg/logs
+ReadWritePaths=/opt/newphpborg/phpBorg/.git
 ReadWritePaths=/opt/backups
+ReadWritePaths=/var/log/phpborg
 ReadWritePaths=/tmp
 
 # Logging
