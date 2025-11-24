@@ -111,7 +111,7 @@ final class PhpBorgBackupController extends BaseController
             $jobId = $this->jobQueue->push('phpborg_backup_create', [
                 'backup_type' => 'manual',
                 'notes' => $notes
-            ], 10); // High priority
+            ], 'default', 1); // default queue, 1 max attempt
 
             $this->success([
                 'job_id' => $jobId,
@@ -159,7 +159,7 @@ final class PhpBorgBackupController extends BaseController
             $jobId = $this->jobQueue->push('phpborg_backup_restore', [
                 'backup_id' => $id,
                 'create_pre_restore_backup' => $createPreRestoreBackup
-            ], 10); // High priority
+            ], 'default', 1); // default queue, 1 max attempt
 
             $this->success([
                 'job_id' => $jobId,
@@ -179,7 +179,7 @@ final class PhpBorgBackupController extends BaseController
     {
         try {
             // Create job for cleanup
-            $jobId = $this->jobQueue->push('phpborg_backup_cleanup', [], 5); // Medium priority
+            $jobId = $this->jobQueue->push('phpborg_backup_cleanup', [], 'default', 3); // default queue, 3 max attempts
 
             $this->success([
                 'job_id' => $jobId,
