@@ -14,6 +14,7 @@ use PhpBorg\Logger\LoggerInterface;
  * - Check for available updates from git remote
  * - Get changelog between versions
  * - Get current version info
+ * - Compare local and remote commits
  */
 final class PhpBorgUpdateService
 {
