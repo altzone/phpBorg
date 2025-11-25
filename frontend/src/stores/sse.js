@@ -260,6 +260,8 @@ export const useSSEStore = defineStore('sse', () => {
         console.log('[SSE] Connection established')
         connected.value = true
         connectionType.value = 'sse'
+        // Reset reconnect attempts on successful connection
+        reconnectAttempts.value = 0
       })
 
     } catch (error) {
