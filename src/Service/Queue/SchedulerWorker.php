@@ -338,23 +338,15 @@ final class SchedulerWorker
             $metadata = json_decode(file_get_contents($flagFile), true);
             $this->logger->info('Restart request detected', 'SCHEDULER', $metadata ?? []);
 
-            // Delete the flag file FIRST to avoid infinite restart loop
-            if (unlink($flagFile)) {
-                $this->logger->info('Restart flag removed', 'SCHEDULER');
-            }
+            // The phpborg-restart.path systemd unit monitors this flag file
+            // When it detects the file, it triggers phpborg-restart.service
+            // which runs the restart script as root (no sudo needed)
+            // The service also removes the flag file after restart
 
-            // Execute restart script in background
-            // This allows the script to restart the scheduler (which will kill this process)
-            // and then restart workers with the new code
-            $restartScript = "{$phpborgRoot}/bin/restart-services.sh";
+            $this->logger->info('Restart flag detected - systemd path unit will trigger restart', 'SCHEDULER');
 
-            $this->logger->info('Launching services restart script in background', 'SCHEDULER');
-
-            // Run in background with nohup to survive scheduler restart
-            $command = "nohup bash {$restartScript} > /dev/null 2>&1 &";
-            exec($command);
-
-            $this->logger->info('Restart script launched - services will restart in a few seconds', 'SCHEDULER');
+            // Note: We do NOT delete the flag file here - systemd path unit needs it
+            // The phpborg-restart.service has ExecStartPost to remove it after restart
 
         } catch (Throwable $e) {
             $this->logger->error("Failed to process restart request: {$e->getMessage()}", 'SCHEDULER');

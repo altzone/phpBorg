@@ -1,0 +1,10 @@
+[Unit]
+Description=phpBorg Restart Trigger Path
+Documentation=https://github.com/altzone/phpBorg
+
+[Path]
+PathExists=/opt/newphpborg/phpBorg/var/restart-needed
+Unit=phpborg-restart.service
+
+[Install]
+WantedBy=multi-user.target

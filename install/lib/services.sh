@@ -331,6 +331,66 @@ EOF
     fi
 }
 
+install_restart_path_unit() {
+    print_section "Installing Restart Path Unit"
+
+    # This path unit monitors the restart flag file and triggers service restart
+    # Used by the update system to restart services after code updates
+
+    local path_file="/etc/systemd/system/phpborg-restart.path"
+    local service_file="/etc/systemd/system/phpborg-restart.service"
+
+    backup_file "${path_file}"
+    backup_file "${service_file}"
+
+    log_info "Creating path unit: ${path_file}"
+
+    cat > "${path_file}" <<EOF
+[Unit]
+Description=phpBorg Restart Trigger Path
+Documentation=https://github.com/altzone/phpBorg
+
+[Path]
+PathExists=${PHPBORG_ROOT}/var/restart-needed
+Unit=phpborg-restart.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    if [ $? -ne 0 ]; then
+        log_error "Failed to create restart path unit"
+        return 1
+    fi
+
+    log_info "Creating restart service: ${service_file}"
+
+    cat > "${service_file}" <<EOF
+[Unit]
+Description=phpBorg Services Restart
+Documentation=https://github.com/altzone/phpBorg
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=${PHPBORG_ROOT}/bin/restart-services.sh
+# Remove the flag file after restart
+ExecStartPost=/bin/rm -f ${PHPBORG_ROOT}/var/restart-needed
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    if [ $? -eq 0 ]; then
+        log_success "Restart path unit and service created"
+        save_state "install_restart_path_unit" "completed"
+        return 0
+    else
+        log_error "Failed to create restart service"
+        return 1
+    fi
+}
+
 #
 # Reload systemd and enable services
 #
@@ -380,6 +440,24 @@ enable_services() {
             errors=$((errors + 1))
         fi
     done
+
+    # Enable restart path unit (monitors flag file for auto-restart after updates)
+    log_info "Enabling phpborg-restart.path"
+    if run_cmd "systemctl enable phpborg-restart.path"; then
+        log_success "Restart path unit enabled"
+    else
+        log_error "Failed to enable restart path unit"
+        errors=$((errors + 1))
+    fi
+
+    # Start the path unit immediately (it's a monitoring unit)
+    log_info "Starting phpborg-restart.path"
+    if run_cmd "systemctl start phpborg-restart.path"; then
+        log_success "Restart path unit started"
+    else
+        log_error "Failed to start restart path unit"
+        errors=$((errors + 1))
+    fi
 
     if [ ${errors} -eq 0 ]; then
         save_state "enable_services" "completed"
@@ -660,6 +738,13 @@ setup_services() {
         install_workers_target || errors=$((errors + 1))
     else
         log_info "Workers target already installed (skipped)"
+    fi
+
+    # Install restart path unit (for auto-restart after updates)
+    if ! is_step_completed "install_restart_path_unit"; then
+        install_restart_path_unit || errors=$((errors + 1))
+    else
+        log_info "Restart path unit already installed (skipped)"
     fi
 
     # Reload systemd

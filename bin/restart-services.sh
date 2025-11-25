@@ -1,6 +1,7 @@
 #!/bin/bash
 # phpBorg Services Restart Script
-# Called by scheduler after updates to restart all services with new code
+# Called by systemd phpborg-restart.service after updates to restart all services with new code
+# This script runs as root via systemd, so no sudo needed
 
 set -e
 
@@ -16,7 +17,7 @@ log "Starting phpBorg services restart..."
 # Restart all workers first
 for i in 1 2 3 4; do
     log "Restarting worker #$i..."
-    if sudo systemctl restart "phpborg-worker@$i" 2>&1 | tee -a "$LOG_FILE"; then
+    if systemctl restart "phpborg-worker@$i" 2>&1 | tee -a "$LOG_FILE"; then
         log "Worker #$i restarted successfully"
     else
         log "ERROR: Failed to restart worker #$i"
@@ -25,7 +26,7 @@ done
 
 # Restart scheduler last (will reload new code)
 log "Restarting scheduler..."
-if sudo systemctl restart phpborg-scheduler 2>&1 | tee -a "$LOG_FILE"; then
+if systemctl restart phpborg-scheduler 2>&1 | tee -a "$LOG_FILE"; then
     log "Scheduler restarted successfully"
 else
     log "ERROR: Failed to restart scheduler"

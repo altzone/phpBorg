@@ -1,0 +1,13 @@
+[Unit]
+Description=phpBorg Services Restart
+Documentation=https://github.com/altzone/phpBorg
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/newphpborg/phpBorg/bin/restart-services.sh
+# Remove the flag file after restart
+ExecStartPost=/bin/rm -f /opt/newphpborg/phpBorg/var/restart-needed
+
+[Install]
+WantedBy=multi-user.target
