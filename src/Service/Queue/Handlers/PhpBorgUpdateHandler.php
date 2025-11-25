@@ -446,19 +446,32 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             throw new \Exception("Failed to request services restart");
         }
 
-        $this->logger->info("Services restart requested via scheduler (asynchronous)", 'PHPBORG_UPDATE');
-        $this->logger->info("Scheduler will restart services in the next cycle", 'PHPBORG_UPDATE');
+        $this->logger->info("Services restart requested via systemd path unit", 'PHPBORG_UPDATE');
 
-        // Wait a bit for scheduler to pick it up and restart services
-        $this->logger->info("Waiting for scheduler to process restart request...", 'PHPBORG_UPDATE');
-        sleep(10);
+        // Wait for systemd to detect the flag file and restart all services
+        // The restart script takes ~15-20 seconds to restart all 4 workers + scheduler
+        // We poll every 5 seconds up to 60 seconds max
+        $maxWaitSeconds = 60;
+        $pollInterval = 5;
+        $waited = 0;
 
-        // Check if flag is still there (means scheduler hasn't processed it yet)
-        if (file_exists($flagFile)) {
-            $this->logger->warning("Restart flag still present, scheduler might be delayed", 'PHPBORG_UPDATE');
-        } else {
-            $this->logger->info("Services restart processed by scheduler", 'PHPBORG_UPDATE');
+        $this->logger->info("Waiting for services restart to complete (max {$maxWaitSeconds}s)...", 'PHPBORG_UPDATE');
+
+        while ($waited < $maxWaitSeconds) {
+            sleep($pollInterval);
+            $waited += $pollInterval;
+
+            // Check if flag file has been removed (means restart completed)
+            if (!file_exists($flagFile)) {
+                $this->logger->info("Services restart completed after {$waited}s", 'PHPBORG_UPDATE');
+                return;
+            }
+
+            $this->logger->info("Still waiting for restart... ({$waited}s elapsed)", 'PHPBORG_UPDATE');
         }
+
+        // If we get here, flag is still present after max wait
+        $this->logger->warning("Restart flag still present after {$maxWaitSeconds}s, continuing anyway", 'PHPBORG_UPDATE');
     }
 
     /**
