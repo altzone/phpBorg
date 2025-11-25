@@ -30,6 +30,9 @@ final class PhpBorgUpdateService
     // Maximum number of changelog commits to display
     private const MAX_CHANGELOG_COMMITS = 50;
 
+    // Enable verbose logging for update operations
+    private const ENABLE_DEBUG_LOGGING = true;
+
     public function __construct(
         private readonly Configuration $config,
         private readonly LoggerInterface $logger
