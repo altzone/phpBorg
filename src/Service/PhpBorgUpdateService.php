@@ -81,6 +81,12 @@ final class PhpBorgUpdateService
                 $commitsBehind = (int)trim(shell_exec("cd {$gitDir} && git rev-list --count HEAD..FETCH_HEAD") ?? '0');
             }
 
+            // Get latest commit message
+            $latestMessage = '';
+            if ($currentCommit !== $latestCommit) {
+                $latestMessage = trim(shell_exec("cd {$gitDir} && git log -1 --format=%s FETCH_HEAD 2>/dev/null") ?? '');
+            }
+
             $this->logger->info("Update check completed", 'PHPBORG_UPDATE', [
                 'current' => substr($currentCommit, 0, 7),
                 'latest' => substr($latestCommit, 0, 7),
@@ -94,6 +100,7 @@ final class PhpBorgUpdateService
                 'latest_commit' => $latestCommit,
                 'latest_commit_short' => substr($latestCommit, 0, 7),
                 'commits_behind' => $commitsBehind,
+                'latest_message' => $latestMessage,
                 'error' => null
             ];
 
@@ -201,6 +208,73 @@ final class PhpBorgUpdateService
                 'date' => '',
                 'author' => '',
                 'message' => ''
+            ];
+        }
+    }
+
+    /**
+     * Get quick status for badge display (synchronous, cached)
+     *
+     * This method uses local git refs only (no network call) for fast response
+     *
+     * @return array{available: bool, commits_behind: int, current_commit_short: string, latest_commit_short: string, latest_message: string}
+     */
+    public function getQuickStatus(): array
+    {
+        try {
+            $gitDir = $this->getGitDirectory();
+
+            // Get current commit
+            $currentCommit = trim(shell_exec("cd {$gitDir} && git rev-parse HEAD") ?? '');
+            $currentCommitShort = substr($currentCommit, 0, 7);
+
+            // Get latest fetched remote commit (from last git fetch)
+            $latestCommit = trim(shell_exec("cd {$gitDir} && git rev-parse " . self::GIT_REMOTE . "/" . self::GIT_BRANCH . " 2>/dev/null") ?? '');
+            $latestCommitShort = substr($latestCommit, 0, 7);
+
+            // If we couldn't get remote ref, no updates available
+            if (empty($latestCommit)) {
+                return [
+                    'available' => false,
+                    'commits_behind' => 0,
+                    'current_commit_short' => $currentCommitShort,
+                    'latest_commit_short' => $currentCommitShort,
+                    'latest_message' => ''
+                ];
+            }
+
+            // Count commits behind
+            $commitsBehind = 0;
+            if ($currentCommit !== $latestCommit) {
+                $behindOutput = trim(shell_exec("cd {$gitDir} && git rev-list HEAD.." . self::GIT_REMOTE . "/" . self::GIT_BRANCH . " --count 2>/dev/null") ?? '0');
+                $commitsBehind = (int) $behindOutput;
+            }
+
+            // Get latest commit message
+            $latestMessage = '';
+            if ($commitsBehind > 0) {
+                $latestMessage = trim(shell_exec("cd {$gitDir} && git log -1 --format=%s " . self::GIT_REMOTE . "/" . self::GIT_BRANCH . " 2>/dev/null") ?? '');
+            }
+
+            return [
+                'available' => $commitsBehind > 0,
+                'commits_behind' => $commitsBehind,
+                'current_commit_short' => $currentCommitShort,
+                'latest_commit_short' => $latestCommitShort,
+                'latest_message' => $latestMessage
+            ];
+
+        } catch (\Exception $e) {
+            $this->logger->error("Failed to get quick status", 'PHPBORG_UPDATE', [
+                'error' => $e->getMessage()
+            ]);
+
+            return [
+                'available' => false,
+                'commits_behind' => 0,
+                'current_commit_short' => '',
+                'latest_commit_short' => '',
+                'latest_message' => ''
             ];
         }
     }

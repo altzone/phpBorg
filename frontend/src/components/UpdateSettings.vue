@@ -67,8 +67,15 @@
               </p>
             </div>
           </div>
-          <div class="flex justify-between text-sm mt-3">
-            <span class="text-blue-600 dark:text-blue-400">{{ updateInfo.current_commit_short }} → {{ updateInfo.latest_commit_short }}</span>
+          <div class="text-sm mt-3 space-y-2">
+            <div class="flex justify-between">
+              <span class="text-blue-600 dark:text-blue-400">{{ updateInfo.current_commit_short }} → {{ updateInfo.latest_commit_short }}</span>
+            </div>
+            <!-- Latest commit message -->
+            <div v-if="updateInfo.latest_message" class="p-2 bg-blue-100 dark:bg-blue-800/30 rounded text-blue-800 dark:text-blue-200">
+              <span class="font-mono text-xs">{{ updateInfo.latest_commit_short }}</span>
+              <span class="ml-2">{{ updateInfo.latest_message }}</span>
+            </div>
           </div>
         </div>
 

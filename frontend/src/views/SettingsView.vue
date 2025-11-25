@@ -511,17 +511,17 @@ onMounted(async () => {
   await settingsStore.fetchSettings()
   loadForms()
 
-  // Fetch update information for badge
+  // Fetch update information for badge (using quick status API - no job needed)
   try {
-    console.log('[SettingsView] Checking for updates...')
-    const updateResult = await phpborgUpdateService.checkForUpdates()
-    console.log('[SettingsView] Update result:', updateResult)
-    if (updateResult.success && updateResult.data?.available) {
-      updateCommitCount.value = updateResult.data.commits_behind || 0
+    console.log('[SettingsView] Fetching quick update status...')
+    const statusResult = await phpborgUpdateService.getQuickStatus()
+    console.log('[SettingsView] Status result:', statusResult)
+    if (statusResult.success && statusResult.data?.available) {
+      updateCommitCount.value = statusResult.data.commits_behind || 0
       console.log('[SettingsView] Updates available:', updateCommitCount.value)
     }
   } catch (error) {
-    console.error('[SettingsView] Failed to check for updates:', error)
+    console.error('[SettingsView] Failed to get update status:', error)
   }
 })
 

@@ -281,6 +281,7 @@ try {
     // phpBorg Self-Update Routes (Protected - Admin only)
     // ===========================================
     $router->get('/phpborg-update/check', PhpBorgUpdateController::class, 'check', requireAuth: true);
+    $router->get('/phpborg-update/status', PhpBorgUpdateController::class, 'status', requireAuth: true);
     $router->get('/phpborg-update/version', PhpBorgUpdateController::class, 'version', requireAuth: true);
     $router->get('/phpborg-update/changelog', PhpBorgUpdateController::class, 'changelog', requireAuth: true);
     $router->post('/phpborg-update/start', PhpBorgUpdateController::class, 'start', requireAuth: true);

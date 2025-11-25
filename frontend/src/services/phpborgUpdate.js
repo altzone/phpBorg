@@ -30,6 +30,14 @@ export default {
   },
 
   /**
+   * Get quick status for badge display (synchronous, no job)
+   */
+  async getQuickStatus() {
+    const response = await api.get('/phpborg-update/status')
+    return response.data
+  },
+
+  /**
    * Get changelog (commits between current and latest)
    */
   async getChangelog() {

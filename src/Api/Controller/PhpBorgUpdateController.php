@@ -80,6 +80,23 @@ final class PhpBorgUpdateController extends BaseController
     }
 
     /**
+     * GET /api/phpborg-update/status - Quick synchronous check for update status
+     *
+     * Returns cached/quick update status for badge display without creating a job
+     */
+    public function status(): void
+    {
+        try {
+            $status = $this->updateService->getQuickStatus();
+
+            $this->success($status, 'Status retrieved successfully');
+
+        } catch (\Exception $e) {
+            $this->error('Failed to get status: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
      * POST /api/phpborg-update/start - Start update
      *
      * Body: {
