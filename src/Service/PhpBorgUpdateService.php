@@ -33,6 +33,9 @@ final class PhpBorgUpdateService
     // Enable verbose logging for update operations
     private const ENABLE_DEBUG_LOGGING = true;
 
+    // Retry attempts for failed git operations
+    private const GIT_RETRY_ATTEMPTS = 3;
+
     public function __construct(
         private readonly Configuration $config,
         private readonly LoggerInterface $logger
