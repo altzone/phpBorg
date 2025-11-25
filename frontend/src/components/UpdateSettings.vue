@@ -175,14 +175,12 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useTaskBarStore } from '@/stores/taskbar'
 import { useSSEStore } from '@/stores/sse'
 import phpborgUpdateService from '@/services/phpborgUpdate'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 const router = useRouter()
-const taskBarStore = useTaskBarStore()
 const sseStore = useSSEStore()
 
 const versionInfo = ref(null)
@@ -329,13 +327,7 @@ async function startUpdate() {
     if (result.success && result.data.job_id) {
       showToast(t('settings.update.update_started'), '', 'success')
 
-      // Add job to task bar
-      taskBarStore.addTask({
-        id: result.data.job_id,
-        type: 'phpborg_update',
-        title: t('settings.update.update_job_title'),
-        status: 'processing'
-      })
+      // Job will automatically appear in taskbar via SSE
 
       // Reset state
       updating.value = false
