@@ -639,6 +639,15 @@ setup_application() {
         log_info "SSH keys already configured (skipped)"
     fi
 
+    # Create log directories (needed for migrations)
+    if ! is_step_completed "create_log_directories"; then
+        # Source services.sh to get the function
+        source "${PHPBORG_ROOT}/install/lib/services.sh"
+        create_log_directories || errors=$((errors + 1))
+    else
+        log_info "Log directories already created (skipped)"
+    fi
+
     # Run migrations
     if ! is_step_completed "run_migrations"; then
         run_migrations || errors=$((errors + 1))
