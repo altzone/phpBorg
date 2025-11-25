@@ -39,6 +39,9 @@ final class PhpBorgUpdateService
     // Timeout for git operations in seconds
     private const GIT_OPERATION_TIMEOUT = 300;
 
+    // Enable automatic rollback on update failure
+    private const ENABLE_AUTO_ROLLBACK = true;
+
     public function __construct(
         private readonly Configuration $config,
         private readonly LoggerInterface $logger
