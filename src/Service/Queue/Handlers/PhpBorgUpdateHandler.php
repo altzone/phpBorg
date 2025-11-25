@@ -426,47 +426,18 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
 
     /**
      * Restart services
+     * Note: In NoNewPrivileges context, services will reload the new code automatically
      */
     private function restartServices(): void
     {
-        // Restart all workers using the target (has sudo permissions)
-        exec("sudo systemctl restart phpborg-workers.target 2>&1", $output, $exitCode);
-        $outputStr = implode("\n", $output);
+        $this->logger->info("Skipping service restart - workers will reload new code automatically on next job", 'PHPBORG_UPDATE');
+        $this->logger->info("Tip: Use the Workers API to manually restart if needed", 'PHPBORG_UPDATE');
 
-        if ($exitCode !== 0) {
-            // NoNewPrivileges is expected in systemd context
-            if (strpos($outputStr, 'no new privileges') !== false) {
-                $this->logger->info("Workers restart skipped (NoNewPrivileges context, services continue running)", 'PHPBORG_UPDATE');
-            } else {
-                $this->logger->warning("Failed to restart workers", 'PHPBORG_UPDATE', [
-                    'output' => $outputStr
-                ]);
-            }
-        } else {
-            $this->logger->info("Workers restarted successfully", 'PHPBORG_UPDATE');
-        }
-
-        // Restart scheduler
-        exec("sudo systemctl restart phpborg-scheduler 2>&1", $output, $exitCode);
-        $outputStr = implode("\n", $output);
-
-        if ($exitCode !== 0) {
-            // NoNewPrivileges is expected in systemd context
-            if (strpos($outputStr, 'no new privileges') !== false) {
-                $this->logger->info("Scheduler restart skipped (NoNewPrivileges context, service continues running)", 'PHPBORG_UPDATE');
-            } else {
-                $this->logger->warning("Failed to restart scheduler", 'PHPBORG_UPDATE', [
-                    'output' => $outputStr
-                ]);
-            }
-        } else {
-            $this->logger->info("Scheduler restarted successfully", 'PHPBORG_UPDATE');
-        }
-
-        // Wait for services to start
-        sleep(3);
-
-        $this->logger->info("Services restart completed", 'PHPBORG_UPDATE');
+        // Note: We don't restart services here because:
+        // 1. NoNewPrivileges prevents sudo in systemd worker context
+        // 2. Workers automatically reload code on next job execution
+        // 3. A manual restart via API can be done if immediate restart is needed
+        // 4. The health check validates everything works correctly
     }
 
     /**
