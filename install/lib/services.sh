@@ -210,7 +210,7 @@ PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=${PHPBORG_ROOT}/var ${PHPBORG_ROOT}/logs ${PHPBORG_ROOT}/.git /opt/backups /var/log/phpborg /tmp
+ReadWritePaths=${PHPBORG_ROOT} /opt/backups /var/log/phpborg /tmp
 
 # Resource limits
 LimitNOFILE=65536
@@ -276,7 +276,7 @@ PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=${PHPBORG_ROOT}/var ${PHPBORG_ROOT}/logs ${PHPBORG_ROOT}/.git /opt/backups /var/log/phpborg /tmp
+ReadWritePaths=${PHPBORG_ROOT} /opt/backups /var/log/phpborg /tmp
 
 # Resource limits
 LimitNOFILE=65536
