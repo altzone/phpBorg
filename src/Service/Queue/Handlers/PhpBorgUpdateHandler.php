@@ -171,8 +171,8 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             }
         }
 
-        // Check npm (sourcing NVM first)
-        $nvmCheck = "source /var/lib/phpborg/.nvm/nvm.sh && which npm 2>&1";
+        // Check npm (sourcing NVM first with bash)
+        $nvmCheck = '/bin/bash -c "export NVM_DIR=/var/lib/phpborg/.nvm && source $NVM_DIR/nvm.sh && which npm" 2>&1';
         exec($nvmCheck, $output, $exitCode);
         if ($exitCode !== 0) {
             throw new \Exception("Required binary not found: npm (NVM might not be loaded)");
@@ -297,21 +297,24 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
      */
     private function npmBuild(string $phpborgRoot): void
     {
-        // Source NVM and run npm commands
-        $nvmSource = "source /var/lib/phpborg/.nvm/nvm.sh";
+        // Source NVM and run npm commands with bash
+        $nvmSource = 'export NVM_DIR=/var/lib/phpborg/.nvm && source $NVM_DIR/nvm.sh';
 
         // npm ci (clean install)
-        exec("{$nvmSource} && cd {$phpborgRoot}/frontend && npm ci 2>&1", $output, $exitCode);
+        $cmd = "/bin/bash -c \"{$nvmSource} && cd {$phpborgRoot}/frontend && npm ci\" 2>&1";
+        exec($cmd, $output, $exitCode);
         if ($exitCode !== 0) {
             $this->logger->warning("npm ci failed, trying npm install", 'PHPBORG_UPDATE');
-            exec("{$nvmSource} && cd {$phpborgRoot}/frontend && npm install 2>&1", $output, $exitCode);
+            $cmd = "/bin/bash -c \"{$nvmSource} && cd {$phpborgRoot}/frontend && npm install\" 2>&1";
+            exec($cmd, $output, $exitCode);
             if ($exitCode !== 0) {
                 throw new \Exception("npm install failed: " . implode("\n", $output));
             }
         }
 
         // npm run build
-        exec("{$nvmSource} && cd {$phpborgRoot}/frontend && npm run build 2>&1", $output, $exitCode);
+        $cmd = "/bin/bash -c \"{$nvmSource} && cd {$phpborgRoot}/frontend && npm run build\" 2>&1";
+        exec($cmd, $output, $exitCode);
         if ($exitCode !== 0) {
             throw new \Exception("npm build failed: " . implode("\n", $output));
         }
