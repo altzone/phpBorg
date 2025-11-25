@@ -312,7 +312,7 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
     private function npmBuild(string $phpborgRoot): void
     {
         // Source NVM and run npm commands with bash
-        $nvmSource = 'export NVM_DIR=/var/lib/phpborg/.nvm && source $NVM_DIR/nvm.sh';
+        $nvmSource = 'export NVM_DIR=/var/lib/phpborg/.nvm && source \$NVM_DIR/nvm.sh';
 
         // npm ci (clean install)
         $cmd = "/bin/bash -c \"{$nvmSource} && cd {$phpborgRoot}/frontend && npm ci\" 2>&1";
