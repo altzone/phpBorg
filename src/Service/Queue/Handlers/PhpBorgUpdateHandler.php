@@ -172,10 +172,15 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
         }
 
         // Check npm (sourcing NVM first with bash)
-        $nvmCheck = '/bin/bash -c "export NVM_DIR=/var/lib/phpborg/.nvm && source $NVM_DIR/nvm.sh && which npm" 2>&1';
+        $nvmCheck = '/bin/bash -c "export NVM_DIR=/var/lib/phpborg/.nvm && source \$NVM_DIR/nvm.sh && which npm" 2>&1';
+        $this->logger->debug("Running npm check: {$nvmCheck}", 'PHPBORG_UPDATE');
         exec($nvmCheck, $output, $exitCode);
+        $this->logger->debug("npm check result", 'PHPBORG_UPDATE', [
+            'exit_code' => $exitCode,
+            'output' => implode("\n", $output)
+        ]);
         if ($exitCode !== 0) {
-            throw new \Exception("Required binary not found: npm (NVM might not be loaded)");
+            throw new \Exception("Required binary not found: npm (NVM might not be loaded). Command: {$nvmCheck}");
         }
 
         $this->logger->info("Pre-checks passed", 'PHPBORG_UPDATE', [
