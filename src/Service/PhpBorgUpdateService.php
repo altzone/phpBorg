@@ -24,6 +24,9 @@ final class PhpBorgUpdateService
     // Default minimum commits for update notification
     private const MIN_COMMITS_FOR_NOTIFICATION = 1;
 
+    // Update check cache TTL in seconds (30 minutes)
+    private const UPDATE_CHECK_CACHE_TTL = 1800;
+
     public function __construct(
         private readonly Configuration $config,
         private readonly LoggerInterface $logger
