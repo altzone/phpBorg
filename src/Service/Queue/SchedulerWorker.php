@@ -332,47 +332,24 @@ final class SchedulerWorker
             $metadata = json_decode(file_get_contents($flagFile), true);
             $this->logger->info('Restart request detected', 'SCHEDULER', $metadata ?? []);
 
-            // Restart all workers
-            $errors = [];
-            for ($i = 1; $i <= 4; $i++) {
-                $command = sprintf('sudo systemctl restart phpborg-worker@%d 2>&1', $i);
-                exec($command, $output, $returnCode);
-
-                if ($returnCode !== 0) {
-                    $errors[] = "Worker #$i: " . implode("\n", $output);
-                    $this->logger->warning("Failed to restart worker #$i", 'SCHEDULER', [
-                        'output' => implode("\n", $output)
-                    ]);
-                } else {
-                    $this->logger->info("Worker #$i restarted successfully", 'SCHEDULER');
-                }
-            }
-
-            // Restart scheduler (this will restart us, so we do it last)
-            $command = 'sudo systemctl restart phpborg-scheduler 2>&1';
-            exec($command, $output, $returnCode);
-
-            if ($returnCode !== 0) {
-                $errors[] = "Scheduler: " . implode("\n", $output);
-                $this->logger->warning("Failed to restart scheduler", 'SCHEDULER', [
-                    'output' => implode("\n", $output)
-                ]);
-            } else {
-                $this->logger->info("Scheduler restart initiated", 'SCHEDULER');
-            }
-
-            // Delete the flag file
+            // Delete the flag file FIRST to avoid infinite restart loop
             if (unlink($flagFile)) {
                 $this->logger->info('Restart flag removed', 'SCHEDULER');
             }
 
-            if (empty($errors)) {
-                $this->logger->info('All services restarted successfully', 'SCHEDULER');
-            } else {
-                $this->logger->error('Some services failed to restart', 'SCHEDULER', [
-                    'errors' => $errors
-                ]);
-            }
+            // Execute restart script in background
+            // This allows the script to restart the scheduler (which will kill this process)
+            // and then restart workers with the new code
+            $phpborgRoot = dirname(__DIR__, 2);
+            $restartScript = "{$phpborgRoot}/bin/restart-services.sh";
+
+            $this->logger->info('Launching services restart script in background', 'SCHEDULER');
+
+            // Run in background with nohup to survive scheduler restart
+            $command = "nohup bash {$restartScript} > /dev/null 2>&1 &";
+            exec($command);
+
+            $this->logger->info('Restart script launched - services will restart in a few seconds', 'SCHEDULER');
 
         } catch (Throwable $e) {
             $this->logger->error("Failed to process restart request: {$e->getMessage()}", 'SCHEDULER');

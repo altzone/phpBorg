@@ -85,6 +85,9 @@ phpborg ALL=(ALL) NOPASSWD: /bin/systemctl daemon-reload
 
 # Regenerate systemd services (for updates)
 phpborg ALL=(ALL) NOPASSWD: /opt/newphpborg/phpBorg/bin/regenerate-systemd-services.sh
+
+# Restart services script (for updates)
+phpborg ALL=(ALL) NOPASSWD: /bin/bash ${PHPBORG_ROOT}/bin/restart-services.sh
 EOF
 
     chmod 440 "${sudoers_file}"
