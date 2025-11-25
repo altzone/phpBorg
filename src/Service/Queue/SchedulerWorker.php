@@ -323,7 +323,8 @@ final class SchedulerWorker
     {
         // Use phpborg var directory instead of /tmp because systemd PrivateTmp=true
         // isolates /tmp per service
-        $phpborgRoot = dirname(__DIR__, 2);
+        // From src/Service/Queue/SchedulerWorker.php, go up 3 levels to reach phpBorg root
+        $phpborgRoot = dirname(__DIR__, 3);
         $flagFile = $phpborgRoot . '/var/restart-needed';
 
         if (!file_exists($flagFile)) {
@@ -345,7 +346,6 @@ final class SchedulerWorker
             // Execute restart script in background
             // This allows the script to restart the scheduler (which will kill this process)
             // and then restart workers with the new code
-            $phpborgRoot = dirname(__DIR__, 2);
             $restartScript = "{$phpborgRoot}/bin/restart-services.sh";
 
             $this->logger->info('Launching services restart script in background', 'SCHEDULER');

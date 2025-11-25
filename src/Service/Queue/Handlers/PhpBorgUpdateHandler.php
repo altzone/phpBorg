@@ -87,7 +87,7 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
 
             // Step 8: Restart services
             $this->logger->info("Restarting services...", 'PHPBORG_UPDATE');
-            $this->restartServices();
+            $this->restartServices($phpborgRoot);
 
             // Step 9: Health check
             $this->logger->info("Running health check...", 'PHPBORG_UPDATE');
@@ -428,11 +428,11 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
      * Request services restart via scheduler
      * Creates a flag file that the scheduler will detect and handle
      */
-    private function restartServices(): void
+    private function restartServices(string $phpborgRoot): void
     {
         // Use phpborg var directory instead of /tmp because systemd PrivateTmp=true
         // isolates /tmp per service, so scheduler wouldn't see the flag
-        $flagFile = $this->phpborgRoot . '/var/restart-needed';
+        $flagFile = $phpborgRoot . '/var/restart-needed';
 
         // Create restart flag with metadata
         $metadata = [
