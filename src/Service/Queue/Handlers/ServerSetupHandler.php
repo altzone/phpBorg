@@ -408,11 +408,11 @@ final class ServerSetupHandler implements JobHandlerInterface
      */
     private function configureAuthorizedKeys(string $serverName, string $publicKey): void
     {
-        $authorizedKeysPath = '/home/phpborg/.ssh/authorized_keys';
+        $authorizedKeysPath = '/var/lib/phpborg/.ssh/authorized_keys';
         $repoPath = $this->config->borgBackupPath . '/' . $serverName;
 
         // Create .ssh directory for phpborg user if needed
-        $sshDir = '/home/phpborg/.ssh';
+        $sshDir = '/var/lib/phpborg/.ssh';
         if (!is_dir($sshDir)) {
             if (!mkdir($sshDir, 0700, true)) {
                 throw new \Exception("Failed to create {$sshDir}");

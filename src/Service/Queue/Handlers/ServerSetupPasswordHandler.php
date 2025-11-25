@@ -164,7 +164,7 @@ BASH;
     private function deploySSHKey(string $hostname, int $port, string $username, string $password, bool $useSudo): void
     {
         // Get phpborg's public key
-        $publicKeyPath = '/home/phpborg/.ssh/id_rsa.pub';
+        $publicKeyPath = '/var/lib/phpborg/.ssh/id_ed25519.pub';
         if (!file_exists($publicKeyPath)) {
             throw new \Exception('phpborg SSH public key not found. Please generate it first.');
         }
