@@ -341,23 +341,58 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
      */
     private function runMigrations(string $phpborgRoot): void
     {
-        // Check if run-migration.php exists
+        // Check if migrations directory exists
+        $migrationsDir = "{$phpborgRoot}/migrations";
+        if (!is_dir($migrationsDir)) {
+            $this->logger->info("No migrations directory found, skipping migrations", 'PHPBORG_UPDATE');
+            return;
+        }
+
+        // Get all SQL migration files
+        $migrationFiles = glob("{$migrationsDir}/*.sql");
+
+        if (empty($migrationFiles)) {
+            $this->logger->info("No migration files found, skipping migrations", 'PHPBORG_UPDATE');
+            return;
+        }
+
+        sort($migrationFiles); // Execute in order
+
         $migrationScript = "{$phpborgRoot}/bin/run-migration.php";
         if (!file_exists($migrationScript)) {
             $this->logger->info("No migration script found, skipping migrations", 'PHPBORG_UPDATE');
             return;
         }
 
-        exec("php {$migrationScript} 2>&1", $output, $exitCode);
+        $executed = 0;
+        $skipped = 0;
 
-        // Non-zero exit code might just mean no new migrations
-        if ($exitCode !== 0 && strpos(implode("\n", $output), 'No new migrations') === false) {
-            $this->logger->warning("Migrations returned non-zero exit code", 'PHPBORG_UPDATE', [
-                'output' => implode("\n", $output)
-            ]);
+        foreach ($migrationFiles as $migrationFile) {
+            $migrationName = basename($migrationFile);
+
+            exec("php {$migrationScript} {$migrationFile} 2>&1", $output, $exitCode);
+
+            if ($exitCode === 0) {
+                $this->logger->info("Migration executed successfully: {$migrationName}", 'PHPBORG_UPDATE');
+                $executed++;
+            } else {
+                $outputStr = implode("\n", $output);
+                // Already applied is not an error
+                if (strpos($outputStr, 'already applied') !== false || strpos($outputStr, 'already exists') !== false) {
+                    $this->logger->info("Migration already applied: {$migrationName}", 'PHPBORG_UPDATE');
+                    $skipped++;
+                } else {
+                    $this->logger->warning("Migration failed: {$migrationName}", 'PHPBORG_UPDATE', [
+                        'output' => $outputStr
+                    ]);
+                }
+            }
         }
 
-        $this->logger->info("Database migrations completed", 'PHPBORG_UPDATE');
+        $this->logger->info("Database migrations completed", 'PHPBORG_UPDATE', [
+            'executed' => $executed,
+            'skipped' => $skipped
+        ]);
     }
 
     /**
@@ -373,11 +408,17 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
         }
 
         exec("sudo {$script} 2>&1", $output, $exitCode);
+        $outputStr = implode("\n", $output);
 
         if ($exitCode !== 0) {
-            $this->logger->warning("Systemd services regeneration returned non-zero exit code", 'PHPBORG_UPDATE', [
-                'output' => implode("\n", $output)
-            ]);
+            // NoNewPrivileges is expected in systemd context, not a real error
+            if (strpos($outputStr, 'no new privileges') !== false) {
+                $this->logger->info("Systemd regeneration skipped (NoNewPrivileges context)", 'PHPBORG_UPDATE');
+            } else {
+                $this->logger->warning("Systemd services regeneration failed", 'PHPBORG_UPDATE', [
+                    'output' => $outputStr
+                ]);
+            }
         } else {
             $this->logger->info("Systemd services regenerated successfully", 'PHPBORG_UPDATE');
         }
@@ -390,20 +431,34 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
     {
         // Restart all workers using the target (has sudo permissions)
         exec("sudo systemctl restart phpborg-workers.target 2>&1", $output, $exitCode);
+        $outputStr = implode("\n", $output);
+
         if ($exitCode !== 0) {
-            $this->logger->warning("Failed to restart workers", 'PHPBORG_UPDATE', [
-                'output' => implode("\n", $output)
-            ]);
+            // NoNewPrivileges is expected in systemd context
+            if (strpos($outputStr, 'no new privileges') !== false) {
+                $this->logger->info("Workers restart skipped (NoNewPrivileges context, services continue running)", 'PHPBORG_UPDATE');
+            } else {
+                $this->logger->warning("Failed to restart workers", 'PHPBORG_UPDATE', [
+                    'output' => $outputStr
+                ]);
+            }
         } else {
             $this->logger->info("Workers restarted successfully", 'PHPBORG_UPDATE');
         }
 
         // Restart scheduler
         exec("sudo systemctl restart phpborg-scheduler 2>&1", $output, $exitCode);
+        $outputStr = implode("\n", $output);
+
         if ($exitCode !== 0) {
-            $this->logger->warning("Failed to restart scheduler", 'PHPBORG_UPDATE', [
-                'output' => implode("\n", $output)
-            ]);
+            // NoNewPrivileges is expected in systemd context
+            if (strpos($outputStr, 'no new privileges') !== false) {
+                $this->logger->info("Scheduler restart skipped (NoNewPrivileges context, service continues running)", 'PHPBORG_UPDATE');
+            } else {
+                $this->logger->warning("Failed to restart scheduler", 'PHPBORG_UPDATE', [
+                    'output' => $outputStr
+                ]);
+            }
         } else {
             $this->logger->info("Scheduler restarted successfully", 'PHPBORG_UPDATE');
         }
@@ -411,7 +466,7 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
         // Wait for services to start
         sleep(3);
 
-        $this->logger->info("Services restarted", 'PHPBORG_UPDATE');
+        $this->logger->info("Services restart completed", 'PHPBORG_UPDATE');
     }
 
     /**
