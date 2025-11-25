@@ -27,6 +27,9 @@ final class PhpBorgUpdateService
     // Update check cache TTL in seconds (30 minutes)
     private const UPDATE_CHECK_CACHE_TTL = 1800;
 
+    // Maximum number of changelog commits to display
+    private const MAX_CHANGELOG_COMMITS = 50;
+
     public function __construct(
         private readonly Configuration $config,
         private readonly LoggerInterface $logger
