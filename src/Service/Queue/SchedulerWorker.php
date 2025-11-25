@@ -79,6 +79,9 @@ final class SchedulerWorker
                     $this->lastStatsCollection = $now;
                 }
 
+                // Check for restart request flag
+                $this->checkRestartFlag();
+
                 // Sleep for 1 second before next iteration
                 sleep(1);
 
@@ -310,6 +313,73 @@ final class SchedulerWorker
                 'Failed to load stats collection interval setting: ' . $e->getMessage(),
                 'SCHEDULER'
             );
+        }
+    }
+
+    /**
+     * Check for restart request flag and execute restart if found
+     */
+    private function checkRestartFlag(): void
+    {
+        $flagFile = '/tmp/phpborg-restart-needed';
+
+        if (!file_exists($flagFile)) {
+            return; // No restart requested
+        }
+
+        try {
+            // Read metadata
+            $metadata = json_decode(file_get_contents($flagFile), true);
+            $this->logger->info('Restart request detected', 'SCHEDULER', $metadata ?? []);
+
+            // Restart all workers
+            $errors = [];
+            for ($i = 1; $i <= 4; $i++) {
+                $command = sprintf('sudo systemctl restart phpborg-worker@%d 2>&1', $i);
+                exec($command, $output, $returnCode);
+
+                if ($returnCode !== 0) {
+                    $errors[] = "Worker #$i: " . implode("\n", $output);
+                    $this->logger->warning("Failed to restart worker #$i", 'SCHEDULER', [
+                        'output' => implode("\n", $output)
+                    ]);
+                } else {
+                    $this->logger->info("Worker #$i restarted successfully", 'SCHEDULER');
+                }
+            }
+
+            // Restart scheduler (this will restart us, so we do it last)
+            $command = 'sudo systemctl restart phpborg-scheduler 2>&1';
+            exec($command, $output, $returnCode);
+
+            if ($returnCode !== 0) {
+                $errors[] = "Scheduler: " . implode("\n", $output);
+                $this->logger->warning("Failed to restart scheduler", 'SCHEDULER', [
+                    'output' => implode("\n", $output)
+                ]);
+            } else {
+                $this->logger->info("Scheduler restart initiated", 'SCHEDULER');
+            }
+
+            // Delete the flag file
+            if (unlink($flagFile)) {
+                $this->logger->info('Restart flag removed', 'SCHEDULER');
+            }
+
+            if (empty($errors)) {
+                $this->logger->info('All services restarted successfully', 'SCHEDULER');
+            } else {
+                $this->logger->error('Some services failed to restart', 'SCHEDULER', [
+                    'errors' => $errors
+                ]);
+            }
+
+        } catch (Throwable $e) {
+            $this->logger->error("Failed to process restart request: {$e->getMessage()}", 'SCHEDULER');
+            // Try to clean up the flag file even on error
+            if (file_exists($flagFile)) {
+                @unlink($flagFile);
+            }
         }
     }
 }

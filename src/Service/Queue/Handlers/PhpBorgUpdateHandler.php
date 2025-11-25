@@ -425,52 +425,37 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
     }
 
     /**
-     * Restart services
+     * Request services restart via scheduler
+     * Creates a flag file that the scheduler will detect and handle
      */
     private function restartServices(): void
     {
-        $errors = [];
+        $flagFile = '/tmp/phpborg-restart-needed';
 
-        // Restart workers using systemctl (workers 1-4)
-        $this->logger->info("Restarting workers...", 'PHPBORG_UPDATE');
-        foreach ([1, 2, 3, 4] as $workerNum) {
-            $workerName = "phpborg-worker@{$workerNum}";
-            $command = sprintf('sudo systemctl restart %s 2>&1', escapeshellarg($workerName));
-            exec($command, $output, $returnCode);
+        // Create restart flag with metadata
+        $metadata = [
+            'requested_at' => date('Y-m-d H:i:s'),
+            'requested_by' => 'phpborg_update',
+            'job_id' => null, // Could be passed from job context if needed
+        ];
 
-            if ($returnCode !== 0) {
-                $errors[] = "Worker #{$workerNum}: " . implode("\n", $output);
-                $this->logger->warning("Failed to restart worker #{$workerNum}", 'PHPBORG_UPDATE', [
-                    'output' => implode("\n", $output)
-                ]);
-            } else {
-                $this->logger->info("Worker #{$workerNum} restarted successfully", 'PHPBORG_UPDATE');
-            }
+        if (file_put_contents($flagFile, json_encode($metadata, JSON_PRETTY_PRINT)) === false) {
+            $this->logger->error("Failed to create restart flag file", 'PHPBORG_UPDATE');
+            throw new \Exception("Failed to request services restart");
         }
 
-        // Restart scheduler
-        $this->logger->info("Restarting scheduler...", 'PHPBORG_UPDATE');
-        $command = 'sudo systemctl restart phpborg-scheduler 2>&1';
-        exec($command, $output, $returnCode);
+        $this->logger->info("Services restart requested via scheduler (asynchronous)", 'PHPBORG_UPDATE');
+        $this->logger->info("Scheduler will restart services in the next cycle", 'PHPBORG_UPDATE');
 
-        if ($returnCode !== 0) {
-            $errors[] = "Scheduler: " . implode("\n", $output);
-            $this->logger->warning("Failed to restart scheduler", 'PHPBORG_UPDATE', [
-                'output' => implode("\n", $output)
-            ]);
+        // Wait a bit for scheduler to pick it up and restart services
+        $this->logger->info("Waiting for scheduler to process restart request...", 'PHPBORG_UPDATE');
+        sleep(10);
+
+        // Check if flag is still there (means scheduler hasn't processed it yet)
+        if (file_exists($flagFile)) {
+            $this->logger->warning("Restart flag still present, scheduler might be delayed", 'PHPBORG_UPDATE');
         } else {
-            $this->logger->info("Scheduler restarted successfully", 'PHPBORG_UPDATE');
-        }
-
-        // Wait for services to start
-        sleep(3);
-
-        if (empty($errors)) {
-            $this->logger->info("All services restarted successfully", 'PHPBORG_UPDATE');
-        } else {
-            $this->logger->warning("Some services failed to restart", 'PHPBORG_UPDATE', [
-                'errors' => $errors
-            ]);
+            $this->logger->info("Services restart processed by scheduler", 'PHPBORG_UPDATE');
         }
     }
 
