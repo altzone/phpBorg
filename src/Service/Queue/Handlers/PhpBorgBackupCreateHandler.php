@@ -21,7 +21,7 @@ use PhpBorg\Service\Queue\JobQueue;
  * - Complete codebase (excluding node_modules, vendor, .git)
  * - Complete database dump
  * - Configuration files (.env)
- * - SSH keys (/home/phpborg/.ssh/keys)
+ * - SSH keys (/var/lib/phpborg/.ssh/keys)
  * - Systemd services (not included by default, requires root access)
  *
  * Features:
@@ -401,7 +401,7 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
         $phpborgRoot = dirname(__DIR__, 4);
 
         // Build tar command
-        $sshKeysPath = '/home/phpborg/.ssh';
+        $sshKeysPath = '/var/lib/phpborg/.ssh';
         $cmd = sprintf(
             'cd %s && tar -czf %s ' .
             '--exclude=node_modules ' .
