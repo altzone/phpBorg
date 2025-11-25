@@ -400,11 +400,11 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
     {
         $phpborgRoot = dirname(__DIR__, 4);
 
-        // Build tar command - include SSH keys if directory exists
+        // Build tar command - include SSH keys directory if it exists
         $sshKeysPath = '/var/lib/phpborg/.ssh/keys';
-        $sshKeysInclude = '';
+        $sshInclude = '';
         if (is_dir($sshKeysPath)) {
-            $sshKeysInclude = sprintf('-C %s . ', escapeshellarg(dirname($sshKeysPath)));
+            $sshInclude = sprintf('-C %s keys ', escapeshellarg(dirname($sshKeysPath)));
         }
 
         $cmd = sprintf(
@@ -423,7 +423,7 @@ final class PhpBorgBackupCreateHandler implements JobHandlerInterface
             escapeshellarg($outputPath),
             escapeshellarg($phpborgRoot),
             escapeshellarg($workDir),
-            $sshKeysInclude
+            $sshInclude
         );
 
         $output = [];

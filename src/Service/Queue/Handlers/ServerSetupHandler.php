@@ -280,14 +280,14 @@ final class ServerSetupHandler implements JobHandlerInterface
 
     /**
      * Generate SSH key pair for this server
-     * Keys are stored in /home/phpborg/.ssh/keys/{serverName}/
+     * Keys are stored in /var/lib/phpborg/.ssh/keys/{serverName}/
      *
      * @return array{public: string, private: string, path: string}
      */
     private function generateSSHKeys(string $serverName, int $serverId): array
     {
         // Keys directory for phpborg user
-        $keysDir = '/home/phpborg/.ssh/keys/' . $serverName;
+        $keysDir = '/var/lib/phpborg/.ssh/keys/' . $serverName;
         $privateKeyPath = $keysDir . '/id_ed25519';
         $publicKeyPath = $privateKeyPath . '.pub';
 
