@@ -28,7 +28,7 @@ final class PhpBorgUpdateService
     private const UPDATE_CHECK_CACHE_TTL = 1800;
 
     // Test constant to verify update system works correctly
-    private const UPDATE_SYSTEM_TEST_VERSION = 11;
+    private const UPDATE_SYSTEM_TEST_VERSION = 12;
 
     // Maximum number of changelog commits to display
     private const MAX_CHANGELOG_COMMITS = 50;

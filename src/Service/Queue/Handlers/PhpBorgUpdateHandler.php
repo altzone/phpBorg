@@ -426,18 +426,52 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
 
     /**
      * Restart services
-     * Note: In NoNewPrivileges context, services will reload the new code automatically
      */
     private function restartServices(): void
     {
-        $this->logger->info("Skipping service restart - workers will reload new code automatically on next job", 'PHPBORG_UPDATE');
-        $this->logger->info("Tip: Use the Workers API to manually restart if needed", 'PHPBORG_UPDATE');
+        $errors = [];
 
-        // Note: We don't restart services here because:
-        // 1. NoNewPrivileges prevents sudo in systemd worker context
-        // 2. Workers automatically reload code on next job execution
-        // 3. A manual restart via API can be done if immediate restart is needed
-        // 4. The health check validates everything works correctly
+        // Restart workers using systemctl (workers 1-4)
+        $this->logger->info("Restarting workers...", 'PHPBORG_UPDATE');
+        foreach ([1, 2, 3, 4] as $workerNum) {
+            $workerName = "phpborg-worker@{$workerNum}";
+            $command = sprintf('sudo systemctl restart %s 2>&1', escapeshellarg($workerName));
+            exec($command, $output, $returnCode);
+
+            if ($returnCode !== 0) {
+                $errors[] = "Worker #{$workerNum}: " . implode("\n", $output);
+                $this->logger->warning("Failed to restart worker #{$workerNum}", 'PHPBORG_UPDATE', [
+                    'output' => implode("\n", $output)
+                ]);
+            } else {
+                $this->logger->info("Worker #{$workerNum} restarted successfully", 'PHPBORG_UPDATE');
+            }
+        }
+
+        // Restart scheduler
+        $this->logger->info("Restarting scheduler...", 'PHPBORG_UPDATE');
+        $command = 'sudo systemctl restart phpborg-scheduler 2>&1';
+        exec($command, $output, $returnCode);
+
+        if ($returnCode !== 0) {
+            $errors[] = "Scheduler: " . implode("\n", $output);
+            $this->logger->warning("Failed to restart scheduler", 'PHPBORG_UPDATE', [
+                'output' => implode("\n", $output)
+            ]);
+        } else {
+            $this->logger->info("Scheduler restarted successfully", 'PHPBORG_UPDATE');
+        }
+
+        // Wait for services to start
+        sleep(3);
+
+        if (empty($errors)) {
+            $this->logger->info("All services restarted successfully", 'PHPBORG_UPDATE');
+        } else {
+            $this->logger->warning("Some services failed to restart", 'PHPBORG_UPDATE', [
+                'errors' => $errors
+            ]);
+        }
     }
 
     /**
