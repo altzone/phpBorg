@@ -388,14 +388,14 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
      */
     private function restartServices(): void
     {
-        // Restart workers (except worker #1 which is running this job)
-        foreach ([2, 3, 4] as $workerNum) {
-            exec("sudo systemctl restart phpborg-worker@{$workerNum} 2>&1", $output, $exitCode);
-            if ($exitCode !== 0) {
-                $this->logger->warning("Failed to restart worker #{$workerNum}", 'PHPBORG_UPDATE', [
-                    'output' => implode("\n", $output)
-                ]);
-            }
+        // Restart all workers using the target (has sudo permissions)
+        exec("sudo systemctl restart phpborg-workers.target 2>&1", $output, $exitCode);
+        if ($exitCode !== 0) {
+            $this->logger->warning("Failed to restart workers", 'PHPBORG_UPDATE', [
+                'output' => implode("\n", $output)
+            ]);
+        } else {
+            $this->logger->info("Workers restarted successfully", 'PHPBORG_UPDATE');
         }
 
         // Restart scheduler
@@ -404,6 +404,8 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             $this->logger->warning("Failed to restart scheduler", 'PHPBORG_UPDATE', [
                 'output' => implode("\n", $output)
             ]);
+        } else {
+            $this->logger->info("Scheduler restarted successfully", 'PHPBORG_UPDATE');
         }
 
         // Wait for services to start
