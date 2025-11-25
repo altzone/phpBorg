@@ -36,6 +36,9 @@ final class PhpBorgUpdateService
     // Retry attempts for failed git operations
     private const GIT_RETRY_ATTEMPTS = 3;
 
+    // Timeout for git operations in seconds
+    private const GIT_OPERATION_TIMEOUT = 300;
+
     public function __construct(
         private readonly Configuration $config,
         private readonly LoggerInterface $logger
