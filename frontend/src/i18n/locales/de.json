@@ -421,7 +421,9 @@
         "manual": "Manuell",
         "scheduled": "Geplant",
         "preUpdate": "Vor Update",
-        "preRestore": "Vor Wiederherstellung"
+        "pre_update": "Vor Update",
+        "preRestore": "Vor Wiederherstellung",
+        "pre_restore": "Vor Wiederherstellung"
       },
       "filters": {
         "allTypes": "Alle Typen",
@@ -484,7 +486,9 @@
         "manual": "Manuell",
         "scheduled": "Geplant",
         "preUpdate": "Vor Update",
-        "preRestore": "Vor Wiederherstellung"
+        "pre_update": "Vor Update",
+        "preRestore": "Vor Wiederherstellung",
+        "pre_restore": "Vor Wiederherstellung"
       },
       "filters": {
         "allTypes": "Alle Typen",

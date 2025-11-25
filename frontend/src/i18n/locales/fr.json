@@ -421,7 +421,9 @@
         "manual": "Manuelle",
         "scheduled": "Programmée",
         "preUpdate": "Pré-mise à jour",
-        "preRestore": "Pré-restauration"
+        "pre_update": "Pré-mise à jour",
+        "preRestore": "Pré-restauration",
+        "pre_restore": "Pré-restauration"
       },
       "filters": {
         "allTypes": "Tous les types",
@@ -484,7 +486,9 @@
         "manual": "Manuelle",
         "scheduled": "Programmée",
         "preUpdate": "Pré-mise à jour",
-        "preRestore": "Pré-restauration"
+        "pre_update": "Pré-mise à jour",
+        "preRestore": "Pré-restauration",
+        "pre_restore": "Pré-restauration"
       },
       "filters": {
         "allTypes": "Tous les types",
