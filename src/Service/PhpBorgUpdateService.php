@@ -60,6 +60,7 @@ final class PhpBorgUpdateService
     {
         try {
             $gitDir = $this->getGitDirectory();
+            $remoteRef = self::GIT_REMOTE . '/' . self::GIT_BRANCH;
 
             // Fetch latest from remote
             $this->logger->info("Fetching latest updates from git remote", 'PHPBORG_UPDATE');
@@ -72,19 +73,24 @@ final class PhpBorgUpdateService
             // Get current commit
             $currentCommit = trim(shell_exec("cd {$gitDir} && git rev-parse HEAD") ?? '');
 
-            // Get latest remote commit (use FETCH_HEAD which is updated by git fetch)
-            $latestCommit = trim(shell_exec("cd {$gitDir} && git rev-parse FETCH_HEAD") ?? '');
+            // Get latest remote commit (use origin/master which is more reliable than FETCH_HEAD)
+            $latestCommit = trim(shell_exec("cd {$gitDir} && git rev-parse {$remoteRef} 2>/dev/null") ?? '');
+
+            // Validate we got a proper commit hash (40 hex characters)
+            if (empty($latestCommit) || !preg_match('/^[a-f0-9]{40}$/i', $latestCommit)) {
+                throw new \Exception("Failed to get remote commit hash: got '{$latestCommit}'");
+            }
 
             // Count commits behind
             $commitsBehind = 0;
             if ($currentCommit !== $latestCommit) {
-                $commitsBehind = (int)trim(shell_exec("cd {$gitDir} && git rev-list --count HEAD..FETCH_HEAD") ?? '0');
+                $commitsBehind = (int)trim(shell_exec("cd {$gitDir} && git rev-list --count HEAD..{$remoteRef}") ?? '0');
             }
 
             // Get latest commit message
             $latestMessage = '';
             if ($currentCommit !== $latestCommit) {
-                $latestMessage = trim(shell_exec("cd {$gitDir} && git log -1 --format=%s FETCH_HEAD 2>/dev/null") ?? '');
+                $latestMessage = trim(shell_exec("cd {$gitDir} && git log -1 --format=%s {$remoteRef} 2>/dev/null") ?? '');
             }
 
             $this->logger->info("Update check completed", 'PHPBORG_UPDATE', [
@@ -130,10 +136,11 @@ final class PhpBorgUpdateService
     {
         try {
             $gitDir = $this->getGitDirectory();
+            $remoteRef = self::GIT_REMOTE . '/' . self::GIT_BRANCH;
 
-            // Get commits between HEAD and FETCH_HEAD
+            // Get commits between HEAD and origin/master
             $format = '--pretty=format:{"hash":"%H","hash_short":"%h","author":"%an","date":"%ai","message":"%s"}';
-            $cmd = "cd {$gitDir} && git log HEAD..FETCH_HEAD {$format} 2>&1";
+            $cmd = "cd {$gitDir} && git log HEAD..{$remoteRef} {$format} 2>&1";
 
             exec($cmd, $output, $exitCode);
 
