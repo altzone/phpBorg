@@ -28,13 +28,20 @@
             :key="tab.id"
             @click="activeTab = tab.id"
             :class="[
-              'whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition-colors',
+              'whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition-colors relative',
               activeTab === tab.id
                 ? 'border-primary-500 text-primary-600'
                 : 'border-transparent text-gray-500 dark:text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:border-gray-600'
             ]"
           >
             {{ tab.label }}
+            <!-- Badge for update tab -->
+            <span
+              v-if="tab.id === 'update' && updateCommitCount > 0"
+              class="ml-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full"
+            >
+              {{ updateCommitCount }}
+            </span>
           </button>
         </nav>
       </div>
@@ -463,12 +470,14 @@ import { useRoute } from 'vue-router'
 import { useSettingsStore } from '@/stores/settings'
 import { emailService } from '@/services/email'
 import UpdateSettings from '@/components/UpdateSettings.vue'
+import phpborgUpdateService from '@/services/phpborgUpdate'
 
 const { t } = useI18n()
 const route = useRoute()
 const settingsStore = useSettingsStore()
 
 const activeTab = ref(route.query.tab || 'general')
+const updateCommitCount = ref(0)
 
 // Test Email Modal
 const showTestEmailModal = ref(false)
@@ -501,6 +510,16 @@ const systemForm = reactive({})
 onMounted(async () => {
   await settingsStore.fetchSettings()
   loadForms()
+
+  // Fetch update information for badge
+  try {
+    const updateResult = await phpborgUpdateService.checkForUpdates()
+    if (updateResult.success && updateResult.data.available) {
+      updateCommitCount.value = updateResult.data.commits_behind || 0
+    }
+  } catch (error) {
+    console.error('Failed to check for updates:', error)
+  }
 })
 
 function loadForms() {
