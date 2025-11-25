@@ -22,6 +22,9 @@ final class Worker
 
     private readonly string $workerTag;
 
+    private int $lastConnectionCheck = 0;
+    private const CONNECTION_CHECK_INTERVAL = 300; // Check connection every 5 minutes
+
     public function __construct(
         private readonly JobQueue $queue,
         private readonly LoggerInterface $logger,

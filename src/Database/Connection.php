@@ -14,6 +14,7 @@ final class Connection
 {
     private ?mysqli $connection = null;
     private int $queryCount = 0;
+    private int $reconnectCount = 0;
 
     public function __construct(
         private readonly string $host,
@@ -36,6 +37,11 @@ final class Connection
             $this->connect();
         }
 
+        // Check if connection is still alive, reconnect if needed
+        if (!$this->ping()) {
+            $this->reconnect();
+        }
+
         return $this->connection;
     }
 
@@ -48,6 +54,25 @@ final class Connection
      * @throws DatabaseException
      */
     public function execute(string $query, array $params = []): array
+    {
+        try {
+            return $this->executeQuery($query, $params);
+        } catch (DatabaseException $e) {
+            // Retry once if connection was lost
+            if ($this->isConnectionLostError($e)) {
+                $this->reconnect();
+                return $this->executeQuery($query, $params);
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Internal method to execute query
+     *
+     * @throws DatabaseException
+     */
+    private function executeQuery(string $query, array $params = []): array
     {
         $mysqli = $this->getConnection();
         $stmt = $mysqli->prepare($query);
@@ -116,6 +141,25 @@ final class Connection
      */
     public function executeUpdate(string $query, array $params = []): int
     {
+        try {
+            return $this->executeUpdateQuery($query, $params);
+        } catch (DatabaseException $e) {
+            // Retry once if connection was lost
+            if ($this->isConnectionLostError($e)) {
+                $this->reconnect();
+                return $this->executeUpdateQuery($query, $params);
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Internal method to execute update query
+     *
+     * @throws DatabaseException
+     */
+    private function executeUpdateQuery(string $query, array $params = []): int
+    {
         $mysqli = $this->getConnection();
         $stmt = $mysqli->prepare($query);
 
@@ -163,6 +207,14 @@ final class Connection
     public function getQueryCount(): int
     {
         return $this->queryCount;
+    }
+
+    /**
+     * Get total reconnect count
+     */
+    public function getReconnectCount(): int
+    {
+        return $this->reconnectCount;
     }
 
     /**
@@ -230,6 +282,68 @@ final class Connection
                 $e
             );
         }
+    }
+
+    /**
+     * Reconnect to database (close existing connection and create new one)
+     *
+     * @throws DatabaseException
+     */
+    public function reconnect(): void
+    {
+        $this->reconnectCount++;
+        error_log(sprintf(
+            "[DATABASE] Reconnecting to MySQL (reconnection #%d) - previous connection was lost",
+            $this->reconnectCount
+        ));
+
+        $this->close();
+        $this->connect();
+
+        error_log("[DATABASE] Successfully reconnected to MySQL");
+    }
+
+    /**
+     * Check if connection is alive using ping
+     *
+     * @return bool True if connection is alive, false otherwise
+     */
+    public function ping(): bool
+    {
+        if ($this->connection === null) {
+            return false;
+        }
+
+        try {
+            return @$this->connection->ping();
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Check if error is a connection lost error
+     */
+    private function isConnectionLostError(DatabaseException $e): bool
+    {
+        $message = $e->getMessage();
+
+        // Common MySQL connection lost error messages
+        $connectionLostMessages = [
+            'MySQL server has gone away',
+            'Lost connection to MySQL server',
+            'Connection timed out',
+            'Error while sending QUERY packet',
+            'MySQL server has gone away during query',
+        ];
+
+        foreach ($connectionLostMessages as $pattern) {
+            if (stripos($message, $pattern) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
