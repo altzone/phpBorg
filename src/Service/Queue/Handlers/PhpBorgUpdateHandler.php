@@ -218,18 +218,23 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
 
         $job = new Job(
             id: 0,
+            queue: 'default',
             type: 'phpborg_backup_create',
-            queueName: 'default',
             payload: [
                 'backup_type' => 'pre_update',
                 'notes' => 'Automatic backup before update'
             ],
-            priority: 10,
-            maxRetries: 0,
-            createdAt: new \DateTimeImmutable(),
             status: 'processing',
-            startedAt: new \DateTimeImmutable(),
-            attempts: 1
+            workerId: null,
+            progress: 0,
+            attempts: 1,
+            maxAttempts: 1,
+            output: null,
+            error: null,
+            startedAt: new \DateTime(),
+            completedAt: null,
+            createdAt: new \DateTime(),
+            createdBy: null
         );
 
         $handler->handle($job, new JobQueue(
@@ -455,18 +460,23 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
 
         $job = new Job(
             id: 0,
+            queue: 'default',
             type: 'phpborg_backup_restore',
-            queueName: 'default',
             payload: [
                 'backup_id' => $backupId,
                 'create_pre_restore_backup' => false // Don't create backup when rolling back
             ],
-            priority: 10,
-            maxRetries: 0,
-            createdAt: new \DateTimeImmutable(),
             status: 'processing',
-            startedAt: new \DateTimeImmutable(),
-            attempts: 1
+            workerId: null,
+            progress: 0,
+            attempts: 1,
+            maxAttempts: 1,
+            output: null,
+            error: null,
+            startedAt: new \DateTime(),
+            completedAt: null,
+            createdAt: new \DateTime(),
+            createdBy: null
         );
 
         $handler->handle($job, new JobQueue(
