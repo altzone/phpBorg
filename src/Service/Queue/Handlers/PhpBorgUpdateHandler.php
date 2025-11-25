@@ -81,11 +81,15 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             $this->logger->info("Running database migrations...", 'PHPBORG_UPDATE');
             $this->runMigrations($phpborgRoot);
 
-            // Step 7: Restart services
+            // Step 7: Regenerate systemd services (if changed)
+            $this->logger->info("Regenerating systemd services...", 'PHPBORG_UPDATE');
+            $this->regenerateSystemdServices($phpborgRoot);
+
+            // Step 8: Restart services
             $this->logger->info("Restarting services...", 'PHPBORG_UPDATE');
             $this->restartServices();
 
-            // Step 8: Health check
+            // Step 9: Health check
             $this->logger->info("Running health check...", 'PHPBORG_UPDATE');
             $healthCheck = $this->healthCheck();
 
@@ -354,6 +358,29 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
         }
 
         $this->logger->info("Database migrations completed", 'PHPBORG_UPDATE');
+    }
+
+    /**
+     * Regenerate systemd services
+     */
+    private function regenerateSystemdServices(string $phpborgRoot): void
+    {
+        $script = "{$phpborgRoot}/bin/regenerate-systemd-services.sh";
+
+        if (!file_exists($script)) {
+            $this->logger->info("Systemd regeneration script not found, skipping", 'PHPBORG_UPDATE');
+            return;
+        }
+
+        exec("sudo {$script} 2>&1", $output, $exitCode);
+
+        if ($exitCode !== 0) {
+            $this->logger->warning("Systemd services regeneration returned non-zero exit code", 'PHPBORG_UPDATE', [
+                'output' => implode("\n", $output)
+            ]);
+        } else {
+            $this->logger->info("Systemd services regenerated successfully", 'PHPBORG_UPDATE');
+        }
     }
 
     /**
