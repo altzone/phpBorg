@@ -321,11 +321,16 @@ final class SchedulerWorker
      */
     private function checkRestartFlag(): void
     {
-        $flagFile = '/tmp/phpborg-restart-needed';
+        // Use phpborg var directory instead of /tmp because systemd PrivateTmp=true
+        // isolates /tmp per service
+        $phpborgRoot = dirname(__DIR__, 2);
+        $flagFile = $phpborgRoot . '/var/restart-needed';
 
         if (!file_exists($flagFile)) {
             return; // No restart requested
         }
+
+        $this->logger->info("Restart flag file found at {$flagFile}", 'SCHEDULER');
 
         try {
             // Read metadata

@@ -430,7 +430,9 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
      */
     private function restartServices(): void
     {
-        $flagFile = '/tmp/phpborg-restart-needed';
+        // Use phpborg var directory instead of /tmp because systemd PrivateTmp=true
+        // isolates /tmp per service, so scheduler wouldn't see the flag
+        $flagFile = $this->phpborgRoot . '/var/restart-needed';
 
         // Create restart flag with metadata
         $metadata = [

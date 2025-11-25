@@ -513,12 +513,15 @@ onMounted(async () => {
 
   // Fetch update information for badge
   try {
+    console.log('[SettingsView] Checking for updates...')
     const updateResult = await phpborgUpdateService.checkForUpdates()
-    if (updateResult.success && updateResult.data.available) {
+    console.log('[SettingsView] Update result:', updateResult)
+    if (updateResult.success && updateResult.data?.available) {
       updateCommitCount.value = updateResult.data.commits_behind || 0
+      console.log('[SettingsView] Updates available:', updateCommitCount.value)
     }
   } catch (error) {
-    console.error('Failed to check for updates:', error)
+    console.error('[SettingsView] Failed to check for updates:', error)
   }
 })
 
