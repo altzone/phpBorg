@@ -21,6 +21,9 @@ final class PhpBorgUpdateService
     private const GIT_REMOTE = 'origin';
     private const GIT_BRANCH = 'master';
 
+    // Default minimum commits for update notification
+    private const MIN_COMMITS_FOR_NOTIFICATION = 1;
+
     public function __construct(
         private readonly Configuration $config,
         private readonly LoggerInterface $logger
