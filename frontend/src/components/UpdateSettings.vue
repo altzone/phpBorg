@@ -337,12 +337,20 @@ async function startUpdate() {
         status: 'processing'
       })
 
+      // Reset state
+      updating.value = false
+
       // Navigate to jobs page
       router.push({ name: 'jobs' })
+    } else {
+      // API returned success:false
+      showToast(t('settings.update.update_error'), result.message || '', 'error')
+      updating.value = false
     }
   } catch (error) {
     console.error('Failed to start update:', error)
-    showToast(t('settings.update.update_error'), '', 'error')
+    const errorMsg = error.response?.data?.message || error.message || t('settings.update.update_error')
+    showToast(t('settings.update.update_error'), errorMsg, 'error')
     updating.value = false
   }
 }
