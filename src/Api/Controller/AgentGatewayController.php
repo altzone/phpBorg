@@ -442,7 +442,7 @@ final class AgentGatewayController extends BaseController
         $currentVersion = $data['current_version'] ?? '0.0.0';
 
         // Get latest agent version from releases directory
-        $releasesDir = PHPBORG_ROOT . '/releases/agent';
+        $releasesDir = dirname(__DIR__, 3) . '/releases/agent';
         $latestVersion = $this->getLatestAgentVersion($releasesDir);
         $binaryPath = $this->getAgentBinaryPath($releasesDir, $latestVersion);
 
@@ -481,7 +481,7 @@ final class AgentGatewayController extends BaseController
             return;
         }
 
-        $releasesDir = PHPBORG_ROOT . '/releases/agent';
+        $releasesDir = dirname(__DIR__, 3) . '/releases/agent';
         $latestVersion = $this->getLatestAgentVersion($releasesDir);
         $binaryPath = $this->getAgentBinaryPath($releasesDir, $latestVersion);
 
