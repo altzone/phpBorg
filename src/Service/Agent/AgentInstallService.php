@@ -506,6 +506,17 @@ fi
 echo ""
 echo -e "\${YELLOW}[7/9] Downloading agent binary...\${NC}"
 
+# Stop existing service if running (for re-installation)
+if systemctl is-active --quiet phpborg-agent 2>/dev/null; then
+    echo "  Stopping existing agent service..."
+    systemctl stop phpborg-agent
+fi
+
+# Remove old binary if exists (can be locked)
+if [ -f "\$BIN_PATH" ]; then
+    rm -f "\$BIN_PATH"
+fi
+
 if curl -fsSL -o "\$BIN_PATH" "\$AGENT_BINARY_URL"; then
     chmod +x "\$BIN_PATH"
 
