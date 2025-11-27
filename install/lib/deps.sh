@@ -762,8 +762,8 @@ build_phpborg_agent() {
         go mod tidy >> "${INSTALL_LOG}" 2>&1
     fi
 
-    # Build for linux/amd64
-    if CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o "${binary_path}" ./cmd/phpborg-agent >> "${INSTALL_LOG}" 2>&1; then
+    # Build for linux/amd64 (disable VCS stamping for clean builds)
+    if CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -buildvcs=false -ldflags="-s -w" -o "${binary_path}" ./cmd/phpborg-agent >> "${INSTALL_LOG}" 2>&1; then
         chmod +x "${binary_path}"
         chown phpborg:phpborg "${binary_path}"
 
