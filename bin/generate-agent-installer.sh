@@ -332,6 +332,7 @@ ProtectHome=read-only
 PrivateTmp=yes
 ReadWritePaths=$LOG_DIR
 ReadWritePaths=$AGENT_HOME
+ReadWritePaths=/usr/local/bin
 
 [Install]
 WantedBy=multi-user.target

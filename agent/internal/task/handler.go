@@ -473,8 +473,8 @@ func (h *Handler) handleAgentUpdate(ctx context.Context, task api.Task) (map[str
 
 	h.client.UpdateProgress(ctx, task.ID, 80, "Backing up current binary...")
 
-	// Backup current binary
-	backupFile := currentBinary + ".backup"
+	// Backup current binary to /tmp (systemd protects /usr/local/bin)
+	backupFile := "/tmp/.phpborg-agent.backup"
 	if err := copyFile(currentBinary, backupFile); err != nil {
 		os.Remove(tmpFile)
 		return nil, 1, fmt.Errorf("failed to backup current binary: %w", err)
@@ -482,13 +482,14 @@ func (h *Handler) handleAgentUpdate(ctx context.Context, task api.Task) (map[str
 
 	h.client.UpdateProgress(ctx, task.ID, 85, "Replacing binary...")
 
-	// Replace binary (atomic rename)
-	if err := os.Rename(tmpFile, currentBinary); err != nil {
+	// Replace binary (copy instead of rename - different filesystems)
+	if err := copyFile(tmpFile, currentBinary); err != nil {
 		// Try to restore backup
-		os.Rename(backupFile, currentBinary)
+		copyFile(backupFile, currentBinary)
 		os.Remove(tmpFile)
 		return nil, 1, fmt.Errorf("failed to replace binary: %w", err)
 	}
+	os.Remove(tmpFile) // Clean up temp file
 
 	h.client.UpdateProgress(ctx, task.ID, 90, "Restarting agent via systemd...")
 
