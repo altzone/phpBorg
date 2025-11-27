@@ -20,9 +20,11 @@ use PhpBorg\Service\Queue\JobQueue;
  * 3. Git pull (update code)
  * 4. Composer install
  * 5. NPM build frontend
+ * 5b. Rebuild Go agent (if Go available)
  * 6. Run database migrations
- * 7. Restart services
- * 8. Health check (auto-rollback on failure)
+ * 7. Regenerate systemd services
+ * 8. Restart services
+ * 9. Health check (auto-rollback on failure)
  */
 final class PhpBorgUpdateHandler implements JobHandlerInterface
 {
@@ -76,6 +78,10 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             // Step 5: NPM build
             $this->logger->info("Building frontend...", 'PHPBORG_UPDATE');
             $this->npmBuild($phpborgRoot);
+
+            // Step 5b: Rebuild Go agent (if Go is available)
+            $this->logger->info("Rebuilding Go agent...", 'PHPBORG_UPDATE');
+            $this->rebuildAgent($phpborgRoot);
 
             // Step 6: Database migrations
             $this->logger->info("Running database migrations...", 'PHPBORG_UPDATE');
@@ -334,6 +340,41 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
         }
 
         $this->logger->info("Frontend built successfully", 'PHPBORG_UPDATE');
+    }
+
+    /**
+     * Rebuild Go agent binary
+     */
+    private function rebuildAgent(string $phpborgRoot): void
+    {
+        $agentDir = "{$phpborgRoot}/agent";
+
+        // Check if agent directory exists
+        if (!is_dir($agentDir)) {
+            $this->logger->info("No agent directory found, skipping agent rebuild", 'PHPBORG_UPDATE');
+            return;
+        }
+
+        // Check if Go is installed
+        exec("which go 2>&1", $output, $exitCode);
+        if ($exitCode !== 0) {
+            $this->logger->warning("Go not installed, skipping agent rebuild", 'PHPBORG_UPDATE');
+            return;
+        }
+
+        // Build the agent
+        $cmd = "cd {$agentDir} && go build -o phpborg-agent ./cmd/agent 2>&1";
+        exec($cmd, $output, $exitCode);
+
+        if ($exitCode !== 0) {
+            $this->logger->warning("Agent rebuild failed", 'PHPBORG_UPDATE', [
+                'output' => implode("\n", $output)
+            ]);
+            // Don't fail update - agent rebuild is optional
+            return;
+        }
+
+        $this->logger->info("Go agent rebuilt successfully", 'PHPBORG_UPDATE');
     }
 
     /**
