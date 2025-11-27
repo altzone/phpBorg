@@ -354,7 +354,7 @@ chmod 440 "\$SUDOERS_FILE"
 echo -e "  \${GREEN}✓ Sudoers rules installed\${NC}"
 
 # =============================================================================
-# Step 6: Register with phpBorg server and get mTLS certificates
+# Step 6: Register with phpBorg server
 # =============================================================================
 echo ""
 echo -e "\${YELLOW}[6/9] Registering with phpBorg server...\${NC}"
@@ -381,7 +381,7 @@ REGISTER_RESPONSE=\$(curl -s -X POST \\
 }
 
 if echo "\$REGISTER_RESPONSE" | grep -q '"success":true'; then
-    echo -e "  \${GREEN}✓ Registered successfully\${NC}"
+    echo -e "  \${GREEN}✓ Registration accepted\${NC}"
 else
     echo -e "  \${RED}ERROR: Registration failed\${NC}"
     echo "  Response: \$REGISTER_RESPONSE"
@@ -391,49 +391,89 @@ fi
 # Extract server host from response for SSH config
 SERVER_HOST=\$(echo "\$SERVER_URL" | sed 's|https\\?://||' | sed 's|/.*||' | sed 's|:.*||')
 
+# Extract job_id for polling deployment status
+if command -v jq &>/dev/null; then
+    JOB_ID=\$(echo "\$REGISTER_RESPONSE" | jq -r '.data.job_id // empty')
+else
+    JOB_ID=\$(echo "\$REGISTER_RESPONSE" | grep -o '"job_id":[0-9]*' | sed 's/"job_id"://')
+fi
+
 # =============================================================================
-# Step 6b: Extract and save mTLS certificates
+# Step 6b: Poll for deployment completion and get mTLS certificates
 # =============================================================================
 CERTS_DIR="\$CONFIG_DIR/certs"
 mkdir -p "\$CERTS_DIR"
 chmod 700 "\$CERTS_DIR"
+USE_MTLS=false
 
-MTLS_ENABLED=\$(echo "\$REGISTER_RESPONSE" | grep -o '"mtls_enabled":true' || echo "")
+if [ -n "\$JOB_ID" ] && [ "\$JOB_ID" != "null" ]; then
+    echo -e "  \${YELLOW}Waiting for deployment (job #\$JOB_ID)...\${NC}"
 
-if [ -n "\$MTLS_ENABLED" ]; then
-    echo -e "  \${YELLOW}Extracting mTLS certificates...\${NC}"
+    POLL_URL="\${SERVER_URL}/api/server-wizard/deployment-status/\${JOB_ID}"
+    MAX_ATTEMPTS=30
+    ATTEMPT=0
 
-    # Extract base64 encoded certificates using jq if available, otherwise use grep/sed
-    if command -v jq &>/dev/null; then
-        CERT_B64=\$(echo "\$REGISTER_RESPONSE" | jq -r '.data.certificates.cert // empty')
-        KEY_B64=\$(echo "\$REGISTER_RESPONSE" | jq -r '.data.certificates.key // empty')
-        CA_B64=\$(echo "\$REGISTER_RESPONSE" | jq -r '.data.certificates.ca // empty')
-    else
-        # Fallback to grep/sed (less reliable but works)
-        CERT_B64=\$(echo "\$REGISTER_RESPONSE" | grep -o '"cert":"[^"]*"' | sed 's/"cert":"//;s/"$//')
-        KEY_B64=\$(echo "\$REGISTER_RESPONSE" | grep -o '"key":"[^"]*"' | sed 's/"key":"//;s/"$//')
-        CA_B64=\$(echo "\$REGISTER_RESPONSE" | grep -o '"ca":"[^"]*"' | sed 's/"ca":"//;s/"$//')
-    fi
+    while [ \$ATTEMPT -lt \$MAX_ATTEMPTS ]; do
+        ATTEMPT=\$((ATTEMPT + 1))
+        sleep 2
 
-    if [ -n "\$CERT_B64" ] && [ -n "\$KEY_B64" ] && [ -n "\$CA_B64" ]; then
-        echo "\$CERT_B64" | base64 -d > "\$CERTS_DIR/agent.crt"
-        echo "\$KEY_B64" | base64 -d > "\$CERTS_DIR/agent.key"
-        echo "\$CA_B64" | base64 -d > "\$CERTS_DIR/ca.crt"
+        POLL_RESPONSE=\$(curl -s "\$POLL_URL" 2>&1) || continue
 
-        chmod 644 "\$CERTS_DIR/agent.crt"
-        chmod 600 "\$CERTS_DIR/agent.key"
-        chmod 644 "\$CERTS_DIR/ca.crt"
-        chown -R "\$AGENT_USER:\$AGENT_USER" "\$CERTS_DIR"
+        # Check job status
+        if command -v jq &>/dev/null; then
+            STATUS=\$(echo "\$POLL_RESPONSE" | jq -r '.data.status // empty')
+            SUCCESS=\$(echo "\$POLL_RESPONSE" | jq -r '.data.success // empty')
+        else
+            STATUS=\$(echo "\$POLL_RESPONSE" | grep -o '"status":"[^"]*"' | head -1 | sed 's/"status":"//;s/"$//')
+            SUCCESS=\$(echo "\$POLL_RESPONSE" | grep -o '"success":true' || echo "")
+        fi
 
-        echo -e "  \${GREEN}✓ mTLS certificates installed\${NC}"
-        USE_MTLS=true
-    else
-        echo -e "  \${YELLOW}⚠ Could not extract certificates, using Bearer token auth\${NC}"
-        USE_MTLS=false
+        if [ "\$STATUS" = "completed" ]; then
+            if [ "\$SUCCESS" = "true" ] || [ -n "\$SUCCESS" ]; then
+                echo -e "  \${GREEN}✓ Deployment completed\${NC}"
+
+                # Extract certificates
+                if command -v jq &>/dev/null; then
+                    CERT_B64=\$(echo "\$POLL_RESPONSE" | jq -r '.data.certificates.cert // empty')
+                    KEY_B64=\$(echo "\$POLL_RESPONSE" | jq -r '.data.certificates.key // empty')
+                    CA_B64=\$(echo "\$POLL_RESPONSE" | jq -r '.data.certificates.ca // empty')
+                else
+                    CERT_B64=\$(echo "\$POLL_RESPONSE" | grep -o '"cert":"[^"]*"' | sed 's/"cert":"//;s/"$//')
+                    KEY_B64=\$(echo "\$POLL_RESPONSE" | grep -o '"key":"[^"]*"' | sed 's/"key":"//;s/"$//')
+                    CA_B64=\$(echo "\$POLL_RESPONSE" | grep -o '"ca":"[^"]*"' | sed 's/"ca":"//;s/"$//')
+                fi
+
+                if [ -n "\$CERT_B64" ] && [ -n "\$KEY_B64" ] && [ -n "\$CA_B64" ]; then
+                    echo "\$CERT_B64" | base64 -d > "\$CERTS_DIR/agent.crt"
+                    echo "\$KEY_B64" | base64 -d > "\$CERTS_DIR/agent.key"
+                    echo "\$CA_B64" | base64 -d > "\$CERTS_DIR/ca.crt"
+
+                    chmod 644 "\$CERTS_DIR/agent.crt"
+                    chmod 600 "\$CERTS_DIR/agent.key"
+                    chmod 644 "\$CERTS_DIR/ca.crt"
+                    chown -R "\$AGENT_USER:\$AGENT_USER" "\$CERTS_DIR"
+
+                    echo -e "  \${GREEN}✓ mTLS certificates installed\${NC}"
+                    USE_MTLS=true
+                else
+                    echo -e "  \${YELLOW}⚠ Certificates not available, using Bearer token auth\${NC}"
+                fi
+                break
+            fi
+        elif [ "\$STATUS" = "failed" ]; then
+            echo -e "  \${RED}⚠ Deployment failed, continuing without mTLS\${NC}"
+            break
+        else
+            printf "."
+        fi
+    done
+
+    if [ \$ATTEMPT -ge \$MAX_ATTEMPTS ]; then
+        echo ""
+        echo -e "  \${YELLOW}⚠ Deployment timeout, continuing without mTLS\${NC}"
     fi
 else
-    echo -e "  \${YELLOW}ℹ mTLS not enabled, using Bearer token auth\${NC}"
-    USE_MTLS=false
+    echo -e "  \${YELLOW}ℹ No deployment job, mTLS not available\${NC}"
 fi
 
 # =============================================================================

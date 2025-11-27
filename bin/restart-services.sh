@@ -24,6 +24,14 @@ for i in 1 2 3 4; do
     fi
 done
 
+# Restart agent worker
+log "Restarting agent worker..."
+if systemctl restart phpborg-agent-worker 2>&1 | tee -a "$LOG_FILE"; then
+    log "Agent worker restarted successfully"
+else
+    log "ERROR: Failed to restart agent worker"
+fi
+
 # Restart scheduler last (will reload new code)
 log "Restarting scheduler..."
 if systemctl restart phpborg-scheduler 2>&1 | tee -a "$LOG_FILE"; then

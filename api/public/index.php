@@ -104,6 +104,7 @@ try {
     $router->post('/server-wizard/install-callback/:token', ServerWizardController::class, 'installCallback', requireAuth: false); // Legacy webhook
     $router->post('/server-wizard/agent-callback/:token', ServerWizardController::class, 'agentCallback', requireAuth: false); // Agent registration webhook
     $router->get('/server-wizard/install-status/:token', ServerWizardController::class, 'getInstallStatus', requireAuth: true);
+    $router->get('/server-wizard/deployment-status/:job_id', ServerWizardController::class, 'getDeploymentStatus', requireAuth: false); // Agent polls for deployment result
 
     // ===========================================
     // Job Queue Routes (Protected)

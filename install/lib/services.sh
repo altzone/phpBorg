@@ -186,6 +186,61 @@ EOF
 }
 
 #
+# Configure sudoers for agent worker operations
+#
+
+setup_sudoers_agent_worker() {
+    print_section "Configuring Sudoers for Agent Worker"
+
+    local sudoers_file="/etc/sudoers.d/phpborg-agent-worker"
+
+    backup_file "${sudoers_file}"
+
+    log_info "Creating sudoers file: ${sudoers_file}"
+
+    cat > "${sudoers_file}" <<-'EOF'
+# phpBorg Agent Worker - Agent deployment operations
+# Allows phpborg user to manage agent SSH keys and backup directories
+
+# Gestion des répertoires de backup pour les agents
+phpborg ALL=(root) NOPASSWD: /bin/mkdir -p /opt/backups/*
+phpborg ALL=(root) NOPASSWD: /bin/chown phpborg-borg\:phpborg-borg /opt/backups/*
+phpborg ALL=(root) NOPASSWD: /bin/chmod 750 /opt/backups/*
+
+# Gestion du répertoire SSH de phpborg-borg
+phpborg ALL=(root) NOPASSWD: /bin/mkdir -p /var/lib/phpborg-borg/.ssh
+phpborg ALL=(root) NOPASSWD: /bin/chown phpborg-borg\:phpborg-borg /var/lib/phpborg-borg/.ssh
+phpborg ALL=(root) NOPASSWD: /bin/chmod 700 /var/lib/phpborg-borg/.ssh
+
+# Gestion du fichier authorized_keys
+phpborg ALL=(root) NOPASSWD: /bin/touch /var/lib/phpborg-borg/.ssh/authorized_keys
+phpborg ALL=(root) NOPASSWD: /bin/cat /var/lib/phpborg-borg/.ssh/authorized_keys
+phpborg ALL=(root) NOPASSWD: /bin/cp /tmp/phpborg_authorized_keys_* /var/lib/phpborg-borg/.ssh/authorized_keys
+phpborg ALL=(root) NOPASSWD: /bin/chown phpborg-borg\:phpborg-borg /var/lib/phpborg-borg/.ssh/authorized_keys
+phpborg ALL=(root) NOPASSWD: /bin/chmod 600 /var/lib/phpborg-borg/.ssh/authorized_keys
+
+# Lecture des répertoires (pour vérification)
+phpborg ALL=(root) NOPASSWD: /bin/ls /var/lib/phpborg-borg
+phpborg ALL=(root) NOPASSWD: /bin/ls /var/lib/phpborg-borg/.ssh
+phpborg ALL=(root) NOPASSWD: /bin/ls /opt/backups
+phpborg ALL=(root) NOPASSWD: /bin/ls /opt/backups/*
+EOF
+
+    chmod 440 "${sudoers_file}"
+
+    # Validate sudoers syntax
+    if visudo -c -f "${sudoers_file}" &>/dev/null; then
+        log_success "Agent worker sudoers file created and validated"
+        save_state "setup_sudoers_agent_worker" "completed"
+        return 0
+    else
+        log_error "Agent worker sudoers syntax validation failed"
+        rm -f "${sudoers_file}"
+        return 1
+    fi
+}
+
+#
 # Install systemd service files
 #
 
@@ -348,6 +403,72 @@ EOF
     fi
 }
 
+install_agent_worker_service() {
+    print_section "Installing Agent Worker Service"
+
+    local service_file="/etc/systemd/system/phpborg-agent-worker.service"
+
+    backup_file "${service_file}"
+
+    log_info "Creating service file: ${service_file}"
+
+    cat > "${service_file}" <<EOF
+[Unit]
+Description=phpBorg Agent Worker - Handles agent deployment and management
+After=network.target redis-server.service mariadb.service
+Wants=redis-server.service mariadb.service
+
+[Service]
+Type=simple
+User=phpborg
+Group=phpborg
+WorkingDirectory=${PHPBORG_ROOT}
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Worker dédié pour la queue "agent"
+ExecStart=/usr/bin/php8.3 ${PHPBORG_ROOT}/bin/phpborg agent-worker:start
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=50%
+
+# Security - MOINS restrictif pour permettre sudo
+PrivateTmp=true
+# PAS de NoNewPrivileges pour permettre sudo
+ProtectHome=true
+
+# Paths accessibles
+ReadWritePaths=${PHPBORG_ROOT}/var
+ReadWritePaths=${PHPBORG_ROOT}/logs
+ReadWritePaths=/opt/backups
+ReadWritePaths=/var/log/phpborg
+ReadWritePaths=/var/lib/phpborg-borg
+ReadWritePaths=/etc/phpborg
+ReadWritePaths=/tmp
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=phpborg-agent-worker
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    if [ $? -eq 0 ]; then
+        log_success "Agent worker service file created"
+        save_state "install_agent_worker_service" "completed"
+        return 0
+    else
+        log_error "Failed to create agent worker service"
+        return 1
+    fi
+}
+
 install_restart_path_unit() {
     print_section "Installing Restart Path Unit"
 
@@ -458,6 +579,15 @@ enable_services() {
         fi
     done
 
+    # Enable agent worker
+    log_info "Enabling phpborg-agent-worker.service"
+    if run_cmd "systemctl enable phpborg-agent-worker.service"; then
+        log_success "Agent worker enabled"
+    else
+        log_error "Failed to enable agent worker"
+        errors=$((errors + 1))
+    fi
+
     # Enable restart path unit (monitors flag file for auto-restart after updates)
     log_info "Enabling phpborg-restart.path"
     if run_cmd "systemctl enable phpborg-restart.path"; then
@@ -515,6 +645,15 @@ start_services() {
         errors=$((errors + 1))
     fi
 
+    # Start agent worker
+    log_info "Starting phpborg-agent-worker.service"
+    if run_cmd "systemctl start phpborg-agent-worker.service"; then
+        log_success "Agent worker started"
+    else
+        log_error "Failed to start agent worker"
+        errors=$((errors + 1))
+    fi
+
     # Wait for services to start
     sleep 2
 
@@ -539,6 +678,13 @@ start_services() {
         log_success "All ${WORKER_POOL_SIZE} workers are running"
     else
         log_warn "Only ${running_workers}/${WORKER_POOL_SIZE} workers are running"
+        errors=$((errors + 1))
+    fi
+
+    if systemctl is-active --quiet phpborg-agent-worker; then
+        log_success "Agent worker is running"
+    else
+        log_error "Agent worker failed to start"
         errors=$((errors + 1))
     fi
 
@@ -825,6 +971,12 @@ setup_services() {
         log_info "Backup server sudoers already configured (skipped)"
     fi
 
+    if ! is_step_completed "setup_sudoers_agent_worker"; then
+        setup_sudoers_agent_worker || errors=$((errors + 1))
+    else
+        log_info "Agent worker sudoers already configured (skipped)"
+    fi
+
     # Create directories
     if ! is_step_completed "create_log_directories"; then
         create_log_directories || errors=$((errors + 1))
@@ -855,6 +1007,12 @@ setup_services() {
         install_workers_target || errors=$((errors + 1))
     else
         log_info "Workers target already installed (skipped)"
+    fi
+
+    if ! is_step_completed "install_agent_worker_service"; then
+        install_agent_worker_service || errors=$((errors + 1))
+    else
+        log_info "Agent worker service already installed (skipped)"
     fi
 
     # Install restart path unit (for auto-restart after updates)

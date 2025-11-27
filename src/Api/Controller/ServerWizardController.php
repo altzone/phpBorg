@@ -256,7 +256,7 @@ class ServerWizardController extends BaseController
     /**
      * POST /api/server-wizard/agent-callback/:token
      * Webhook called by the agent install script when complete
-     * Creates the server record, registers the agent's SSH key, and generates mTLS certificates
+     * Creates a job for async deployment of SSH key and mTLS certificates
      */
     public function agentCallback(): void
     {
@@ -280,56 +280,106 @@ class ServerWizardController extends BaseController
             $agentUuid = $tokenData['agent_uuid'];
             $agentName = $tokenData['agent_name'];
 
-            // Register SSH key with AgentManager (for Borg access)
-            if (!empty($data['ssh_public_key'])) {
-                try {
-                    $this->agentManager->deployAgentKey($agentUuid, $data['ssh_public_key']);
-                } catch (\Exception $e) {
-                    // Log but don't fail - key can be deployed later
-                    error_log("Failed to deploy agent SSH key: " . $e->getMessage());
-                }
-            }
-
-            // Generate mTLS certificates for the agent
-            $certificates = null;
-            try {
-                $certificates = $this->certManager->generateAgentCertificate($agentUuid, $agentName);
-            } catch (\Exception $e) {
-                error_log("Failed to generate agent certificates: " . $e->getMessage());
-                // Continue without certs - agent can use Bearer token as fallback
-            }
-
-            // Create server record
+            // Create server record first
             $serverId = $this->agentInstallService->createServerFromRegistration($token);
 
-            // Build response with certificates
-            $response = [
-                'success' => true,
-                'status' => 'registered',
-                'server_id' => $serverId,
-                'agent_uuid' => $agentUuid,
-                'message' => 'Agent registered successfully',
-            ];
-
-            // Include certificates if generated
-            if ($certificates) {
-                $response['certificates'] = [
-                    'cert' => base64_encode($certificates['cert']),
-                    'key' => base64_encode($certificates['key']),
-                    'ca' => base64_encode($certificates['ca']),
-                ];
-                $response['mtls_enabled'] = true;
-            } else {
-                $response['mtls_enabled'] = false;
+            // Create async job for deploying SSH key and generating certificates
+            // This job runs on the "agent" queue with the dedicated agent-worker
+            $jobId = null;
+            if (!empty($data['ssh_public_key'])) {
+                $jobId = $this->jobQueue->push(
+                    'deploy_agent_key',
+                    [
+                        'agent_uuid' => $agentUuid,
+                        'agent_name' => $agentName,
+                        'public_key' => $data['ssh_public_key'],
+                        'append_only' => true,
+                        'server_id' => $serverId,
+                    ],
+                    'agent',  // Queue dédiée traitée par phpborg-agent-worker
+                    1         // Max 1 attempt
+                );
             }
 
-            // Include API URL for agent config
-            $response['api_url'] = $this->getServerUrl() . '/api';
+            // Build response - agent will poll for deployment result
+            $response = [
+                'success' => true,
+                'status' => 'pending',
+                'server_id' => $serverId,
+                'agent_uuid' => $agentUuid,
+                'job_id' => $jobId,
+                'message' => 'Registration accepted. Deployment in progress.',
+                'poll_url' => $this->getServerUrl() . "/api/server-wizard/deployment-status/{$jobId}",
+                'api_url' => $this->getServerUrl() . '/api',
+            ];
+
+            $this->success($response, 'Registration accepted', 202);
+
+        } catch (\Exception $e) {
+            $this->error($e->getMessage(), 500, 'CALLBACK_ERROR');
+        }
+    }
+
+    /**
+     * GET /api/server-wizard/deployment-status/:job_id
+     * Poll endpoint for agent to check deployment status and get certificates
+     */
+    public function getDeploymentStatus(): void
+    {
+        try {
+            $jobId = (int) ($_SERVER['ROUTE_PARAMS']['job_id'] ?? 0);
+
+            if ($jobId <= 0) {
+                $this->error('Invalid job ID', 400, 'INVALID_JOB_ID');
+                return;
+            }
+
+            // Get job from queue
+            $job = $this->jobQueue->getJob($jobId);
+
+            if (!$job) {
+                $this->error('Job not found', 404, 'JOB_NOT_FOUND');
+                return;
+            }
+
+            // Check job status
+            $response = [
+                'job_id' => $jobId,
+                'status' => $job->status,
+                'progress' => $job->progress,
+            ];
+
+            if ($job->status === 'completed') {
+                // Get the deployment result from Redis (set by DeployAgentKeyHandler)
+                $result = $this->jobQueue->getProgressInfo($jobId);
+
+                if ($result && isset($result['success']) && $result['success']) {
+                    $response['success'] = true;
+                    $response['backup_path'] = $result['backup_path'] ?? null;
+                    $response['ssh_port'] = $result['ssh_port'] ?? 2222;
+                    $response['ssh_user'] = $result['ssh_user'] ?? 'phpborg-borg';
+                    $response['mtls_enabled'] = $result['mtls_enabled'] ?? false;
+
+                    if (isset($result['certificates'])) {
+                        $response['certificates'] = $result['certificates'];
+                    }
+                } else {
+                    $response['success'] = true;
+                    $response['message'] = 'Deployment completed';
+                }
+            } elseif ($job->status === 'failed') {
+                $response['success'] = false;
+                $response['error'] = $job->error ?? 'Unknown error';
+            } else {
+                // Still pending or running
+                $response['success'] = null;
+                $response['message'] = $job->output ?? 'Deployment in progress...';
+            }
 
             $this->success($response);
 
         } catch (\Exception $e) {
-            $this->error($e->getMessage(), 500, 'CALLBACK_ERROR');
+            $this->error($e->getMessage(), 500, 'DEPLOYMENT_STATUS_ERROR');
         }
     }
 

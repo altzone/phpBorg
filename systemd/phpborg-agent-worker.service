@@ -1,0 +1,44 @@
+[Unit]
+Description=phpBorg Agent Worker - Handles agent deployment and management
+After=network.target redis-server.service mariadb.service
+Wants=redis-server.service mariadb.service
+
+[Service]
+Type=simple
+User=phpborg
+Group=phpborg
+WorkingDirectory=/opt/newphpborg/phpBorg
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Worker dédié pour la queue "agent"
+ExecStart=/usr/bin/php /opt/newphpborg/phpBorg/bin/phpborg agent-worker:start
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=50%
+
+# Security - MOINS restrictif pour permettre sudo
+PrivateTmp=true
+# PAS de NoNewPrivileges pour permettre sudo
+ProtectHome=true
+
+# Paths accessibles
+ReadWritePaths=/opt/newphpborg/phpBorg/var
+ReadWritePaths=/opt/newphpborg/phpBorg/logs
+ReadWritePaths=/opt/backups
+ReadWritePaths=/var/log/phpborg
+ReadWritePaths=/var/lib/phpborg-borg
+ReadWritePaths=/etc/phpborg
+ReadWritePaths=/tmp
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=phpborg-agent-worker
+
+[Install]
+WantedBy=multi-user.target
