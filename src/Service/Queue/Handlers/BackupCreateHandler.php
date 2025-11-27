@@ -83,6 +83,12 @@ final class BackupCreateHandler implements JobHandlerInterface
                 'backup_job_id' => $backupJobId
             ]);
 
+            // Route based on connection mode
+            if ($server->connectionMode === 'agent') {
+                $this->logger->info("Server uses agent mode, routing backup to agent", 'JOB');
+                return $this->handleViaAgent($server, $job, $queue, $type, $repositoryId, $backupJobId);
+            }
+
             // Step 1: Get repository - either specified or auto-find/create
             $queue->updateProgress($job->id, 20, "Checking repository configuration for {$type}...");
             
@@ -348,5 +354,174 @@ final class BackupCreateHandler implements JobHandlerInterface
         // Initialize the Borg repository (idempotent - won't fail if already exists)
         $this->logger->info("Initializing Borg repository: {$repository->repoPath}", 'JOB');
         $this->initializeBorgRepository($repository->repoPath, $repository->passphrase, $repository->encryption);
+    }
+
+    /**
+     * Handle backup via agent
+     * Creates a task for the agent and waits for the result
+     */
+    private function handleViaAgent(
+        \PhpBorg\Entity\Server $server,
+        Job $job,
+        JobQueue $queue,
+        string $type,
+        ?int $repositoryId,
+        ?int $backupJobId
+    ): string {
+        if (!$server->agentUuid) {
+            throw new \Exception("Server {$server->name} is in agent mode but has no agent UUID");
+        }
+
+        $queue->updateProgress($job->id, 15, "Preparing backup via agent...");
+
+        // Get or create repository
+        if ($repositoryId) {
+            $repository = $this->repoRepo->findById($repositoryId);
+            if (!$repository) {
+                throw new \Exception("Repository #{$repositoryId} not found");
+            }
+        } else {
+            $repository = $this->ensureRepositoryExists($server->id, $server->name, $type);
+        }
+
+        // Ensure repository is initialized
+        $this->ensureRepositoryInitialized($repository);
+
+        $queue->updateProgress($job->id, 20, "Sending backup task to agent...");
+
+        // Get database connection
+        $app = new \PhpBorg\Application();
+        $connection = $app->getConnection();
+
+        // Get agent_id from agents table using uuid
+        $agent = $connection->fetchOne(
+            'SELECT id FROM agents WHERE uuid = ?',
+            [$server->agentUuid]
+        );
+
+        if (!$agent) {
+            throw new \Exception("Agent not found for UUID: {$server->agentUuid}");
+        }
+
+        $agentId = (int)$agent['id'];
+
+        // Build repo URL for borg (agent connects to phpBorg server)
+        $borgSshPort = $this->config->borgSshPort ?? 2222;
+        $borgServerIp = $server->backupType === 'external'
+            ? $this->config->borgServerIpPublic
+            : $this->config->borgServerIpPrivate;
+
+        // Repo path: ssh://phpborg-borg@server:port/path
+        $repoUrl = sprintf(
+            'ssh://phpborg-borg@%s:%d%s',
+            $borgServerIp,
+            $borgSshPort,
+            $repository->repoPath
+        );
+
+        // Generate archive name
+        $archiveName = $type . '_' . date('Y-m-d_H-i-s');
+
+        // Get backup paths
+        $backupPaths = $repository->getBackupPaths();
+        if (empty($backupPaths)) {
+            $backupPaths = ['/'];
+        }
+
+        // Get excludes
+        $excludes = $repository->exclude ? explode(',', $repository->exclude) : [];
+
+        // Build task payload
+        $taskPayload = [
+            'repo_path' => $repoUrl,
+            'archive_name' => $archiveName,
+            'paths' => $backupPaths,
+            'excludes' => $excludes,
+            'compression' => $repository->compression ?? 'lz4',
+            'passphrase' => $repository->passphrase,
+            'server_id' => $server->id,
+            'repository_id' => $repository->id,
+            'backup_job_id' => $backupJobId,
+        ];
+
+        // Insert task into agent_tasks table
+        $connection->executeUpdate(
+            'INSERT INTO agent_tasks (agent_id, job_id, type, payload, status, created_at)
+             VALUES (?, ?, ?, ?, ?, NOW())',
+            [
+                $agentId,
+                $job->id,
+                'backup_create',
+                json_encode($taskPayload),
+                'pending'
+            ]
+        );
+
+        $taskId = $connection->getLastInsertId();
+        $this->logger->info("Created agent task #{$taskId} for backup", 'JOB');
+
+        $queue->updateProgress($job->id, 30, "Waiting for agent to execute backup...");
+
+        // Poll for task completion (max 12 hours for large backups)
+        $maxWait = 43200;
+        $waited = 0;
+        $pollInterval = 5;
+
+        while ($waited < $maxWait) {
+            sleep($pollInterval);
+            $waited += $pollInterval;
+
+            // Check task status
+            $task = $connection->fetchOne(
+                'SELECT status, result, error FROM agent_tasks WHERE id = ?',
+                [$taskId]
+            );
+
+            if (!$task) {
+                throw new \Exception("Agent task #{$taskId} disappeared");
+            }
+
+            if ($task['status'] === 'completed') {
+                $result = json_decode($task['result'] ?? '{}', true);
+
+                $queue->updateProgress($job->id, 100, "Backup completed via agent");
+
+                // USER LOG: Backup completed
+                $this->userLogger->info('backup_create', "Backup completed via agent: {$archiveName}", [
+                    'server_name' => $server->name,
+                    'archive_name' => $archiveName,
+                    'type' => $type,
+                    'duration' => $result['duration'] ?? null,
+                    'job_id' => $job->id
+                ]);
+
+                // Send success notification
+                if ($backupJobId) {
+                    try {
+                        $this->notificationService->sendSuccessNotification(
+                            $backupJobId,
+                            $server->name,
+                            $archiveName,
+                            $result
+                        );
+                    } catch (\Exception $notifEx) {
+                        $this->logger->error("Failed to send notification: {$notifEx->getMessage()}", 'JOB');
+                    }
+                }
+
+                return "Backup '{$archiveName}' for server '{$server->name}' completed via agent";
+            }
+
+            if ($task['status'] === 'failed') {
+                $error = $task['error'] ?? 'Unknown error';
+                throw new \Exception("Agent backup failed: {$error}");
+            }
+
+            // Update progress periodically
+            $progress = min(30 + ($waited / $maxWait * 60), 90);
+            $queue->updateProgress($job->id, (int)$progress, "Backup in progress via agent ({$waited}s)...");
+        }
+
+        throw new \Exception("Agent backup timed out after {$maxWait} seconds");
     }
 }

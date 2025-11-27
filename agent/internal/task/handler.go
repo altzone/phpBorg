@@ -98,6 +98,7 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 	// Extract parameters from payload
 	repoPath, _ := task.Payload["repo_path"].(string)
 	archiveName, _ := task.Payload["archive_name"].(string)
+	passphrase, _ := task.Payload["passphrase"].(string)
 
 	pathsRaw, _ := task.Payload["paths"].([]interface{})
 	paths := make([]string, len(pathsRaw))
@@ -120,8 +121,8 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 	// Update progress
 	h.client.UpdateProgress(ctx, task.ID, 10, "Starting backup...")
 
-	// Execute borg create
-	result := h.executor.BorgCreate(ctx, repoPath, archiveName, paths, excludes, compression)
+	// Execute borg create with passphrase
+	result := h.executor.BorgCreate(ctx, repoPath, archiveName, paths, excludes, compression, passphrase)
 
 	if result.ExitCode != 0 {
 		return nil, result.ExitCode, fmt.Errorf("borg create failed: %s", result.Stderr)

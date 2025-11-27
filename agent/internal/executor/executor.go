@@ -94,7 +94,7 @@ func (e *Executor) RunShellWithSudo(ctx context.Context, shellCmd string, timeou
 }
 
 // BorgCreate executes a borg create command
-func (e *Executor) BorgCreate(ctx context.Context, repoPath string, archiveName string, paths []string, excludes []string, compression string) *CommandResult {
+func (e *Executor) BorgCreate(ctx context.Context, repoPath string, archiveName string, paths []string, excludes []string, compression string, passphrase string) *CommandResult {
 	args := []string{
 		"create",
 		"--verbose",
@@ -109,7 +109,9 @@ func (e *Executor) BorgCreate(ctx context.Context, repoPath string, archiveName 
 
 	// Add excludes
 	for _, exclude := range excludes {
-		args = append(args, "--exclude", exclude)
+		if exclude != "" {
+			args = append(args, "--exclude", exclude)
+		}
 	}
 
 	// Add repository and archive name
@@ -120,6 +122,11 @@ func (e *Executor) BorgCreate(ctx context.Context, repoPath string, archiveName 
 
 	// Set environment for borg SSH connection
 	env := e.getBorgEnv()
+
+	// Add passphrase if provided
+	if passphrase != "" {
+		env = append(env, "BORG_PASSPHRASE="+passphrase)
+	}
 
 	return e.runWithEnv(ctx, "borg", args, env, 4*time.Hour)
 }
