@@ -57,10 +57,11 @@ final class AgentWorkerStartCommand extends Command
         $worker = new Worker($jobQueue, $logger, 'agent');
 
         // Enregistrer les handlers spécifiques aux agents
+        // Le port SSH Borg est configuré dans les settings, valeur par défaut 2222
         $worker->registerHandler('deploy_agent_key', new DeployAgentKeyHandler(
             $this->app->getCertificateManager(),
             $logger,
-            (int) $this->app->getConfig()->get('borg_ssh_port', 2222)
+            2222
         ));
 
         $output->writeln('<comment>Worker agent prêt. En attente de jobs...</comment>');

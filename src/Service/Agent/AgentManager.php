@@ -56,7 +56,7 @@ final class AgentManager
 
         return [
             'backup_path' => $backupPath,
-            'ssh_port' => $this->config->get('borg_ssh_port', 2222),
+            'ssh_port' => 2222, // Port par défaut du serveur SSH Borg
             'ssh_user' => self::BORG_USER,
         ];
     }
