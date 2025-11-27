@@ -26,6 +26,7 @@ class ServerController extends BaseController
     private readonly BorgRepositoryRepository $repositoryRepository;
     private readonly BackupJobRepository $backupJobRepository;
     private readonly ServerRepository $serverRepository;
+    private readonly \PhpBorg\Repository\AgentRepository $agentRepository;
 
     public function __construct(Application $app)
     {
@@ -36,6 +37,7 @@ class ServerController extends BaseController
         $this->repositoryRepository = $app->getBorgRepositoryRepository();
         $this->backupJobRepository = $app->getBackupJobRepository();
         $this->serverRepository = $app->getServerRepository();
+        $this->agentRepository = $app->getAgentRepository();
     }
 
     /**
@@ -427,7 +429,15 @@ class ServerController extends BaseController
                 // 4. Delete server stats
                 $this->statsRepository->deleteByServerId($serverId);
 
-                // 5. Delete server from servers table
+                // 5. Delete associated agent if exists
+                if ($server->agentUuid) {
+                    $agent = $this->agentRepository->findByUuid($server->agentUuid);
+                    if ($agent) {
+                        $this->agentRepository->delete((int)$agent['id']);
+                    }
+                }
+
+                // 6. Delete server from servers table
                 $this->serverRepository->delete($serverId);
 
                 $this->success(
