@@ -26,7 +26,8 @@ CPUQuota=100%
 # Security
 PrivateTmp=true
 NoNewPrivileges=true
-ProtectSystem=strict
+# ProtectSystem=full allows writing to /opt, /srv, /var while protecting /usr, /boot
+ProtectSystem=full
 ProtectHome=true
 ReadWritePaths=/opt/newphpborg/phpBorg/var
 ReadWritePaths=/opt/newphpborg/phpBorg/logs

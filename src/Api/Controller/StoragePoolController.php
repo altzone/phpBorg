@@ -123,6 +123,9 @@ class StoragePoolController extends BaseController
             // Analyze filesystem automatically
             $analysis = $this->analyzeFilesystem($data['path']);
 
+            // Ensure directory exists and has proper permissions
+            $this->ensurePoolPermissions($data['path']);
+
             // Create storage pool with analysis data
             $poolId = $this->storagePoolRepository->create(
                 name: $data['name'],
@@ -424,5 +427,37 @@ class StoragePoolController extends BaseController
         }
 
         return round($bytes, $precision) . ' ' . $units[$i];
+    }
+
+    /**
+     * Ensure storage pool directory has proper permissions
+     * - Creates directory if it doesn't exist
+     * - Sets ownership to phpborg:phpborg
+     * - Sets permissions to 770 (owner and group can read/write/execute)
+     */
+    private function ensurePoolPermissions(string $path): void
+    {
+        // Create directory if it doesn't exist (via sudo for protected paths)
+        if (!is_dir($path)) {
+            $cmd = sprintf('sudo mkdir -p %s', escapeshellarg($path));
+            exec($cmd, $output, $returnCode);
+            if ($returnCode !== 0) {
+                throw new \PhpBorg\Exception\PhpBorgException("Failed to create directory: {$path}");
+            }
+        }
+
+        // Set ownership to phpborg:phpborg (via sudo)
+        $cmd = sprintf('sudo chown phpborg:phpborg %s', escapeshellarg($path));
+        exec($cmd, $output, $returnCode);
+        if ($returnCode !== 0) {
+            throw new \PhpBorg\Exception\PhpBorgException("Failed to set ownership on: {$path}");
+        }
+
+        // Set permissions to 770 (owner and group can read/write/execute)
+        $cmd = sprintf('sudo chmod 770 %s', escapeshellarg($path));
+        exec($cmd, $output, $returnCode);
+        if ($returnCode !== 0) {
+            throw new \PhpBorg\Exception\PhpBorgException("Failed to set permissions on: {$path}");
+        }
     }
 }
