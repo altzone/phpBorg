@@ -363,12 +363,8 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             return;
         }
 
-        // Build the agent (use local cache to avoid systemd read-only restrictions)
-        $goCache = "{$phpborgRoot}/var/go-cache";
-        if (!is_dir($goCache)) {
-            mkdir($goCache, 0755, true);
-        }
-        $cmd = "cd {$agentDir} && GOCACHE={$goCache} go build -o phpborg-agent ./cmd/phpborg-agent 2>&1";
+        // Build the agent using /tmp for Go caches (systemd PrivateTmp provides isolated writable /tmp)
+        $cmd = "cd {$agentDir} && GOCACHE=/tmp/go-cache GOMODCACHE=/tmp/go-mod go build -o phpborg-agent ./cmd/phpborg-agent 2>&1";
         exec($cmd, $output, $exitCode);
 
         if ($exitCode !== 0) {
@@ -423,8 +419,12 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
                 $executed++;
             } else {
                 $outputStr = implode("\n", $output);
-                // Already applied is not an error
-                if (strpos($outputStr, 'already applied') !== false || strpos($outputStr, 'already exists') !== false) {
+                // Already applied is not an error (check various MySQL/MariaDB messages)
+                if (strpos($outputStr, 'already applied') !== false
+                    || strpos($outputStr, 'already exists') !== false
+                    || strpos($outputStr, 'Duplicate column') !== false
+                    || strpos($outputStr, 'Duplicate key') !== false
+                    || strpos($outputStr, 'Duplicate entry') !== false) {
                     $this->logger->info("Migration already applied: {$migrationName}", 'PHPBORG_UPDATE');
                     $skipped++;
                 } else {
