@@ -1317,7 +1317,7 @@ final class CapabilitiesDetectionHandler implements JobHandlerInterface
             ]
         );
 
-        $taskId = (int)$connection->lastInsertId();
+        $taskId = $connection->getLastInsertId();
         $this->logger->info("Created agent task #{$taskId} for capabilities detection", 'CAPABILITIES');
 
         $queue->updateProgress($job->id, 20, "Waiting for agent to complete detection...");
