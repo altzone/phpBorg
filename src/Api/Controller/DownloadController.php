@@ -86,20 +86,17 @@ final class DownloadController extends BaseController
     public function agentInfo(): void
     {
         $binaryPath = $this->releasesDir . '/agent/phpborg-agent';
-        $versionPath = $this->releasesDir . '/agent/VERSION';
+
+        // Get version from source code (always available)
+        $version = self::getLatestAgentVersion();
 
         if (!file_exists($binaryPath)) {
             $this->success([
                 'available' => false,
+                'version' => $version,
                 'message' => 'Agent binary not built yet',
             ]);
             return;
-        }
-
-        // Read version from VERSION file
-        $version = null;
-        if (file_exists($versionPath)) {
-            $version = trim(file_get_contents($versionPath));
         }
 
         $this->success([
@@ -114,14 +111,19 @@ final class DownloadController extends BaseController
     }
 
     /**
-     * Get the latest agent version
+     * Get the latest agent version from source code
      * Used internally by other controllers
      */
     public static function getLatestAgentVersion(): ?string
     {
-        $versionPath = dirname(__DIR__, 3) . '/releases/agent/VERSION';
-        if (file_exists($versionPath)) {
-            return trim(file_get_contents($versionPath));
+        // Read version from Go source (single source of truth)
+        $mainGoPath = dirname(__DIR__, 3) . '/agent/cmd/phpborg-agent/main.go';
+        if (file_exists($mainGoPath)) {
+            $content = file_get_contents($mainGoPath);
+            // Parse: const Version = "1.0.0"
+            if (preg_match('/const\s+Version\s*=\s*"([^"]+)"/', $content, $matches)) {
+                return $matches[1];
+            }
         }
         return null;
     }
