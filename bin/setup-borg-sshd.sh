@@ -39,9 +39,11 @@ else
     useradd --system \
         --home-dir "$BORG_HOME" \
         --create-home \
-        --shell /usr/sbin/nologin \
+        --shell /bin/bash \
         --comment "phpBorg SSH Borg Server" \
         "$BORG_USER"
+    # Unlock account for SSH key authentication (no password login possible)
+    passwd -u "$BORG_USER" 2>/dev/null || usermod -p '*' "$BORG_USER"
     echo "   ✅ User $BORG_USER created"
 fi
 
