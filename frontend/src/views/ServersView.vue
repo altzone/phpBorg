@@ -534,11 +534,8 @@ async function updateAgent(server) {
   updatingAgent.value[server.id] = true
 
   try {
-    // Request update using server_id (backend will resolve agent_id)
-    await api.post('/agent/update/request', {
-      server_id: server.id,
-      force: false
-    })
+    // Trigger agent update task
+    await api.post(`/servers/${server.id}/agent/update`)
 
     showToast(
       '✓ Mise à jour lancée',

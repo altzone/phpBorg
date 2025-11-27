@@ -92,6 +92,7 @@ try {
     $router->get('/servers/:id/delete-stats', ServerController::class, 'deleteStats', requireAuth: true);
     $router->get('/servers/:id/capabilities', ServerController::class, 'capabilities', requireAuth: true);
     $router->post('/servers/:id/detect-capabilities', ServerController::class, 'detectCapabilities', requireAuth: true);
+    $router->post('/servers/:id/agent/update', ServerController::class, 'triggerAgentUpdate', requireAuth: true);
 
     // ===========================================
     // Server Add Wizard Routes (Protected/Public)
@@ -310,10 +311,9 @@ try {
     $router->post('/agent/tasks/:taskId/fail', AgentGatewayController::class, 'failTask', requireAuth: false); // mTLS auth
     $router->get('/agent/info', AgentGatewayController::class, 'getInfo', requireAuth: false); // mTLS auth
 
-    // Agent Update Routes
+    // Agent Update Routes (called by agent via mTLS)
     $router->post('/agent/update/check', AgentGatewayController::class, 'checkUpdate', requireAuth: false); // mTLS auth
     $router->get('/agent/update/download', AgentGatewayController::class, 'downloadUpdate', requireAuth: false); // mTLS auth
-    $router->post('/agent/update/request', AgentGatewayController::class, 'requestUpdate'); // User JWT auth (admin only)
 
     // Agent Certificate Routes
     $router->post('/agent/certificate/renew', AgentGatewayController::class, 'renewCertificate', requireAuth: false); // mTLS auth

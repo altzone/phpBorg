@@ -796,4 +796,69 @@ class ServerController extends BaseController
             'connection_mode' => $server->connectionMode,
         ];
     }
+
+    /**
+     * POST /api/servers/:id/agent/update
+     * Trigger agent update task
+     */
+    public function triggerAgentUpdate(int $id): void
+    {
+        try {
+            // Check admin role
+            $user = $_SERVER['USER'] ?? null;
+            if (!$user || !in_array('ROLE_ADMIN', $user->roles)) {
+                $this->error('Admin role required', 403, 'FORBIDDEN');
+                return;
+            }
+
+            // Get server
+            $server = $this->serverManager->getServerById($id);
+            if (!$server) {
+                $this->error('Server not found', 404, 'SERVER_NOT_FOUND');
+                return;
+            }
+
+            // Check server uses agent mode
+            if ($server->connectionMode !== 'agent') {
+                $this->error('Server does not use agent mode', 400, 'NOT_AGENT_MODE');
+                return;
+            }
+
+            // Get agent by UUID
+            if (!$server->agentUuid) {
+                $this->error('Server has no agent UUID', 400, 'NO_AGENT_UUID');
+                return;
+            }
+
+            $agent = $this->agentRepository->findByUuid($server->agentUuid);
+            if (!$agent) {
+                $this->error('Agent not found', 404, 'AGENT_NOT_FOUND');
+                return;
+            }
+
+            // Insert update task into agent_tasks
+            $connection = $this->app->getConnection();
+            $connection->executeUpdate(
+                'INSERT INTO agent_tasks (agent_id, type, payload, status, created_at)
+                 VALUES (?, ?, ?, ?, NOW())',
+                [
+                    (int)$agent['id'],
+                    'agent_update',
+                    json_encode(['server_id' => $id]),
+                    'pending'
+                ]
+            );
+
+            $taskId = $connection->getLastInsertId();
+
+            $this->success([
+                'task_id' => $taskId,
+                'server_id' => $id,
+                'message' => 'Agent update task queued'
+            ], 'Update task created');
+
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'UPDATE_TRIGGER_ERROR');
+        }
+    }
 }
