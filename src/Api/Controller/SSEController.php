@@ -76,6 +76,7 @@ class SSEController extends BaseController
         $lastJobsHash = null;
         $lastWorkersHash = null;
         $lastRecoveryHash = null;
+        $lastServersHash = null;
 
         // Stream loop
         $startTime = time();
@@ -227,9 +228,69 @@ class SSEController extends BaseController
                 error_log("SSE instant recovery error: " . $e->getMessage());
             }
 
-            // TODO: Add more event types
-            // - event: backups (new backup created/deleted)
-            // - event: stats (server/pool stats updated)
+            // SERVERS: Stream server list with agent status
+            try {
+                $servers = $this->serverRepo->findAll();
+                $latestVersion = \PhpBorg\Api\Controller\DownloadController::getLatestAgentVersion();
+
+                $serversData = [
+                    'servers' => array_map(function($server) use ($latestVersion) {
+                        $serverArray = $server->toArray();
+
+                        // Add agent info if applicable
+                        if ($server->connectionMode === 'agent') {
+                            $isOnline = false;
+                            $lastSeenAgo = null;
+
+                            if ($server->agentLastHeartbeat) {
+                                $now = new \DateTime();
+                                $diff = $now->getTimestamp() - $server->agentLastHeartbeat->getTimestamp();
+                                $isOnline = $diff < 300;
+
+                                if ($diff < 60) {
+                                    $lastSeenAgo = $diff . 's';
+                                } elseif ($diff < 3600) {
+                                    $lastSeenAgo = floor($diff / 60) . 'm';
+                                } elseif ($diff < 86400) {
+                                    $lastSeenAgo = floor($diff / 3600) . 'h';
+                                } else {
+                                    $lastSeenAgo = floor($diff / 86400) . 'd';
+                                }
+                            }
+
+                            $needsUpdate = false;
+                            if ($server->agentVersion && $latestVersion) {
+                                $needsUpdate = version_compare($server->agentVersion, $latestVersion, '<');
+                            }
+
+                            $serverArray['agent'] = [
+                                'uuid' => $server->agentUuid,
+                                'status' => $server->agentStatus,
+                                'version' => $server->agentVersion,
+                                'latest_version' => $latestVersion,
+                                'needs_update' => $needsUpdate,
+                                'is_online' => $isOnline,
+                                'last_heartbeat' => $server->agentLastHeartbeat?->format('Y-m-d H:i:s'),
+                                'last_seen_ago' => $lastSeenAgo,
+                            ];
+                        }
+
+                        return $serverArray;
+                    }, $servers),
+                    'timestamp' => time()
+                ];
+
+                $serversHash = md5(json_encode($serversData));
+
+                if ($serversHash !== $lastServersHash) {
+                    echo "event: servers\n";
+                    echo "data: " . json_encode($serversData) . "\n\n";
+                    flush();
+                    $lastServersHash = $serversHash;
+                }
+            } catch (\Exception $e) {
+                error_log("SSE servers error: " . $e->getMessage());
+            }
 
             // Sleep to avoid hammering the server
             sleep(1);

@@ -406,10 +406,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useServerStore } from '@/stores/server'
+import { useSSE } from '@/composables/useSSE'
 import api from '@/services/api'
 import AddServerWizard from '@/components/AddServerWizard.vue'
 import ServerFormModal from '@/components/ServerFormModal.vue'
@@ -418,6 +419,7 @@ import DeleteConfirmModal from '@/components/DeleteConfirmModal.vue'
 const router = useRouter()
 const authStore = useAuthStore()
 const serverStore = useServerStore()
+const { subscribe, isConnected, connectionType } = useSSE()
 
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
@@ -431,9 +433,41 @@ const updatingAgent = ref({})
 const toasts = ref([])
 let toastIdCounter = 0
 
+// Polling fallback interval
+let pollingInterval = null
+
 onMounted(async () => {
+  // Initial data load
   await serverStore.fetchServers()
+
+  // Subscribe to real-time server updates via SSE
+  subscribe('servers', (data) => {
+    if (data.servers) {
+      serverStore.servers = data.servers
+    }
+  })
+
+  // Setup polling fallback if SSE not connected
+  startPollingFallback()
 })
+
+onUnmounted(() => {
+  if (pollingInterval) {
+    clearInterval(pollingInterval)
+    pollingInterval = null
+  }
+})
+
+// Polling fallback when SSE is not available
+function startPollingFallback() {
+  // Check every 10 seconds if we need to poll
+  pollingInterval = setInterval(async () => {
+    // Only poll if SSE is not connected
+    if (!isConnected.value || connectionType.value === 'polling') {
+      await serverStore.fetchServers()
+    }
+  }, 10000)
+}
 
 function viewServer(id) {
   router.push(`/servers/${id}`)

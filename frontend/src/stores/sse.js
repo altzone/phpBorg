@@ -31,6 +31,7 @@ export const useSSEStore = defineStore('sse', () => {
     jobs: [],
     backups: [],
     stats: [],
+    servers: [],
     instant_recovery: [],
     all: []
   })
@@ -155,6 +156,15 @@ export const useSSEStore = defineStore('sse', () => {
       eventSource.value.addEventListener('instant_recovery', (event) => {
         const data = JSON.parse(event.data)
         notifySubscribers('instant_recovery', data)
+        connected.value = true
+        connectionType.value = 'sse'
+        reconnectAttempts.value = 0
+      })
+
+      // Servers updates
+      eventSource.value.addEventListener('servers', (event) => {
+        const data = JSON.parse(event.data)
+        notifySubscribers('servers', data)
         connected.value = true
         connectionType.value = 'sse'
         reconnectAttempts.value = 0
