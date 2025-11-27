@@ -415,6 +415,219 @@ final class AgentGatewayController extends BaseController
     }
 
     /**
+     * Check for agent update
+     * POST /api/agent/update/check
+     *
+     * Request body:
+     * {
+     *   "current_version": "1.0.0"
+     * }
+     */
+    public function checkUpdate(): void
+    {
+        $agent = $this->requireAgentAuth();
+        if (!$agent) {
+            return;
+        }
+
+        $data = $this->getJsonBody();
+        $currentVersion = $data['current_version'] ?? '0.0.0';
+
+        // Get latest agent version from releases directory
+        $releasesDir = PHPBORG_ROOT . '/releases/agent';
+        $latestVersion = $this->getLatestAgentVersion($releasesDir);
+        $binaryPath = $this->getAgentBinaryPath($releasesDir, $latestVersion);
+
+        $updateAvailable = version_compare($latestVersion, $currentVersion, '>');
+
+        $response = [
+            'available' => $updateAvailable,
+            'current_version' => $currentVersion,
+            'latest_version' => $latestVersion,
+        ];
+
+        if ($updateAvailable && $binaryPath && file_exists($binaryPath)) {
+            $response['download_url'] = '/api/agent/update/download';
+            $response['checksum'] = hash_file('sha256', $binaryPath);
+
+            // Read release notes if available
+            $releaseNotesPath = dirname($binaryPath) . '/CHANGELOG.md';
+            if (file_exists($releaseNotesPath)) {
+                $response['release_notes'] = file_get_contents($releaseNotesPath);
+            }
+        }
+
+        $this->success($response);
+    }
+
+    /**
+     * Download agent binary
+     * GET /api/agent/update/download
+     *
+     * Returns the latest agent binary as a downloadable file
+     */
+    public function downloadUpdate(): void
+    {
+        $agent = $this->requireAgentAuth();
+        if (!$agent) {
+            return;
+        }
+
+        $releasesDir = PHPBORG_ROOT . '/releases/agent';
+        $latestVersion = $this->getLatestAgentVersion($releasesDir);
+        $binaryPath = $this->getAgentBinaryPath($releasesDir, $latestVersion);
+
+        if (!$binaryPath || !file_exists($binaryPath)) {
+            $this->error('Agent binary not found', 404, 'BINARY_NOT_FOUND');
+            return;
+        }
+
+        $this->logger->info(
+            "Agent {$agent['name']} downloading update v{$latestVersion}",
+            'AGENT_API'
+        );
+
+        // Send binary file
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="phpborg-agent"');
+        header('Content-Length: ' . filesize($binaryPath));
+        header('X-Agent-Version: ' . $latestVersion);
+        header('X-Checksum-SHA256: ' . hash_file('sha256', $binaryPath));
+
+        readfile($binaryPath);
+        exit;
+    }
+
+    /**
+     * Request agent update (creates update task)
+     * POST /api/agent/update/request
+     *
+     * This endpoint is called from the web UI to trigger an agent update
+     */
+    public function requestUpdate(): void
+    {
+        // This endpoint requires user authentication, not agent authentication
+        $user = $_SERVER['USER'] ?? null;
+        if (!$user || !in_array('ROLE_ADMIN', $user->roles ?? [])) {
+            $this->error('Admin role required', 403, 'FORBIDDEN');
+            return;
+        }
+
+        $data = $this->getJsonBody();
+        $agentId = (int) ($data['agent_id'] ?? 0);
+        $force = (bool) ($data['force'] ?? false);
+
+        if ($agentId <= 0) {
+            $this->error('Invalid agent ID', 400, 'INVALID_AGENT_ID');
+            return;
+        }
+
+        $agent = $this->agentRepo->findById($agentId);
+        if (!$agent) {
+            $this->error('Agent not found', 404, 'AGENT_NOT_FOUND');
+            return;
+        }
+
+        // Get latest version and checksum
+        $releasesDir = PHPBORG_ROOT . '/releases/agent';
+        $latestVersion = $this->getLatestAgentVersion($releasesDir);
+        $binaryPath = $this->getAgentBinaryPath($releasesDir, $latestVersion);
+
+        if (!$binaryPath || !file_exists($binaryPath)) {
+            $this->error('No agent binary available for update', 404, 'NO_BINARY');
+            return;
+        }
+
+        $checksum = hash_file('sha256', $binaryPath);
+
+        // Create update task
+        $taskId = $this->taskRepo->create(
+            agentId: $agentId,
+            type: 'agent_update',
+            payload: [
+                'version' => $latestVersion,
+                'checksum' => $checksum,
+                'force' => $force,
+            ],
+            priority: 'high',
+            timeoutSeconds: 300, // 5 minutes
+            userId: $user->id
+        );
+
+        $this->logger->info(
+            "Update task created for agent {$agent['name']}: v{$agent['version']} -> v{$latestVersion}",
+            'AGENT_API'
+        );
+
+        $this->success([
+            'task_id' => $taskId,
+            'agent_id' => $agentId,
+            'current_version' => $agent['version'],
+            'target_version' => $latestVersion,
+            'message' => 'Update task queued',
+        ], 'Update requested', 201);
+    }
+
+    /**
+     * Get the latest agent version from releases directory
+     */
+    private function getLatestAgentVersion(string $releasesDir): string
+    {
+        if (!is_dir($releasesDir)) {
+            return '0.0.0';
+        }
+
+        $versions = [];
+        $dirs = scandir($releasesDir);
+        foreach ($dirs as $dir) {
+            if ($dir === '.' || $dir === '..') {
+                continue;
+            }
+            // Match version directory like "1.0.0" or "v1.0.0"
+            if (preg_match('/^v?(\d+\.\d+\.\d+)$/', $dir, $matches)) {
+                $versions[] = $matches[1];
+            }
+        }
+
+        if (empty($versions)) {
+            // Check for latest binary directly in releases dir
+            if (file_exists($releasesDir . '/phpborg-agent')) {
+                return '1.0.0'; // Default version for non-versioned releases
+            }
+            return '0.0.0';
+        }
+
+        usort($versions, 'version_compare');
+        return end($versions);
+    }
+
+    /**
+     * Get the path to the agent binary for a specific version
+     */
+    private function getAgentBinaryPath(string $releasesDir, string $version): ?string
+    {
+        // Check versioned directory first
+        $versionedPath = $releasesDir . '/' . $version . '/phpborg-agent';
+        if (file_exists($versionedPath)) {
+            return $versionedPath;
+        }
+
+        // Check v-prefixed version directory
+        $vVersionedPath = $releasesDir . '/v' . $version . '/phpborg-agent';
+        if (file_exists($vVersionedPath)) {
+            return $vVersionedPath;
+        }
+
+        // Fallback to root releases directory
+        $rootPath = $releasesDir . '/phpborg-agent';
+        if (file_exists($rootPath)) {
+            return $rootPath;
+        }
+
+        return null;
+    }
+
+    /**
      * Generate UUID v4
      */
     private function generateUuid(): string

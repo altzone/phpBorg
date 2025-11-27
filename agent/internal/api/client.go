@@ -230,3 +230,69 @@ func (c *Client) FailTask(ctx context.Context, taskID int, errorMsg string, exit
 	_, err := c.doRequest(ctx, "POST", fmt.Sprintf("/agent/tasks/%d/fail", taskID), body)
 	return err
 }
+
+// UpdateInfo contains information about an available update
+type UpdateInfo struct {
+	Available      bool   `json:"available"`
+	CurrentVersion string `json:"current_version"`
+	LatestVersion  string `json:"latest_version"`
+	DownloadURL    string `json:"download_url"`
+	Checksum       string `json:"checksum"`
+	ReleaseNotes   string `json:"release_notes,omitempty"`
+}
+
+// CheckUpdate checks if an update is available
+func (c *Client) CheckUpdate(ctx context.Context, currentVersion string) (*UpdateInfo, error) {
+	body := map[string]interface{}{
+		"current_version": currentVersion,
+	}
+
+	resp, err := c.doRequest(ctx, "POST", "/agent/update/check", body)
+	if err != nil {
+		return nil, err
+	}
+
+	var info UpdateInfo
+	if err := json.Unmarshal(resp.Data, &info); err != nil {
+		return nil, fmt.Errorf("failed to parse update info: %w", err)
+	}
+
+	return &info, nil
+}
+
+// DownloadUpdate downloads the agent binary to a temporary file
+// Returns the path to the downloaded file
+func (c *Client) DownloadUpdate(ctx context.Context, destPath string) error {
+	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/agent/update/download", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.config.Agent.UUID)
+	req.Header.Set("User-Agent", "phpborg-agent/1.0")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("download request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download failed with status: %d", resp.StatusCode)
+	}
+
+	// Create destination file
+	out, err := os.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer out.Close()
+
+	// Copy data
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	return nil
+}

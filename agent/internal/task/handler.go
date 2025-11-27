@@ -2,8 +2,14 @@ package task
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"log"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/phpborg/phpborg-agent/internal/api"
@@ -56,6 +62,8 @@ func (h *Handler) ProcessTask(ctx context.Context, task api.Task) error {
 		result, exitCode, taskErr = h.handleBackupRestore(taskCtx, task)
 	case "capabilities_detect":
 		result, exitCode, taskErr = h.handleCapabilitiesDetect(taskCtx, task)
+	case "agent_update":
+		result, exitCode, taskErr = h.handleAgentUpdate(taskCtx, task)
 	case "test":
 		result, exitCode, taskErr = h.handleTest(taskCtx, task)
 	default:
@@ -197,4 +205,164 @@ func (h *Handler) handleTest(ctx context.Context, task api.Task) (map[string]int
 		"message": message,
 		"time":    time.Now().Format(time.RFC3339),
 	}, 0, nil
+}
+
+// handleAgentUpdate handles an agent self-update task
+// This downloads the new binary, verifies it, replaces the current binary,
+// and restarts the agent via systemd
+func (h *Handler) handleAgentUpdate(ctx context.Context, task api.Task) (map[string]interface{}, int, error) {
+	// Extract parameters
+	expectedChecksum, _ := task.Payload["checksum"].(string)
+	newVersion, _ := task.Payload["version"].(string)
+	forceUpdate, _ := task.Payload["force"].(bool)
+
+	if expectedChecksum == "" && !forceUpdate {
+		return nil, 1, fmt.Errorf("checksum required for update (or set force=true)")
+	}
+
+	h.client.UpdateProgress(ctx, task.ID, 10, "Preparing update...")
+
+	// Get current binary path
+	currentBinary, err := os.Executable()
+	if err != nil {
+		return nil, 1, fmt.Errorf("failed to get current executable path: %w", err)
+	}
+	currentBinary, err = filepath.EvalSymlinks(currentBinary)
+	if err != nil {
+		return nil, 1, fmt.Errorf("failed to resolve executable path: %w", err)
+	}
+
+	// Create temporary file for new binary
+	tmpDir := filepath.Dir(currentBinary)
+	tmpFile := filepath.Join(tmpDir, ".phpborg-agent.new")
+
+	h.client.UpdateProgress(ctx, task.ID, 20, "Downloading new binary...")
+
+	// Download new binary
+	if err := h.client.DownloadUpdate(ctx, tmpFile); err != nil {
+		os.Remove(tmpFile)
+		return nil, 1, fmt.Errorf("failed to download update: %w", err)
+	}
+
+	h.client.UpdateProgress(ctx, task.ID, 60, "Verifying checksum...")
+
+	// Verify checksum
+	if expectedChecksum != "" {
+		actualChecksum, err := fileChecksum(tmpFile)
+		if err != nil {
+			os.Remove(tmpFile)
+			return nil, 1, fmt.Errorf("failed to calculate checksum: %w", err)
+		}
+
+		if actualChecksum != expectedChecksum {
+			os.Remove(tmpFile)
+			return nil, 1, fmt.Errorf("checksum mismatch: expected %s, got %s", expectedChecksum, actualChecksum)
+		}
+	}
+
+	h.client.UpdateProgress(ctx, task.ID, 70, "Making binary executable...")
+
+	// Make executable
+	if err := os.Chmod(tmpFile, 0755); err != nil {
+		os.Remove(tmpFile)
+		return nil, 1, fmt.Errorf("failed to set executable permission: %w", err)
+	}
+
+	// Verify the new binary works
+	h.client.UpdateProgress(ctx, task.ID, 75, "Verifying new binary...")
+	cmd := exec.CommandContext(ctx, tmpFile, "-version")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		os.Remove(tmpFile)
+		return nil, 1, fmt.Errorf("new binary verification failed: %v (output: %s)", err, string(output))
+	}
+
+	h.client.UpdateProgress(ctx, task.ID, 80, "Backing up current binary...")
+
+	// Backup current binary
+	backupFile := currentBinary + ".backup"
+	if err := copyFile(currentBinary, backupFile); err != nil {
+		os.Remove(tmpFile)
+		return nil, 1, fmt.Errorf("failed to backup current binary: %w", err)
+	}
+
+	h.client.UpdateProgress(ctx, task.ID, 85, "Replacing binary...")
+
+	// Replace binary (atomic rename)
+	if err := os.Rename(tmpFile, currentBinary); err != nil {
+		// Try to restore backup
+		os.Rename(backupFile, currentBinary)
+		os.Remove(tmpFile)
+		return nil, 1, fmt.Errorf("failed to replace binary: %w", err)
+	}
+
+	h.client.UpdateProgress(ctx, task.ID, 90, "Restarting agent via systemd...")
+
+	// Restart via systemd (this will kill us, but the task is essentially done)
+	// We use a background process so we can return the result first
+	go func() {
+		time.Sleep(2 * time.Second) // Give time to send result
+		restartCmd := exec.Command("systemctl", "restart", "phpborg-agent")
+		if err := restartCmd.Run(); err != nil {
+			log.Printf("[UPDATE] Failed to restart via systemd: %v", err)
+			// Try SIGHUP as fallback
+			if pid := os.Getpid(); pid > 0 {
+				proc, _ := os.FindProcess(pid)
+				proc.Signal(os.Interrupt)
+			}
+		}
+	}()
+
+	// Clean up backup after successful update
+	os.Remove(backupFile)
+
+	return map[string]interface{}{
+		"previous_version": h.config.Agent.Version,
+		"new_version":      newVersion,
+		"binary_path":      currentBinary,
+		"status":           "updated",
+		"message":          "Agent updated successfully, restarting...",
+	}, 0, nil
+}
+
+// fileChecksum calculates SHA256 checksum of a file
+func fileChecksum(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// copyFile copies a file from src to dst
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		return err
+	}
+
+	// Preserve permissions
+	sourceInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	return os.Chmod(dst, sourceInfo.Mode())
 }

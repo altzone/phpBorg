@@ -73,6 +73,8 @@ class ServerController extends BaseController
                         'description' => null,  // Not stored in DB yet
                         'active' => $server->active,
                         'repository_count' => $repositoryCount,
+                        // Agent information
+                        'agent' => $this->formatAgentInfo($server),
                         // Add server stats
                         'stats' => $stats ? [
                             'os_distribution' => $stats['os_distribution'],
@@ -147,6 +149,8 @@ class ServerController extends BaseController
                     'active' => $server->active,
                     'created_at' => $server->createdAt?->format('Y-m-d H:i:s'),
                     'updated_at' => $server->updatedAt?->format('Y-m-d H:i:s'),
+                    // Agent information
+                    'agent' => $this->formatAgentInfo($server),
                 ],
                 'repositories' => array_map(fn($repo) => [
                     'id' => $repo->id,
@@ -725,5 +729,51 @@ class ServerController extends BaseController
         } catch (PhpBorgException $e) {
             $this->error($e->getMessage(), 500, 'CAPABILITIES_DETECTION_ERROR');
         }
+    }
+
+    /**
+     * Format agent information for API response
+     *
+     * @param \PhpBorg\Entity\Server $server
+     * @return array|null
+     */
+    private function formatAgentInfo($server): ?array
+    {
+        // Return null if server doesn't use agent
+        if ($server->connectionMode !== 'agent') {
+            return null;
+        }
+
+        // Calculate if agent is online (heartbeat within 5 minutes)
+        $isOnline = false;
+        $lastSeenAgo = null;
+
+        if ($server->agentLastHeartbeat) {
+            $now = new \DateTime();
+            $diff = $now->getTimestamp() - $server->agentLastHeartbeat->getTimestamp();
+            $isOnline = $diff < 300; // 5 minutes
+
+            // Format "last seen" human readable
+            if ($diff < 60) {
+                $lastSeenAgo = $diff . 's';
+            } elseif ($diff < 3600) {
+                $lastSeenAgo = floor($diff / 60) . 'm';
+            } elseif ($diff < 86400) {
+                $lastSeenAgo = floor($diff / 3600) . 'h';
+            } else {
+                $lastSeenAgo = floor($diff / 86400) . 'd';
+            }
+        }
+
+        return [
+            'uuid' => $server->agentUuid,
+            'status' => $server->agentStatus,
+            'status_label' => $server->getAgentStatusLabel(),
+            'version' => $server->agentVersion,
+            'is_online' => $isOnline,
+            'last_heartbeat' => $server->agentLastHeartbeat?->format('Y-m-d H:i:s'),
+            'last_seen_ago' => $lastSeenAgo,
+            'connection_mode' => $server->connectionMode,
+        ];
     }
 }

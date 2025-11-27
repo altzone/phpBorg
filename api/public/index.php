@@ -301,6 +301,11 @@ try {
     $router->post('/agent/tasks/:taskId/fail', AgentGatewayController::class, 'failTask', requireAuth: false); // mTLS auth
     $router->get('/agent/info', AgentGatewayController::class, 'getInfo', requireAuth: false); // mTLS auth
 
+    // Agent Update Routes
+    $router->post('/agent/update/check', AgentGatewayController::class, 'checkUpdate', requireAuth: false); // mTLS auth
+    $router->get('/agent/update/download', AgentGatewayController::class, 'downloadUpdate', requireAuth: false); // mTLS auth
+    $router->post('/agent/update/request', AgentGatewayController::class, 'requestUpdate'); // User JWT auth (admin only)
+
     // ===========================================
     // Future Routes (To be implemented)
     // ===========================================
