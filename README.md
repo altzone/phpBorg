@@ -25,7 +25,7 @@ phpBorg 2.0 introduces a revolutionary **pull-based agent architecture** for sec
 ```
 Traditional (SSH Push):          phpBorg 2.0 (Agent Pull):
 ┌────────┐    SSH    ┌────────┐  ┌────────┐   HTTPS   ┌────────┐
-│ Server │ ───────> │ Client │  │ Server │ <─────── │ Agent  │
+│ Server │ ───────>  │ Client │  │ Server │ <───────  │ Agent  │
 └────────┘  Inbound  └────────┘  └────────┘ Outbound  └────────┘
             Required              Only!
 ```
