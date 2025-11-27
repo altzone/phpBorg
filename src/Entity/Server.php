@@ -26,6 +26,9 @@ final readonly class Server
         public ?\DateTime $agentLastHeartbeat = null,
         public ?string $agentVersion = null,
         public string $connectionMode = 'ssh',
+        // Timestamps
+        public ?\DateTime $createdAt = null,
+        public ?\DateTime $updatedAt = null,
     ) {
     }
 
@@ -46,6 +49,16 @@ final readonly class Server
             $agentLastHeartbeat = new \DateTime($row['agent_last_heartbeat']);
         }
 
+        $createdAt = null;
+        if (!empty($row['created_at'])) {
+            $createdAt = new \DateTime($row['created_at']);
+        }
+
+        $updatedAt = null;
+        if (!empty($row['updated_at'])) {
+            $updatedAt = new \DateTime($row['updated_at']);
+        }
+
         return new self(
             id: (int)$row['id'],
             name: (string)$row['name'],
@@ -63,6 +76,9 @@ final readonly class Server
             agentLastHeartbeat: $agentLastHeartbeat,
             agentVersion: $row['agent_version'] ?? null,
             connectionMode: $row['connection_mode'] ?? 'ssh',
+            // Timestamps
+            createdAt: $createdAt,
+            updatedAt: $updatedAt,
         );
     }
 
@@ -90,6 +106,9 @@ final readonly class Server
             'agent_last_heartbeat' => $this->agentLastHeartbeat?->format('Y-m-d H:i:s'),
             'agent_version' => $this->agentVersion,
             'connection_mode' => $this->connectionMode,
+            // Timestamps
+            'created_at' => $this->createdAt?->format('Y-m-d H:i:s'),
+            'updated_at' => $this->updatedAt?->format('Y-m-d H:i:s'),
         ];
     }
 

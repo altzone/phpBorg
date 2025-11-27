@@ -40,6 +40,7 @@ class ServerWizardController extends BaseController
         $this->settingRepo = $app->getSettingRepository();
         $this->agentInstallService = new AgentInstallService(
             $app->getServerRepository(),
+            $app->getAgentRepository(),
             $app->getSettingRepository()
         );
         $this->agentManager = $app->getAgentManager();

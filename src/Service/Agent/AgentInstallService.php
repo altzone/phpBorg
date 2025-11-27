@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PhpBorg\Service\Agent;
 
+use PhpBorg\Repository\AgentRepository;
 use PhpBorg\Repository\ServerRepository;
 use PhpBorg\Repository\SettingRepository;
 
@@ -14,15 +15,18 @@ use PhpBorg\Repository\SettingRepository;
 class AgentInstallService
 {
     private ServerRepository $serverRepo;
+    private AgentRepository $agentRepo;
     private SettingRepository $settingRepo;
     private string $phpBorgRoot;
 
     public function __construct(
         ServerRepository $serverRepo,
+        AgentRepository $agentRepo,
         SettingRepository $settingRepo,
         string $phpBorgRoot = '/opt/newphpborg/phpBorg'
     ) {
         $this->serverRepo = $serverRepo;
+        $this->agentRepo = $agentRepo;
         $this->settingRepo = $settingRepo;
         $this->phpBorgRoot = $phpBorgRoot;
     }
@@ -112,15 +116,20 @@ class AgentInstallService
             return null;
         }
 
+        $agentUuid = $tokenData['agent_uuid'];
+        $agentName = $tokenData['agent_name'];
+        $hostname = $tokenData['hostname'] ?? $tokenData['ip_address'] ?? 'unknown';
+        $backupPath = '/opt/backups/' . $agentUuid;
+
         // Create server in database using the agent-specific method
         $serverId = $this->serverRepo->createWithAgent([
-            'name' => $tokenData['agent_name'],
-            'host' => $tokenData['hostname'] ?? $tokenData['ip_address'] ?? 'unknown',
+            'name' => $agentName,
+            'host' => $hostname,
             'port' => 22, // Not used with agent, but required field
             'backuptype' => 'agent',
             'active' => 1,
             'ssh_pub_key' => '', // Not used with agent
-            'agent_uuid' => $tokenData['agent_uuid'],
+            'agent_uuid' => $agentUuid,
             'agent_status' => 'active',
             'agent_last_heartbeat' => date('Y-m-d H:i:s'),
             'agent_version' => $tokenData['agent_version'] ?? '1.0.0',
@@ -130,6 +139,17 @@ class AgentInstallService
                 'borg_version' => $tokenData['borg_version'] ?? null,
             ]),
         ]);
+
+        // Also create agent record for capabilities detection and task management
+        $this->agentRepo->create(
+            uuid: $agentUuid,
+            name: $agentName,
+            hostname: $hostname,
+            sshPublicKey: $tokenData['ssh_public_key'] ?? '',
+            backupPath: $backupPath,
+            appendOnly: true,
+            registeredBy: $tokenData['user_id'] ?? null
+        );
 
         // Mark token as completed
         $tokenData['status'] = 'completed';
