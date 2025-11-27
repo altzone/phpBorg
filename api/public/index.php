@@ -42,6 +42,7 @@ use PhpBorg\Api\Controller\UserController;
 use PhpBorg\Api\Controller\WorkerController;
 use PhpBorg\Api\Controller\WorkerStreamController;
 use PhpBorg\Api\Controller\SetupController;
+use PhpBorg\Api\Controller\AgentGatewayController;
 
 try {
     // Initialize application
@@ -285,6 +286,19 @@ try {
     $router->get('/phpborg-update/version', PhpBorgUpdateController::class, 'version', requireAuth: true);
     $router->get('/phpborg-update/changelog', PhpBorgUpdateController::class, 'changelog', requireAuth: true);
     $router->post('/phpborg-update/start', PhpBorgUpdateController::class, 'start', requireAuth: true);
+
+    // ===========================================
+    // Agent Gateway API Routes (mTLS authenticated)
+    // These routes are for phpborg-agent communication
+    // ===========================================
+    $router->post('/agent/register', AgentGatewayController::class, 'register', requireAuth: false); // Uses internal auth
+    $router->post('/agent/heartbeat', AgentGatewayController::class, 'heartbeat', requireAuth: false); // mTLS auth
+    $router->get('/agent/tasks', AgentGatewayController::class, 'getTasks', requireAuth: false); // mTLS auth
+    $router->post('/agent/tasks/:taskId/start', AgentGatewayController::class, 'startTask', requireAuth: false); // mTLS auth
+    $router->post('/agent/tasks/:taskId/progress', AgentGatewayController::class, 'updateProgress', requireAuth: false); // mTLS auth
+    $router->post('/agent/tasks/:taskId/complete', AgentGatewayController::class, 'completeTask', requireAuth: false); // mTLS auth
+    $router->post('/agent/tasks/:taskId/fail', AgentGatewayController::class, 'failTask', requireAuth: false); // mTLS auth
+    $router->get('/agent/info', AgentGatewayController::class, 'getInfo', requireAuth: false); // mTLS auth
 
     // ===========================================
     // Future Routes (To be implemented)

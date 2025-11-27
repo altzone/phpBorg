@@ -20,6 +20,8 @@ use PhpBorg\Repository\PhpBorgBackupRepository;
 use PhpBorg\Repository\RefreshTokenRepository;
 use PhpBorg\Repository\ReportRepository;
 use PhpBorg\Repository\ServerRepository;
+use PhpBorg\Repository\AgentRepository;
+use PhpBorg\Repository\AgentTaskRepository;
 use PhpBorg\Repository\ServerStatsRepository;
 use PhpBorg\Repository\SettingRepository;
 use PhpBorg\Repository\StoragePoolRepository;
@@ -42,6 +44,8 @@ use PhpBorg\Service\Server\ServerManager;
 use PhpBorg\Service\Server\ServerStatsCollector;
 use PhpBorg\Service\Server\SshExecutor;
 use PhpBorg\Service\Setup\SetupService;
+use PhpBorg\Service\Agent\AgentManager;
+use PhpBorg\Service\Agent\CertificateManager;
 use Symfony\Component\Dotenv\Dotenv;
 
 /**
@@ -499,6 +503,42 @@ final class Application
     {
         return $this->getService(\PhpBorg\Service\PhpBorgUpdateService::class, fn() =>
             new \PhpBorg\Service\PhpBorgUpdateService(
+                $this->config,
+                $this->logger
+            )
+        );
+    }
+
+    // Agent Architecture Services
+
+    public function getAgentRepository(): AgentRepository
+    {
+        return $this->getService(AgentRepository::class, fn() =>
+            new AgentRepository($this->connection)
+        );
+    }
+
+    public function getAgentTaskRepository(): AgentTaskRepository
+    {
+        return $this->getService(AgentTaskRepository::class, fn() =>
+            new AgentTaskRepository($this->connection)
+        );
+    }
+
+    public function getAgentManager(): AgentManager
+    {
+        return $this->getService(AgentManager::class, fn() =>
+            new AgentManager(
+                $this->config,
+                $this->logger
+            )
+        );
+    }
+
+    public function getCertificateManager(): CertificateManager
+    {
+        return $this->getService(CertificateManager::class, fn() =>
+            new CertificateManager(
                 $this->config,
                 $this->logger
             )
