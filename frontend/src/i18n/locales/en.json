@@ -2,6 +2,7 @@
   "common": {
     "loading": "Loading...",
     "loading_msg": "Loading in progress...",
+    "updating": "Updating...",
     "save": "Save",
     "cancel": "Cancel",
     "delete": "Delete",

@@ -2,6 +2,7 @@
   "common": {
     "loading": "Chargement...",
     "loading_msg": "Chargement en cours...",
+    "updating": "Mise à jour...",
     "save": "Enregistrer",
     "cancel": "Annuler",
     "delete": "Supprimer",

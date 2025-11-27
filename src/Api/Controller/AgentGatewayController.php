@@ -516,33 +516,48 @@ final class AgentGatewayController extends BaseController
     {
         // This endpoint requires user authentication, not agent authentication
         $user = $_SERVER['USER'] ?? null;
-        if (!$user || !in_array('ROLE_ADMIN', $user->roles ?? [])) {
+        if (!$user || !in_array('ROLE_ADMIN', $user->roles)) {
             $this->error('Admin role required', 403, 'FORBIDDEN');
             return;
         }
 
         $data = $this->getJsonBody();
-        $agentId = (int) ($data['agent_id'] ?? 0);
+        $serverId = (int) ($data['server_id'] ?? 0);
         $force = (bool) ($data['force'] ?? false);
 
-        if ($agentId <= 0) {
-            $this->error('Invalid agent ID', 400, 'INVALID_AGENT_ID');
+        if ($serverId <= 0) {
+            $this->error('Invalid server ID', 400, 'INVALID_SERVER_ID');
             return;
         }
 
-        $agent = $this->agentRepo->findById($agentId);
+        // Get server to find agent UUID
+        $server = $this->serverRepo->findById($serverId);
+        if (!$server || !$server->agentUuid) {
+            $this->error('Server not found or not an agent-based server', 404, 'SERVER_NOT_FOUND');
+            return;
+        }
+
+        // Find agent by UUID
+        $agent = $this->agentRepo->findByUuid($server->agentUuid);
         if (!$agent) {
             $this->error('Agent not found', 404, 'AGENT_NOT_FOUND');
             return;
         }
+        $agentId = (int) $agent['id'];
 
-        // Get latest version and checksum
-        $releasesDir = PHPBORG_ROOT . '/releases/agent';
-        $latestVersion = $this->getLatestAgentVersion($releasesDir);
-        $binaryPath = $this->getAgentBinaryPath($releasesDir, $latestVersion);
+        // Get latest version from source code
+        $latestVersion = DownloadController::getLatestAgentVersion();
+        if (!$latestVersion) {
+            $this->error('Cannot determine latest agent version', 500, 'VERSION_ERROR');
+            return;
+        }
 
-        if (!$binaryPath || !file_exists($binaryPath)) {
-            $this->error('No agent binary available for update', 404, 'NO_BINARY');
+        // Check if binary exists
+        $releasesDir = dirname(__DIR__, 3) . '/releases/agent';
+        $binaryPath = $releasesDir . '/phpborg-agent';
+
+        if (!file_exists($binaryPath)) {
+            $this->error('No agent binary available for update. Run build first.', 404, 'NO_BINARY');
             return;
         }
 
@@ -559,7 +574,7 @@ final class AgentGatewayController extends BaseController
             ],
             priority: 'high',
             timeoutSeconds: 300, // 5 minutes
-            userId: $user->id
+            userId: $user->sub ?? null
         );
 
         $this->logger->info(

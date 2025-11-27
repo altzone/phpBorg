@@ -145,12 +145,25 @@
                   <template v-if="server.agent">
                     <span class="flex items-center gap-2">
                       <span class="font-mono">{{ server.agent.version || 'N/A' }}</span>
-                      <span
-                        v-if="server.agent.needs_update"
-                        class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                      <!-- Update badge (clickable) -->
+                      <button
+                        v-if="server.agent.needs_update && !updatingAgent[server.id]"
+                        @click.stop="updateAgent(server)"
+                        class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 hover:bg-yellow-200 dark:hover:bg-yellow-800 cursor-pointer transition-colors"
                         :title="$t('servers.agent.update_available', { version: server.agent.latest_version })"
                       >
                         {{ $t('servers.agent.update') }}
+                      </button>
+                      <!-- Updating spinner -->
+                      <span
+                        v-if="updatingAgent[server.id]"
+                        class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                      >
+                        <svg class="animate-spin -ml-0.5 mr-1.5 h-3 w-3" fill="none" viewBox="0 0 24 24">
+                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        {{ $t('common.updating') }}
                       </span>
                     </span>
                   </template>
@@ -304,11 +317,22 @@
                 <template v-if="server.agent">
                   <span class="flex items-center gap-2">
                     <span class="font-mono">{{ server.agent.version || 'N/A' }}</span>
-                    <span
-                      v-if="server.agent.needs_update"
-                      class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                    <button
+                      v-if="server.agent.needs_update && !updatingAgent[server.id]"
+                      @click.stop="updateAgent(server)"
+                      class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 hover:bg-yellow-200 dark:hover:bg-yellow-800 cursor-pointer"
                     >
                       {{ $t('servers.agent.update') }}
+                    </button>
+                    <span
+                      v-if="updatingAgent[server.id]"
+                      class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                    >
+                      <svg class="animate-spin -ml-0.5 mr-1.5 h-3 w-3" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      {{ $t('common.updating') }}
                     </span>
                   </span>
                 </template>
@@ -386,6 +410,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useServerStore } from '@/stores/server'
+import api from '@/services/api'
 import AddServerWizard from '@/components/AddServerWizard.vue'
 import ServerFormModal from '@/components/ServerFormModal.vue'
 import DeleteConfirmModal from '@/components/DeleteConfirmModal.vue'
@@ -400,6 +425,7 @@ const showDeleteModal = ref(false)
 const editingServer = ref(null)
 const deletingServer = ref(null)
 const detectingCapabilities = ref({})
+const updatingAgent = ref({})
 
 // Toast notifications
 const toasts = ref([])
@@ -499,6 +525,40 @@ async function detectCapabilities(server) {
     )
   } finally {
     detectingCapabilities.value[server.id] = false
+  }
+}
+
+async function updateAgent(server) {
+  if (!server.agent?.uuid) return
+
+  updatingAgent.value[server.id] = true
+
+  try {
+    // Request update using server_id (backend will resolve agent_id)
+    await api.post('/agent/update/request', {
+      server_id: server.id,
+      force: false
+    })
+
+    showToast(
+      '✓ Mise à jour lancée',
+      `Mise à jour de l'agent ${server.name} vers v${server.agent.latest_version}`,
+      'success'
+    )
+
+    // Refresh after some time to see updated version
+    setTimeout(async () => {
+      await serverStore.fetchServers()
+    }, 10000)
+  } catch (err) {
+    showToast(
+      'Erreur',
+      err.response?.data?.error?.message || 'Échec de la mise à jour de l\'agent',
+      'error',
+      8000
+    )
+  } finally {
+    updatingAgent.value[server.id] = false
   }
 }
 
