@@ -547,6 +547,7 @@ fi
 
 if curl -fsSL -o "\$BIN_PATH" "\$AGENT_BINARY_URL"; then
     chmod +x "\$BIN_PATH"
+    chown \$AGENT_USER:\$AGENT_USER "\$BIN_PATH"
 
     # Verify binary works
     if "\$BIN_PATH" -version &>/dev/null; then
