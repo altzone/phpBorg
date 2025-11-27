@@ -176,4 +176,204 @@ final class ServerRepository
             ]
         );
     }
+
+    /**
+     * Create server with agent (new flow)
+     *
+     * @param array $data Server and agent data
+     * @return int Server ID
+     * @throws DatabaseException
+     */
+    public function createWithAgent(array $data): int
+    {
+        $this->connection->executeUpdate(
+            'INSERT INTO servers (
+                name, host, port, backuptype, ssh_pub_key, active,
+                agent_uuid, agent_status, agent_last_heartbeat, agent_version,
+                connection_mode, capabilities_data
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                $data['name'],
+                $data['host'],
+                $data['port'] ?? 22,
+                $data['backuptype'] ?? 'agent',
+                $data['ssh_pub_key'] ?? '',
+                $data['active'] ?? 1,
+                $data['agent_uuid'],
+                $data['agent_status'] ?? 'pending',
+                $data['agent_last_heartbeat'] ?? null,
+                $data['agent_version'] ?? null,
+                $data['connection_mode'] ?? 'agent',
+                $data['capabilities_data'] ?? null,
+            ]
+        );
+
+        return $this->connection->getLastInsertId();
+    }
+
+    /**
+     * Find server by agent UUID
+     *
+     * @throws DatabaseException
+     */
+    public function findByAgentUuid(string $uuid): ?Server
+    {
+        $row = $this->connection->fetchOne(
+            'SELECT * FROM servers WHERE agent_uuid = ?',
+            [$uuid]
+        );
+
+        return $row ? Server::fromDatabase($row) : null;
+    }
+
+    /**
+     * Find all servers with agents
+     *
+     * @return array<int, Server>
+     * @throws DatabaseException
+     */
+    public function findAllWithAgents(): array
+    {
+        $rows = $this->connection->fetchAll(
+            'SELECT * FROM servers WHERE connection_mode = ? ORDER BY name',
+            ['agent']
+        );
+
+        return array_map(fn(array $row) => Server::fromDatabase($row), $rows);
+    }
+
+    /**
+     * Update agent status
+     *
+     * @throws DatabaseException
+     */
+    public function updateAgentStatus(
+        int $id,
+        string $status,
+        ?string $lastHeartbeat = null,
+        ?string $version = null
+    ): void {
+        $params = [$status];
+        $sql = 'UPDATE servers SET agent_status = ?';
+
+        if ($lastHeartbeat !== null) {
+            $sql .= ', agent_last_heartbeat = ?';
+            $params[] = $lastHeartbeat;
+        }
+
+        if ($version !== null) {
+            $sql .= ', agent_version = ?';
+            $params[] = $version;
+        }
+
+        $sql .= ' WHERE id = ?';
+        $params[] = $id;
+
+        $this->connection->executeUpdate($sql, $params);
+    }
+
+    /**
+     * Update agent heartbeat
+     *
+     * @throws DatabaseException
+     */
+    public function updateAgentHeartbeat(string $agentUuid, ?string $version = null): void
+    {
+        $now = date('Y-m-d H:i:s');
+
+        if ($version !== null) {
+            $this->connection->executeUpdate(
+                'UPDATE servers SET agent_last_heartbeat = ?, agent_version = ?, agent_status = ? WHERE agent_uuid = ?',
+                [$now, $version, 'active', $agentUuid]
+            );
+        } else {
+            $this->connection->executeUpdate(
+                'UPDATE servers SET agent_last_heartbeat = ?, agent_status = ? WHERE agent_uuid = ?',
+                [$now, 'active', $agentUuid]
+            );
+        }
+    }
+
+    /**
+     * Set agent install token
+     *
+     * @throws DatabaseException
+     */
+    public function setAgentInstallToken(int $id, string $token, \DateTimeInterface $expires): void
+    {
+        $this->connection->executeUpdate(
+            'UPDATE servers SET agent_install_token = ?, agent_install_token_expires = ?, agent_status = ? WHERE id = ?',
+            [$token, $expires->format('Y-m-d H:i:s'), 'pending', $id]
+        );
+    }
+
+    /**
+     * Find server by agent install token
+     *
+     * @throws DatabaseException
+     */
+    public function findByAgentInstallToken(string $token): ?Server
+    {
+        $row = $this->connection->fetchOne(
+            'SELECT * FROM servers WHERE agent_install_token = ? AND agent_install_token_expires > NOW()',
+            [$token]
+        );
+
+        return $row ? Server::fromDatabase($row) : null;
+    }
+
+    /**
+     * Clear agent install token
+     *
+     * @throws DatabaseException
+     */
+    public function clearAgentInstallToken(int $id): void
+    {
+        $this->connection->executeUpdate(
+            'UPDATE servers SET agent_install_token = NULL, agent_install_token_expires = NULL WHERE id = ?',
+            [$id]
+        );
+    }
+
+    /**
+     * Get servers with inactive agents (no heartbeat in last X minutes)
+     *
+     * @param int $minutes Minutes threshold
+     * @return array<int, Server>
+     * @throws DatabaseException
+     */
+    public function findInactiveAgents(int $minutes = 5): array
+    {
+        $threshold = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
+
+        $rows = $this->connection->fetchAll(
+            'SELECT * FROM servers
+             WHERE connection_mode = ?
+             AND agent_status = ?
+             AND (agent_last_heartbeat IS NULL OR agent_last_heartbeat < ?)
+             ORDER BY name',
+            ['agent', 'active', $threshold]
+        );
+
+        return array_map(fn(array $row) => Server::fromDatabase($row), $rows);
+    }
+
+    /**
+     * Mark inactive agents
+     *
+     * @param int $minutes Minutes threshold
+     * @throws DatabaseException
+     */
+    public function markInactiveAgents(int $minutes = 5): int
+    {
+        $threshold = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
+
+        return $this->connection->executeUpdate(
+            'UPDATE servers SET agent_status = ?
+             WHERE connection_mode = ?
+             AND agent_status = ?
+             AND (agent_last_heartbeat IS NULL OR agent_last_heartbeat < ?)',
+            ['inactive', 'agent', 'active', $threshold]
+        );
+    }
 }

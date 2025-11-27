@@ -93,7 +93,8 @@ try {
     $router->post('/server-wizard/setup-with-password', ServerWizardController::class, 'setupWithPassword', requireAuth: true);
     $router->post('/server-wizard/generate-install-token', ServerWizardController::class, 'generateInstallToken', requireAuth: true);
     $router->get('/server-wizard/install-script/:token', ServerWizardController::class, 'serveInstallScript', requireAuth: false); // Public for curl
-    $router->post('/server-wizard/install-callback/:token', ServerWizardController::class, 'installCallback', requireAuth: false); // Public webhook
+    $router->post('/server-wizard/install-callback/:token', ServerWizardController::class, 'installCallback', requireAuth: false); // Legacy webhook
+    $router->post('/server-wizard/agent-callback/:token', ServerWizardController::class, 'agentCallback', requireAuth: false); // Agent registration webhook
     $router->get('/server-wizard/install-status/:token', ServerWizardController::class, 'getInstallStatus', requireAuth: true);
 
     // ===========================================
