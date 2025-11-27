@@ -697,6 +697,15 @@ setup_application() {
         log_info "Adminer image already built (skipped)"
     fi
 
+    # Build phpBorg Agent binary
+    if ! is_step_completed "build_agent"; then
+        # Source deps.sh to get the build function
+        source "${PHPBORG_ROOT}/install/lib/deps.sh"
+        build_phpborg_agent || errors=$((errors + 1))
+    else
+        log_info "phpBorg Agent already built (skipped)"
+    fi
+
     if [ ${errors} -eq 0 ]; then
         log_success "Application setup completed successfully"
         save_state "application_setup" "completed"

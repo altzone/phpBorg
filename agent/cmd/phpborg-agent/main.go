@@ -36,6 +36,9 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
+	// Set agent version in config
+	cfg.Agent.Version = Version
+
 	// Setup logging
 	if cfg.Logging.File != "" {
 		f, err := os.OpenFile(cfg.Logging.File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)

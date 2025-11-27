@@ -43,6 +43,7 @@ use PhpBorg\Api\Controller\WorkerController;
 use PhpBorg\Api\Controller\WorkerStreamController;
 use PhpBorg\Api\Controller\SetupController;
 use PhpBorg\Api\Controller\AgentGatewayController;
+use PhpBorg\Api\Controller\DownloadController;
 
 try {
     // Initialize application
@@ -50,6 +51,13 @@ try {
 
     // Create router
     $router = new Router($app);
+
+    // ===========================================
+    // Download Routes (Public - for agent installation)
+    // ===========================================
+    $router->get('/downloads/phpborg-agent', DownloadController::class, 'agentBinary', requireAuth: false);
+    $router->get('/downloads/phpborg-agent.sha256', DownloadController::class, 'agentChecksum', requireAuth: false);
+    $router->get('/downloads/agent-info', DownloadController::class, 'agentInfo', requireAuth: false);
 
     // ===========================================
     // Setup Wizard Routes (Public - for first run)

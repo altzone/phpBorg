@@ -153,6 +153,24 @@ get_borg_packages() {
     esac
 }
 
+# Go packages
+get_golang_packages() {
+    case "${OS_DISTRO}" in
+        debian|ubuntu|linuxmint|pop)
+            echo "golang-go"
+            ;;
+        rhel|centos|rocky|almalinux|fedora)
+            echo "golang"
+            ;;
+        arch|manjaro)
+            echo "go"
+            ;;
+        alpine)
+            echo "go"
+            ;;
+    esac
+}
+
 # Utility packages
 get_utility_packages() {
     case "${OS_DISTRO}" in
@@ -681,6 +699,89 @@ install_fuse_overlayfs() {
     fi
 }
 
+install_golang() {
+    print_section "Installing Go (for agent build)"
+
+    # Check if Go is already installed
+    if command -v go &>/dev/null; then
+        local go_version=$(go version 2>/dev/null | awk '{print $3}' | sed 's/go//')
+        log_info "Go already installed: ${go_version}"
+        save_state "install_golang" "completed"
+        return 0
+    fi
+
+    local packages=$(get_golang_packages)
+
+    if install_packages_with_progress "Installing Go" "${packages}"; then
+        if command -v go &>/dev/null; then
+            local go_version=$(go version 2>/dev/null | awk '{print $3}' | sed 's/go//')
+            log_success "Go installed: ${go_version}"
+            save_state "install_golang" "completed"
+            return 0
+        else
+            log_error "Go installed but not found in PATH"
+            return 1
+        fi
+    else
+        log_error "Failed to install Go"
+        return 1
+    fi
+}
+
+build_phpborg_agent() {
+    print_section "Building phpBorg Agent"
+
+    local agent_src="${PHPBORG_ROOT}/agent"
+    local releases_dir="${PHPBORG_ROOT}/releases/agent"
+    local binary_path="${releases_dir}/phpborg-agent"
+
+    # Check if agent source exists
+    if [ ! -d "${agent_src}" ]; then
+        log_error "Agent source directory not found: ${agent_src}"
+        return 1
+    fi
+
+    # Check if Go is available
+    if ! command -v go &>/dev/null; then
+        log_error "Go is not installed, cannot build agent"
+        return 1
+    fi
+
+    # Create releases directory
+    mkdir -p "${releases_dir}"
+
+    # Build the agent
+    log_info "Compiling phpborg-agent..."
+
+    cd "${agent_src}"
+
+    # Initialize go module if needed
+    if [ ! -f "go.mod" ]; then
+        log_info "Initializing Go module..."
+        go mod init github.com/phpborg/phpborg-agent >> "${INSTALL_LOG}" 2>&1
+        go mod tidy >> "${INSTALL_LOG}" 2>&1
+    fi
+
+    # Build for linux/amd64
+    if CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o "${binary_path}" ./cmd/phpborg-agent >> "${INSTALL_LOG}" 2>&1; then
+        chmod +x "${binary_path}"
+        chown phpborg:phpborg "${binary_path}"
+
+        local binary_size=$(du -h "${binary_path}" | cut -f1)
+        log_success "Agent built successfully: ${binary_path} (${binary_size})"
+
+        # Generate checksum
+        sha256sum "${binary_path}" > "${binary_path}.sha256"
+        chown phpborg:phpborg "${binary_path}.sha256"
+
+        save_state "build_agent" "completed"
+        return 0
+    else
+        log_error "Failed to build phpborg-agent"
+        return 1
+    fi
+}
+
 #
 # Main installation orchestrator
 #
@@ -710,6 +811,7 @@ install_all_dependencies() {
     install_docker || errors=$((errors + 1))
     install_borgbackup || errors=$((errors + 1))
     install_fuse_overlayfs || errors=$((errors + 1))
+    install_golang || errors=$((errors + 1))
 
     if [ ${errors} -eq 0 ]; then
         log_success "All dependencies installed successfully"

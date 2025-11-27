@@ -22,34 +22,47 @@ type Client struct {
 	baseURL    string
 }
 
-// NewClient creates a new API client with mTLS
+// NewClient creates a new API client with mTLS or simple HTTP
 func NewClient(cfg *config.Config) (*Client, error) {
-	// Load client certificate
-	cert, err := tls.LoadX509KeyPair(cfg.TLS.CertFile, cfg.TLS.KeyFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load client certificate: %w", err)
-	}
+	var transport *http.Transport
 
-	// Load CA certificate
-	caCert, err := os.ReadFile(cfg.TLS.CAFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load CA certificate: %w", err)
-	}
+	// Check if mTLS is configured
+	if cfg.UseTLS() {
+		// Load client certificate
+		cert, err := tls.LoadX509KeyPair(cfg.TLS.CertFile, cfg.TLS.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load client certificate: %w", err)
+		}
 
-	caCertPool := x509.NewCertPool()
-	if !caCertPool.AppendCertsFromPEM(caCert) {
-		return nil, fmt.Errorf("failed to parse CA certificate")
-	}
+		// Load CA certificate
+		caCert, err := os.ReadFile(cfg.TLS.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load CA certificate: %w", err)
+		}
 
-	// Configure TLS
-	tlsConfig := &tls.Config{
-		Certificates:       []tls.Certificate{cert},
-		RootCAs:            caCertPool,
-		InsecureSkipVerify: cfg.Server.InsecureSkipVerify,
-	}
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			return nil, fmt.Errorf("failed to parse CA certificate")
+		}
 
-	transport := &http.Transport{
-		TLSClientConfig: tlsConfig,
+		// Configure TLS with client certs
+		tlsConfig := &tls.Config{
+			Certificates:       []tls.Certificate{cert},
+			RootCAs:            caCertPool,
+			InsecureSkipVerify: cfg.Server.InsecureSkipVerify,
+		}
+
+		transport = &http.Transport{
+			TLSClientConfig: tlsConfig,
+		}
+	} else {
+		// Simple transport without mTLS (uses Bearer token auth)
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: cfg.Server.InsecureSkipVerify,
+		}
+		transport = &http.Transport{
+			TLSClientConfig: tlsConfig,
+		}
 	}
 
 	return &Client{

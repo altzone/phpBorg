@@ -48,6 +48,9 @@ type AgentConfig struct {
 
 	// Maximum concurrent tasks
 	MaxConcurrentTasks int `yaml:"max_concurrent_tasks"`
+
+	// Agent version (set at runtime from main.go)
+	Version string `yaml:"-"`
 }
 
 // BorgSSHConfig holds Borg SSH connection details
@@ -155,19 +158,26 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("agent.name is required")
 	}
 
-	if c.TLS.CertFile == "" {
-		return fmt.Errorf("tls.cert_file is required")
-	}
-
-	if c.TLS.KeyFile == "" {
-		return fmt.Errorf("tls.key_file is required")
-	}
-
-	if c.TLS.CAFile == "" {
-		return fmt.Errorf("tls.ca_file is required")
+	// TLS is optional - if not configured, use Bearer token auth
+	// Only validate TLS if any TLS field is set
+	if c.TLS.CertFile != "" || c.TLS.KeyFile != "" || c.TLS.CAFile != "" {
+		if c.TLS.CertFile == "" {
+			return fmt.Errorf("tls.cert_file is required when using mTLS")
+		}
+		if c.TLS.KeyFile == "" {
+			return fmt.Errorf("tls.key_file is required when using mTLS")
+		}
+		if c.TLS.CAFile == "" {
+			return fmt.Errorf("tls.ca_file is required when using mTLS")
+		}
 	}
 
 	return nil
+}
+
+// UseTLS returns true if mTLS is configured
+func (c *Config) UseTLS() bool {
+	return c.TLS.CertFile != "" && c.TLS.KeyFile != "" && c.TLS.CAFile != ""
 }
 
 // SaveToFile saves configuration to a YAML file

@@ -392,10 +392,35 @@ fi
 SERVER_HOST=\$(echo "\$SERVER_URL" | sed 's|https\\?://||' | sed 's|/.*||' | sed 's|:.*||')
 
 # =============================================================================
-# Step 7: Create configuration
+# Step 7: Download agent binary
 # =============================================================================
 echo ""
-echo -e "\${YELLOW}[7/8] Creating configuration...\${NC}"
+echo -e "\${YELLOW}[7/9] Downloading agent binary...\${NC}"
+
+if curl -fsSL -o "\$BIN_PATH" "\$AGENT_BINARY_URL"; then
+    chmod +x "\$BIN_PATH"
+
+    # Verify binary works
+    if "\$BIN_PATH" -version &>/dev/null; then
+        AGENT_VERSION=\$("\$BIN_PATH" -version 2>&1 | head -1)
+        echo -e "  \${GREEN}✓ Agent downloaded: \$AGENT_VERSION\${NC}"
+    else
+        echo -e "  \${GREEN}✓ Agent binary downloaded\${NC}"
+    fi
+else
+    echo -e "  \${RED}ERROR: Failed to download agent binary\${NC}"
+    echo "  URL: \$AGENT_BINARY_URL"
+    echo ""
+    echo "  You can download it manually later:"
+    echo "    curl -o \$BIN_PATH \$AGENT_BINARY_URL && chmod +x \$BIN_PATH"
+    # Continue anyway - the binary can be installed later
+fi
+
+# =============================================================================
+# Step 8: Create configuration
+# =============================================================================
+echo ""
+echo -e "\${YELLOW}[8/9] Creating configuration...\${NC}"
 
 cat > "\$CONFIG_DIR/config.yaml" << CONFIG_EOF
 # phpBorg Agent Configuration
@@ -431,10 +456,10 @@ chmod 600 "\$CONFIG_DIR/config.yaml"
 echo -e "  \${GREEN}✓ Configuration created\${NC}"
 
 # =============================================================================
-# Step 8: Create systemd service
+# Step 9: Create systemd service
 # =============================================================================
 echo ""
-echo -e "\${YELLOW}[8/8] Creating systemd service...\${NC}"
+echo -e "\${YELLOW}[9/9] Creating systemd service...\${NC}"
 
 cat > /etc/systemd/system/phpborg-agent.service << SERVICE_EOF
 [Unit]
@@ -466,6 +491,25 @@ systemctl daemon-reload
 echo -e "  \${GREEN}✓ Systemd service created\${NC}"
 
 # =============================================================================
+# Start agent if binary is present
+# =============================================================================
+if [ -x "\$BIN_PATH" ]; then
+    echo ""
+    echo -e "\${YELLOW}Starting phpborg-agent service...\${NC}"
+    systemctl enable phpborg-agent
+    systemctl start phpborg-agent
+
+    sleep 2
+
+    if systemctl is-active --quiet phpborg-agent; then
+        echo -e "  \${GREEN}✓ Agent is running\${NC}"
+    else
+        echo -e "  \${RED}✗ Agent failed to start\${NC}"
+        echo "  Check logs: journalctl -u phpborg-agent -f"
+    fi
+fi
+
+# =============================================================================
 # Done!
 # =============================================================================
 echo ""
@@ -477,17 +521,22 @@ echo "Agent UUID:  \$AGENT_UUID"
 echo "Agent Name:  \$AGENT_NAME"
 echo "Config:      \$CONFIG_DIR/config.yaml"
 echo ""
-echo -e "\${YELLOW}Next steps:\${NC}"
-echo "1. Download agent binary:"
-echo "   curl -o \$BIN_PATH \$AGENT_BINARY_URL && chmod +x \$BIN_PATH"
-echo ""
-echo "2. Start the agent:"
-echo "   systemctl start phpborg-agent"
-echo ""
-echo "3. Enable on boot:"
-echo "   systemctl enable phpborg-agent"
-echo ""
-echo "View logs: journalctl -u phpborg-agent -f"
+
+if [ -x "\$BIN_PATH" ]; then
+    echo -e "\${GREEN}✓ Agent is installed and running\${NC}"
+    echo ""
+    echo "Useful commands:"
+    echo "  Status:   systemctl status phpborg-agent"
+    echo "  Logs:     journalctl -u phpborg-agent -f"
+    echo "  Restart:  systemctl restart phpborg-agent"
+else
+    echo -e "\${YELLOW}Note: Agent binary not installed.\${NC}"
+    echo ""
+    echo "To complete installation, download the agent binary:"
+    echo "  curl -o \$BIN_PATH \$AGENT_BINARY_URL && chmod +x \$BIN_PATH"
+    echo "  systemctl enable phpborg-agent"
+    echo "  systemctl start phpborg-agent"
+fi
 echo ""
 
 BASH;
