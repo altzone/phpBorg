@@ -35,6 +35,7 @@ ReadWritePaths=/opt/newphpborg/phpBorg/var
 ReadWritePaths=/opt/newphpborg/phpBorg/logs
 ReadWritePaths=/opt/newphpborg/phpBorg/.git
 ReadWritePaths=/opt/backups
+ReadWritePaths=/var/lib/phpborg/backups
 ReadWritePaths=/var/log/phpborg
 ReadWritePaths=/tmp
 

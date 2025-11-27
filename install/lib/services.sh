@@ -288,7 +288,7 @@ PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=${PHPBORG_ROOT} /opt/backups /var/log/phpborg /tmp
+ReadWritePaths=${PHPBORG_ROOT} /opt/backups /var/lib/phpborg/backups /var/log/phpborg /tmp
 
 # Resource limits
 LimitNOFILE=65536
@@ -354,7 +354,7 @@ PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=${PHPBORG_ROOT} /opt/backups /var/log/phpborg /tmp
+ReadWritePaths=${PHPBORG_ROOT} /opt/backups /var/lib/phpborg/backups /var/log/phpborg /tmp
 
 # Resource limits
 LimitNOFILE=65536
@@ -445,6 +445,7 @@ ProtectHome=true
 ReadWritePaths=${PHPBORG_ROOT}/var
 ReadWritePaths=${PHPBORG_ROOT}/logs
 ReadWritePaths=/opt/backups
+ReadWritePaths=/var/lib/phpborg/backups
 ReadWritePaths=/var/log/phpborg
 ReadWritePaths=/var/lib/phpborg-borg
 ReadWritePaths=/etc/phpborg
@@ -913,6 +914,31 @@ create_log_directories() {
 }
 
 #
+# Create phpBorg internal backup directory
+#
+
+create_phpborg_backup_directory() {
+    print_section "Creating phpBorg Internal Backup Directory"
+
+    local backup_dir="/var/lib/phpborg/backups"
+
+    if [ ! -d "${backup_dir}" ]; then
+        log_info "Creating directory: ${backup_dir}"
+        mkdir -p "${backup_dir}"
+        chown phpborg:phpborg "${backup_dir}"
+        chmod 755 "${backup_dir}"
+        log_success "Internal backup directory created"
+    else
+        log_info "Directory already exists: ${backup_dir}"
+        # Ensure correct ownership
+        chown phpborg:phpborg "${backup_dir}"
+    fi
+
+    save_state "create_phpborg_backup_directory" "completed"
+    return 0
+}
+
+#
 # Create runtime directories
 #
 
@@ -988,6 +1014,13 @@ setup_services() {
         create_runtime_directories || errors=$((errors + 1))
     else
         log_info "Runtime directories already created (skipped)"
+    fi
+
+    # Create phpBorg internal backup directory (owned by phpborg, separate from /opt/backups)
+    if ! is_step_completed "create_phpborg_backup_directory"; then
+        create_phpborg_backup_directory || errors=$((errors + 1))
+    else
+        log_info "phpBorg backup directory already created (skipped)"
     fi
 
     # Install systemd service files
