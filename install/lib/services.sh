@@ -88,6 +88,23 @@ phpborg ALL=(ALL) NOPASSWD: /opt/newphpborg/phpBorg/bin/regenerate-systemd-servi
 
 # Restart services script (for updates)
 phpborg ALL=(ALL) NOPASSWD: /bin/bash ${PHPBORG_ROOT}/bin/restart-services.sh
+
+# Agent SSH key management (for AgentManager)
+phpborg ALL=(ALL) NOPASSWD: /bin/tee -a /var/lib/phpborg-borg/.ssh/authorized_keys
+phpborg ALL=(ALL) NOPASSWD: /bin/cp * /var/lib/phpborg-borg/.ssh/authorized_keys
+phpborg ALL=(ALL) NOPASSWD: /bin/chown phpborg-borg\:phpborg-borg /var/lib/phpborg-borg/.ssh/authorized_keys
+phpborg ALL=(ALL) NOPASSWD: /bin/chmod 600 /var/lib/phpborg-borg/.ssh/authorized_keys
+
+# Agent backup directory creation
+phpborg ALL=(ALL) NOPASSWD: /bin/mkdir -p /opt/backups/*
+phpborg ALL=(ALL) NOPASSWD: /bin/chown phpborg-borg\:phpborg-borg /opt/backups/*
+phpborg ALL=(ALL) NOPASSWD: /bin/chmod 700 /opt/backups/*
+
+# Borg SSH server management
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-sshd
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl start phpborg-sshd
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl stop phpborg-sshd
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl restart phpborg-sshd
 EOF
 
     chmod 440 "${sudoers_file}"
@@ -569,6 +586,43 @@ setup_redis() {
 }
 
 #
+# Dedicated Borg SSH Server setup (for remote agents)
+#
+
+setup_borg_sshd() {
+    print_section "Setting up Dedicated Borg SSH Server"
+
+    local setup_script="${PHPBORG_ROOT}/bin/setup-borg-sshd.sh"
+
+    # Check if script exists
+    if [ ! -f "${setup_script}" ]; then
+        log_error "Borg SSH setup script not found: ${setup_script}"
+        return 1
+    fi
+
+    # Make script executable
+    chmod +x "${setup_script}"
+
+    # Run the setup script
+    log_info "Running Borg SSH server setup..."
+    if bash "${setup_script}"; then
+        log_success "Borg SSH server configured"
+
+        # Add phpborg user to phpborg-borg group for authorized_keys management
+        if getent group phpborg-borg > /dev/null 2>&1; then
+            usermod -aG phpborg-borg phpborg 2>/dev/null || true
+            log_info "Added phpborg to phpborg-borg group"
+        fi
+
+        save_state "setup_borg_sshd" "completed"
+        return 0
+    else
+        log_error "Borg SSH server setup failed"
+        return 1
+    fi
+}
+
+#
 # Docker service setup
 #
 
@@ -769,6 +823,13 @@ setup_services() {
         setup_docker || errors=$((errors + 1))
     else
         log_info "Docker already configured (skipped)"
+    fi
+
+    # Setup dedicated Borg SSH server for remote agents
+    if ! is_step_completed "setup_borg_sshd"; then
+        setup_borg_sshd || errors=$((errors + 1))
+    else
+        log_info "Borg SSH server already configured (skipped)"
     fi
 
     # Start services
