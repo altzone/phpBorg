@@ -337,6 +337,66 @@ sudo systemctl restart phpborg-agent
 
 ---
 
+## Agent Auto-Update
+
+phpBorg agents can update themselves automatically when a new version is available on the server.
+
+### How It Works
+
+1. **Version Detection**: The server reads the agent version from source code (`main.go`)
+2. **Heartbeat Check**: Each agent reports its version during heartbeat
+3. **Update Badge**: UI shows a yellow "Update" badge when versions differ
+4. **One-Click Update**: Click the badge to trigger the update
+5. **Real-Time Feedback**: Spinner shows progress, SSE updates version in real-time
+
+```
+┌─────────────┐                      ┌─────────────┐
+│   Server    │   1. Badge "MAJ"     │     UI      │
+│  (v1.9.0)   │ ──────────────────>  │  Servers    │
+└─────────────┘                      └──────┬──────┘
+       │                                    │
+       │  2. POST /servers/{id}/agent/update│
+       │ <──────────────────────────────────┘
+       │
+       ▼
+┌─────────────┐  3. Task: agent_update  ┌─────────────┐
+│ agent_tasks │ ─────────────────────>  │    Agent    │
+│   (MySQL)   │                         │  (v1.8.0)   │
+└─────────────┘                         └──────┬──────┘
+                                               │
+       4. Download binary from /api/agent/update/download
+       5. Verify checksum
+       6. Replace binary (rename trick for running process)
+       7. Restart via systemd
+                                               │
+                                               ▼
+                                        ┌─────────────┐
+                                        │    Agent    │
+                                        │  (v1.9.0)   │
+                                        └─────────────┘
+```
+
+### Security
+
+- Agent binary stored in `/var/lib/phpborg-agent/bin/` (agent-owned)
+- SHA256 checksum verification before install
+- Automatic backup of previous version
+- Rollback capability if update fails
+
+### Manual Update
+
+If automatic update fails, you can manually update:
+
+```bash
+# On the agent server
+sudo systemctl stop phpborg-agent
+curl -o /var/lib/phpborg-agent/bin/phpborg-agent https://phpborg-server/api/downloads/phpborg-agent
+chmod +x /var/lib/phpborg-agent/bin/phpborg-agent
+sudo systemctl start phpborg-agent
+```
+
+---
+
 ## API Reference
 
 ### Agent Gateway Endpoints
