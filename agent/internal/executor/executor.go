@@ -908,15 +908,32 @@ func (e *Executor) detectDocker(ctx context.Context) map[string]interface{} {
 
 	dockerInfo["running"] = true
 
+	// Check if we need sudo for docker commands (user not in docker group)
+	needsSudo := false
+	if testResult := e.Run(ctx, "docker", []string{"ps", "-q"}, 5*time.Second); testResult.ExitCode != 0 {
+		// Try with sudo
+		if sudoResult := e.RunWithSudo(ctx, "docker", []string{"ps", "-q"}, 5*time.Second); sudoResult.ExitCode == 0 {
+			needsSudo = true
+		}
+	}
+
 	// Detect Docker host configuration
 	dockerInfo["host_config"] = e.detectDockerHostConfig(ctx)
+
+	// Helper function to run docker commands with or without sudo
+	runDocker := func(args []string, timeout time.Duration) *CommandResult {
+		if needsSudo {
+			return e.RunWithSudo(ctx, "docker", args, timeout)
+		}
+		return e.Run(ctx, "docker", args, timeout)
+	}
 
 	// Get ALL containers (running + stopped)
 	containers := []map[string]interface{}{}
 	composeProjects := map[string]interface{}{}
 	standaloneContainers := []map[string]interface{}{}
 
-	if psResult := e.Run(ctx, "docker", []string{"ps", "-a", "--format", "{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.State}}"}, 15*time.Second); psResult.ExitCode == 0 {
+	if psResult := runDocker([]string{"ps", "-a", "--format", "{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.State}}"}, 15*time.Second); psResult.ExitCode == 0 {
 		containerLines := strings.TrimSpace(psResult.Stdout)
 		if containerLines != "" {
 			lines := strings.Split(containerLines, "\n")
@@ -927,7 +944,7 @@ func (e *Executor) detectDocker(ctx context.Context) map[string]interface{} {
 					containerName := parts[1]
 
 					// Get detailed container info via inspect
-					containerDetails := e.inspectDockerContainer(ctx, containerId)
+					containerDetails := e.inspectDockerContainer(ctx, containerId, needsSudo)
 
 					container := map[string]interface{}{
 						"id":              containerId,
@@ -984,10 +1001,10 @@ func (e *Executor) detectDocker(ctx context.Context) map[string]interface{} {
 	dockerInfo["standalone_containers"] = standaloneContainers
 
 	// Get Docker networks
-	dockerInfo["networks"] = e.detectDockerNetworks(ctx)
+	dockerInfo["networks"] = e.detectDockerNetworks(ctx, needsSudo)
 
 	// Get Docker volumes
-	dockerInfo["volumes"] = e.detectDockerVolumes(ctx)
+	dockerInfo["volumes"] = e.detectDockerVolumes(ctx, needsSudo)
 
 	// Update counts
 	dockerInfo["container_count"] = len(containers)
@@ -1000,7 +1017,7 @@ func (e *Executor) detectDocker(ctx context.Context) map[string]interface{} {
 }
 
 // inspectDockerContainer gets detailed information about a container
-func (e *Executor) inspectDockerContainer(ctx context.Context, containerId string) map[string]interface{} {
+func (e *Executor) inspectDockerContainer(ctx context.Context, containerId string, needsSudo bool) map[string]interface{} {
 	details := map[string]interface{}{
 		"volumes":         []map[string]interface{}{},
 		"compose_project": nil,
@@ -1012,7 +1029,13 @@ func (e *Executor) inspectDockerContainer(ctx context.Context, containerId strin
 	}
 
 	// Get container inspect data
-	if result := e.Run(ctx, "docker", []string{"inspect", containerId}, 10*time.Second); result.ExitCode == 0 {
+	var result *CommandResult
+	if needsSudo {
+		result = e.RunWithSudo(ctx, "docker", []string{"inspect", containerId}, 10*time.Second)
+	} else {
+		result = e.Run(ctx, "docker", []string{"inspect", containerId}, 10*time.Second)
+	}
+	if result.ExitCode == 0 {
 		inspectJson := strings.TrimSpace(result.Stdout)
 		if inspectJson != "" {
 			var inspectData []map[string]interface{}
@@ -1119,10 +1142,16 @@ func (e *Executor) findDockerfileInMounts(ctx context.Context, volumes []map[str
 }
 
 // detectDockerNetworks detects Docker networks
-func (e *Executor) detectDockerNetworks(ctx context.Context) []map[string]interface{} {
+func (e *Executor) detectDockerNetworks(ctx context.Context, needsSudo bool) []map[string]interface{} {
 	networks := []map[string]interface{}{}
 
-	if result := e.Run(ctx, "docker", []string{"network", "ls", "--format", "{{.ID}}|{{.Name}}|{{.Driver}}|{{.Scope}}"}, 10*time.Second); result.ExitCode == 0 {
+	var result *CommandResult
+	if needsSudo {
+		result = e.RunWithSudo(ctx, "docker", []string{"network", "ls", "--format", "{{.ID}}|{{.Name}}|{{.Driver}}|{{.Scope}}"}, 10*time.Second)
+	} else {
+		result = e.Run(ctx, "docker", []string{"network", "ls", "--format", "{{.ID}}|{{.Name}}|{{.Driver}}|{{.Scope}}"}, 10*time.Second)
+	}
+	if result.ExitCode == 0 {
 		lines := strings.Split(strings.TrimSpace(result.Stdout), "\n")
 		for _, line := range lines {
 			parts := strings.Split(line, "|")
@@ -1141,10 +1170,16 @@ func (e *Executor) detectDockerNetworks(ctx context.Context) []map[string]interf
 }
 
 // detectDockerVolumes detects Docker volumes
-func (e *Executor) detectDockerVolumes(ctx context.Context) []map[string]interface{} {
+func (e *Executor) detectDockerVolumes(ctx context.Context, needsSudo bool) []map[string]interface{} {
 	volumes := []map[string]interface{}{}
 
-	if result := e.Run(ctx, "docker", []string{"volume", "ls", "--format", "{{.Name}}|{{.Driver}}|{{.Mountpoint}}"}, 10*time.Second); result.ExitCode == 0 {
+	var result *CommandResult
+	if needsSudo {
+		result = e.RunWithSudo(ctx, "docker", []string{"volume", "ls", "--format", "{{.Name}}|{{.Driver}}|{{.Mountpoint}}"}, 10*time.Second)
+	} else {
+		result = e.Run(ctx, "docker", []string{"volume", "ls", "--format", "{{.Name}}|{{.Driver}}|{{.Mountpoint}}"}, 10*time.Second)
+	}
+	if result.ExitCode == 0 {
 		lines := strings.Split(strings.TrimSpace(result.Stdout), "\n")
 		for _, line := range lines {
 			parts := strings.Split(line, "|")

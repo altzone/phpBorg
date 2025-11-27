@@ -348,6 +348,30 @@ phpborg-agent ALL=(postgres) NOPASSWD: /usr/bin/pg_dumpall *
 # Borg Backup
 phpborg-agent ALL=(root) NOPASSWD: /usr/bin/borg *
 phpborg-agent ALL=(root) NOPASSWD: /usr/local/bin/borg *
+
+# Docker
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/docker ps *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/docker inspect *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/docker network ls *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/docker volume ls *
+
+# LVM Snapshots
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/lvs *
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/vgs *
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/lvcreate -L * -s -n phpborg_snap_* *
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/lvremove -f /dev/*/phpborg_snap_*
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/mount -o ro /dev/*/phpborg_snap_* /mnt/phpborg_*
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/umount /mnt/phpborg_*
+
+# Btrfs
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/btrfs subvolume *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/btrfs filesystem *
+
+# PostgreSQL via su
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/su - postgres -c *
+
+# Bash for shell commands
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/bash -c *
 SUDOERS_EOF
 
 chmod 440 "\$SUDOERS_FILE"
