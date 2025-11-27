@@ -151,24 +151,24 @@ The script automatically:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      phpBorg Server                              │
+│                      phpBorg Server                             │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ │
 │  │ Web UI   │  │ REST API │  │ Workers  │  │ Borg SSH Server  │ │
 │  │ (Vue.js) │  │  (PHP)   │  │ (4 pool) │  │   (Port 2222)    │ │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘ │
-│                      │                              ▲            │
-│                      │ mTLS                         │ SSH        │
-│                      ▼                              │            │
+│                      │                              ▲           │
+│                      │ mTLS                         │ SSH       │
+│                      ▼                              │           │
 ├─────────────────────────────────────────────────────────────────┤
-│                   Certificate Authority                          │
-│              (Auto-generated, 10-year validity)                  │
+│                   Certificate Authority                         │
+│              (Auto-generated, 10-year validity)                 │
 └─────────────────────────────────────────────────────────────────┘
                        ▲
                        │ HTTPS (Pull)
                        │
 ┌──────────────────────┴──────────────────────┐
-│              phpborg-agent (Go)              │
+│              phpborg-agent (Go)             │
 ├─────────────────────────────────────────────┤
 │  • Polls server for tasks every 5s          │
 │  • Sends heartbeat every 60s                │
