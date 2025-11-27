@@ -14,13 +14,17 @@ use PhpBorg\Service\Server\SshExecutor;
 /**
  * Handler for server capabilities detection jobs
  * Detects snapshots, databases, and filesystem information
+ *
+ * For agent-mode servers, this creates a task for the agent to execute.
+ * For SSH-mode servers, this connects via SSH directly.
  */
 final class CapabilitiesDetectionHandler implements JobHandlerInterface
 {
     public function __construct(
         private readonly ServerRepository $serverRepository,
         private readonly SshExecutor $sshExecutor,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly ?JobQueue $agentJobQueue = null
     ) {
     }
 
@@ -41,8 +45,15 @@ final class CapabilitiesDetectionHandler implements JobHandlerInterface
             throw new \Exception("Server not found: {$serverId}");
         }
 
-        $this->logger->info("Starting capabilities detection for server: {$server->name}", 'CAPABILITIES');
-        $queue->updateProgress($job->id, 10, "Connecting to server {$server->name}...");
+        $this->logger->info("Starting capabilities detection for server: {$server->name} (mode: {$server->connectionMode})", 'CAPABILITIES');
+
+        // Route based on connection mode
+        if ($server->connectionMode === 'agent') {
+            return $this->handleViaAgent($server, $job, $queue);
+        }
+
+        // Default: SSH mode
+        $queue->updateProgress($job->id, 10, "Connecting to server {$server->name} via SSH...");
 
         try {
             // Step 1: Detect snapshot capabilities
@@ -1259,5 +1270,115 @@ final class CapabilitiesDetectionHandler implements JobHandlerInterface
         }
 
         return $config;
+    }
+
+    /**
+     * Handle capabilities detection via agent
+     * Creates a task for the agent and waits for the result
+     */
+    private function handleViaAgent(Server $server, Job $job, JobQueue $queue): string
+    {
+        if (!$server->agentUuid) {
+            throw new \Exception("Server {$server->name} is in agent mode but has no agent UUID");
+        }
+
+        $queue->updateProgress($job->id, 10, "Sending capabilities detection task to agent...");
+
+        // Create a task for the agent
+        $app = new \PhpBorg\Application();
+        $connection = $app->getConnection();
+
+        // Get agent_id from agents table using uuid
+        $agent = $connection->fetchOne(
+            'SELECT id FROM agents WHERE uuid = ?',
+            [$server->agentUuid]
+        );
+
+        if (!$agent) {
+            throw new \Exception("Agent not found for UUID: {$server->agentUuid}");
+        }
+
+        $agentId = (int)$agent['id'];
+
+        // Insert task into agent_tasks table
+        $taskPayload = [
+            'server_id' => $server->id,
+        ];
+
+        $connection->executeUpdate(
+            'INSERT INTO agent_tasks (agent_id, job_id, type, payload, status, created_at)
+             VALUES (?, ?, ?, ?, ?, NOW())',
+            [
+                $agentId,
+                $job->id,
+                'capabilities_detect',  // Must match Go agent task type
+                json_encode($taskPayload),
+                'pending'
+            ]
+        );
+
+        $taskId = (int)$connection->lastInsertId();
+        $this->logger->info("Created agent task #{$taskId} for capabilities detection", 'CAPABILITIES');
+
+        $queue->updateProgress($job->id, 20, "Waiting for agent to complete detection...");
+
+        // Poll for task completion (max 2 minutes)
+        $maxWait = 120;
+        $waited = 0;
+        $pollInterval = 2;
+
+        while ($waited < $maxWait) {
+            sleep($pollInterval);
+            $waited += $pollInterval;
+
+            // Check task status
+            $task = $connection->fetchOne(
+                'SELECT status, result, error FROM agent_tasks WHERE id = ?',
+                [$taskId]
+            );
+
+            if (!$task) {
+                throw new \Exception("Agent task #{$taskId} not found");
+            }
+
+            if ($task['status'] === 'completed') {
+                $queue->updateProgress($job->id, 90, "Agent completed detection");
+
+                $result = json_decode($task['result'], true);
+                if (!$result) {
+                    throw new \Exception("Invalid result from agent task");
+                }
+
+                // Agent returns {capabilities: {...}, os_info: "..."} - extract capabilities
+                $capabilities = $result['capabilities'] ?? $result;
+
+                // Store capabilities
+                $this->storeCapabilities($server->id, $capabilities);
+
+                $queue->updateProgress($job->id, 100, "Detection complete");
+                $this->logger->info("Capabilities detection completed for {$server->name} via agent", 'CAPABILITIES');
+
+                return json_encode([
+                    'progress_messages' => [
+                        "Sending capabilities detection task to agent...",
+                        "Waiting for agent to complete detection...",
+                        "Agent completed detection",
+                        "Detection complete"
+                    ],
+                    'data' => $capabilities,
+                    'os_info' => $result['os_info'] ?? null
+                ]);
+            }
+
+            if ($task['status'] === 'failed') {
+                throw new \Exception("Agent task failed: " . ($task['error'] ?? 'Unknown error'));
+            }
+
+            // Update progress based on wait time
+            $progress = 20 + (int)(($waited / $maxWait) * 60);
+            $queue->updateProgress($job->id, min($progress, 80), "Waiting for agent... ({$waited}s)");
+        }
+
+        throw new \Exception("Agent task timeout after {$maxWait} seconds");
     }
 }
