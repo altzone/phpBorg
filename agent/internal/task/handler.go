@@ -10,6 +10,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/phpborg/phpborg-agent/internal/api"
@@ -62,6 +64,8 @@ func (h *Handler) ProcessTask(ctx context.Context, task api.Task) error {
 		result, exitCode, taskErr = h.handleBackupRestore(taskCtx, task)
 	case "capabilities_detect":
 		result, exitCode, taskErr = h.handleCapabilitiesDetect(taskCtx, task)
+	case "stats_collect":
+		result, exitCode, taskErr = h.handleStatsCollect(taskCtx, task)
 	case "agent_update":
 		result, exitCode, taskErr = h.handleAgentUpdate(taskCtx, task)
 	case "test":
@@ -181,6 +185,198 @@ func (h *Handler) handleCapabilitiesDetect(ctx context.Context, task api.Task) (
 		"capabilities": caps,
 		"os_info":      osInfo,
 	}, 0, nil
+}
+
+// handleStatsCollect handles a stats collection task
+func (h *Handler) handleStatsCollect(ctx context.Context, task api.Task) (map[string]interface{}, int, error) {
+	log.Printf("[STATS] Collecting system stats...")
+	h.client.UpdateProgress(ctx, task.ID, 10, "Collecting system information...")
+
+	stats := make(map[string]interface{})
+
+	// OS Information
+	h.client.UpdateProgress(ctx, task.ID, 20, "Collecting OS info...")
+	osInfo := h.executor.GetOSInfo(ctx)
+	stats["os_info"] = osInfo
+
+	// Parse OS info to extract distribution and version
+	osResult := h.executor.Run(ctx, "cat", []string{"/etc/os-release"}, 10*time.Second)
+	if osResult.ExitCode == 0 {
+		for _, line := range strings.Split(osResult.Stdout, "\n") {
+			if strings.HasPrefix(line, "NAME=") {
+				stats["os_distribution"] = strings.Trim(strings.TrimPrefix(line, "NAME="), "\"")
+			}
+			if strings.HasPrefix(line, "VERSION=") {
+				stats["os_version"] = strings.Trim(strings.TrimPrefix(line, "VERSION="), "\"")
+			}
+		}
+	}
+
+	// Kernel version
+	kernelResult := h.executor.Run(ctx, "uname", []string{"-r"}, 10*time.Second)
+	if kernelResult.ExitCode == 0 {
+		stats["kernel_version"] = strings.TrimSpace(kernelResult.Stdout)
+	}
+
+	// Hostname
+	hostnameResult := h.executor.Run(ctx, "hostname", nil, 10*time.Second)
+	if hostnameResult.ExitCode == 0 {
+		stats["hostname"] = strings.TrimSpace(hostnameResult.Stdout)
+	}
+
+	// Architecture
+	archResult := h.executor.Run(ctx, "uname", []string{"-m"}, 10*time.Second)
+	if archResult.ExitCode == 0 {
+		stats["architecture"] = strings.TrimSpace(archResult.Stdout)
+	}
+
+	// CPU Information
+	h.client.UpdateProgress(ctx, task.ID, 40, "Collecting CPU info...")
+
+	// CPU cores
+	nprocResult := h.executor.Run(ctx, "nproc", nil, 10*time.Second)
+	if nprocResult.ExitCode == 0 {
+		if cores, err := strconv.Atoi(strings.TrimSpace(nprocResult.Stdout)); err == nil {
+			stats["cpu_cores"] = cores
+		}
+	}
+
+	// CPU model
+	cpuModelResult := h.executor.Run(ctx, "sh", []string{"-c", `grep "model name" /proc/cpuinfo | head -1 | cut -d":" -f2`}, 10*time.Second)
+	if cpuModelResult.ExitCode == 0 {
+		stats["cpu_model"] = strings.TrimSpace(cpuModelResult.Stdout)
+	}
+
+	// Load averages
+	loadResult := h.executor.Run(ctx, "cat", []string{"/proc/loadavg"}, 10*time.Second)
+	if loadResult.ExitCode == 0 {
+		loads := strings.Fields(loadResult.Stdout)
+		if len(loads) >= 3 {
+			if load1, err := strconv.ParseFloat(loads[0], 64); err == nil {
+				stats["cpu_load_1"] = load1
+			}
+			if load5, err := strconv.ParseFloat(loads[1], 64); err == nil {
+				stats["cpu_load_5"] = load5
+			}
+			if load15, err := strconv.ParseFloat(loads[2], 64); err == nil {
+				stats["cpu_load_15"] = load15
+			}
+		}
+	}
+
+	// Memory Information
+	h.client.UpdateProgress(ctx, task.ID, 60, "Collecting memory info...")
+	memResult := h.executor.Run(ctx, "free", []string{"-m"}, 10*time.Second)
+	if memResult.ExitCode == 0 {
+		for _, line := range strings.Split(memResult.Stdout, "\n") {
+			fields := strings.Fields(line)
+			if len(fields) >= 4 && fields[0] == "Mem:" {
+				if total, err := strconv.Atoi(fields[1]); err == nil {
+					stats["memory_total_mb"] = total
+				}
+				if used, err := strconv.Atoi(fields[2]); err == nil {
+					stats["memory_used_mb"] = used
+				}
+				if free, err := strconv.Atoi(fields[3]); err == nil {
+					stats["memory_free_mb"] = free
+				}
+				if len(fields) >= 7 {
+					if available, err := strconv.Atoi(fields[6]); err == nil {
+						stats["memory_available_mb"] = available
+					}
+				}
+				if total, ok := stats["memory_total_mb"].(int); ok && total > 0 {
+					if used, ok := stats["memory_used_mb"].(int); ok {
+						stats["memory_percent"] = float64(used) / float64(total) * 100
+					}
+				}
+			}
+			if len(fields) >= 3 && fields[0] == "Swap:" {
+				if total, err := strconv.Atoi(fields[1]); err == nil {
+					stats["swap_total_mb"] = total
+				}
+				if used, err := strconv.Atoi(fields[2]); err == nil {
+					stats["swap_used_mb"] = used
+				}
+			}
+		}
+	}
+
+	// Disk Information
+	h.client.UpdateProgress(ctx, task.ID, 80, "Collecting disk info...")
+	dfResult := h.executor.Run(ctx, "df", []string{"-BG", "/"}, 10*time.Second)
+	if dfResult.ExitCode == 0 {
+		lines := strings.Split(dfResult.Stdout, "\n")
+		if len(lines) >= 2 {
+			fields := strings.Fields(lines[1])
+			if len(fields) >= 5 {
+				// Parse sizes (remove trailing G)
+				if total, err := strconv.Atoi(strings.TrimSuffix(fields[1], "G")); err == nil {
+					stats["disk_total_gb"] = total
+				}
+				if used, err := strconv.Atoi(strings.TrimSuffix(fields[2], "G")); err == nil {
+					stats["disk_used_gb"] = used
+				}
+				if free, err := strconv.Atoi(strings.TrimSuffix(fields[3], "G")); err == nil {
+					stats["disk_free_gb"] = free
+				}
+				// Parse percentage (remove trailing %)
+				if percent, err := strconv.Atoi(strings.TrimSuffix(fields[4], "%")); err == nil {
+					stats["disk_percent"] = percent
+				}
+			}
+		}
+	}
+
+	// Uptime
+	uptimeResult := h.executor.Run(ctx, "cat", []string{"/proc/uptime"}, 10*time.Second)
+	if uptimeResult.ExitCode == 0 {
+		uptimeParts := strings.Fields(uptimeResult.Stdout)
+		if len(uptimeParts) >= 1 {
+			if uptimeFloat, err := strconv.ParseFloat(uptimeParts[0], 64); err == nil {
+				uptimeSeconds := int(uptimeFloat)
+				stats["uptime_seconds"] = uptimeSeconds
+				stats["uptime_human"] = formatUptime(uptimeSeconds)
+			}
+		}
+	}
+
+	// IP Address
+	ipResult := h.executor.Run(ctx, "hostname", []string{"-I"}, 10*time.Second)
+	if ipResult.ExitCode == 0 {
+		ips := strings.Fields(ipResult.Stdout)
+		if len(ips) > 0 {
+			stats["ip_address"] = ips[0]
+		}
+	}
+
+	h.client.UpdateProgress(ctx, task.ID, 100, "Stats collection completed")
+	log.Printf("[STATS] Stats collection completed: %d metrics", len(stats))
+
+	return stats, 0, nil
+}
+
+// formatUptime converts seconds to human-readable string
+func formatUptime(seconds int) string {
+	if seconds < 60 {
+		return fmt.Sprintf("%d seconds", seconds)
+	}
+
+	minutes := seconds / 60
+	hours := minutes / 60
+	days := hours / 24
+
+	if days > 0 {
+		hours = hours % 24
+		return fmt.Sprintf("%d days, %d hours", days, hours)
+	}
+
+	if hours > 0 {
+		minutes = minutes % 60
+		return fmt.Sprintf("%d hours, %d minutes", hours, minutes)
+	}
+
+	return fmt.Sprintf("%d minutes", minutes)
 }
 
 // handleTest handles a test task (for debugging)
