@@ -223,7 +223,8 @@ AGENT_USER="phpborg-agent"
 AGENT_HOME="/var/lib/phpborg-agent"
 CONFIG_DIR="/etc/phpborg-agent"
 LOG_DIR="/var/log/phpborg-agent"
-BIN_PATH="/usr/local/bin/phpborg-agent"
+BIN_DIR="\$AGENT_HOME/bin"
+BIN_PATH="\$BIN_DIR/phpborg-agent"
 
 # Colors
 RED='\033[0;31m'
@@ -285,6 +286,7 @@ echo -e "\${YELLOW}[2/8] Creating directories...\${NC}"
 mkdir -p "\$CONFIG_DIR"
 mkdir -p "\$LOG_DIR"
 mkdir -p "\$AGENT_HOME/.ssh"
+mkdir -p "\$BIN_DIR"
 chmod 700 "\$AGENT_HOME/.ssh"
 chown -R "\$AGENT_USER:\$AGENT_USER" "\$AGENT_HOME"
 chown -R "\$AGENT_USER:\$AGENT_USER" "\$LOG_DIR"
@@ -647,7 +649,6 @@ ProtectHome=read-only
 PrivateTmp=yes
 ReadWritePaths=\$LOG_DIR
 ReadWritePaths=\$AGENT_HOME
-ReadWritePaths=/usr/local/bin
 
 [Install]
 WantedBy=multi-user.target
