@@ -357,6 +357,23 @@ final class AgentManager
     }
 
     /**
+     * Deploy an agent's SSH key (alias for registerAgent with minimal params)
+     *
+     * @param string $agentUuid Unique agent identifier
+     * @param string $publicKey Ed25519 public key from the agent
+     * @return array{backup_path: string, ssh_port: int, ssh_user: string}
+     */
+    public function deployAgentKey(string $agentUuid, string $publicKey): array
+    {
+        return $this->registerAgent(
+            agentUuid: $agentUuid,
+            agentName: "agent-{$agentUuid}",
+            publicKey: $publicKey,
+            appendOnly: true
+        );
+    }
+
+    /**
      * Check if agent is registered
      */
     public function isAgentRegistered(string $agentUuid): bool
