@@ -19,6 +19,7 @@ use PhpBorg\Repository\ServerRepository;
  */
 class ServerController extends BaseController
 {
+    private readonly Application $app;
     private readonly ServerManager $serverManager;
     private readonly JobQueue $jobQueue;
     private readonly ArchiveRepository $archiveRepository;
@@ -30,6 +31,7 @@ class ServerController extends BaseController
 
     public function __construct(Application $app)
     {
+        $this->app = $app;
         $this->serverManager = $app->getServerManager();
         $this->jobQueue = $app->getJobQueue();
         $this->archiveRepository = new ArchiveRepository($app->getConnection());
