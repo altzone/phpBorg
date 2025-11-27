@@ -50,14 +50,16 @@ func main() {
 		log.SetOutput(f)
 	}
 
-	log.Printf("phpborg-agent version %s starting...", Version)
-	log.Printf("Agent: %s (%s)", cfg.Agent.Name, cfg.Agent.UUID)
+	log.Printf("[AGENT] phpborg-agent version %s starting...", Version)
+	log.Printf("[AGENT] Agent: %s (%s)", cfg.Agent.Name, cfg.Agent.UUID)
+	log.Printf("[AGENT] Server URL: %s", cfg.Server.URL)
 
 	// Create API client
 	client, err := api.NewClient(cfg)
 	if err != nil {
-		log.Fatalf("Failed to create API client: %v", err)
+		log.Fatalf("[AGENT] Failed to create API client: %v", err)
 	}
+	log.Printf("[AGENT] API client created, connecting to server...")
 
 	// Create executor
 	exec := executor.NewExecutor(cfg)
@@ -86,7 +88,7 @@ func main() {
 
 	go func() {
 		sig := <-sigChan
-		log.Printf("Received signal %v, shutting down...", sig)
+		log.Printf("[AGENT] Received signal %v, shutting down...", sig)
 		cancel()
 	}()
 
@@ -96,10 +98,10 @@ func main() {
 
 	// Run agent
 	if err := agent.Run(ctx); err != nil {
-		log.Fatalf("Agent error: %v", err)
+		log.Fatalf("[AGENT] Agent error: %v", err)
 	}
 
-	log.Println("Agent stopped")
+	log.Println("[AGENT] Agent stopped")
 }
 
 // Agent is the main agent structure
@@ -113,11 +115,14 @@ type Agent struct {
 
 // Run starts the agent main loop
 func (a *Agent) Run(ctx context.Context) error {
-	log.Println("Agent started, polling for tasks...")
+	log.Println("[AGENT] Agent started, polling for tasks...")
+	log.Printf("[AGENT] Poll interval: %v, Heartbeat interval: %v", a.config.Polling.Interval, a.config.Polling.HeartbeatInterval)
 
 	// Send initial heartbeat
 	if err := a.sendHeartbeat(ctx); err != nil {
-		log.Printf("Initial heartbeat failed: %v", err)
+		log.Printf("[AGENT] Initial heartbeat failed: %v (server may be unreachable)", err)
+	} else {
+		log.Println("[AGENT] Successfully connected to server!")
 	}
 
 	// Start task workers
@@ -143,14 +148,14 @@ func (a *Agent) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Shutting down agent...")
+			log.Println("[AGENT] Shutting down agent...")
 			close(taskChan)
 			wg.Wait()
 			return nil
 
 		case <-heartbeatTicker.C:
 			if err := a.sendHeartbeat(ctx); err != nil {
-				log.Printf("Heartbeat failed: %v", err)
+				log.Printf("[HEARTBEAT] Failed: %v", err)
 			}
 
 		case <-pollTicker.C:
@@ -169,7 +174,7 @@ func (a *Agent) sendHeartbeat(ctx context.Context) error {
 		return err
 	}
 
-	log.Println("Heartbeat sent successfully")
+	log.Printf("[HEARTBEAT] Sent successfully (OS: %s)", osInfo)
 	return nil
 }
 
@@ -177,19 +182,20 @@ func (a *Agent) sendHeartbeat(ctx context.Context) error {
 func (a *Agent) pollTasks(ctx context.Context, taskChan chan<- api.Task) {
 	resp, err := a.client.GetTasks(ctx)
 	if err != nil {
-		log.Printf("Failed to poll tasks: %v", err)
+		log.Printf("[POLL] Failed to poll tasks: %v", err)
 		return
 	}
 
 	if resp.Count > 0 {
-		log.Printf("Received %d task(s)", resp.Count)
+		log.Printf("[POLL] Received %d task(s)", resp.Count)
 		for _, t := range resp.Tasks {
+			log.Printf("[TASK] Queuing task #%d (type: %s)", t.ID, t.Type)
 			select {
 			case taskChan <- t:
 			case <-ctx.Done():
 				return
 			default:
-				log.Printf("Task queue full, skipping task %d", t.ID)
+				log.Printf("[TASK] Queue full, skipping task #%d", t.ID)
 			}
 		}
 	}
@@ -197,21 +203,24 @@ func (a *Agent) pollTasks(ctx context.Context, taskChan chan<- api.Task) {
 
 // taskWorker processes tasks from the task channel
 func (a *Agent) taskWorker(ctx context.Context, workerID int, taskChan <-chan api.Task) {
-	log.Printf("Worker %d started", workerID)
+	log.Printf("[WORKER-%d] Started", workerID)
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("Worker %d stopping", workerID)
+			log.Printf("[WORKER-%d] Stopping", workerID)
 			return
 		case t, ok := <-taskChan:
 			if !ok {
-				log.Printf("Worker %d: task channel closed", workerID)
+				log.Printf("[WORKER-%d] Task channel closed", workerID)
 				return
 			}
-			log.Printf("Worker %d: processing task %d", workerID, t.ID)
+			log.Printf("[WORKER-%d] Processing task #%d (type: %s)", workerID, t.ID, t.Type)
+			startTime := time.Now()
 			if err := a.handler.ProcessTask(ctx, t); err != nil {
-				log.Printf("Worker %d: task %d failed: %v", workerID, t.ID, err)
+				log.Printf("[WORKER-%d] Task #%d FAILED after %v: %v", workerID, t.ID, time.Since(startTime), err)
+			} else {
+				log.Printf("[WORKER-%d] Task #%d COMPLETED in %v", workerID, t.ID, time.Since(startTime))
 			}
 		}
 	}
