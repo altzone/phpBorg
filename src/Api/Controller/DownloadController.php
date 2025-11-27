@@ -13,11 +13,12 @@ use PhpBorg\Application;
  */
 final class DownloadController extends BaseController
 {
-    private const RELEASES_DIR = PHPBORG_ROOT . '/releases';
+    private readonly string $releasesDir;
 
     public function __construct(Application $app)
     {
-        // No dependencies needed
+        // Get phpBorg root from the application directory
+        $this->releasesDir = dirname(__DIR__, 3) . '/releases';
     }
 
     /**
@@ -26,7 +27,7 @@ final class DownloadController extends BaseController
      */
     public function agentBinary(): void
     {
-        $binaryPath = self::RELEASES_DIR . '/agent/phpborg-agent';
+        $binaryPath = $this->releasesDir . '/agent/phpborg-agent';
 
         if (!file_exists($binaryPath)) {
             $this->error('Agent binary not found. Please run the build process.', 404, 'BINARY_NOT_FOUND');
@@ -56,11 +57,11 @@ final class DownloadController extends BaseController
      */
     public function agentChecksum(): void
     {
-        $checksumPath = self::RELEASES_DIR . '/agent/phpborg-agent.sha256';
+        $checksumPath = $this->releasesDir . '/agent/phpborg-agent.sha256';
 
         if (!file_exists($checksumPath)) {
             // Generate on the fly if binary exists
-            $binaryPath = self::RELEASES_DIR . '/agent/phpborg-agent';
+            $binaryPath = $this->releasesDir . '/agent/phpborg-agent';
             if (file_exists($binaryPath)) {
                 $checksum = hash_file('sha256', $binaryPath);
                 header('Content-Type: text/plain');
@@ -84,7 +85,7 @@ final class DownloadController extends BaseController
      */
     public function agentInfo(): void
     {
-        $binaryPath = self::RELEASES_DIR . '/agent/phpborg-agent';
+        $binaryPath = $this->releasesDir . '/agent/phpborg-agent';
 
         if (!file_exists($binaryPath)) {
             $this->success([
