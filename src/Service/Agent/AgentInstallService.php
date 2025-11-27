@@ -158,6 +158,14 @@ class AgentInstallService
             'server_id' => $tokenData['server_id'] ?? null,
             'expires_at' => date('Y-m-d H:i:s', $tokenData['expires_at']),
             'is_expired' => $tokenData['expires_at'] < time(),
+            // For frontend compatibility
+            'server_info' => [
+                'hostname' => $tokenData['hostname'] ?? null,
+                'ip_address' => $tokenData['ip_address'] ?? null,
+                'os_info' => $tokenData['os_info'] ?? null,
+                'borg_version' => $tokenData['borg_version'] ?? null,
+                'agent_version' => $tokenData['agent_version'] ?? null,
+            ],
         ];
     }
 

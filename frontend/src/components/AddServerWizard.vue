@@ -757,7 +757,10 @@ const generateOneLiner = async () => {
   generatingToken.value = true
 
   try {
-    const response = await api.post('/server-wizard/generate-install-token')
+    // Pass the server name from step 1
+    const response = await api.post('/server-wizard/generate-install-token', {
+      server_name: form.value.name
+    })
     oneLinerToken.value = response.data.data
 
     // Start polling for installation status
@@ -771,6 +774,13 @@ const generateOneLiner = async () => {
         if (status.status === 'completed') {
           serverInfo.value = status.server_info
           clearInterval(pollInterval.value)
+
+          // Auto-advance to next step after a short delay for user to see the success
+          setTimeout(() => {
+            if (currentStep.value === 2) {
+              nextStep()
+            }
+          }, 2000)
         } else if (status.status === 'expired') {
           clearInterval(pollInterval.value)
         }
@@ -799,6 +809,22 @@ const createServer = async () => {
   creating.value = true
 
   try {
+    // For oneliner method, server is already created by the callback
+    // Just emit success and close
+    if (form.value.method === 'oneliner' && oneLinerToken.value) {
+      const statusResponse = await api.get(`/server-wizard/install-status/${oneLinerToken.value.token}`)
+      const status = statusResponse.data.data
+
+      if (status.server_id) {
+        // Fetch the created server and emit
+        const serverResponse = await api.get(`/servers/${status.server_id}`)
+        emit('created', serverResponse.data.data.server)
+        close()
+        return
+      }
+    }
+
+    // For other methods, create the server
     const response = await api.post('/servers', {
       name: form.value.name,
       hostname: form.value.hostname,
