@@ -67,6 +67,18 @@ server {
         fastcgi_read_timeout 300s;
     }
 
+    # Downloads endpoint (agent binary, etc.)
+    location ~ ^/downloads/ {
+        fastcgi_pass unix:/run/php/phpborg-__PHP_VERSION__-fpm.sock;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME __PHPBORG_ROOT__/api/public/index.php;
+        include fastcgi_params;
+
+        fastcgi_buffers 16 16k;
+        fastcgi_buffer_size 32k;
+        fastcgi_read_timeout 300s;
+    }
+
     # Deny access to sensitive files
     location ~ /\.(?!well-known).* {
         deny all;
