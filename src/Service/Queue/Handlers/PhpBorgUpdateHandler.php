@@ -23,8 +23,8 @@ use PhpBorg\Service\Queue\JobQueue;
  * 5b. Rebuild Go agent (if Go available)
  * 6. Run database migrations
  * 7. Regenerate systemd services
- * 8. Restart services
- * 9. Health check (auto-rollback on failure)
+ * 8. Health check (auto-rollback on failure)
+ * 9. Request services restart (async - job completes before restart)
  */
 final class PhpBorgUpdateHandler implements JobHandlerInterface
 {
@@ -91,12 +91,8 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             $this->logger->info("Regenerating systemd services...", 'PHPBORG_UPDATE');
             $this->regenerateSystemdServices($phpborgRoot);
 
-            // Step 8: Restart services
-            $this->logger->info("Restarting services...", 'PHPBORG_UPDATE');
-            $this->restartServices($phpborgRoot);
-
-            // Step 9: Health check
-            $this->logger->info("Running health check...", 'PHPBORG_UPDATE');
+            // Step 8: Pre-restart health check (verify core components before restart)
+            $this->logger->info("Running pre-restart health check...", 'PHPBORG_UPDATE');
             $healthCheck = $this->healthCheck();
 
             if (!$healthCheck['healthy']) {
@@ -110,6 +106,11 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             );
 
             $this->logger->info($message, 'PHPBORG_UPDATE');
+
+            // Step 9: Request services restart (async - don't wait)
+            // This must be LAST because the restart will kill this process
+            $this->logger->info("Requesting services restart...", 'PHPBORG_UPDATE');
+            $this->restartServices($phpborgRoot);
 
             return $message;
 
@@ -363,7 +364,7 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
         }
 
         // Build the agent
-        $cmd = "cd {$agentDir} && go build -o phpborg-agent ./cmd/agent 2>&1";
+        $cmd = "cd {$agentDir} && go build -o phpborg-agent ./cmd/phpborg-agent 2>&1";
         exec($cmd, $output, $exitCode);
 
         if ($exitCode !== 0) {
@@ -466,8 +467,11 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
     }
 
     /**
-     * Request services restart via scheduler
-     * Creates a flag file that the scheduler will detect and handle
+     * Request services restart via systemd path unit
+     * Creates a flag file that triggers phpborg-restart.service
+     *
+     * NOTE: This is async - we don't wait because the restart will kill this process.
+     * The job should complete before calling this method.
      */
     private function restartServices(string $phpborgRoot): void
     {
@@ -479,7 +483,6 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
         $metadata = [
             'requested_at' => date('Y-m-d H:i:s'),
             'requested_by' => 'phpborg_update',
-            'job_id' => null, // Could be passed from job context if needed
         ];
 
         if (file_put_contents($flagFile, json_encode($metadata, JSON_PRETTY_PRINT)) === false) {
@@ -489,30 +492,8 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
 
         $this->logger->info("Services restart requested via systemd path unit", 'PHPBORG_UPDATE');
 
-        // Wait for systemd to detect the flag file and restart all services
-        // The restart script takes ~15-20 seconds to restart all 4 workers + scheduler
-        // We poll every 5 seconds up to 60 seconds max
-        $maxWaitSeconds = 60;
-        $pollInterval = 5;
-        $waited = 0;
-
-        $this->logger->info("Waiting for services restart to complete (max {$maxWaitSeconds}s)...", 'PHPBORG_UPDATE');
-
-        while ($waited < $maxWaitSeconds) {
-            sleep($pollInterval);
-            $waited += $pollInterval;
-
-            // Check if flag file has been removed (means restart completed)
-            if (!file_exists($flagFile)) {
-                $this->logger->info("Services restart completed after {$waited}s", 'PHPBORG_UPDATE');
-                return;
-            }
-
-            $this->logger->info("Still waiting for restart... ({$waited}s elapsed)", 'PHPBORG_UPDATE');
-        }
-
-        // If we get here, flag is still present after max wait
-        $this->logger->warning("Restart flag still present after {$maxWaitSeconds}s, continuing anyway", 'PHPBORG_UPDATE');
+        // Don't wait - the restart will kill this process
+        // The phpborg-restart.service will handle the restart and cleanup
     }
 
     /**
