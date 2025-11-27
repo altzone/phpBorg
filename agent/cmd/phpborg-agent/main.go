@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/phpborg/phpborg-agent/internal/api"
+	"github.com/phpborg/phpborg-agent/internal/cert"
 	"github.com/phpborg/phpborg-agent/internal/config"
 	"github.com/phpborg/phpborg-agent/internal/executor"
 	"github.com/phpborg/phpborg-agent/internal/task"
@@ -64,12 +65,16 @@ func main() {
 	// Create task handler
 	handler := task.NewHandler(cfg, client, exec)
 
+	// Create certificate renewer for auto-renewal
+	certRenewer := cert.NewRenewer(cfg, client)
+
 	// Create agent
 	agent := &Agent{
-		config:  cfg,
-		client:  client,
-		exec:    exec,
-		handler: handler,
+		config:      cfg,
+		client:      client,
+		exec:        exec,
+		handler:     handler,
+		certRenewer: certRenewer,
 	}
 
 	// Setup signal handling
@@ -85,6 +90,10 @@ func main() {
 		cancel()
 	}()
 
+	// Start certificate renewal background process
+	certRenewer.Start(ctx)
+	defer certRenewer.Stop()
+
 	// Run agent
 	if err := agent.Run(ctx); err != nil {
 		log.Fatalf("Agent error: %v", err)
@@ -95,10 +104,11 @@ func main() {
 
 // Agent is the main agent structure
 type Agent struct {
-	config  *config.Config
-	client  *api.Client
-	exec    *executor.Executor
-	handler *task.Handler
+	config      *config.Config
+	client      *api.Client
+	exec        *executor.Executor
+	handler     *task.Handler
+	certRenewer *cert.Renewer
 }
 
 // Run starts the agent main loop

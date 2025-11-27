@@ -354,10 +354,10 @@ chmod 440 "\$SUDOERS_FILE"
 echo -e "  \${GREEN}✓ Sudoers rules installed\${NC}"
 
 # =============================================================================
-# Step 6: Register with phpBorg server
+# Step 6: Register with phpBorg server and get mTLS certificates
 # =============================================================================
 echo ""
-echo -e "\${YELLOW}[6/8] Registering with phpBorg server...\${NC}"
+echo -e "\${YELLOW}[6/9] Registering with phpBorg server...\${NC}"
 
 HOSTNAME=\$(hostname -f 2>/dev/null || hostname)
 IP_ADDRESS=\$(hostname -I 2>/dev/null | awk '{print \$1}' || echo "unknown")
@@ -392,6 +392,51 @@ fi
 SERVER_HOST=\$(echo "\$SERVER_URL" | sed 's|https\\?://||' | sed 's|/.*||' | sed 's|:.*||')
 
 # =============================================================================
+# Step 6b: Extract and save mTLS certificates
+# =============================================================================
+CERTS_DIR="\$CONFIG_DIR/certs"
+mkdir -p "\$CERTS_DIR"
+chmod 700 "\$CERTS_DIR"
+
+MTLS_ENABLED=\$(echo "\$REGISTER_RESPONSE" | grep -o '"mtls_enabled":true' || echo "")
+
+if [ -n "\$MTLS_ENABLED" ]; then
+    echo -e "  \${YELLOW}Extracting mTLS certificates...\${NC}"
+
+    # Extract base64 encoded certificates using jq if available, otherwise use grep/sed
+    if command -v jq &>/dev/null; then
+        CERT_B64=\$(echo "\$REGISTER_RESPONSE" | jq -r '.data.certificates.cert // empty')
+        KEY_B64=\$(echo "\$REGISTER_RESPONSE" | jq -r '.data.certificates.key // empty')
+        CA_B64=\$(echo "\$REGISTER_RESPONSE" | jq -r '.data.certificates.ca // empty')
+    else
+        # Fallback to grep/sed (less reliable but works)
+        CERT_B64=\$(echo "\$REGISTER_RESPONSE" | grep -o '"cert":"[^"]*"' | sed 's/"cert":"//;s/"$//')
+        KEY_B64=\$(echo "\$REGISTER_RESPONSE" | grep -o '"key":"[^"]*"' | sed 's/"key":"//;s/"$//')
+        CA_B64=\$(echo "\$REGISTER_RESPONSE" | grep -o '"ca":"[^"]*"' | sed 's/"ca":"//;s/"$//')
+    fi
+
+    if [ -n "\$CERT_B64" ] && [ -n "\$KEY_B64" ] && [ -n "\$CA_B64" ]; then
+        echo "\$CERT_B64" | base64 -d > "\$CERTS_DIR/agent.crt"
+        echo "\$KEY_B64" | base64 -d > "\$CERTS_DIR/agent.key"
+        echo "\$CA_B64" | base64 -d > "\$CERTS_DIR/ca.crt"
+
+        chmod 644 "\$CERTS_DIR/agent.crt"
+        chmod 600 "\$CERTS_DIR/agent.key"
+        chmod 644 "\$CERTS_DIR/ca.crt"
+        chown -R "\$AGENT_USER:\$AGENT_USER" "\$CERTS_DIR"
+
+        echo -e "  \${GREEN}✓ mTLS certificates installed\${NC}"
+        USE_MTLS=true
+    else
+        echo -e "  \${YELLOW}⚠ Could not extract certificates, using Bearer token auth\${NC}"
+        USE_MTLS=false
+    fi
+else
+    echo -e "  \${YELLOW}ℹ mTLS not enabled, using Bearer token auth\${NC}"
+    USE_MTLS=false
+fi
+
+# =============================================================================
 # Step 7: Download agent binary
 # =============================================================================
 echo ""
@@ -422,6 +467,20 @@ fi
 echo ""
 echo -e "\${YELLOW}[8/9] Creating configuration...\${NC}"
 
+# Build TLS section based on whether mTLS is enabled
+if [ "\$USE_MTLS" = true ]; then
+    TLS_CONFIG="tls:
+  cert_file: \$CERTS_DIR/agent.crt
+  key_file: \$CERTS_DIR/agent.key
+  ca_file: \$CERTS_DIR/ca.crt"
+else
+    TLS_CONFIG="# TLS not configured - using Bearer token auth
+# tls:
+#   cert_file: \$CERTS_DIR/agent.crt
+#   key_file: \$CERTS_DIR/agent.key
+#   ca_file: \$CERTS_DIR/ca.crt"
+fi
+
 cat > "\$CONFIG_DIR/config.yaml" << CONFIG_EOF
 # phpBorg Agent Configuration
 # Generated: \$(date -Iseconds)
@@ -441,6 +500,8 @@ borg_ssh:
   user: phpborg-borg
   private_key_path: \$SSH_KEY_PATH
   backup_path: /opt/backups/\$AGENT_UUID
+
+\$TLS_CONFIG
 
 polling:
   interval: 5s

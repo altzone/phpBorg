@@ -309,3 +309,31 @@ func (c *Client) DownloadUpdate(ctx context.Context, destPath string) error {
 
 	return nil
 }
+
+// CertificateRenewalResponse contains new certificates from renewal
+type CertificateRenewalResponse struct {
+	Cert      string `json:"cert"`       // Base64 encoded certificate
+	Key       string `json:"key"`        // Base64 encoded private key
+	CA        string `json:"ca"`         // Base64 encoded CA certificate
+	ExpiresAt string `json:"expires_at"` // Expiration date
+}
+
+// RenewCertificate requests a new certificate from the server
+func (c *Client) RenewCertificate(ctx context.Context) (*CertificateRenewalResponse, error) {
+	body := map[string]interface{}{
+		"agent_uuid": c.config.Agent.UUID,
+		"agent_name": c.config.Agent.Name,
+	}
+
+	resp, err := c.doRequest(ctx, "POST", "/agent/certificate/renew", body)
+	if err != nil {
+		return nil, err
+	}
+
+	var renewal CertificateRenewalResponse
+	if err := json.Unmarshal(resp.Data, &renewal); err != nil {
+		return nil, fmt.Errorf("failed to parse renewal response: %w", err)
+	}
+
+	return &renewal, nil
+}

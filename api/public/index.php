@@ -314,6 +314,9 @@ try {
     $router->get('/agent/update/download', AgentGatewayController::class, 'downloadUpdate', requireAuth: false); // mTLS auth
     $router->post('/agent/update/request', AgentGatewayController::class, 'requestUpdate'); // User JWT auth (admin only)
 
+    // Agent Certificate Routes
+    $router->post('/agent/certificate/renew', AgentGatewayController::class, 'renewCertificate', requireAuth: false); // mTLS auth
+
     // ===========================================
     // Future Routes (To be implemented)
     // ===========================================

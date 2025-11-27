@@ -10,6 +10,7 @@ use PhpBorg\Service\Server\ServerManager;
 use PhpBorg\Service\Queue\JobQueue;
 use PhpBorg\Service\Agent\AgentInstallService;
 use PhpBorg\Service\Agent\AgentManager;
+use PhpBorg\Service\Agent\CertificateManager;
 use PhpBorg\Repository\ServerRepository;
 
 /**
@@ -29,6 +30,7 @@ class ServerWizardController extends BaseController
     private readonly \PhpBorg\Repository\SettingRepository $settingRepo;
     private readonly AgentInstallService $agentInstallService;
     private readonly AgentManager $agentManager;
+    private readonly CertificateManager $certManager;
 
     public function __construct(Application $app)
     {
@@ -41,6 +43,7 @@ class ServerWizardController extends BaseController
             $app->getSettingRepository()
         );
         $this->agentManager = $app->getAgentManager();
+        $this->certManager = $app->getCertificateManager();
     }
 
     /**
@@ -253,7 +256,7 @@ class ServerWizardController extends BaseController
     /**
      * POST /api/server-wizard/agent-callback/:token
      * Webhook called by the agent install script when complete
-     * Creates the server record and registers the agent's SSH key
+     * Creates the server record, registers the agent's SSH key, and generates mTLS certificates
      */
     public function agentCallback(): void
     {
@@ -274,33 +277,78 @@ class ServerWizardController extends BaseController
                 return;
             }
 
-            // Register SSH key with AgentManager
+            $agentUuid = $tokenData['agent_uuid'];
+            $agentName = $tokenData['agent_name'];
+
+            // Register SSH key with AgentManager (for Borg access)
             if (!empty($data['ssh_public_key'])) {
                 try {
-                    $this->agentManager->deployAgentKey(
-                        $tokenData['agent_uuid'],
-                        $data['ssh_public_key']
-                    );
+                    $this->agentManager->deployAgentKey($agentUuid, $data['ssh_public_key']);
                 } catch (\Exception $e) {
                     // Log but don't fail - key can be deployed later
                     error_log("Failed to deploy agent SSH key: " . $e->getMessage());
                 }
             }
 
+            // Generate mTLS certificates for the agent
+            $certificates = null;
+            try {
+                $certificates = $this->certManager->generateAgentCertificate($agentUuid, $agentName);
+            } catch (\Exception $e) {
+                error_log("Failed to generate agent certificates: " . $e->getMessage());
+                // Continue without certs - agent can use Bearer token as fallback
+            }
+
             // Create server record
             $serverId = $this->agentInstallService->createServerFromRegistration($token);
 
-            $this->success([
+            // Build response with certificates
+            $response = [
                 'success' => true,
                 'status' => 'registered',
                 'server_id' => $serverId,
-                'agent_uuid' => $tokenData['agent_uuid'],
-                'message' => 'Agent registered successfully'
-            ]);
+                'agent_uuid' => $agentUuid,
+                'message' => 'Agent registered successfully',
+            ];
+
+            // Include certificates if generated
+            if ($certificates) {
+                $response['certificates'] = [
+                    'cert' => base64_encode($certificates['cert']),
+                    'key' => base64_encode($certificates['key']),
+                    'ca' => base64_encode($certificates['ca']),
+                ];
+                $response['mtls_enabled'] = true;
+            } else {
+                $response['mtls_enabled'] = false;
+            }
+
+            // Include API URL for agent config
+            $response['api_url'] = $this->getServerUrl() . '/api';
+
+            $this->success($response);
 
         } catch (\Exception $e) {
             $this->error($e->getMessage(), 500, 'CALLBACK_ERROR');
         }
+    }
+
+    /**
+     * Get the phpBorg server URL
+     */
+    private function getServerUrl(): string
+    {
+        // Try from settings first
+        $urlSetting = $this->settingRepo->findByKey('server_url');
+        if ($urlSetting && $urlSetting->value) {
+            return $urlSetting->value;
+        }
+
+        // Build from current request
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+
+        return "{$protocol}://{$host}";
     }
 
     /**

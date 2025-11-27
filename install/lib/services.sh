@@ -586,6 +586,69 @@ setup_redis() {
 }
 
 #
+# Certificate Authority setup (for mTLS agent authentication)
+#
+
+setup_certificate_authority() {
+    print_section "Setting up Certificate Authority for Agent mTLS"
+
+    local ca_dir="/etc/phpborg/certs"
+    local ca_key="${ca_dir}/ca.key"
+    local ca_cert="${ca_dir}/ca.crt"
+    local agents_dir="${ca_dir}/agents"
+
+    # Check if CA already exists
+    if [ -f "${ca_key}" ] && [ -f "${ca_cert}" ]; then
+        log_info "Certificate Authority already initialized"
+        save_state "setup_certificate_authority" "completed"
+        return 0
+    fi
+
+    # Create directories
+    log_info "Creating certificate directories..."
+    mkdir -p "${ca_dir}"
+    mkdir -p "${agents_dir}"
+    chmod 700 "${ca_dir}"
+    chmod 700 "${agents_dir}"
+
+    # Generate CA private key (ECDSA P-256)
+    log_info "Generating CA private key..."
+    if ! openssl ecparam -genkey -name prime256v1 -out "${ca_key}" 2>/dev/null; then
+        log_error "Failed to generate CA private key"
+        return 1
+    fi
+    chmod 600 "${ca_key}"
+
+    # Generate self-signed CA certificate (valid 10 years)
+    log_info "Generating CA certificate..."
+    if ! openssl req -new -x509 \
+        -key "${ca_key}" \
+        -out "${ca_cert}" \
+        -days 3650 \
+        -subj "/CN=phpBorg Internal CA/O=phpBorg/C=FR" \
+        -sha256 2>/dev/null; then
+        log_error "Failed to generate CA certificate"
+        return 1
+    fi
+    chmod 644 "${ca_cert}"
+
+    # Set ownership
+    chown -R phpborg:phpborg "${ca_dir}"
+
+    # Verify CA was created correctly
+    if openssl x509 -in "${ca_cert}" -noout -text &>/dev/null; then
+        local expiry=$(openssl x509 -in "${ca_cert}" -noout -enddate | cut -d= -f2)
+        log_success "Certificate Authority initialized"
+        log_info "CA valid until: ${expiry}"
+        save_state "setup_certificate_authority" "completed"
+        return 0
+    else
+        log_error "CA certificate verification failed"
+        return 1
+    fi
+}
+
+#
 # Dedicated Borg SSH Server setup (for remote agents)
 #
 
@@ -830,6 +893,13 @@ setup_services() {
         setup_borg_sshd || errors=$((errors + 1))
     else
         log_info "Borg SSH server already configured (skipped)"
+    fi
+
+    # Setup Certificate Authority for agent mTLS
+    if ! is_step_completed "setup_certificate_authority"; then
+        setup_certificate_authority || errors=$((errors + 1))
+    else
+        log_info "Certificate Authority already configured (skipped)"
     fi
 
     # Start services

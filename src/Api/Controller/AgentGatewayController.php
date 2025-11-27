@@ -628,6 +628,55 @@ final class AgentGatewayController extends BaseController
     }
 
     /**
+     * Renew agent certificate
+     * POST /api/agent/certificate/renew
+     *
+     * Request body:
+     * {
+     *   "agent_uuid": "...",
+     *   "agent_name": "..."
+     * }
+     */
+    public function renewCertificate(): void
+    {
+        $agent = $this->requireAgentAuth();
+        if (!$agent) {
+            return;
+        }
+
+        $data = $this->getJsonBody();
+        $agentUuid = $data['agent_uuid'] ?? $agent['uuid'];
+        $agentName = $data['agent_name'] ?? $agent['name'];
+
+        // Verify agent UUID matches authenticated agent
+        if ($agentUuid !== $agent['uuid']) {
+            $this->error('Agent UUID mismatch', 403, 'UUID_MISMATCH');
+            return;
+        }
+
+        try {
+            // Renew certificate using CertificateManager
+            $certificates = $this->certManager->renewAgentCertificate($agentUuid, $agentName);
+
+            // Get expiry date
+            $expiry = $this->certManager->getAgentCertificateExpiry($agentUuid);
+
+            $this->logger->info("Certificate renewed for agent {$agentName} ({$agentUuid})", 'AGENT_API');
+
+            $this->success([
+                'cert' => base64_encode($certificates['cert']),
+                'key' => base64_encode($certificates['key']),
+                'ca' => base64_encode($certificates['ca']),
+                'expires_at' => $expiry?->format('Y-m-d H:i:s') ?? 'unknown',
+            ], 'Certificate renewed successfully');
+
+        } catch (\Exception $e) {
+            $this->logger->error("Certificate renewal failed: {$e->getMessage()}", 'AGENT_API');
+            $this->error('Certificate renewal failed: ' . $e->getMessage(), 500, 'RENEWAL_FAILED');
+        }
+    }
+
+    /**
      * Generate UUID v4
      */
     private function generateUuid(): string
