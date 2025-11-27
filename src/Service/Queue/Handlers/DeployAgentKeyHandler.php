@@ -6,6 +6,7 @@ namespace PhpBorg\Service\Queue\Handlers;
 
 use PhpBorg\Entity\Job;
 use PhpBorg\Logger\LoggerInterface;
+use PhpBorg\Repository\AgentRepository;
 use PhpBorg\Service\Agent\CertificateManager;
 use PhpBorg\Service\Queue\JobQueue;
 
@@ -24,6 +25,7 @@ final class DeployAgentKeyHandler implements JobHandlerInterface
 
     public function __construct(
         private readonly CertificateManager $certManager,
+        private readonly AgentRepository $agentRepo,
         private readonly LoggerInterface $logger,
         private readonly int $borgSshPort = 2222
     ) {
@@ -59,6 +61,24 @@ final class DeployAgentKeyHandler implements JobHandlerInterface
         // Étape 4: Générer les certificats mTLS
         $queue->updateProgress($job->id, 70, "Génération des certificats mTLS...");
         $certificates = $this->certManager->generateAgentCertificate($agentUuid, $agentName);
+
+        // Étape 4b: Mettre à jour le certificate_cn dans la base de données
+        $queue->updateProgress($job->id, 80, "Mise à jour des informations de certificat...");
+        $agent = $this->agentRepo->findByUuid($agentUuid);
+        if ($agent) {
+            $certExpiry = $this->certManager->getAgentCertificateExpiry($agentUuid);
+            if ($certExpiry) {
+                $this->agentRepo->updateCertificate(
+                    (int)$agent['id'],
+                    "agent-{$agentUuid}",
+                    $certExpiry,
+                    hash('sha256', $certificates['cert'])
+                );
+                $this->logger->info("Certificat enregistré pour l'agent: {$agentUuid}", 'CERT');
+            }
+            // Activer l'agent
+            $this->agentRepo->updateStatus((int)$agent['id'], 'active');
+        }
 
         // Étape 5: Préparer le résultat
         $queue->updateProgress($job->id, 90, "Finalisation...");
