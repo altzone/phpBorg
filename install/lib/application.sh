@@ -143,6 +143,7 @@ set_permissions() {
     # Make scripts executable
     log_info "Making scripts executable"
     chmod +x "${PHPBORG_ROOT}/bin/console"
+    chmod +x "${PHPBORG_ROOT}/bin/phpborg"
     if [ -d "${PHPBORG_ROOT}/bin" ]; then
         find "${PHPBORG_ROOT}/bin" -type f -name "*.sh" -exec chmod +x {} \;
     fi
