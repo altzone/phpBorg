@@ -33,6 +33,7 @@ final class AgentGatewayController extends BaseController
     private readonly AgentManager $agentManager;
     private readonly CertificateManager $certManager;
     private readonly LoggerInterface $logger;
+    private readonly \PhpBorg\Repository\ServerRepository $serverRepo;
 
     public function __construct(Application $app)
     {
@@ -41,6 +42,7 @@ final class AgentGatewayController extends BaseController
         $this->agentManager = $app->getAgentManager();
         $this->certManager = $app->getCertificateManager();
         $this->logger = $app->getLogger();
+        $this->serverRepo = $app->getServerRepository();
     }
 
     /**
@@ -155,13 +157,19 @@ final class AgentGatewayController extends BaseController
         }
 
         $data = $this->getJsonBody();
+        $version = $data['version'] ?? null;
 
-        // Update heartbeat
+        // Update heartbeat in agents table
         $this->agentRepo->updateHeartbeat(
             $agent['id'],
             $_SERVER['REMOTE_ADDR'] ?? null,
-            $data['version'] ?? null
+            $version
         );
+
+        // Also sync heartbeat/version to servers table (for UI display)
+        if ($agent['uuid']) {
+            $this->serverRepo->updateAgentHeartbeat($agent['uuid'], $version);
+        }
 
         // Update capabilities if provided
         if (isset($data['capabilities'])) {
