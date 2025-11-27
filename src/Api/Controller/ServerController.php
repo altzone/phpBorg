@@ -838,6 +838,21 @@ class ServerController extends BaseController
                 return;
             }
 
+            // Get latest version and checksum
+            $latestVersion = DownloadController::getLatestAgentVersion();
+            if (!$latestVersion) {
+                $this->error('Cannot determine latest agent version', 500, 'VERSION_ERROR');
+                return;
+            }
+
+            $binaryPath = dirname(__DIR__, 3) . '/releases/agent/phpborg-agent';
+            if (!file_exists($binaryPath)) {
+                $this->error('No agent binary available. Run build first.', 404, 'NO_BINARY');
+                return;
+            }
+
+            $checksum = hash_file('sha256', $binaryPath);
+
             // Insert update task into agent_tasks
             $connection = $this->app->getConnection();
             $connection->executeUpdate(
@@ -846,7 +861,11 @@ class ServerController extends BaseController
                 [
                     (int)$agent['id'],
                     'agent_update',
-                    json_encode(['server_id' => $id]),
+                    json_encode([
+                        'server_id' => $id,
+                        'version' => $latestVersion,
+                        'checksum' => $checksum,
+                    ]),
                     'pending'
                 ]
             );
