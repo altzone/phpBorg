@@ -9,6 +9,7 @@ use PhpBorg\Entity\Job;
 use PhpBorg\Logger\LoggerInterface;
 use PhpBorg\Logger\UserOperationLogger;
 use PhpBorg\Repository\BorgRepositoryRepository;
+use PhpBorg\Repository\SettingRepository;
 use PhpBorg\Service\Backup\BackupService;
 use PhpBorg\Service\Queue\JobQueue;
 use PhpBorg\Service\Repository\EncryptionService;
@@ -32,7 +33,8 @@ final class BackupCreateHandler implements JobHandlerInterface
         private readonly Configuration $config,
         private readonly LoggerInterface $logger,
         private readonly BackupNotificationService $notificationService,
-        private readonly UserOperationLogger $userLogger
+        private readonly UserOperationLogger $userLogger,
+        private readonly SettingRepository $settingRepo
     ) {
     }
 
@@ -406,10 +408,22 @@ final class BackupCreateHandler implements JobHandlerInterface
         $agentId = (int)$agent['id'];
 
         // Build repo URL for borg (agent connects to phpBorg server)
-        $borgSshPort = $this->config->borgSshPort ?? 2222;
-        $borgServerIp = $server->backupType === 'external'
-            ? $this->config->borgServerIpPublic
-            : $this->config->borgServerIpPrivate;
+        // Get SSH port and server IPs from database settings
+        $borgSshPortSetting = $this->settingRepo->findByKey('borg_ssh_port');
+        $borgSshPort = $borgSshPortSetting ? (int)$borgSshPortSetting->value : 2222;
+
+        $borgServerIp = '';
+        if ($server->backupType === 'external') {
+            $externalIpSetting = $this->settingRepo->findByKey('network.external_ip');
+            $borgServerIp = $externalIpSetting ? $externalIpSetting->value : '';
+        } else {
+            $internalIpSetting = $this->settingRepo->findByKey('network.internal_ip');
+            $borgServerIp = $internalIpSetting ? $internalIpSetting->value : '';
+        }
+
+        if (empty($borgServerIp)) {
+            throw new \Exception("Network IP not configured in settings (network." . ($server->backupType === 'external' ? 'external' : 'internal') . "_ip)");
+        }
 
         // Repo path: ssh://phpborg-borg@server:port/path
         $repoUrl = sprintf(
