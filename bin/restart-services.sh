@@ -14,6 +14,27 @@ log() {
 
 log "Starting phpBorg services restart..."
 
+# Update systemd service files from repository (may have changed)
+log "Syncing systemd service files from repository..."
+SYSTEMD_DIR="$PHPBORG_ROOT/systemd"
+TEMPLATE_PATH="/opt/newphpborg/phpBorg"
+
+if [ -d "$SYSTEMD_DIR" ]; then
+    for svc_file in "$SYSTEMD_DIR"/*.service "$SYSTEMD_DIR"/*.target "$SYSTEMD_DIR"/*.path; do
+        if [ -f "$svc_file" ]; then
+            filename=$(basename "$svc_file")
+            # Copy and replace template path with actual PHPBORG_ROOT
+            sed "s|${TEMPLATE_PATH}|${PHPBORG_ROOT}|g" "$svc_file" > "/etc/systemd/system/$filename"
+            chmod 644 "/etc/systemd/system/$filename"
+            log "Updated: $filename"
+        fi
+    done
+    systemctl daemon-reload
+    log "Systemd daemon reloaded"
+else
+    log "WARNING: Systemd directory not found at $SYSTEMD_DIR"
+fi
+
 # Restart all workers first
 for i in 1 2 3 4; do
     log "Restarting worker #$i..."

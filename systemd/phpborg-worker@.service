@@ -1,7 +1,7 @@
 [Unit]
-Description=phpBorg Backup Worker #%i - Executes backup and maintenance jobs
-After=network.target redis-server.service mariadb.service phpborg-scheduler.service
-Wants=redis-server.service mariadb.service
+Description=phpBorg Worker #%i
+Documentation=https://github.com/altzone/phpBorg
+After=network.target mariadb.service redis.service
 PartOf=phpborg-workers.target
 
 [Service]
@@ -9,19 +9,25 @@ Type=simple
 User=phpborg
 Group=phpborg
 WorkingDirectory=/opt/newphpborg/phpBorg
-Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Load environment variables from .env
+EnvironmentFile=/opt/newphpborg/phpBorg/.env
+
+# Environment
+Environment="PHP_ENV=production"
 Environment="WORKER_ID=%i"
 
-# Main worker command
-ExecStart=/usr/bin/php /opt/newphpborg/phpBorg/bin/phpborg worker:start --queue=default --worker-id=%i
+# Main command
+ExecStart=/usr/bin/php8.3 /opt/newphpborg/phpBorg/bin/phpborg worker:start --queue=default --worker-id=%i
 
 # Restart policy
 Restart=always
-RestartSec=10
+RestartSec=5s
 
-# Resource limits (per worker)
-MemoryMax=2G
-CPUQuota=100%
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=phpborg-worker@%i
 
 # Security
 PrivateTmp=true
@@ -29,18 +35,11 @@ NoNewPrivileges=true
 # ProtectSystem=full allows writing to /opt, /srv, /var while protecting /usr, /boot
 ProtectSystem=full
 ProtectHome=true
-ReadWritePaths=/opt/newphpborg/phpBorg/var
-ReadWritePaths=/opt/newphpborg/phpBorg/logs
-ReadWritePaths=/opt/newphpborg/phpBorg/.git
-ReadWritePaths=/opt/backups
-ReadWritePaths=/var/lib/phpborg/backups
-ReadWritePaths=/var/log/phpborg
-ReadWritePaths=/tmp
+ReadWritePaths=/opt/newphpborg/phpBorg /opt/backups /var/lib/phpborg/backups /var/log/phpborg /tmp
 
-# Logging
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=phpborg-worker-%i
+# Resource limits
+LimitNOFILE=65536
+TimeoutStopSec=30s
 
 [Install]
 WantedBy=phpborg-workers.target

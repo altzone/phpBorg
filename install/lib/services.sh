@@ -7,6 +7,28 @@
 # Number of worker instances in the pool
 WORKER_POOL_SIZE="${WORKER_POOL_SIZE:-4}"
 
+# Template path used in repo systemd files (will be replaced with actual PHPBORG_ROOT)
+SYSTEMD_TEMPLATE_PATH="/opt/newphpborg/phpBorg"
+
+#
+# Install systemd file from repo with path substitution
+#
+install_systemd_file() {
+    local source_file="$1"
+    local dest_file="$2"
+
+    if [ ! -f "${source_file}" ]; then
+        log_error "Source file not found: ${source_file}"
+        return 1
+    fi
+
+    # Copy with path substitution
+    sed "s|${SYSTEMD_TEMPLATE_PATH}|${PHPBORG_ROOT}|g" "${source_file}" > "${dest_file}"
+    chmod 644 "${dest_file}"
+
+    return 0
+}
+
 #
 # Create phpborg system user
 #
@@ -247,58 +269,14 @@ EOF
 install_scheduler_service() {
     print_section "Installing Scheduler Service"
 
+    local source_file="${PHPBORG_ROOT}/systemd/phpborg-scheduler.service"
     local service_file="/etc/systemd/system/phpborg-scheduler.service"
 
     backup_file "${service_file}"
 
-    log_info "Creating service file: ${service_file}"
+    log_info "Installing service from repo: ${source_file}"
 
-    cat > "${service_file}" <<EOF
-[Unit]
-Description=phpBorg Scheduler Daemon
-Documentation=https://github.com/altzone/phpBorg
-After=network.target mariadb.service redis.service
-
-[Service]
-Type=simple
-User=phpborg
-Group=phpborg
-WorkingDirectory=${PHPBORG_ROOT}
-
-# Load environment variables from .env
-EnvironmentFile=${PHPBORG_ROOT}/.env
-
-# Environment
-Environment="PHP_ENV=production"
-
-# Main command
-ExecStart=/usr/bin/php8.3 ${PHPBORG_ROOT}/bin/phpborg scheduler:start
-
-# Restart policy
-Restart=always
-RestartSec=10s
-
-# Logging
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=phpborg-scheduler
-
-# Security
-PrivateTmp=true
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=${PHPBORG_ROOT} /opt/backups /var/lib/phpborg/backups /var/log/phpborg /tmp
-
-# Resource limits
-LimitNOFILE=65536
-TimeoutStopSec=30s
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    if [ $? -eq 0 ]; then
+    if install_systemd_file "${source_file}" "${service_file}"; then
         log_success "Scheduler service file created"
         save_state "install_scheduler_service" "completed"
         return 0
@@ -311,60 +289,14 @@ EOF
 install_worker_service() {
     print_section "Installing Worker Service Template"
 
+    local source_file="${PHPBORG_ROOT}/systemd/phpborg-worker@.service"
     local service_file="/etc/systemd/system/phpborg-worker@.service"
 
     backup_file "${service_file}"
 
-    log_info "Creating service template: ${service_file}"
+    log_info "Installing service template from repo: ${source_file}"
 
-    cat > "${service_file}" <<EOF
-[Unit]
-Description=phpBorg Worker #%i
-Documentation=https://github.com/altzone/phpBorg
-After=network.target mariadb.service redis.service
-PartOf=phpborg-workers.target
-
-[Service]
-Type=simple
-User=phpborg
-Group=phpborg
-WorkingDirectory=${PHPBORG_ROOT}
-
-# Load environment variables from .env
-EnvironmentFile=${PHPBORG_ROOT}/.env
-
-# Environment
-Environment="PHP_ENV=production"
-Environment="WORKER_ID=%i"
-
-# Main command
-ExecStart=/usr/bin/php8.3 ${PHPBORG_ROOT}/bin/phpborg worker:start --queue=default --worker-id=%i
-
-# Restart policy
-Restart=always
-RestartSec=5s
-
-# Logging
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=phpborg-worker@%i
-
-# Security
-PrivateTmp=true
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=${PHPBORG_ROOT} /opt/backups /var/lib/phpborg/backups /var/log/phpborg /tmp
-
-# Resource limits
-LimitNOFILE=65536
-TimeoutStopSec=30s
-
-[Install]
-WantedBy=phpborg-workers.target
-EOF
-
-    if [ $? -eq 0 ]; then
+    if install_systemd_file "${source_file}" "${service_file}"; then
         log_success "Worker service template created"
         save_state "install_worker_service" "completed"
         return 0
@@ -406,61 +338,14 @@ EOF
 install_agent_worker_service() {
     print_section "Installing Agent Worker Service"
 
+    local source_file="${PHPBORG_ROOT}/systemd/phpborg-agent-worker.service"
     local service_file="/etc/systemd/system/phpborg-agent-worker.service"
 
     backup_file "${service_file}"
 
-    log_info "Creating service file: ${service_file}"
+    log_info "Installing service from repo: ${source_file}"
 
-    cat > "${service_file}" <<EOF
-[Unit]
-Description=phpBorg Agent Worker - Handles agent deployment and management
-After=network.target redis-server.service mariadb.service
-Wants=redis-server.service mariadb.service
-
-[Service]
-Type=simple
-User=phpborg
-Group=phpborg
-WorkingDirectory=${PHPBORG_ROOT}
-Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-
-# Worker dédié pour la queue "agent"
-ExecStart=/usr/bin/php8.3 ${PHPBORG_ROOT}/bin/phpborg agent-worker:start
-
-# Restart policy
-Restart=always
-RestartSec=10
-
-# Resource limits
-MemoryMax=512M
-CPUQuota=50%
-
-# Security - MOINS restrictif pour permettre sudo
-PrivateTmp=true
-# PAS de NoNewPrivileges pour permettre sudo
-ProtectHome=true
-
-# Paths accessibles
-ReadWritePaths=${PHPBORG_ROOT}/var
-ReadWritePaths=${PHPBORG_ROOT}/logs
-ReadWritePaths=/opt/backups
-ReadWritePaths=/var/lib/phpborg/backups
-ReadWritePaths=/var/log/phpborg
-ReadWritePaths=/var/lib/phpborg-borg
-ReadWritePaths=/etc/phpborg
-ReadWritePaths=/tmp
-
-# Logging
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=phpborg-agent-worker
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    if [ $? -eq 0 ]; then
+    if install_systemd_file "${source_file}" "${service_file}"; then
         log_success "Agent worker service file created"
         save_state "install_agent_worker_service" "completed"
         return 0
