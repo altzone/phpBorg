@@ -444,6 +444,8 @@ onMounted(async () => {
   subscribe('servers', (data) => {
     if (data.servers) {
       serverStore.servers = data.servers
+      // Check if any pending agent updates completed
+      checkPendingUpdates(data.servers)
     }
   })
 
@@ -562,10 +564,17 @@ async function detectCapabilities(server) {
   }
 }
 
+// Track pending agent updates (serverId -> { oldVersion, targetVersion, timeout })
+const pendingAgentUpdates = ref({})
+
 async function updateAgent(server) {
   if (!server.agent?.uuid) return
 
+  const oldVersion = server.agent.version
+  const targetVersion = server.agent.latest_version
+
   updatingAgent.value[server.id] = true
+  pendingAgentUpdates.value[server.id] = { oldVersion, targetVersion }
 
   try {
     // Trigger agent update task
@@ -573,23 +582,56 @@ async function updateAgent(server) {
 
     showToast(
       '✓ Mise à jour lancée',
-      `Mise à jour de l'agent ${server.name} vers v${server.agent.latest_version}`,
+      `Mise à jour de l'agent ${server.name} vers v${targetVersion}`,
       'success'
     )
 
-    // Refresh after some time to see updated version
-    setTimeout(async () => {
-      await serverStore.fetchServers()
-    }, 10000)
+    // Timeout after 60 seconds if update doesn't complete
+    setTimeout(() => {
+      if (updatingAgent.value[server.id]) {
+        updatingAgent.value[server.id] = false
+        delete pendingAgentUpdates.value[server.id]
+        showToast(
+          'Timeout',
+          `La mise à jour de l'agent semble prendre du temps. Vérifiez les logs.`,
+          'warning',
+          8000
+        )
+      }
+    }, 60000)
+
   } catch (err) {
+    updatingAgent.value[server.id] = false
+    delete pendingAgentUpdates.value[server.id]
     showToast(
       'Erreur',
       err.response?.data?.error?.message || 'Échec de la mise à jour de l\'agent',
       'error',
       8000
     )
-  } finally {
-    updatingAgent.value[server.id] = false
+  }
+  // Note: spinner stays until SSE shows version changed (see checkPendingUpdates)
+}
+
+// Check if pending updates completed (called when SSE updates servers)
+function checkPendingUpdates(servers) {
+  for (const server of servers) {
+    const pending = pendingAgentUpdates.value[server.id]
+    if (pending && server.agent?.version) {
+      // Check if version changed to target or is different from old
+      if (server.agent.version !== pending.oldVersion) {
+        updatingAgent.value[server.id] = false
+        delete pendingAgentUpdates.value[server.id]
+
+        if (server.agent.version === pending.targetVersion) {
+          showToast(
+            '✓ Agent mis à jour',
+            `${server.name} mis à jour vers v${server.agent.version}`,
+            'success'
+          )
+        }
+      }
+    }
   }
 }
 
