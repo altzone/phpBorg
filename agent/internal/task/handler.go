@@ -482,14 +482,29 @@ func (h *Handler) handleAgentUpdate(ctx context.Context, task api.Task) (map[str
 
 	h.client.UpdateProgress(ctx, task.ID, 85, "Replacing binary...")
 
-	// Replace binary (copy instead of rename - different filesystems)
-	if err := copyFile(tmpFile, currentBinary); err != nil {
-		// Try to restore backup
-		copyFile(backupFile, currentBinary)
+	// Rename running binary first (Linux allows this even while executing)
+	oldBinary := currentBinary + ".old"
+	os.Remove(oldBinary) // Remove any previous .old file
+	if err := os.Rename(currentBinary, oldBinary); err != nil {
 		os.Remove(tmpFile)
-		return nil, 1, fmt.Errorf("failed to replace binary: %w", err)
+		return nil, 1, fmt.Errorf("failed to rename current binary: %w", err)
 	}
-	os.Remove(tmpFile) // Clean up temp file
+
+	// Copy new binary to destination
+	if err := copyFile(tmpFile, currentBinary); err != nil {
+		// Try to restore old binary
+		os.Rename(oldBinary, currentBinary)
+		os.Remove(tmpFile)
+		return nil, 1, fmt.Errorf("failed to install new binary: %w", err)
+	}
+
+	// Set ownership to match old binary (agent user)
+	if err := os.Chmod(currentBinary, 0755); err != nil {
+		log.Printf("[UPDATE] Warning: failed to set permissions: %v", err)
+	}
+
+	os.Remove(tmpFile)    // Clean up temp file
+	os.Remove(oldBinary)  // Clean up old binary
 
 	h.client.UpdateProgress(ctx, task.ID, 90, "Restarting agent via systemd...")
 
