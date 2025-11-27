@@ -363,8 +363,12 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             return;
         }
 
-        // Build the agent
-        $cmd = "cd {$agentDir} && go build -o phpborg-agent ./cmd/phpborg-agent 2>&1";
+        // Build the agent (use local cache to avoid systemd read-only restrictions)
+        $goCache = "{$phpborgRoot}/var/go-cache";
+        if (!is_dir($goCache)) {
+            mkdir($goCache, 0755, true);
+        }
+        $cmd = "cd {$agentDir} && GOCACHE={$goCache} go build -o phpborg-agent ./cmd/phpborg-agent 2>&1";
         exec($cmd, $output, $exitCode);
 
         if ($exitCode !== 0) {
