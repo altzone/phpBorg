@@ -141,7 +141,23 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm text-gray-700 dark:text-gray-400">
-                  {{ server.stats?.os_version || 'N/A' }}
+                  <!-- Agent version for agent-based servers -->
+                  <template v-if="server.agent">
+                    <span class="flex items-center gap-2">
+                      <span class="font-mono">{{ server.agent.version || 'N/A' }}</span>
+                      <span
+                        v-if="server.agent.needs_update"
+                        class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                        :title="$t('servers.agent.update_available', { version: server.agent.latest_version })"
+                      >
+                        {{ $t('servers.agent.update') }}
+                      </span>
+                    </span>
+                  </template>
+                  <!-- OS version for SSH-based servers -->
+                  <template v-else>
+                    {{ server.stats?.os_version || 'N/A' }}
+                  </template>
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -284,7 +300,20 @@
             </div>
             <div class="col-span-2">
               <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ $t('servers.version') }}</div>
-              <div class="text-gray-900 dark:text-gray-300">{{ server.stats?.os_version || 'N/A' }}</div>
+              <div class="text-gray-900 dark:text-gray-300">
+                <template v-if="server.agent">
+                  <span class="flex items-center gap-2">
+                    <span class="font-mono">{{ server.agent.version || 'N/A' }}</span>
+                    <span
+                      v-if="server.agent.needs_update"
+                      class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                    >
+                      {{ $t('servers.agent.update') }}
+                    </span>
+                  </span>
+                </template>
+                <template v-else>{{ server.stats?.os_version || 'N/A' }}</template>
+              </div>
             </div>
           </div>
         </div>

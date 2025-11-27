@@ -101,7 +101,8 @@
       "connection_mode": "Mode de connexion",
       "mode_ssh": "SSH Direct",
       "mode_agent": "Agent (Pull)",
-      "update_available": "Mise à jour disponible",
+      "update": "MAJ",
+      "update_available": "Mise à jour disponible: v{version}",
       "update_agent": "Mettre à jour l'agent",
       "reinstall_agent": "Réinstaller l'agent"
     },
