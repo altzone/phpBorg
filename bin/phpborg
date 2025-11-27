@@ -65,6 +65,7 @@ use PhpBorg\Command\SchedulerStartCommand;
 use PhpBorg\Command\SetupCommand;
 use PhpBorg\Command\SyncArchivesCommand;
 use PhpBorg\Command\WorkerStartCommand;
+use PhpBorg\Command\AgentWorkerStartCommand;
 use Symfony\Component\Console\Application as ConsoleApplication;
 
 // Check PHP version
@@ -123,6 +124,7 @@ try {
 
         // Worker commands
         $console->add(new WorkerStartCommand($app));
+        $console->add(new AgentWorkerStartCommand($app));
         $console->add(new SchedulerStartCommand($app));
     }
 
