@@ -428,9 +428,8 @@ func (h *Handler) handleAgentUpdate(ctx context.Context, task api.Task) (map[str
 		return nil, 1, fmt.Errorf("failed to resolve executable path: %w", err)
 	}
 
-	// Create temporary file for new binary
-	tmpDir := filepath.Dir(currentBinary)
-	tmpFile := filepath.Join(tmpDir, ".phpborg-agent.new")
+	// Create temporary file for new binary in /tmp (works with systemd PrivateTmp)
+	tmpFile := "/tmp/.phpborg-agent.new"
 
 	h.client.UpdateProgress(ctx, task.ID, 20, "Downloading new binary...")
 
