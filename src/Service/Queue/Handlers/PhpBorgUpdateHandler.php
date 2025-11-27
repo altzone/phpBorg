@@ -349,6 +349,7 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
     private function rebuildAgent(string $phpborgRoot): void
     {
         $agentDir = "{$phpborgRoot}/agent";
+        $releasesDir = "{$phpborgRoot}/releases/agent";
 
         // Check if agent directory exists
         if (!is_dir($agentDir)) {
@@ -357,13 +358,20 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
         }
 
         // Check if Go is installed
+        $output = [];
         exec("which go 2>&1", $output, $exitCode);
         if ($exitCode !== 0) {
             $this->logger->warning("Go not installed, skipping agent rebuild", 'PHPBORG_UPDATE');
             return;
         }
 
+        // Ensure releases directory exists
+        if (!is_dir($releasesDir)) {
+            mkdir($releasesDir, 0755, true);
+        }
+
         // Build the agent using /tmp for Go caches (systemd PrivateTmp provides isolated writable /tmp)
+        $output = [];
         $cmd = "cd {$agentDir} && GOCACHE=/tmp/go-cache GOMODCACHE=/tmp/go-mod go build -o phpborg-agent ./cmd/phpborg-agent 2>&1";
         exec($cmd, $output, $exitCode);
 
@@ -375,7 +383,33 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             return;
         }
 
-        $this->logger->info("Go agent rebuilt successfully", 'PHPBORG_UPDATE');
+        // Copy binary to releases directory
+        $sourceBinary = "{$agentDir}/phpborg-agent";
+        $destBinary = "{$releasesDir}/phpborg-agent";
+
+        if (file_exists($sourceBinary)) {
+            copy($sourceBinary, $destBinary);
+            chmod($destBinary, 0755);
+
+            // Generate checksum
+            $checksum = hash_file('sha256', $destBinary);
+            file_put_contents("{$releasesDir}/phpborg-agent.sha256", "{$checksum}  phpborg-agent\n");
+
+            // Extract version from binary
+            $versionOutput = [];
+            exec("{$destBinary} -version 2>&1", $versionOutput, $versionExitCode);
+            if ($versionExitCode === 0 && !empty($versionOutput[0])) {
+                // Parse "phpborg-agent version X.X.X" format
+                if (preg_match('/version\s+(\S+)/', $versionOutput[0], $matches)) {
+                    file_put_contents("{$releasesDir}/VERSION", $matches[1]);
+                    $this->logger->info("Agent version: {$matches[1]}", 'PHPBORG_UPDATE');
+                }
+            }
+
+            $this->logger->info("Go agent rebuilt and deployed to releases", 'PHPBORG_UPDATE');
+        } else {
+            $this->logger->warning("Agent binary not found after build", 'PHPBORG_UPDATE');
+        }
     }
 
     /**

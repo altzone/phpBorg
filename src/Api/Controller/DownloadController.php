@@ -86,6 +86,7 @@ final class DownloadController extends BaseController
     public function agentInfo(): void
     {
         $binaryPath = $this->releasesDir . '/agent/phpborg-agent';
+        $versionPath = $this->releasesDir . '/agent/VERSION';
 
         if (!file_exists($binaryPath)) {
             $this->success([
@@ -95,14 +96,34 @@ final class DownloadController extends BaseController
             return;
         }
 
+        // Read version from VERSION file
+        $version = null;
+        if (file_exists($versionPath)) {
+            $version = trim(file_get_contents($versionPath));
+        }
+
         $this->success([
             'available' => true,
+            'version' => $version,
             'size' => filesize($binaryPath),
             'size_human' => $this->formatBytes(filesize($binaryPath)),
             'checksum' => hash_file('sha256', $binaryPath),
             'modified_at' => date('Y-m-d H:i:s', filemtime($binaryPath)),
             'download_url' => '/downloads/phpborg-agent',
         ]);
+    }
+
+    /**
+     * Get the latest agent version
+     * Used internally by other controllers
+     */
+    public static function getLatestAgentVersion(): ?string
+    {
+        $versionPath = dirname(__DIR__, 3) . '/releases/agent/VERSION';
+        if (file_exists($versionPath)) {
+            return trim(file_get_contents($versionPath));
+        }
+        return null;
     }
 
     /**

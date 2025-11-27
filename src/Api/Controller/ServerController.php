@@ -775,11 +775,21 @@ class ServerController extends BaseController
             }
         }
 
+        // Get latest available version
+        $latestVersion = DownloadController::getLatestAgentVersion();
+        $needsUpdate = false;
+
+        if ($server->agentVersion && $latestVersion) {
+            $needsUpdate = version_compare($server->agentVersion, $latestVersion, '<');
+        }
+
         return [
             'uuid' => $server->agentUuid,
             'status' => $server->agentStatus,
             'status_label' => $server->getAgentStatusLabel(),
             'version' => $server->agentVersion,
+            'latest_version' => $latestVersion,
+            'needs_update' => $needsUpdate,
             'is_online' => $isOnline,
             'last_heartbeat' => $server->agentLastHeartbeat?->format('Y-m-d H:i:s'),
             'last_seen_ago' => $lastSeenAgo,
