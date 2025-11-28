@@ -109,14 +109,17 @@ final class ArchiveMountHandler implements JobHandlerInterface
                 $mountId = $this->mountRepo->create($archiveId, $mountPath, 'mounting');
             }
 
-            // Step 6: Mount with Borg
+            // Step 6: All local repositories are owned by phpborg-borg, use sudo
+            $runAsUser = 'phpborg-borg';
+
+            // Step 7: Mount with Borg
             $queue->updateProgress($job->id, 60, "Mounting archive with Borg...");
             $archiveIdentifier = $repository->repoPath . '::' . $archive->name;
 
             $this->logger->info("Mounting archive '{$archiveIdentifier}' to '{$mountPath}'", 'JOB');
 
             try {
-                $this->borgExecutor->mountArchive($archiveIdentifier, $mountPath, $repository->passphrase);
+                $this->borgExecutor->mountArchive($archiveIdentifier, $mountPath, $repository->passphrase, $runAsUser);
             } catch (\Exception $borgError) {
                 $this->logger->error("Borg mount error: {$borgError->getMessage()}", 'JOB');
                 throw $borgError;

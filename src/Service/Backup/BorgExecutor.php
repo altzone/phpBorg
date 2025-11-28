@@ -453,14 +453,15 @@ final class BorgExecutor
      *
      * @throws BackupException
      */
-    public function mountArchive(string $archive, string $mountPoint, string $passphrase): void
+    public function mountArchive(string $archive, string $mountPoint, string $passphrase, ?string $runAsUser = null): void
     {
         // Mount with allow_other and force ownership to www-data (UID 33, GID 33)
         // This allows www-data to read all files regardless of original permissions
         $result = $this->execute(
             ['mount', $archive, $mountPoint, '-o', 'allow_other,uid=33,gid=33'],
             $passphrase,
-            60
+            60,
+            $runAsUser
         );
 
         // Log stderr even on success to debug
