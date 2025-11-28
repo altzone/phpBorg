@@ -77,41 +77,20 @@ final class RefreshAgentAuthorizedKeysHandler implements JobHandlerInterface
 
     /**
      * Préparer le répertoire du repo avec les bonnes permissions
+     * Utilise un script helper qui valide que le path est dans un storage pool valide
      */
     private function ensureRepoDirectory(string $repoPath): void
     {
-        $repoDir = dirname($repoPath);
+        $this->logger->info("Preparing repository directory: {$repoPath}", 'AGENT');
 
-        $this->logger->info("Ensuring repository directory: {$repoDir}", 'AGENT');
+        $script = '/opt/newphpborg/phpBorg/bin/prepare-backup-directory.sh';
+        $cmd = sprintf('sudo %s %s 2>&1', escapeshellarg($script), escapeshellarg($repoPath));
 
-        // Créer le répertoire parent
-        $commands = [
-            sprintf('sudo mkdir -p %s', escapeshellarg($repoDir)),
-            sprintf('sudo chown %s:phpborg %s', self::BORG_USER, escapeshellarg($repoDir)),
-            sprintf('sudo chmod 770 %s', escapeshellarg($repoDir)),
-        ];
+        $output = [];
+        exec($cmd, $output, $returnCode);
 
-        foreach ($commands as $cmd) {
-            $output = [];
-            exec($cmd . ' 2>&1', $output, $returnCode);
-            if ($returnCode !== 0) {
-                throw new \RuntimeException("Échec de la préparation du répertoire: " . implode("\n", $output));
-            }
-        }
-
-        // Créer le répertoire du repo
-        $commands = [
-            sprintf('sudo mkdir -p %s', escapeshellarg($repoPath)),
-            sprintf('sudo chown -R %s:phpborg %s', self::BORG_USER, escapeshellarg($repoPath)),
-            sprintf('sudo chmod 770 %s', escapeshellarg($repoPath)),
-        ];
-
-        foreach ($commands as $cmd) {
-            $output = [];
-            exec($cmd . ' 2>&1', $output, $returnCode);
-            if ($returnCode !== 0) {
-                throw new \RuntimeException("Échec de la préparation du repo: " . implode("\n", $output));
-            }
+        if ($returnCode !== 0) {
+            throw new \RuntimeException("Échec de la préparation du répertoire: " . implode("\n", $output));
         }
 
         $this->logger->info("Repository directory prepared: {$repoPath}", 'AGENT');

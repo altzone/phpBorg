@@ -117,10 +117,8 @@ phpborg ALL=(ALL) NOPASSWD: /bin/cp * /var/lib/phpborg-borg/.ssh/authorized_keys
 phpborg ALL=(ALL) NOPASSWD: /bin/chown phpborg-borg\:phpborg-borg /var/lib/phpborg-borg/.ssh/authorized_keys
 phpborg ALL=(ALL) NOPASSWD: /bin/chmod 600 /var/lib/phpborg-borg/.ssh/authorized_keys
 
-# Agent backup directory creation
-phpborg ALL=(ALL) NOPASSWD: /bin/mkdir -p /opt/backups/*
-phpborg ALL=(ALL) NOPASSWD: /bin/chown phpborg-borg\:phpborg-borg /opt/backups/*
-phpborg ALL=(ALL) NOPASSWD: /bin/chmod 700 /opt/backups/*
+# Agent backup directory preparation (validates against storage pools)
+phpborg ALL=(ALL) NOPASSWD: /opt/newphpborg/phpBorg/bin/prepare-backup-directory.sh *
 
 # Borg SSH server management
 phpborg ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-sshd
