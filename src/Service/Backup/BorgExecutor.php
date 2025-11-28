@@ -25,18 +25,32 @@ final class BorgExecutor
      * Execute borg command with passphrase
      *
      * @param array<int, string> $arguments
+     * @param string|null $runAsUser Optional user to run as (uses sudo -u)
      * @return array{stdout: string, stderr: string, exitCode: int}
      * @throws BackupException
      */
-    public function execute(array $arguments, string $passphrase, int $timeout = 3600): array
+    public function execute(array $arguments, string $passphrase, int $timeout = 3600, ?string $runAsUser = null): array
     {
-        $command = array_merge([$this->config->borgBinaryPath], $arguments);
-
-        $env = [
-            'BORG_PASSPHRASE' => $passphrase,
-            'BORG_RELOCATED_REPO_ACCESS_IS_OK' => 'yes',
-            'BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK' => 'no',
-        ];
+        if ($runAsUser !== null) {
+            // Use sudo -u to run as different user
+            // sudo -u phpborg-borg env BORG_PASSPHRASE=xxx borg ...
+            $command = array_merge(
+                ['sudo', '-u', $runAsUser, 'env', "BORG_PASSPHRASE={$passphrase}"],
+                [$this->config->borgBinaryPath],
+                $arguments
+            );
+            $env = [
+                'BORG_RELOCATED_REPO_ACCESS_IS_OK' => 'yes',
+                'BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK' => 'no',
+            ];
+        } else {
+            $command = array_merge([$this->config->borgBinaryPath], $arguments);
+            $env = [
+                'BORG_PASSPHRASE' => $passphrase,
+                'BORG_RELOCATED_REPO_ACCESS_IS_OK' => 'yes',
+                'BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK' => 'no',
+            ];
+        }
 
         $process = new Process($command, null, $env, null, $timeout);
 
@@ -326,12 +340,13 @@ final class BorgExecutor
      * @return array<int, array{name: string, id: string, start: string, time: string}>
      * @throws BackupException
      */
-    public function listArchives(string $repository, string $passphrase): array
+    public function listArchives(string $repository, string $passphrase, ?string $runAsUser = null): array
     {
         $result = $this->execute(
             ['list', '--json', $repository],
             $passphrase,
-            60
+            60,
+            $runAsUser
         );
 
         if ($result['exitCode'] !== 0) {
@@ -353,12 +368,13 @@ final class BorgExecutor
      * @return array<string, mixed>
      * @throws BackupException
      */
-    public function getArchiveInfo(string $archive, string $passphrase): array
+    public function getArchiveInfo(string $archive, string $passphrase, ?string $runAsUser = null): array
     {
         $result = $this->execute(
             ['info', '--json', $archive],
             $passphrase,
-            60
+            60,
+            $runAsUser
         );
 
         if ($result['exitCode'] !== 0) {

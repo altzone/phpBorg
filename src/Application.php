@@ -311,7 +311,8 @@ final class Application
                 $this->getReportRepository(),
                 $this->getSettingsRepository(),
                 $this->getBackupSourceRepository(),
-                $this->logger
+                $this->logger,
+                $this->getServerRepository()
             );
 
             // Register database backup strategies

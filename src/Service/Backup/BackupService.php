@@ -38,6 +38,7 @@ final class BackupService
         private readonly SettingRepository $settingsRepo,
         private readonly BackupSourceRepository $backupSourceRepo,
         private readonly LoggerInterface $logger,
+        private readonly \PhpBorg\Repository\ServerRepository $serverRepo,
     ) {
     }
 
@@ -709,8 +710,16 @@ final class BackupService
             $this->logger->info("Syncing repository: {$repository->repoId}", 'SYNC');
 
             try {
+                // Check if server uses agent mode - if so, run borg as phpborg-borg
+                $runAsUser = null;
+                $server = $this->serverRepo->findById($repository->serverId);
+                if ($server && $server->connectionMode === 'agent') {
+                    $runAsUser = 'phpborg-borg';
+                    $this->logger->debug("Using sudo -u phpborg-borg for agent repository", 'SYNC');
+                }
+
                 // Get all archives from Borg using borg list --json
-                $borgArchives = $this->borgExecutor->listArchives($repository->repoPath, $repository->passphrase);
+                $borgArchives = $this->borgExecutor->listArchives($repository->repoPath, $repository->passphrase, $runAsUser);
 
                 $this->logger->info(
                     "Found " . count($borgArchives) . " archives in Borg repository {$repository->repoId}",
@@ -744,7 +753,8 @@ final class BackupService
                     try {
                         $archiveInfo = $this->borgExecutor->getArchiveInfo(
                             $repository->repoPath . "::{$archiveName}",
-                            $repository->passphrase
+                            $repository->passphrase,
+                            $runAsUser
                         );
 
                         $this->saveArchive($repository, $archiveInfo);
