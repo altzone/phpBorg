@@ -9,6 +9,7 @@ use PhpBorg\Entity\Job;
 use PhpBorg\Logger\LoggerInterface;
 use PhpBorg\Logger\UserOperationLogger;
 use PhpBorg\Repository\AgentRepository;
+use PhpBorg\Repository\ArchiveRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\SettingRepository;
 use PhpBorg\Service\Backup\BackupService;
@@ -36,7 +37,8 @@ final class BackupCreateHandler implements JobHandlerInterface
         private readonly BackupNotificationService $notificationService,
         private readonly UserOperationLogger $userLogger,
         private readonly SettingRepository $settingRepo,
-        private readonly AgentRepository $agentRepo
+        private readonly AgentRepository $agentRepo,
+        private readonly ArchiveRepository $archiveRepo
     ) {
     }
 
@@ -506,6 +508,17 @@ final class BackupCreateHandler implements JobHandlerInterface
             if ($task['status'] === 'completed') {
                 $result = json_decode($task['result'] ?? '{}', true);
 
+                $queue->updateProgress($job->id, 95, "Backup completed, saving archive info...");
+
+                // Save archive to database by running borg info on the local repository
+                try {
+                    $archiveStats = $this->saveAgentBackupArchive($repository, $archiveName);
+                    $this->logger->info("Archive saved to database: {$archiveName}", 'JOB');
+                } catch (\Exception $e) {
+                    $this->logger->error("Failed to save archive info: {$e->getMessage()}", 'JOB');
+                    // Don't fail the job, backup was successful
+                }
+
                 $queue->updateProgress($job->id, 100, "Backup completed via agent");
 
                 // USER LOG: Backup completed
@@ -514,17 +527,21 @@ final class BackupCreateHandler implements JobHandlerInterface
                     'archive_name' => $archiveName,
                     'type' => $type,
                     'duration' => $result['duration'] ?? null,
+                    'original_size' => $archiveStats['original_size'] ?? null,
+                    'compressed_size' => $archiveStats['compressed_size'] ?? null,
+                    'deduplicated_size' => $archiveStats['deduplicated_size'] ?? null,
                     'job_id' => $job->id
                 ]);
 
                 // Send success notification
                 if ($backupJobId) {
                     try {
+                        $stats = array_merge($result, $archiveStats ?? []);
                         $this->notificationService->sendSuccessNotification(
                             $backupJobId,
                             $server->name,
                             $archiveName,
-                            $result
+                            $stats
                         );
                     } catch (\Exception $notifEx) {
                         $this->logger->error("Failed to send notification: {$notifEx->getMessage()}", 'JOB');
@@ -618,5 +635,96 @@ final class BackupCreateHandler implements JobHandlerInterface
         }
 
         throw new \RuntimeException("Timeout waiting for authorized_keys refresh job");
+    }
+
+    /**
+     * Save archive info to database after agent backup completes
+     * Runs borg info on the local repository to get archive stats
+     */
+    private function saveAgentBackupArchive(\PhpBorg\Entity\BorgRepository $repository, string $archiveName): array
+    {
+        $repoPath = $repository->repoPath;
+        $fullArchivePath = $repoPath . '::' . $archiveName;
+
+        // Run borg info to get archive details
+        $command = sprintf(
+            'BORG_PASSPHRASE=%s %s info --json %s 2>&1',
+            escapeshellarg($repository->passphrase),
+            escapeshellarg($this->config->borgBinaryPath),
+            escapeshellarg($fullArchivePath)
+        );
+
+        $output = [];
+        $returnCode = 0;
+        exec($command, $output, $returnCode);
+
+        $outputStr = implode("\n", $output);
+
+        if ($returnCode !== 0) {
+            throw new \Exception("borg info failed: {$outputStr}");
+        }
+
+        $archiveInfo = json_decode($outputStr, true);
+        if (!$archiveInfo) {
+            throw new \Exception("Failed to parse borg info output");
+        }
+
+        // Extract archive data
+        $archiveData = null;
+        if (isset($archiveInfo['archives']) && !empty($archiveInfo['archives'])) {
+            $archiveData = $archiveInfo['archives'][0];
+        } elseif (isset($archiveInfo['archive'])) {
+            $archiveData = $archiveInfo['archive'];
+        }
+
+        if (!$archiveData) {
+            throw new \Exception("No archive data in borg info output");
+        }
+
+        $stats = $archiveData['stats'] ?? [];
+        $archiveId = $archiveData['id'] ?? '';
+
+        if (empty($archiveId)) {
+            throw new \Exception("Archive ID is empty in borg info output");
+        }
+
+        // Check if archive already exists
+        $existing = $this->archiveRepo->findByArchiveId($archiveId);
+        if ($existing) {
+            $this->logger->info("Archive {$archiveId} already exists in database", 'JOB');
+            return $stats;
+        }
+
+        // Calculate transfer rate
+        $duration = (float)($archiveData['duration'] ?? 0);
+        $originalSize = (int)($stats['original_size'] ?? 0);
+        $avgTransferRate = null;
+        if ($duration > 0 && $originalSize > 0) {
+            $avgTransferRate = (int)($originalSize / $duration);
+        }
+
+        // Save to database
+        $this->archiveRepo->create(
+            repoId: $repository->repoId,
+            serverId: $repository->serverId,
+            name: $archiveName,
+            archiveId: $archiveId,
+            duration: $duration,
+            start: new \DateTimeImmutable($archiveData['start'] ?? 'now'),
+            end: new \DateTimeImmutable($archiveData['end'] ?? 'now'),
+            filesCount: (int)($stats['nfiles'] ?? 0),
+            originalSize: $originalSize,
+            compressedSize: (int)($stats['compressed_size'] ?? 0),
+            deduplicatedSize: (int)($stats['deduplicated_size'] ?? 0),
+            avgTransferRate: $avgTransferRate
+        );
+
+        return [
+            'original_size' => $originalSize,
+            'compressed_size' => (int)($stats['compressed_size'] ?? 0),
+            'deduplicated_size' => (int)($stats['deduplicated_size'] ?? 0),
+            'files_count' => (int)($stats['nfiles'] ?? 0),
+            'duration' => $duration,
+        ];
     }
 }
