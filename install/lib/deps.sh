@@ -121,16 +121,16 @@ get_webserver_packages() {
 get_docker_packages() {
     case "${OS_DISTRO}" in
         debian|ubuntu|linuxmint|pop)
-            echo "docker.io docker-compose"
+            echo "docker.io docker-compose docker-buildx"
             ;;
         rhel|centos|rocky|almalinux|fedora)
-            echo "docker docker-compose"
+            echo "docker docker-compose docker-buildx-plugin"
             ;;
         arch|manjaro)
-            echo "docker docker-compose"
+            echo "docker docker-compose docker-buildx"
             ;;
         alpine)
-            echo "docker docker-compose"
+            echo "docker docker-compose docker-buildx-plugin"
             ;;
     esac
 }
