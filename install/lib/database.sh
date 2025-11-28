@@ -597,6 +597,19 @@ create_default_storage_pool() {
 
     local storage_path="${STORAGE_POOL_PATH:-/opt/backups}"
 
+    # Create directory if it doesn't exist
+    if [ ! -d "${storage_path}" ]; then
+        log_info "Creating storage pool directory: ${storage_path}"
+        mkdir -p "${storage_path}"
+    fi
+
+    # Set proper ownership and permissions
+    # phpborg-borg owns the directory (borg server writes here)
+    # phpborg group has access (workers need to manage repos)
+    log_info "Setting permissions on storage pool: ${storage_path}"
+    chown phpborg-borg:phpborg "${storage_path}"
+    chmod 770 "${storage_path}"
+
     # Check if default pool already exists
     local existing_pool=$(mysql -N -e "SELECT COUNT(*) FROM \`${DB_NAME}\`.storage_pools WHERE path = '${storage_path}'" 2>&1)
 
