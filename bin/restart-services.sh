@@ -29,12 +29,19 @@ if [ -f "$SUDOERS_FILE" ]; then
         SUDOERS_UPDATED=true
     fi
 
-    # Ensure borg init as phpborg-borg rule exists
-    if ! grep -q "phpborg-borg.*/usr/bin/borg" "$SUDOERS_FILE" 2>/dev/null; then
-        log "Adding borg init as phpborg-borg sudoers rule..."
+    # Ensure borg init as phpborg-borg rule exists with SETENV (for BORG_PASSPHRASE)
+    if ! grep -q "phpborg-borg.*SETENV:.*/usr/bin/borg" "$SUDOERS_FILE" 2>/dev/null; then
+        # Remove old rule without SETENV if exists
+        if grep -q "phpborg-borg.*/usr/bin/borg" "$SUDOERS_FILE" 2>/dev/null; then
+            log "Updating borg sudoers rule to include SETENV..."
+            sed -i '/phpborg-borg.*\/usr\/bin\/borg/d' "$SUDOERS_FILE"
+            sed -i '/# Borg init as phpborg-borg/d' "$SUDOERS_FILE"
+        else
+            log "Adding borg init as phpborg-borg sudoers rule..."
+        fi
         echo "" >> "$SUDOERS_FILE"
-        echo "# Borg init as phpborg-borg (for agent backups)" >> "$SUDOERS_FILE"
-        echo "phpborg ALL=(phpborg-borg) NOPASSWD: /usr/bin/borg *" >> "$SUDOERS_FILE"
+        echo "# Borg init as phpborg-borg (for agent backups) - SETENV allows BORG_PASSPHRASE" >> "$SUDOERS_FILE"
+        echo "phpborg ALL=(phpborg-borg) NOPASSWD: SETENV: /usr/bin/borg *" >> "$SUDOERS_FILE"
         SUDOERS_UPDATED=true
     fi
 fi
