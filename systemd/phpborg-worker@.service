@@ -37,6 +37,8 @@ NoNewPrivileges=false
 ProtectSystem=full
 ProtectHome=true
 ReadWritePaths=/opt/newphpborg/phpBorg /opt/backups /var/lib/phpborg /var/log/phpborg /tmp
+# MountFlags=shared ensures FUSE mounts are visible to other processes (PHP-FPM)
+MountFlags=shared
 
 # Resource limits
 LimitNOFILE=65536
