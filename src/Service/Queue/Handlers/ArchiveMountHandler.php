@@ -90,14 +90,12 @@ final class ArchiveMountHandler implements JobHandlerInterface
             $queue->updateProgress($job->id, 40, "Creating mount directory...");
             $mountPath = self::MOUNT_BASE_PATH . '/' . $archiveId;
 
-            // Create directories as phpborg-borg since borg mount runs as that user
-            if (!is_dir(self::MOUNT_BASE_PATH)) {
-                exec('sudo -u phpborg-borg mkdir -p ' . escapeshellarg(self::MOUNT_BASE_PATH));
+            // Always create/ensure directories as phpborg-borg since borg mount runs as that user
+            // Remove any existing directory with wrong ownership
+            if (is_dir($mountPath)) {
+                exec('sudo rm -rf ' . escapeshellarg($mountPath));
             }
-
-            if (!is_dir($mountPath)) {
-                exec('sudo -u phpborg-borg mkdir -p ' . escapeshellarg($mountPath));
-            }
+            exec('sudo -u phpborg-borg mkdir -p ' . escapeshellarg($mountPath));
 
             // Step 5: Create mount record
             $queue->updateProgress($job->id, 50, "Creating mount record...");
