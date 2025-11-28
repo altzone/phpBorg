@@ -280,19 +280,12 @@ class BackupWizardController extends BaseController
      */
     public function createBackupChain(): void
     {
-        // Force logging to file
-        $logFile = '/var/log/phpborg_new.log';
-        file_put_contents($logFile, date('[Y-m-d H:i:s]') . " === createBackupChain START ===\n", FILE_APPEND);
-
         try {
             $data = $this->getJsonBody();
-            file_put_contents($logFile, date('[Y-m-d H:i:s]') . " Received data: " . json_encode($data) . "\n", FILE_APPEND);
 
             $connection = $this->repositoryRepository->getConnection();
-            file_put_contents($logFile, date('[Y-m-d H:i:s]') . " Got DB connection, starting transaction\n", FILE_APPEND);
 
             $connection->beginTransaction();
-            file_put_contents($logFile, date('[Y-m-d H:i:s]') . " Transaction started\n", FILE_APPEND);
             
             // 1. Create backup source
             $source = $this->sourceRepository->create([
