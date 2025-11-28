@@ -647,8 +647,9 @@ final class BackupCreateHandler implements JobHandlerInterface
         $fullArchivePath = $repoPath . '::' . $archiveName;
 
         // Run borg info as phpborg-borg (agent repos are owned by phpborg-borg)
+        // Use SETENV with sudo to pass BORG_PASSPHRASE
         $command = sprintf(
-            'sudo -u phpborg-borg env BORG_PASSPHRASE=%s %s info --json %s 2>&1',
+            'sudo -u phpborg-borg BORG_PASSPHRASE=%s %s info --json %s 2>&1',
             escapeshellarg($repository->passphrase),
             escapeshellarg($this->config->borgBinaryPath),
             escapeshellarg($fullArchivePath)

@@ -32,11 +32,10 @@ final class BorgExecutor
     public function execute(array $arguments, string $passphrase, int $timeout = 3600, ?string $runAsUser = null): array
     {
         if ($runAsUser !== null) {
-            // Use sudo -u to run as different user
-            // sudo -u phpborg-borg env BORG_PASSPHRASE=xxx borg ...
+            // Use sudo -u with SETENV to pass BORG_PASSPHRASE
+            // The sudoers rule has SETENV: which allows passing env vars
             $command = array_merge(
-                ['sudo', '-u', $runAsUser, 'env', "BORG_PASSPHRASE={$passphrase}"],
-                [$this->config->borgBinaryPath],
+                ['sudo', '-u', $runAsUser, "BORG_PASSPHRASE={$passphrase}", $this->config->borgBinaryPath],
                 $arguments
             );
             $env = [
