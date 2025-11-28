@@ -6,6 +6,7 @@ namespace PhpBorg\Command;
 
 use PhpBorg\Application;
 use PhpBorg\Service\Queue\Handlers\DeployAgentKeyHandler;
+use PhpBorg\Service\Queue\Handlers\RefreshAgentAuthorizedKeysHandler;
 use PhpBorg\Service\Queue\Worker;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -63,6 +64,12 @@ final class AgentWorkerStartCommand extends Command
             $this->app->getAgentRepository(),
             $logger,
             2222
+        ));
+
+        // Handler pour rafraîchir les authorized_keys (appelé par BackupCreateHandler)
+        $worker->registerHandler('refresh_agent_authorized_keys', new RefreshAgentAuthorizedKeysHandler(
+            $this->app->getAgentRepository(),
+            $logger
         ));
 
         $output->writeln('<comment>Worker agent prêt. En attente de jobs...</comment>');

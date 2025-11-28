@@ -108,8 +108,7 @@ final class WorkerStartCommand extends Command
             $this->app->getBackupNotificationService(),
             $this->app->getUserOperationLogger(),
             $this->app->getSettingRepository(),
-            $this->app->getAgentRepository(),
-            $this->app->getAgentManager()
+            $this->app->getAgentRepository()
         ));
 
         $worker->registerHandler('capabilities_detection', new CapabilitiesDetectionHandler(

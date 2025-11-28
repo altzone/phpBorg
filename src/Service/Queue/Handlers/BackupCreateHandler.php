@@ -11,7 +11,6 @@ use PhpBorg\Logger\UserOperationLogger;
 use PhpBorg\Repository\AgentRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\SettingRepository;
-use PhpBorg\Service\Agent\AgentManager;
 use PhpBorg\Service\Backup\BackupService;
 use PhpBorg\Service\Queue\JobQueue;
 use PhpBorg\Service\Repository\EncryptionService;
@@ -37,8 +36,7 @@ final class BackupCreateHandler implements JobHandlerInterface
         private readonly BackupNotificationService $notificationService,
         private readonly UserOperationLogger $userLogger,
         private readonly SettingRepository $settingRepo,
-        private readonly AgentRepository $agentRepo,
-        private readonly AgentManager $agentManager
+        private readonly AgentRepository $agentRepo
     ) {
     }
 
@@ -394,7 +392,8 @@ final class BackupCreateHandler implements JobHandlerInterface
         $this->ensureRepositoryInitialized($repository);
 
         // Update agent's allowed paths if this is a new path
-        $this->updateAgentAllowedPaths($server->agentUuid, $repository->repoPath);
+        // This creates a job for the agent-worker to refresh authorized_keys
+        $this->updateAgentAllowedPaths($server->agentUuid, $repository->repoPath, $queue);
 
         $queue->updateProgress($job->id, 20, "Sending backup task to agent...");
 
@@ -549,8 +548,10 @@ final class BackupCreateHandler implements JobHandlerInterface
     /**
      * Update agent's allowed paths and refresh authorized_keys
      * This ensures the agent can access the repository path via borg serve
+     *
+     * Creates a job for the agent-worker (runs as phpborg-borg) to update authorized_keys
      */
-    private function updateAgentAllowedPaths(string $agentUuid, string $repoPath): void
+    private function updateAgentAllowedPaths(string $agentUuid, string $repoPath, JobQueue $queue): void
     {
         $agent = $this->agentRepo->findByUuid($agentUuid);
         if (!$agent) {
@@ -567,22 +568,49 @@ final class BackupCreateHandler implements JobHandlerInterface
             return;
         }
 
-        // Add new path
+        // Add new path to database
         $this->agentRepo->addAllowedPath($agentId, $repoPath);
         $this->logger->info("Added allowed path for agent {$agentUuid}: {$repoPath}", 'JOB');
 
         // Get updated paths
         $updatedPaths = $this->agentRepo->getAllowedPaths($agentId);
 
-        // Refresh authorized_keys with all paths
-        $this->agentManager->refreshAgentAuthorizedKey(
-            $agentUuid,
-            $agent['name'],
-            $agent['ssh_public_key'],
-            $updatedPaths,
-            (bool)$agent['append_only']
-        );
+        // Create a job for agent-worker to refresh authorized_keys
+        // The agent-worker runs as phpborg-borg and has permissions to write to authorized_keys
+        $refreshJobId = $queue->push('refresh_agent_authorized_keys', [
+            'agent_uuid' => $agentUuid,
+            'agent_name' => $agent['name'],
+            'public_key' => $agent['ssh_public_key'],
+            'allowed_paths' => $updatedPaths,
+            'append_only' => (bool)$agent['append_only'],
+        ], 'agent');
 
-        $this->logger->info("Refreshed authorized_keys for agent {$agentUuid} with " . count($updatedPaths) . " paths", 'JOB');
+        $this->logger->info("Created refresh_agent_authorized_keys job #{$refreshJobId} for agent {$agentUuid}", 'JOB');
+
+        // Wait for the job to complete (max 30 seconds)
+        $maxWait = 30;
+        $waited = 0;
+        $pollInterval = 1;
+
+        while ($waited < $maxWait) {
+            sleep($pollInterval);
+            $waited += $pollInterval;
+
+            $refreshJob = $queue->getJob($refreshJobId);
+            if (!$refreshJob) {
+                throw new \RuntimeException("Refresh job #{$refreshJobId} disappeared");
+            }
+
+            if ($refreshJob->status === 'completed') {
+                $this->logger->info("Authorized_keys refreshed for agent {$agentUuid} with " . count($updatedPaths) . " paths", 'JOB');
+                return;
+            }
+
+            if ($refreshJob->status === 'failed') {
+                throw new \RuntimeException("Failed to refresh authorized_keys: " . ($refreshJob->error ?? 'Unknown error'));
+            }
+        }
+
+        throw new \RuntimeException("Timeout waiting for authorized_keys refresh job");
     }
 }
