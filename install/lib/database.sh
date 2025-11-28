@@ -589,6 +589,51 @@ EOF
 }
 
 #
+# Create default storage pool in database
+#
+
+create_default_storage_pool() {
+    print_section "Creating Default Storage Pool in Database"
+
+    local storage_path="${STORAGE_POOL_PATH:-/opt/backups}"
+
+    # Check if default pool already exists
+    local existing_pool=$(mysql -N -e "SELECT COUNT(*) FROM \`${DB_NAME}\`.storage_pools WHERE path = '${storage_path}'" 2>&1)
+
+    if [ "${existing_pool}" -gt 0 ] 2>/dev/null; then
+        log_info "Default storage pool already exists in database"
+        save_state "create_default_storage_pool" "completed"
+        return 0
+    fi
+
+    log_info "Creating default storage pool: ${storage_path}"
+
+    # Get filesystem info
+    local total_bytes=$(df -B1 "${storage_path}" 2>/dev/null | awk 'NR==2 {print $2}')
+    local used_bytes=$(df -B1 "${storage_path}" 2>/dev/null | awk 'NR==2 {print $3}')
+    local available_bytes=$(df -B1 "${storage_path}" 2>/dev/null | awk 'NR==2 {print $4}')
+    local fs_type=$(df -T "${storage_path}" 2>/dev/null | awk 'NR==2 {print $2}')
+
+    # Insert storage pool
+    local insert_result=$(mysql -e "
+        INSERT INTO \`${DB_NAME}\`.storage_pools
+            (name, path, description, total_bytes, used_bytes, available_bytes, filesystem_type, default_pool, active, created_at, updated_at)
+        VALUES
+            ('Default', '${storage_path}', 'Default backup storage pool', ${total_bytes:-0}, ${used_bytes:-0}, ${available_bytes:-0}, '${fs_type:-unknown}', 1, 1, NOW(), NOW());
+    " 2>&1)
+
+    if [ $? -eq 0 ]; then
+        log_success "Default storage pool created in database"
+        save_state "create_default_storage_pool" "completed"
+        return 0
+    else
+        log_error "Failed to create default storage pool"
+        log_error "MySQL error: ${insert_result}"
+        return 1
+    fi
+}
+
+#
 # Database optimization
 #
 
@@ -716,6 +761,13 @@ setup_database() {
         create_admin_user || errors=$((errors + 1))
     else
         log_info "Admin user already created (skipped)"
+    fi
+
+    # Create default storage pool in database
+    if ! is_step_completed "create_default_storage_pool"; then
+        create_default_storage_pool || errors=$((errors + 1))
+    else
+        log_info "Default storage pool already created (skipped)"
     fi
 
     # Optimize configuration
