@@ -679,6 +679,28 @@ install_borgbackup() {
     fi
 }
 
+configure_fuse() {
+    print_section "Configuring FUSE"
+
+    # Enable user_allow_other in fuse.conf for borg mount with allow_other option
+    if [ -f /etc/fuse.conf ]; then
+        if ! grep -q '^user_allow_other' /etc/fuse.conf; then
+            log_info "Enabling user_allow_other in /etc/fuse.conf"
+            echo 'user_allow_other' >> /etc/fuse.conf
+            log_success "FUSE configured for user mounts"
+        else
+            log_info "user_allow_other already enabled in /etc/fuse.conf"
+        fi
+    else
+        log_warn "/etc/fuse.conf not found, creating it"
+        echo 'user_allow_other' > /etc/fuse.conf
+        log_success "FUSE configured for user mounts"
+    fi
+
+    save_state "configure_fuse" "completed"
+    return 0
+}
+
 install_fuse_overlayfs() {
     print_section "Installing fuse-overlayfs"
 
@@ -810,6 +832,7 @@ install_all_dependencies() {
     install_webserver || errors=$((errors + 1))
     install_docker || errors=$((errors + 1))
     install_borgbackup || errors=$((errors + 1))
+    configure_fuse || errors=$((errors + 1))
     install_fuse_overlayfs || errors=$((errors + 1))
     install_golang || errors=$((errors + 1))
 
