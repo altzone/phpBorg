@@ -622,17 +622,17 @@ create_default_storage_pool() {
     log_info "Creating default storage pool: ${storage_path}"
 
     # Get filesystem info
-    local total_bytes=$(df -B1 "${storage_path}" 2>/dev/null | awk 'NR==2 {print $2}')
-    local used_bytes=$(df -B1 "${storage_path}" 2>/dev/null | awk 'NR==2 {print $3}')
+    local capacity_total=$(df -B1 "${storage_path}" 2>/dev/null | awk 'NR==2 {print $2}')
+    local capacity_used=$(df -B1 "${storage_path}" 2>/dev/null | awk 'NR==2 {print $3}')
     local available_bytes=$(df -B1 "${storage_path}" 2>/dev/null | awk 'NR==2 {print $4}')
     local fs_type=$(df -T "${storage_path}" 2>/dev/null | awk 'NR==2 {print $2}')
 
     # Insert storage pool
     local insert_result=$(mysql -e "
         INSERT INTO \`${DB_NAME}\`.storage_pools
-            (name, path, description, total_bytes, used_bytes, available_bytes, filesystem_type, default_pool, active, created_at, updated_at)
+            (name, path, description, capacity_total, capacity_used, available_bytes, filesystem_type, default_pool, active, created_at, updated_at)
         VALUES
-            ('Default', '${storage_path}', 'Default backup storage pool', ${total_bytes:-0}, ${used_bytes:-0}, ${available_bytes:-0}, '${fs_type:-unknown}', 1, 1, NOW(), NOW());
+            ('Default', '${storage_path}', 'Default backup storage pool', ${capacity_total:-0}, ${capacity_used:-0}, ${available_bytes:-0}, '${fs_type:-unknown}', 1, 1, NOW(), NOW());
     " 2>&1)
 
     if [ $? -eq 0 ]; then
