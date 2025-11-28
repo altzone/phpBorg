@@ -207,13 +207,43 @@ func (c *Client) StartTask(ctx context.Context, taskID int) error {
 	return err
 }
 
-// UpdateProgress updates task progress
+// UpdateProgress updates task progress with a simple message
 func (c *Client) UpdateProgress(ctx context.Context, taskID int, progress int, message string) error {
 	body := map[string]interface{}{
 		"progress": progress,
 	}
 	if message != "" {
 		body["message"] = message
+	}
+
+	_, err := c.doRequest(ctx, "POST", fmt.Sprintf("/agent/tasks/%d/progress", taskID), body)
+	return err
+}
+
+// ProgressInfo contains detailed progress information for borg backup
+type ProgressInfo struct {
+	FilesCount       int64  `json:"files_count"`
+	OriginalSize     int64  `json:"original_size"`
+	CompressedSize   int64  `json:"compressed_size"`
+	DeduplicatedSize int64  `json:"deduplicated_size"`
+	CurrentPath      string `json:"current_path,omitempty"`
+	Message          string `json:"message,omitempty"`
+}
+
+// UpdateProgressWithInfo updates task progress with detailed borg statistics
+func (c *Client) UpdateProgressWithInfo(ctx context.Context, taskID int, progress int, info ProgressInfo) error {
+	body := map[string]interface{}{
+		"progress":          progress,
+		"files_count":       info.FilesCount,
+		"original_size":     info.OriginalSize,
+		"compressed_size":   info.CompressedSize,
+		"deduplicated_size": info.DeduplicatedSize,
+	}
+	if info.CurrentPath != "" {
+		body["current_path"] = info.CurrentPath
+	}
+	if info.Message != "" {
+		body["message"] = info.Message
 	}
 
 	_, err := c.doRequest(ctx, "POST", fmt.Sprintf("/agent/tasks/%d/progress", taskID), body)

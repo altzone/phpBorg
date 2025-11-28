@@ -57,6 +57,14 @@ final class JobQueue
     }
 
     /**
+     * Get the Redis connection for direct access (e.g., for agent task progress)
+     */
+    public function getRedis(): Redis
+    {
+        return $this->redis;
+    }
+
+    /**
      * Push a job to the queue
      */
     public function push(

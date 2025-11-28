@@ -10,6 +10,7 @@ use PhpBorg\Repository\AgentRepository;
 use PhpBorg\Repository\AgentTaskRepository;
 use PhpBorg\Service\Agent\AgentManager;
 use PhpBorg\Service\Agent\CertificateManager;
+use PhpBorg\Service\Queue\JobQueue;
 
 /**
  * Agent Gateway API Controller
@@ -34,6 +35,7 @@ final class AgentGatewayController extends BaseController
     private readonly CertificateManager $certManager;
     private readonly LoggerInterface $logger;
     private readonly \PhpBorg\Repository\ServerRepository $serverRepo;
+    private readonly JobQueue $jobQueue;
 
     public function __construct(Application $app)
     {
@@ -43,6 +45,7 @@ final class AgentGatewayController extends BaseController
         $this->certManager = $app->getCertificateManager();
         $this->logger = $app->getLogger();
         $this->serverRepo = $app->getServerRepository();
+        $this->jobQueue = $app->getJobQueue();
     }
 
     /**
@@ -264,7 +267,11 @@ final class AgentGatewayController extends BaseController
      * Request body:
      * {
      *   "progress": 50,
-     *   "message": "Processing files..."
+     *   "message": "Processing files...",
+     *   "files_count": 1234,          // optional: borg file count
+     *   "original_size": 12345678,    // optional: borg original size
+     *   "compressed_size": 6789012,   // optional: borg compressed size
+     *   "deduplicated_size": 1234567  // optional: borg dedup size
      * }
      */
     public function updateProgress(int $taskId): void
@@ -284,9 +291,47 @@ final class AgentGatewayController extends BaseController
         $progress = (int) ($data['progress'] ?? 0);
         $message = $data['message'] ?? null;
 
+        // Update in database
         $this->taskRepo->updateProgress($taskId, min(99, max(0, $progress)), $message);
 
+        // If detailed borg stats are provided, store in Redis for SSE real-time updates
+        if (isset($data['files_count']) || isset($data['original_size'])) {
+            $progressInfo = [
+                'files_count' => (int) ($data['files_count'] ?? 0),
+                'original_size' => (int) ($data['original_size'] ?? 0),
+                'compressed_size' => (int) ($data['compressed_size'] ?? 0),
+                'deduplicated_size' => (int) ($data['deduplicated_size'] ?? 0),
+                'message' => $message,
+                'current_path' => $data['current_path'] ?? null,
+                'timestamp' => time(),
+                'agent_task_id' => $taskId,
+            ];
+
+            // If this task is linked to a job, store progress under that job ID for SSE
+            if ($task['job_id']) {
+                $this->jobQueue->setProgressInfo((int) $task['job_id'], $progressInfo);
+            }
+
+            // Also store under agent_task key for direct access
+            $this->storeAgentTaskProgress($taskId, $progressInfo);
+        }
+
         $this->success(null, 'Progress updated');
+    }
+
+    /**
+     * Store agent task progress in Redis for SSE real-time updates
+     */
+    private function storeAgentTaskProgress(int $taskId, array $progressInfo): void
+    {
+        try {
+            // Use job queue's Redis connection
+            $key = "phpborg:agent-task:{$taskId}:progress";
+            $redis = $this->jobQueue->getRedis();
+            $redis->setex($key, 3600, json_encode($progressInfo));
+        } catch (\Exception $e) {
+            $this->logger->warning("Failed to store agent task progress in Redis: {$e->getMessage()}", 'AGENT_API');
+        }
     }
 
     /**

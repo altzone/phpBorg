@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -93,13 +94,36 @@ func (e *Executor) RunShellWithSudo(ctx context.Context, shellCmd string, timeou
 	return e.Run(ctx, "sudo", []string{"bash", "-c", shellCmd}, timeout)
 }
 
-// BorgCreate executes a borg create command
+// BorgProgress represents parsed progress info from borg's JSON output
+type BorgProgress struct {
+	Type             string  `json:"type"`
+	NFiles           int64   `json:"nfiles"`
+	OriginalSize     int64   `json:"original_size"`
+	CompressedSize   int64   `json:"compressed_size"`
+	DeduplicatedSize int64   `json:"deduplicated_size"`
+	Path             string  `json:"path"`
+	Finished         bool    `json:"finished"`
+	Time             float64 `json:"time"`
+	Message          string  `json:"message"`
+	Msgid            string  `json:"msgid"`
+}
+
+// ProgressCallback is called with progress updates during backup
+type ProgressCallback func(progress BorgProgress)
+
+// BorgCreate executes a borg create command (simple version without streaming)
 func (e *Executor) BorgCreate(ctx context.Context, repoPath string, archiveName string, paths []string, excludes []string, compression string, passphrase string) *CommandResult {
+	return e.BorgCreateWithProgress(ctx, repoPath, archiveName, paths, excludes, compression, passphrase, nil)
+}
+
+// BorgCreateWithProgress executes a borg create command with real-time progress streaming
+func (e *Executor) BorgCreateWithProgress(ctx context.Context, repoPath string, archiveName string, paths []string, excludes []string, compression string, passphrase string, progressCallback ProgressCallback) *CommandResult {
 	args := []string{
 		"create",
 		"--verbose",
 		"--stats",
 		"--progress",
+		"--log-json",  // JSON output for machine parsing
 	}
 
 	// Add compression
@@ -128,7 +152,86 @@ func (e *Executor) BorgCreate(ctx context.Context, repoPath string, archiveName 
 		env = append(env, "BORG_PASSPHRASE="+passphrase)
 	}
 
-	return e.runWithEnv(ctx, "borg", args, env, 4*time.Hour)
+	// If no callback, use simple execution
+	if progressCallback == nil {
+		return e.runWithEnv(ctx, "borg", args, env, 4*time.Hour)
+	}
+
+	// Use streaming execution with progress callback
+	return e.runWithEnvAndProgress(ctx, "borg", args, env, 4*time.Hour, progressCallback)
+}
+
+// runWithEnvAndProgress executes a command with streaming progress updates
+func (e *Executor) runWithEnvAndProgress(ctx context.Context, command string, args []string, env []string, timeout time.Duration, progressCallback ProgressCallback) *CommandResult {
+	start := time.Now()
+
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, command, args...)
+	cmd.Env = env
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+
+	// Create pipe for stderr to read line by line
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return &CommandResult{
+			ExitCode: -1,
+			Duration: time.Since(start),
+			Error:    fmt.Errorf("failed to create stderr pipe: %w", err),
+		}
+	}
+
+	if err := cmd.Start(); err != nil {
+		return &CommandResult{
+			ExitCode: -1,
+			Duration: time.Since(start),
+			Error:    fmt.Errorf("failed to start command: %w", err),
+		}
+	}
+
+	// Read stderr line by line and parse JSON progress
+	var stderrBuf bytes.Buffer
+	scanner := bufio.NewScanner(stderrPipe)
+	for scanner.Scan() {
+		line := scanner.Text()
+		stderrBuf.WriteString(line + "\n")
+
+		// Try to parse as JSON progress
+		var progress BorgProgress
+		if err := json.Unmarshal([]byte(line), &progress); err == nil {
+			// Only send archive_progress events (not file_status)
+			if progress.Type == "archive_progress" {
+				progressCallback(progress)
+			}
+		}
+	}
+
+	err = cmd.Wait()
+	duration := time.Since(start)
+
+	result := &CommandResult{
+		Stdout:   stdout.String(),
+		Stderr:   stderrBuf.String(),
+		Duration: duration,
+	}
+
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			result.ExitCode = exitErr.ExitCode()
+		} else if ctx.Err() == context.DeadlineExceeded {
+			result.ExitCode = -1
+			result.Error = fmt.Errorf("command timed out after %v", timeout)
+		} else {
+			result.ExitCode = -1
+			result.Error = err
+		}
+	}
+
+	return result
 }
 
 // BorgList lists archives in a repository

@@ -19,6 +19,8 @@ import (
 	"github.com/phpborg/phpborg-agent/internal/executor"
 )
 
+// Note: executor package is imported above for BorgProgress type
+
 // Handler processes tasks received from the phpBorg server
 type Handler struct {
 	config   *config.Config
@@ -119,22 +121,75 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 	}
 
 	// Update progress
-	h.client.UpdateProgress(ctx, task.ID, 10, "Starting backup...")
+	h.client.UpdateProgress(ctx, task.ID, 5, "Starting backup...")
 
-	// Execute borg create with passphrase
-	result := h.executor.BorgCreate(ctx, repoPath, archiveName, paths, excludes, compression, passphrase)
+	// Track last update time for throttling
+	var lastUpdate time.Time
+
+	// Create progress callback for real-time updates
+	progressCallback := func(progress executor.BorgProgress) {
+		// Throttle updates to max 1 per second
+		if time.Since(lastUpdate) < time.Second {
+			return
+		}
+		lastUpdate = time.Now()
+
+		// Calculate approximate progress (borg doesn't give total, so we estimate)
+		// Progress starts at 10% and goes up to 90% during backup
+		progressPercent := 10
+
+		// Send detailed progress info
+		info := api.ProgressInfo{
+			FilesCount:       progress.NFiles,
+			OriginalSize:     progress.OriginalSize,
+			CompressedSize:   progress.CompressedSize,
+			DeduplicatedSize: progress.DeduplicatedSize,
+			CurrentPath:      progress.Path,
+		}
+
+		// Format a human-readable message
+		info.Message = fmt.Sprintf("Backing up: %d files, %s processed",
+			progress.NFiles,
+			formatBytes(progress.OriginalSize),
+		)
+
+		if err := h.client.UpdateProgressWithInfo(ctx, task.ID, progressPercent, info); err != nil {
+			log.Printf("[BACKUP] Failed to send progress update: %v", err)
+		}
+	}
+
+	// Execute borg create with progress streaming
+	result := h.executor.BorgCreateWithProgress(ctx, repoPath, archiveName, paths, excludes, compression, passphrase, progressCallback)
 
 	if result.ExitCode != 0 {
 		return nil, result.ExitCode, fmt.Errorf("borg create failed: %s", result.Stderr)
 	}
 
-	h.client.UpdateProgress(ctx, task.ID, 90, "Backup completed, collecting stats...")
+	h.client.UpdateProgress(ctx, task.ID, 95, "Backup completed, collecting stats...")
 
 	return map[string]interface{}{
 		"stdout":   result.Stdout,
 		"stderr":   result.Stderr,
 		"duration": result.Duration.String(),
 	}, 0, nil
+}
+
+// formatBytes formats bytes into human-readable string
+func formatBytes(bytes int64) string {
+	if bytes == 0 {
+		return "0 B"
+	}
+
+	units := []string{"B", "KB", "MB", "GB", "TB"}
+	i := 0
+	size := float64(bytes)
+
+	for size >= 1024 && i < len(units)-1 {
+		size /= 1024
+		i++
+	}
+
+	return fmt.Sprintf("%.1f %s", size, units[i])
 }
 
 // handleBackupRestore handles a backup restoration task
