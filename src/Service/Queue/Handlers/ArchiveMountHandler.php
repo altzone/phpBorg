@@ -21,7 +21,7 @@ use PhpBorg\Service\Queue\JobQueue;
  */
 final class ArchiveMountHandler implements JobHandlerInterface
 {
-    private const MOUNT_BASE_PATH = '/tmp/phpborg_mounts';
+    private const MOUNT_BASE_PATH = '/var/lib/phpborg/mounts';
 
     public function __construct(
         private readonly BorgExecutor $borgExecutor,

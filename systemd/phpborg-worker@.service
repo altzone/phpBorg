@@ -36,7 +36,7 @@ NoNewPrivileges=false
 # ProtectSystem=full allows writing to /opt, /srv, /var while protecting /usr, /boot
 ProtectSystem=full
 ProtectHome=true
-ReadWritePaths=/opt/newphpborg/phpBorg /opt/backups /var/lib/phpborg/backups /var/log/phpborg /tmp
+ReadWritePaths=/opt/newphpborg/phpBorg /opt/backups /var/lib/phpborg /var/log/phpborg /tmp
 
 # Resource limits
 LimitNOFILE=65536
