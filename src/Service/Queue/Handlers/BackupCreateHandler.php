@@ -343,41 +343,17 @@ final class BackupCreateHandler implements JobHandlerInterface
     /**
      * Ensure a repository is physically initialized (borg init)
      * Used when we have a repository in database but need to make sure it's initialized on disk
+     * Note: Directory permissions are handled by agent-worker via RefreshAgentAuthorizedKeysHandler
      */
     private function ensureRepositoryInitialized(\PhpBorg\Entity\BorgRepository $repository): void
     {
-        // Create/ensure repository directory with correct ownership
-        // phpborg-borg needs access for borg serve, phpborg group for worker access
+        // Create repository directory if it doesn't exist (basic mkdir without sudo)
         $repoDir = dirname($repository->repoPath);
-
-        $this->logger->info("Ensuring repository directory: {$repoDir}", 'JOB');
-
-        $commands = [
-            sprintf('sudo mkdir -p %s', escapeshellarg($repoDir)),
-            sprintf('sudo chown phpborg-borg:phpborg %s', escapeshellarg($repoDir)),
-            sprintf('sudo chmod 770 %s', escapeshellarg($repoDir)),
-        ];
-
-        foreach ($commands as $cmd) {
-            $output = [];
-            exec($cmd . ' 2>&1', $output, $returnCode);
-            if ($returnCode !== 0) {
-                throw new \Exception("Failed to setup repository directory: " . implode("\n", $output));
-            }
-        }
-
-        // Ensure repo path itself has correct ownership (also for existing repos)
-        $commands = [
-            sprintf('sudo mkdir -p %s', escapeshellarg($repository->repoPath)),
-            sprintf('sudo chown -R phpborg-borg:phpborg %s', escapeshellarg($repository->repoPath)),
-            sprintf('sudo chmod 770 %s', escapeshellarg($repository->repoPath)),
-        ];
-
-        foreach ($commands as $cmd) {
-            $output = [];
-            exec($cmd . ' 2>&1', $output, $returnCode);
-            if ($returnCode !== 0) {
-                throw new \Exception("Failed to setup repository path: " . implode("\n", $output));
+        if (!is_dir($repoDir)) {
+            $this->logger->info("Creating repository directory: {$repoDir}", 'JOB');
+            if (!mkdir($repoDir, 0770, true)) {
+                // Directory will be created with proper perms by agent-worker
+                $this->logger->info("Directory will be created by agent-worker", 'JOB');
             }
         }
 
@@ -414,12 +390,15 @@ final class BackupCreateHandler implements JobHandlerInterface
             $repository = $this->ensureRepositoryExists($server->id, $server->name, $type);
         }
 
-        // Ensure repository is initialized
-        $this->ensureRepositoryInitialized($repository);
-
-        // Update agent's allowed paths if this is a new path
-        // This creates a job for the agent-worker to refresh authorized_keys
+        // Update agent's allowed paths and prepare repository directory
+        // This creates a job for the agent-worker (has sudo) to:
+        // 1. Create/fix repo directory permissions
+        // 2. Refresh authorized_keys with all paths
+        // Must be done BEFORE borg init since phpborg-borg needs to own the directory
         $this->updateAgentAllowedPaths($server->agentUuid, $repository->repoPath, $queue);
+
+        // Now initialize repository (directory has correct permissions)
+        $this->ensureRepositoryInitialized($repository);
 
         $queue->updateProgress($job->id, 20, "Sending backup task to agent...");
 
@@ -599,14 +578,16 @@ final class BackupCreateHandler implements JobHandlerInterface
         // Get updated paths
         $updatedPaths = $this->agentRepo->getAllowedPaths($agentId);
 
-        // Create a job for agent-worker to refresh authorized_keys
-        // The agent-worker runs as phpborg-borg and has permissions to write to authorized_keys
+        // Create a job for agent-worker to:
+        // 1. Prepare repository directory with correct permissions
+        // 2. Refresh authorized_keys with all paths
         $refreshJobId = $queue->push('refresh_agent_authorized_keys', [
             'agent_uuid' => $agentUuid,
             'agent_name' => $agent['name'],
             'public_key' => $agent['ssh_public_key'],
             'allowed_paths' => $updatedPaths,
             'append_only' => (bool)$agent['append_only'],
+            'repo_path' => $repoPath,
         ], 'agent');
 
         $this->logger->info("Created refresh_agent_authorized_keys job #{$refreshJobId} for agent {$agentUuid}", 'JOB');

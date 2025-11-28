@@ -36,12 +36,21 @@ final class RefreshAgentAuthorizedKeysHandler implements JobHandlerInterface
         $publicKey = $payload['public_key'] ?? null;
         $allowedPaths = $payload['allowed_paths'] ?? [];
         $appendOnly = $payload['append_only'] ?? true;
+        $repoPath = $payload['repo_path'] ?? null;
 
         if (!$agentUuid || !$agentName || !$publicKey) {
             throw new \InvalidArgumentException('Paramètres manquants: agent_uuid, agent_name, public_key requis');
         }
 
-        $queue->updateProgress($job->id, 10, "Rafraîchissement des authorized_keys pour {$agentName}...");
+        $queue->updateProgress($job->id, 10, "Préparation pour {$agentName}...");
+
+        // Préparer le répertoire du repo si spécifié
+        if ($repoPath) {
+            $queue->updateProgress($job->id, 30, "Préparation du répertoire de backup...");
+            $this->ensureRepoDirectory($repoPath);
+        }
+
+        $queue->updateProgress($job->id, 50, "Rafraîchissement des authorized_keys...");
 
         $this->logger->info("Refreshing authorized_keys for agent: {$agentName} with " . count($allowedPaths) . " paths", 'AGENT');
 
@@ -54,15 +63,58 @@ final class RefreshAgentAuthorizedKeysHandler implements JobHandlerInterface
         $newContent = rtrim($content) . "\n" . $keyLine . "\n";
         $this->writeAuthorizedKeys($newContent);
 
-        $queue->updateProgress($job->id, 100, "Authorized_keys rafraîchi avec succès");
+        $queue->updateProgress($job->id, 100, "Terminé avec succès");
 
         $this->logger->info("Authorized_keys refreshed for agent: {$agentName}", 'AGENT');
 
         return json_encode([
             'success' => true,
             'agent_uuid' => $agentUuid,
-            'paths_count' => count($allowedPaths)
+            'paths_count' => count($allowedPaths),
+            'repo_prepared' => $repoPath !== null
         ]);
+    }
+
+    /**
+     * Préparer le répertoire du repo avec les bonnes permissions
+     */
+    private function ensureRepoDirectory(string $repoPath): void
+    {
+        $repoDir = dirname($repoPath);
+
+        $this->logger->info("Ensuring repository directory: {$repoDir}", 'AGENT');
+
+        // Créer le répertoire parent
+        $commands = [
+            sprintf('sudo mkdir -p %s', escapeshellarg($repoDir)),
+            sprintf('sudo chown %s:phpborg %s', self::BORG_USER, escapeshellarg($repoDir)),
+            sprintf('sudo chmod 770 %s', escapeshellarg($repoDir)),
+        ];
+
+        foreach ($commands as $cmd) {
+            $output = [];
+            exec($cmd . ' 2>&1', $output, $returnCode);
+            if ($returnCode !== 0) {
+                throw new \RuntimeException("Échec de la préparation du répertoire: " . implode("\n", $output));
+            }
+        }
+
+        // Créer le répertoire du repo
+        $commands = [
+            sprintf('sudo mkdir -p %s', escapeshellarg($repoPath)),
+            sprintf('sudo chown -R %s:phpborg %s', self::BORG_USER, escapeshellarg($repoPath)),
+            sprintf('sudo chmod 770 %s', escapeshellarg($repoPath)),
+        ];
+
+        foreach ($commands as $cmd) {
+            $output = [];
+            exec($cmd . ' 2>&1', $output, $returnCode);
+            if ($returnCode !== 0) {
+                throw new \RuntimeException("Échec de la préparation du repo: " . implode("\n", $output));
+            }
+        }
+
+        $this->logger->info("Repository directory prepared: {$repoPath}", 'AGENT');
     }
 
     /**
