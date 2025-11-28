@@ -186,8 +186,8 @@ final class DeployAgentKeyHandler implements JobHandlerInterface
             $content = $this->readAuthorizedKeys();
         }
 
-        // Construire l'entrée authorized_keys
-        $keyLine = $this->buildAuthorizedKeyLine($agentUuid, $agentName, trim($publicKey), $backupPath, $appendOnly);
+        // Construire l'entrée authorized_keys (avec le path initial dans un tableau)
+        $keyLine = $this->buildAuthorizedKeyLine($agentUuid, $agentName, trim($publicKey), [$backupPath], $appendOnly);
 
         // Ajouter au fichier
         $newContent = rtrim($content) . "\n" . $keyLine . "\n";
@@ -198,16 +198,21 @@ final class DeployAgentKeyHandler implements JobHandlerInterface
 
     /**
      * Construire une entrée authorized_keys restreinte
+     *
+     * @param array $allowedPaths Array of paths to allow
      */
     private function buildAuthorizedKeyLine(
         string $agentUuid,
         string $agentName,
         string $publicKey,
-        string $backupPath,
+        array $allowedPaths,
         bool $appendOnly
     ): string {
-        // Construire la commande borg serve avec restriction de chemin
-        $borgCommand = "borg serve --restrict-to-path {$backupPath}";
+        // Construire la commande borg serve avec restrictions de chemin multiples
+        $borgCommand = "borg serve";
+        foreach ($allowedPaths as $path) {
+            $borgCommand .= " --restrict-to-path " . escapeshellarg($path);
+        }
         if ($appendOnly) {
             $borgCommand .= " --append-only";
         }

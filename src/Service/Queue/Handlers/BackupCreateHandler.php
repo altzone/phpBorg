@@ -8,8 +8,10 @@ use PhpBorg\Config\Configuration;
 use PhpBorg\Entity\Job;
 use PhpBorg\Logger\LoggerInterface;
 use PhpBorg\Logger\UserOperationLogger;
+use PhpBorg\Repository\AgentRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\SettingRepository;
+use PhpBorg\Service\Agent\AgentManager;
 use PhpBorg\Service\Backup\BackupService;
 use PhpBorg\Service\Queue\JobQueue;
 use PhpBorg\Service\Repository\EncryptionService;
@@ -34,7 +36,9 @@ final class BackupCreateHandler implements JobHandlerInterface
         private readonly LoggerInterface $logger,
         private readonly BackupNotificationService $notificationService,
         private readonly UserOperationLogger $userLogger,
-        private readonly SettingRepository $settingRepo
+        private readonly SettingRepository $settingRepo,
+        private readonly AgentRepository $agentRepo,
+        private readonly AgentManager $agentManager
     ) {
     }
 
@@ -389,6 +393,9 @@ final class BackupCreateHandler implements JobHandlerInterface
         // Ensure repository is initialized
         $this->ensureRepositoryInitialized($repository);
 
+        // Update agent's allowed paths if this is a new path
+        $this->updateAgentAllowedPaths($server->agentUuid, $repository->repoPath);
+
         $queue->updateProgress($job->id, 20, "Sending backup task to agent...");
 
         // Get database connection
@@ -537,5 +544,45 @@ final class BackupCreateHandler implements JobHandlerInterface
         }
 
         throw new \Exception("Agent backup timed out after {$maxWait} seconds");
+    }
+
+    /**
+     * Update agent's allowed paths and refresh authorized_keys
+     * This ensures the agent can access the repository path via borg serve
+     */
+    private function updateAgentAllowedPaths(string $agentUuid, string $repoPath): void
+    {
+        $agent = $this->agentRepo->findByUuid($agentUuid);
+        if (!$agent) {
+            $this->logger->warning("Agent not found for UUID: {$agentUuid}, skipping allowed_paths update", 'JOB');
+            return;
+        }
+
+        $agentId = (int)$agent['id'];
+        $currentPaths = $this->agentRepo->getAllowedPaths($agentId);
+
+        // Check if path already exists
+        if (in_array($repoPath, $currentPaths, true)) {
+            $this->logger->info("Path already allowed for agent: {$repoPath}", 'JOB');
+            return;
+        }
+
+        // Add new path
+        $this->agentRepo->addAllowedPath($agentId, $repoPath);
+        $this->logger->info("Added allowed path for agent {$agentUuid}: {$repoPath}", 'JOB');
+
+        // Get updated paths
+        $updatedPaths = $this->agentRepo->getAllowedPaths($agentId);
+
+        // Refresh authorized_keys with all paths
+        $this->agentManager->refreshAgentAuthorizedKey(
+            $agentUuid,
+            $agent['name'],
+            $agent['ssh_public_key'],
+            $updatedPaths,
+            (bool)$agent['append_only']
+        );
+
+        $this->logger->info("Refreshed authorized_keys for agent {$agentUuid} with " . count($updatedPaths) . " paths", 'JOB');
     }
 }

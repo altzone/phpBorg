@@ -180,20 +180,32 @@ final class AgentManager
     }
 
     /**
-     * Create agent-specific backup directory
+     * Create agent-specific backup directory via sudo
      */
     private function createAgentBackupDirectory(string $agentUuid): string
     {
         $backupPath = self::BACKUPS_BASE_PATH . '/' . $agentUuid;
 
         if (!is_dir($backupPath)) {
-            if (!mkdir($backupPath, 0750, true)) {
-                throw new \RuntimeException("Failed to create backup directory: {$backupPath}");
+            $commands = [
+                sprintf('sudo mkdir -p %s', escapeshellarg($backupPath)),
+                sprintf('sudo chown %s:%s %s', self::BORG_USER, self::BORG_USER, escapeshellarg($backupPath)),
+                sprintf('sudo chmod 750 %s', escapeshellarg($backupPath)),
+            ];
+
+            foreach ($commands as $cmd) {
+                $output = [];
+                $returnCode = 0;
+                exec($cmd . ' 2>&1', $output, $returnCode);
+
+                if ($returnCode !== 0) {
+                    throw new \RuntimeException(
+                        "Failed to create backup directory: " . implode("\n", $output)
+                    );
+                }
             }
 
-            // Set ownership to borg user
-            chown($backupPath, self::BORG_USER);
-            chgrp($backupPath, self::BORG_USER);
+            $this->logger->info("Backup directory created: {$backupPath}", 'AGENT');
         }
 
         return $backupPath;
@@ -217,12 +229,12 @@ final class AgentManager
             $content = $this->readAuthorizedKeys();
         }
 
-        // Build the authorized key entry
+        // Build the authorized key entry (wrap single path in array)
         $keyLine = $this->buildAuthorizedKeyLine(
             $agentUuid,
             $agentName,
             trim($publicKey),
-            $backupPath,
+            [$backupPath],  // Now expects array of paths
             $appendOnly
         );
 
@@ -233,16 +245,25 @@ final class AgentManager
 
     /**
      * Build a restricted authorized_keys entry
+     *
+     * @param string $agentUuid Agent UUID
+     * @param string $agentName Agent name
+     * @param string $publicKey SSH public key
+     * @param array $allowedPaths Array of paths to allow (can be multiple)
+     * @param bool $appendOnly Enable append-only mode
      */
     private function buildAuthorizedKeyLine(
         string $agentUuid,
         string $agentName,
         string $publicKey,
-        string $backupPath,
+        array $allowedPaths,
         bool $appendOnly
     ): string {
-        // Build borg serve command with path restriction
-        $borgCommand = "borg serve --restrict-to-path {$backupPath}";
+        // Build borg serve command with multiple path restrictions
+        $borgCommand = "borg serve";
+        foreach ($allowedPaths as $path) {
+            $borgCommand .= " --restrict-to-path " . escapeshellarg($path);
+        }
         if ($appendOnly) {
             $borgCommand .= " --append-only";
         }
@@ -260,6 +281,36 @@ final class AgentManager
 
         // Build the full line with our identifier comment
         return implode(',', $restrictions) . " {$keyType} {$keyData} phpborg-agent-{$agentUuid} {$agentName}";
+    }
+
+    /**
+     * Refresh an agent's authorized_keys entry with updated paths
+     *
+     * @param string $agentUuid Agent UUID
+     * @param string $agentName Agent name
+     * @param string $publicKey SSH public key
+     * @param array $allowedPaths Array of allowed paths
+     * @param bool $appendOnly Enable append-only mode
+     */
+    public function refreshAgentAuthorizedKey(
+        string $agentUuid,
+        string $agentName,
+        string $publicKey,
+        array $allowedPaths,
+        bool $appendOnly
+    ): void {
+        $this->logger->info("Refreshing authorized_keys for agent: {$agentName} with " . count($allowedPaths) . " paths", 'AGENT');
+
+        // Remove old entry
+        $this->removeAuthorizedKey($agentUuid);
+
+        // Add new entry with all paths
+        $content = $this->readAuthorizedKeys();
+        $keyLine = $this->buildAuthorizedKeyLine($agentUuid, $agentName, trim($publicKey), $allowedPaths, $appendOnly);
+        $newContent = rtrim($content) . "\n" . $keyLine . "\n";
+        $this->writeAuthorizedKeys($newContent);
+
+        $this->logger->info("Authorized_keys refreshed for agent: {$agentName}", 'AGENT');
     }
 
     /**
@@ -283,47 +334,62 @@ final class AgentManager
     }
 
     /**
-     * Read authorized_keys file
+     * Read authorized_keys file via sudo
      */
     private function readAuthorizedKeys(): string
     {
         $path = self::AUTHORIZED_KEYS_PATH;
 
         if (!file_exists($path)) {
-            // Create the file if it doesn't exist
             $this->ensureAuthorizedKeysExists();
             return '';
         }
 
-        $content = file_get_contents($path);
-        if ($content === false) {
-            throw new \RuntimeException("Failed to read authorized_keys: {$path}");
+        $output = [];
+        exec(sprintf('sudo cat %s 2>&1', escapeshellarg($path)), $output, $returnCode);
+
+        if ($returnCode !== 0) {
+            throw new \RuntimeException("Failed to read authorized_keys: " . implode("\n", $output));
         }
 
-        return $content;
+        return implode("\n", $output);
     }
 
     /**
-     * Write authorized_keys file with proper permissions
+     * Write authorized_keys file via sudo with proper permissions
      */
     private function writeAuthorizedKeys(string $content): void
     {
         $path = self::AUTHORIZED_KEYS_PATH;
+        $tempFile = '/tmp/phpborg_authorized_keys_' . uniqid();
 
         $this->ensureAuthorizedKeysExists();
 
-        if (file_put_contents($path, $content, LOCK_EX) === false) {
-            throw new \RuntimeException("Failed to write authorized_keys: {$path}");
+        // Write to temporary file
+        if (file_put_contents($tempFile, $content) === false) {
+            throw new \RuntimeException("Failed to write temporary file");
         }
 
-        // Ensure proper permissions
-        chmod($path, 0600);
-        chown($path, self::BORG_USER);
-        chgrp($path, self::BORG_USER);
+        // Move with sudo and set permissions
+        $commands = [
+            sprintf('sudo cp %s %s', escapeshellarg($tempFile), escapeshellarg($path)),
+            sprintf('sudo chown %s:%s %s', self::BORG_USER, self::BORG_USER, escapeshellarg($path)),
+            sprintf('sudo chmod 600 %s', escapeshellarg($path)),
+        ];
+
+        foreach ($commands as $cmd) {
+            exec($cmd . ' 2>&1', $output, $returnCode);
+            if ($returnCode !== 0) {
+                @unlink($tempFile);
+                throw new \RuntimeException("Failed to write authorized_keys: " . implode("\n", $output));
+            }
+        }
+
+        @unlink($tempFile);
     }
 
     /**
-     * Ensure authorized_keys file and directory exist
+     * Ensure authorized_keys file and directory exist via sudo
      */
     private function ensureAuthorizedKeysExists(): void
     {
@@ -331,20 +397,33 @@ final class AgentManager
         $path = self::AUTHORIZED_KEYS_PATH;
 
         if (!is_dir($dir)) {
-            if (!mkdir($dir, 0700, true)) {
-                throw new \RuntimeException("Failed to create SSH directory: {$dir}");
+            $commands = [
+                sprintf('sudo mkdir -p %s', escapeshellarg($dir)),
+                sprintf('sudo chown %s:%s %s', self::BORG_USER, self::BORG_USER, escapeshellarg($dir)),
+                sprintf('sudo chmod 700 %s', escapeshellarg($dir)),
+            ];
+
+            foreach ($commands as $cmd) {
+                exec($cmd . ' 2>&1', $output, $returnCode);
+                if ($returnCode !== 0) {
+                    throw new \RuntimeException("Failed to create SSH directory");
+                }
             }
-            chown($dir, self::BORG_USER);
-            chgrp($dir, self::BORG_USER);
         }
 
         if (!file_exists($path)) {
-            if (touch($path) === false) {
-                throw new \RuntimeException("Failed to create authorized_keys: {$path}");
+            $commands = [
+                sprintf('sudo touch %s', escapeshellarg($path)),
+                sprintf('sudo chown %s:%s %s', self::BORG_USER, self::BORG_USER, escapeshellarg($path)),
+                sprintf('sudo chmod 600 %s', escapeshellarg($path)),
+            ];
+
+            foreach ($commands as $cmd) {
+                exec($cmd . ' 2>&1', $output, $returnCode);
+                if ($returnCode !== 0) {
+                    throw new \RuntimeException("Failed to create authorized_keys file");
+                }
             }
-            chmod($path, 0600);
-            chown($path, self::BORG_USER);
-            chgrp($path, self::BORG_USER);
         }
     }
 

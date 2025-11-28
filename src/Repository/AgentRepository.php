@@ -273,4 +273,66 @@ final class AgentRepository
 
         return $counts;
     }
+
+    /**
+     * Get allowed paths for an agent
+     */
+    public function getAllowedPaths(int $id): array
+    {
+        $agent = $this->findById($id);
+        if (!$agent || empty($agent['allowed_paths'])) {
+            return [];
+        }
+
+        $paths = json_decode($agent['allowed_paths'], true);
+        return is_array($paths) ? $paths : [];
+    }
+
+    /**
+     * Add an allowed path for an agent
+     */
+    public function addAllowedPath(int $id, string $path): void
+    {
+        $paths = $this->getAllowedPaths($id);
+
+        // Don't add duplicates
+        if (in_array($path, $paths, true)) {
+            return;
+        }
+
+        $paths[] = $path;
+        $this->setAllowedPaths($id, $paths);
+    }
+
+    /**
+     * Remove an allowed path from an agent
+     */
+    public function removeAllowedPath(int $id, string $path): void
+    {
+        $paths = $this->getAllowedPaths($id);
+        $paths = array_filter($paths, fn($p) => $p !== $path);
+        $this->setAllowedPaths($id, array_values($paths));
+    }
+
+    /**
+     * Set all allowed paths for an agent
+     */
+    public function setAllowedPaths(int $id, array $paths): void
+    {
+        $this->connection->executeUpdate(
+            'UPDATE agents SET allowed_paths = ?, updated_at = NOW() WHERE id = ?',
+            [json_encode(array_values(array_unique($paths))), $id]
+        );
+    }
+
+    /**
+     * Find agent by server ID
+     */
+    public function findByServerId(int $serverId): ?array
+    {
+        return $this->connection->fetchOne(
+            'SELECT * FROM agents WHERE server_id = ?',
+            [$serverId]
+        );
+    }
 }
