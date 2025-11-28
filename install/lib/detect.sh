@@ -131,10 +131,10 @@ check_system_requirements() {
         log_success "CPU cores: ${cpu_cores}"
     fi
 
-    # Check memory (minimum 2GB)
+    # Check memory (minimum 1.5GB)
     local total_mem=$(get_total_memory)
-    if [ "${total_mem}" -lt 2000 ]; then
-        log_error "Only ${total_mem}MB RAM detected (minimum: 2GB)"
+    if [ "${total_mem}" -lt 1500 ]; then
+        log_error "Only ${total_mem}MB RAM detected (minimum: 1.5GB)"
         errors=$((errors + 1))
     else
         log_success "Memory: ${total_mem}MB"
