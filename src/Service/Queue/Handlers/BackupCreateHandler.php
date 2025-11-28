@@ -390,15 +390,12 @@ final class BackupCreateHandler implements JobHandlerInterface
             $repository = $this->ensureRepositoryExists($server->id, $server->name, $type);
         }
 
-        // Update agent's allowed paths and prepare repository directory
-        // This creates a job for the agent-worker (has sudo) to:
-        // 1. Create/fix repo directory permissions
-        // 2. Refresh authorized_keys with all paths
-        // Must be done BEFORE borg init since phpborg-borg needs to own the directory
-        $this->updateAgentAllowedPaths($server->agentUuid, $repository->repoPath, $queue);
-
-        // Now initialize repository (directory has correct permissions)
-        $this->ensureRepositoryInitialized($repository);
+        // Update agent's allowed paths, prepare directory, and init borg repo
+        // This creates a job for the agent-worker (runs as phpborg, has sudo) to:
+        // 1. Create/fix repo directory permissions (owned by phpborg-borg)
+        // 2. Initialize borg repository as phpborg-borg user
+        // 3. Refresh authorized_keys with all paths
+        $this->updateAgentAllowedPaths($server->agentUuid, $repository, $queue);
 
         $queue->updateProgress($job->id, 20, "Sending backup task to agent...");
 
@@ -551,12 +548,14 @@ final class BackupCreateHandler implements JobHandlerInterface
     }
 
     /**
-     * Update agent's allowed paths and refresh authorized_keys
-     * This ensures the agent can access the repository path via borg serve
+     * Update agent's allowed paths, prepare directory, init borg, and refresh authorized_keys
      *
-     * Creates a job for the agent-worker (runs as phpborg-borg) to update authorized_keys
+     * Creates a job for the agent-worker (has sudo) to:
+     * 1. Create/fix repo directory permissions (owned by phpborg-borg)
+     * 2. Initialize borg repository as phpborg-borg user
+     * 3. Refresh authorized_keys with all paths
      */
-    private function updateAgentAllowedPaths(string $agentUuid, string $repoPath, JobQueue $queue): void
+    private function updateAgentAllowedPaths(string $agentUuid, \PhpBorg\Entity\BorgRepository $repository, JobQueue $queue): void
     {
         $agent = $this->agentRepo->findByUuid($agentUuid);
         if (!$agent) {
@@ -564,15 +563,14 @@ final class BackupCreateHandler implements JobHandlerInterface
             return;
         }
 
+        $repoPath = $repository->repoPath;
         $agentId = (int)$agent['id'];
         $currentPaths = $this->agentRepo->getAllowedPaths($agentId);
 
         // Add path if not already in database
-        $pathAdded = false;
         if (!in_array($repoPath, $currentPaths, true)) {
             $this->agentRepo->addAllowedPath($agentId, $repoPath);
             $this->logger->info("Added allowed path for agent {$agentUuid}: {$repoPath}", 'JOB');
-            $pathAdded = true;
         }
 
         // Get updated paths
@@ -580,7 +578,8 @@ final class BackupCreateHandler implements JobHandlerInterface
 
         // Create a job for agent-worker to:
         // 1. Prepare repository directory with correct permissions
-        // 2. Refresh authorized_keys with all paths
+        // 2. Initialize borg repository as phpborg-borg
+        // 3. Refresh authorized_keys with all paths
         $refreshJobId = $queue->push('refresh_agent_authorized_keys', [
             'agent_uuid' => $agentUuid,
             'agent_name' => $agent['name'],
@@ -588,6 +587,8 @@ final class BackupCreateHandler implements JobHandlerInterface
             'allowed_paths' => $updatedPaths,
             'append_only' => (bool)$agent['append_only'],
             'repo_path' => $repoPath,
+            'passphrase' => $repository->passphrase,
+            'encryption' => $repository->encryption,
         ], 'agent');
 
         $this->logger->info("Created refresh_agent_authorized_keys job #{$refreshJobId} for agent {$agentUuid}", 'JOB');

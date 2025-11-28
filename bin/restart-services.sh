@@ -28,6 +28,15 @@ if [ -f "$SUDOERS_FILE" ]; then
         echo "phpborg ALL=(ALL) NOPASSWD: ${PHPBORG_ROOT}/bin/prepare-backup-directory.sh *" >> "$SUDOERS_FILE"
         SUDOERS_UPDATED=true
     fi
+
+    # Ensure borg init as phpborg-borg rule exists
+    if ! grep -q "phpborg-borg.*/usr/bin/borg" "$SUDOERS_FILE" 2>/dev/null; then
+        log "Adding borg init as phpborg-borg sudoers rule..."
+        echo "" >> "$SUDOERS_FILE"
+        echo "# Borg init as phpborg-borg (for agent backups)" >> "$SUDOERS_FILE"
+        echo "phpborg ALL=(phpborg-borg) NOPASSWD: /usr/bin/borg *" >> "$SUDOERS_FILE"
+        SUDOERS_UPDATED=true
+    fi
 fi
 
 if [ "$SUDOERS_UPDATED" = "true" ]; then

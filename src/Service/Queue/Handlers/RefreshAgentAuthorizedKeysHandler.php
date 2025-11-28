@@ -37,6 +37,8 @@ final class RefreshAgentAuthorizedKeysHandler implements JobHandlerInterface
         $allowedPaths = $payload['allowed_paths'] ?? [];
         $appendOnly = $payload['append_only'] ?? true;
         $repoPath = $payload['repo_path'] ?? null;
+        $passphrase = $payload['passphrase'] ?? null;
+        $encryption = $payload['encryption'] ?? 'repokey-blake2';
 
         if (!$agentUuid || !$agentName || !$publicKey) {
             throw new \InvalidArgumentException('Paramètres manquants: agent_uuid, agent_name, public_key requis');
@@ -44,10 +46,16 @@ final class RefreshAgentAuthorizedKeysHandler implements JobHandlerInterface
 
         $queue->updateProgress($job->id, 10, "Préparation pour {$agentName}...");
 
-        // Préparer le répertoire du repo si spécifié
+        // Préparer le répertoire du repo et initialiser borg si spécifié
         if ($repoPath) {
             $queue->updateProgress($job->id, 30, "Préparation du répertoire de backup...");
             $this->ensureRepoDirectory($repoPath);
+
+            // Initialiser le repo borg en tant que phpborg-borg
+            if ($passphrase) {
+                $queue->updateProgress($job->id, 40, "Initialisation du dépôt Borg...");
+                $this->initBorgRepository($repoPath, $passphrase, $encryption);
+            }
         }
 
         $queue->updateProgress($job->id, 50, "Rafraîchissement des authorized_keys...");
@@ -94,6 +102,45 @@ final class RefreshAgentAuthorizedKeysHandler implements JobHandlerInterface
         }
 
         $this->logger->info("Repository directory prepared: {$repoPath}", 'AGENT');
+    }
+
+    /**
+     * Initialiser le dépôt Borg en tant que phpborg-borg
+     */
+    private function initBorgRepository(string $repoPath, string $passphrase, string $encryption): void
+    {
+        $this->logger->info("Initializing Borg repository: {$repoPath}", 'AGENT');
+
+        // Vérifier si le repo existe déjà
+        $configFile = $repoPath . '/config';
+        if (file_exists($configFile)) {
+            $this->logger->info("Repository already initialized: {$repoPath}", 'AGENT');
+            return;
+        }
+
+        // Exécuter borg init en tant que phpborg-borg
+        $cmd = sprintf(
+            'sudo -u %s BORG_PASSPHRASE=%s borg init --encryption=%s %s 2>&1',
+            self::BORG_USER,
+            escapeshellarg($passphrase),
+            escapeshellarg($encryption),
+            escapeshellarg($repoPath)
+        );
+
+        $output = [];
+        exec($cmd, $output, $returnCode);
+
+        if ($returnCode !== 0) {
+            $outputStr = implode("\n", $output);
+            // Ignorer si déjà initialisé
+            if (str_contains($outputStr, 'already exists') || str_contains($outputStr, 'already initialized')) {
+                $this->logger->info("Repository already initialized (idempotent): {$repoPath}", 'AGENT');
+                return;
+            }
+            throw new \RuntimeException("Échec de l'initialisation Borg: " . $outputStr);
+        }
+
+        $this->logger->info("Borg repository initialized: {$repoPath}", 'AGENT');
     }
 
     /**

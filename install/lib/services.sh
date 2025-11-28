@@ -120,6 +120,9 @@ phpborg ALL=(ALL) NOPASSWD: /bin/chmod 600 /var/lib/phpborg-borg/.ssh/authorized
 # Agent backup directory preparation (validates against storage pools)
 phpborg ALL=(ALL) NOPASSWD: /opt/newphpborg/phpBorg/bin/prepare-backup-directory.sh *
 
+# Borg init as phpborg-borg (for agent backups)
+phpborg ALL=(phpborg-borg) NOPASSWD: /usr/bin/borg *
+
 # Borg SSH server management
 phpborg ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-sshd
 phpborg ALL=(ALL) NOPASSWD: /bin/systemctl start phpborg-sshd
