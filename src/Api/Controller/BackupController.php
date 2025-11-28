@@ -6,6 +6,7 @@ namespace PhpBorg\Api\Controller;
 
 use PhpBorg\Application;
 use PhpBorg\Exception\PhpBorgException;
+use PhpBorg\Logger\LoggerInterface;
 use PhpBorg\Repository\ArchiveRepository;
 use PhpBorg\Repository\ArchiveMountRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
@@ -24,6 +25,7 @@ class BackupController extends BaseController
     private readonly ServerRepository $serverRepo;
     private readonly BorgExecutor $borgExecutor;
     private readonly JobQueue $jobQueue;
+    private readonly LoggerInterface $logger;
 
     public function __construct(Application $app)
     {
@@ -33,6 +35,7 @@ class BackupController extends BaseController
         $this->serverRepo = $app->getServerRepository();
         $this->borgExecutor = $app->getBorgExecutor();
         $this->jobQueue = $app->getJobQueue();
+        $this->logger = $app->getLogger();
     }
 
     /**
