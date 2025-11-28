@@ -291,19 +291,15 @@ After=network.target
 
 [Service]
 Type=simple
-User=$AGENT_USER
-Group=$AGENT_USER
+# Agent runs as root to access all files for full system backups
+User=root
+Group=root
 ExecStart=$BIN_PATH -config $CONFIG_DIR/config.yaml
 Restart=always
 RestartSec=10
 
-# Security hardening
-NoNewPrivileges=yes
-ProtectSystem=strict
-ProtectHome=read-only
+# Minimal security hardening (agent needs full access for backups)
 PrivateTmp=yes
-ReadWritePaths=$LOG_DIR
-ReadWritePaths=$AGENT_HOME
 
 [Install]
 WantedBy=multi-user.target

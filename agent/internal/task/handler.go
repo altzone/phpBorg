@@ -161,16 +161,29 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 	// Execute borg create with progress streaming
 	result := h.executor.BorgCreateWithProgress(ctx, repoPath, archiveName, paths, excludes, compression, passphrase, progressCallback)
 
-	if result.ExitCode != 0 {
+	// Borg exit codes:
+	// 0 = success
+	// 1 = warnings (e.g., permission denied on some files) - backup still succeeded
+	// 2 = fatal error
+	if result.ExitCode > 1 {
 		return nil, result.ExitCode, fmt.Errorf("borg create failed: %s", result.Stderr)
 	}
 
-	h.client.UpdateProgress(ctx, task.ID, 95, "Backup completed, collecting stats...")
+	// Check if there were warnings (exit code 1)
+	hasWarnings := result.ExitCode == 1
+
+	if hasWarnings {
+		h.client.UpdateProgress(ctx, task.ID, 95, "Backup completed with warnings (some files skipped)")
+	} else {
+		h.client.UpdateProgress(ctx, task.ID, 95, "Backup completed successfully")
+	}
 
 	return map[string]interface{}{
-		"stdout":   result.Stdout,
-		"stderr":   result.Stderr,
-		"duration": result.Duration.String(),
+		"stdout":       result.Stdout,
+		"stderr":       result.Stderr,
+		"duration":     result.Duration.String(),
+		"has_warnings": hasWarnings,
+		"exit_code":    result.ExitCode,
 	}, 0, nil
 }
 
