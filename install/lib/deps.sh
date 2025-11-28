@@ -135,20 +135,20 @@ get_docker_packages() {
     esac
 }
 
-# BorgBackup packages
+# BorgBackup packages (includes FUSE support for borg mount)
 get_borg_packages() {
     case "${OS_DISTRO}" in
         debian|ubuntu|linuxmint|pop)
-            echo "borgbackup"
+            echo "borgbackup fuse3 python3-pyfuse3"
             ;;
         rhel|centos|rocky|almalinux|fedora)
-            echo "borgbackup"
+            echo "borgbackup fuse3 python3-pyfuse3"
             ;;
         arch|manjaro)
-            echo "borg"
+            echo "borg fuse3 python-pyfuse3"
             ;;
         alpine)
-            echo "borgbackup"
+            echo "borgbackup fuse3 py3-pyfuse3"
             ;;
     esac
 }
