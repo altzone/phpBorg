@@ -346,12 +346,38 @@ final class BackupCreateHandler implements JobHandlerInterface
      */
     private function ensureRepositoryInitialized(\PhpBorg\Entity\BorgRepository $repository): void
     {
-        // Create repository directory if it doesn't exist
+        // Create/ensure repository directory with correct ownership
+        // phpborg-borg needs access for borg serve, phpborg group for worker access
         $repoDir = dirname($repository->repoPath);
-        if (!is_dir($repoDir)) {
-            $this->logger->info("Creating repository directory: {$repoDir}", 'JOB');
-            if (!mkdir($repoDir, 0700, true)) {
-                throw new \Exception("Failed to create repository directory: {$repoDir}");
+
+        $this->logger->info("Ensuring repository directory: {$repoDir}", 'JOB');
+
+        $commands = [
+            sprintf('sudo mkdir -p %s', escapeshellarg($repoDir)),
+            sprintf('sudo chown phpborg-borg:phpborg %s', escapeshellarg($repoDir)),
+            sprintf('sudo chmod 770 %s', escapeshellarg($repoDir)),
+        ];
+
+        foreach ($commands as $cmd) {
+            $output = [];
+            exec($cmd . ' 2>&1', $output, $returnCode);
+            if ($returnCode !== 0) {
+                throw new \Exception("Failed to setup repository directory: " . implode("\n", $output));
+            }
+        }
+
+        // Ensure repo path itself has correct ownership (also for existing repos)
+        $commands = [
+            sprintf('sudo mkdir -p %s', escapeshellarg($repository->repoPath)),
+            sprintf('sudo chown -R phpborg-borg:phpborg %s', escapeshellarg($repository->repoPath)),
+            sprintf('sudo chmod 770 %s', escapeshellarg($repository->repoPath)),
+        ];
+
+        foreach ($commands as $cmd) {
+            $output = [];
+            exec($cmd . ' 2>&1', $output, $returnCode);
+            if ($returnCode !== 0) {
+                throw new \Exception("Failed to setup repository path: " . implode("\n", $output));
             }
         }
 
