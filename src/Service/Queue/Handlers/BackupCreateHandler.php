@@ -562,15 +562,13 @@ final class BackupCreateHandler implements JobHandlerInterface
         $agentId = (int)$agent['id'];
         $currentPaths = $this->agentRepo->getAllowedPaths($agentId);
 
-        // Check if path already exists
-        if (in_array($repoPath, $currentPaths, true)) {
-            $this->logger->info("Path already allowed for agent: {$repoPath}", 'JOB');
-            return;
+        // Add path if not already in database
+        $pathAdded = false;
+        if (!in_array($repoPath, $currentPaths, true)) {
+            $this->agentRepo->addAllowedPath($agentId, $repoPath);
+            $this->logger->info("Added allowed path for agent {$agentUuid}: {$repoPath}", 'JOB');
+            $pathAdded = true;
         }
-
-        // Add new path to database
-        $this->agentRepo->addAllowedPath($agentId, $repoPath);
-        $this->logger->info("Added allowed path for agent {$agentUuid}: {$repoPath}", 'JOB');
 
         // Get updated paths
         $updatedPaths = $this->agentRepo->getAllowedPaths($agentId);
