@@ -14,6 +14,35 @@ log() {
 
 log "Starting phpBorg services restart..."
 
+# Update sudoers rules (new rules may be needed)
+log "Updating sudoers rules..."
+SUDOERS_FILE="/etc/sudoers.d/phpborg-workers"
+SUDOERS_UPDATED=false
+
+# Ensure prepare-backup-directory.sh rule exists
+if [ -f "$SUDOERS_FILE" ]; then
+    if ! grep -q "prepare-backup-directory.sh" "$SUDOERS_FILE" 2>/dev/null; then
+        log "Adding prepare-backup-directory.sh sudoers rule..."
+        echo "" >> "$SUDOERS_FILE"
+        echo "# Agent backup directory preparation (validates against storage pools)" >> "$SUDOERS_FILE"
+        echo "phpborg ALL=(ALL) NOPASSWD: ${PHPBORG_ROOT}/bin/prepare-backup-directory.sh *" >> "$SUDOERS_FILE"
+        SUDOERS_UPDATED=true
+    fi
+fi
+
+if [ "$SUDOERS_UPDATED" = "true" ]; then
+    # Validate sudoers syntax
+    if visudo -c -f "$SUDOERS_FILE" &>/dev/null; then
+        log "Sudoers rules updated successfully"
+    else
+        log "ERROR: Sudoers syntax validation failed, reverting..."
+        # Remove the bad lines we just added
+        sed -i '/prepare-backup-directory.sh/d' "$SUDOERS_FILE"
+    fi
+else
+    log "Sudoers rules already up to date"
+fi
+
 # Update systemd service files from repository (may have changed)
 log "Syncing systemd service files from repository..."
 SYSTEMD_DIR="$PHPBORG_ROOT/systemd"
