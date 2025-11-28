@@ -94,6 +94,57 @@ func (e *Executor) RunShellWithSudo(ctx context.Context, shellCmd string, timeou
 	return e.Run(ctx, "sudo", []string{"bash", "-c", shellCmd}, timeout)
 }
 
+// RunAsUser executes a command as a different user (su - user -c "command")
+func (e *Executor) RunAsUser(ctx context.Context, user string, shellCmd string, timeout time.Duration) *CommandResult {
+	return e.Run(ctx, "su", []string{"-", user, "-c", shellCmd}, timeout)
+}
+
+// DockerExec executes a command inside a Docker container
+func (e *Executor) DockerExec(ctx context.Context, container string, command []string, timeout time.Duration) *CommandResult {
+	args := append([]string{"exec", container}, command...)
+	return e.Run(ctx, "docker", args, timeout)
+}
+
+// DockerExecShell executes a shell command inside a Docker container
+func (e *Executor) DockerExecShell(ctx context.Context, container string, shellCmd string, timeout time.Duration) *CommandResult {
+	return e.Run(ctx, "docker", []string{"exec", container, "sh", "-c", shellCmd}, timeout)
+}
+
+// PostgresDump creates a PostgreSQL dump as the postgres user
+func (e *Executor) PostgresDump(ctx context.Context, database string, outputPath string, timeout time.Duration) *CommandResult {
+	// pg_dump as postgres user, output to file
+	cmd := fmt.Sprintf("pg_dump %s > %s", database, outputPath)
+	return e.RunAsUser(ctx, "postgres", cmd, timeout)
+}
+
+// PostgresDumpAll creates a full PostgreSQL cluster dump as the postgres user
+func (e *Executor) PostgresDumpAll(ctx context.Context, outputPath string, timeout time.Duration) *CommandResult {
+	cmd := fmt.Sprintf("pg_dumpall > %s", outputPath)
+	return e.RunAsUser(ctx, "postgres", cmd, timeout)
+}
+
+// MysqlDump creates a MySQL/MariaDB dump
+func (e *Executor) MysqlDump(ctx context.Context, database string, outputPath string, user string, password string, timeout time.Duration) *CommandResult {
+	var cmd string
+	if password != "" {
+		cmd = fmt.Sprintf("mysqldump -u%s -p%s %s > %s", user, password, database, outputPath)
+	} else {
+		cmd = fmt.Sprintf("mysqldump -u%s %s > %s", user, database, outputPath)
+	}
+	return e.RunShell(ctx, cmd, timeout)
+}
+
+// MysqlDumpAll creates a full MySQL/MariaDB dump of all databases
+func (e *Executor) MysqlDumpAll(ctx context.Context, outputPath string, user string, password string, timeout time.Duration) *CommandResult {
+	var cmd string
+	if password != "" {
+		cmd = fmt.Sprintf("mysqldump -u%s -p%s --all-databases > %s", user, password, outputPath)
+	} else {
+		cmd = fmt.Sprintf("mysqldump -u%s --all-databases > %s", user, outputPath)
+	}
+	return e.RunShell(ctx, cmd, timeout)
+}
+
 // BorgProgress represents parsed progress info from borg's JSON output
 type BorgProgress struct {
 	Type             string  `json:"type"`
