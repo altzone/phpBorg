@@ -31,7 +31,8 @@ SyslogIdentifier=phpborg-worker@%i
 
 # Security
 PrivateTmp=true
-NoNewPrivileges=true
+# NoNewPrivileges must be false to allow sudo -u phpborg-borg for borg operations
+NoNewPrivileges=false
 # ProtectSystem=full allows writing to /opt, /srv, /var while protecting /usr, /boot
 ProtectSystem=full
 ProtectHome=true
