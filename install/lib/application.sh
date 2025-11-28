@@ -755,7 +755,13 @@ build_adminer_image() {
 
     log_info "Building phpborg/adminer:latest image..."
 
-    if run_with_progress "Building Adminer image" "docker build -t phpborg/adminer:latest ${docker_dir}"; then
+    # Use buildx if available (modern Docker), fallback to legacy build
+    local build_cmd="docker build"
+    if docker buildx version &>/dev/null; then
+        build_cmd="docker buildx build --load"
+    fi
+
+    if run_with_progress "Building Adminer image" "${build_cmd} -t phpborg/adminer:latest ${docker_dir}"; then
         log_success "Adminer Docker image built successfully"
         save_state "build_adminer_image" "completed"
         return 0

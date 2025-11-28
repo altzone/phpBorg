@@ -191,6 +191,7 @@ phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker logs *
 phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker ps *
 phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker images *
 phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker build *
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker buildx *
 EOF
 
     chmod 440 "${sudoers_file}"
