@@ -119,31 +119,48 @@ final class RefreshAgentAuthorizedKeysHandler implements JobHandlerInterface
     }
 
     /**
-     * S'assurer que le fichier authorized_keys existe
+     * S'assurer que le fichier authorized_keys existe via sudo
      */
     private function ensureAuthorizedKeysExists(): void
     {
         $dir = self::BORG_SSH_DIR;
         $path = self::AUTHORIZED_KEYS_PATH;
 
-        // Créer le répertoire .ssh si nécessaire (on tourne en phpborg-borg, pas besoin de sudo)
+        // Créer le répertoire .ssh si nécessaire
         if (!is_dir($dir)) {
-            if (!mkdir($dir, 0700, true)) {
-                throw new \RuntimeException("Échec de la création du répertoire SSH: {$dir}");
+            $commands = [
+                sprintf('sudo mkdir -p %s', escapeshellarg($dir)),
+                sprintf('sudo chown %s:%s %s', self::BORG_USER, self::BORG_USER, escapeshellarg($dir)),
+                sprintf('sudo chmod 700 %s', escapeshellarg($dir)),
+            ];
+
+            foreach ($commands as $cmd) {
+                exec($cmd . ' 2>&1', $output, $returnCode);
+                if ($returnCode !== 0) {
+                    throw new \RuntimeException("Échec de la création du répertoire SSH");
+                }
             }
         }
 
         // Créer le fichier authorized_keys si nécessaire
         if (!file_exists($path)) {
-            if (touch($path) === false) {
-                throw new \RuntimeException("Échec de la création du fichier authorized_keys");
+            $commands = [
+                sprintf('sudo touch %s', escapeshellarg($path)),
+                sprintf('sudo chown %s:%s %s', self::BORG_USER, self::BORG_USER, escapeshellarg($path)),
+                sprintf('sudo chmod 600 %s', escapeshellarg($path)),
+            ];
+
+            foreach ($commands as $cmd) {
+                exec($cmd . ' 2>&1', $output, $returnCode);
+                if ($returnCode !== 0) {
+                    throw new \RuntimeException("Échec de la création du fichier authorized_keys");
+                }
             }
-            chmod($path, 0600);
         }
     }
 
     /**
-     * Lire le fichier authorized_keys
+     * Lire le fichier authorized_keys via sudo
      */
     private function readAuthorizedKeys(): string
     {
@@ -154,28 +171,44 @@ final class RefreshAgentAuthorizedKeysHandler implements JobHandlerInterface
             return '';
         }
 
-        $content = file_get_contents($path);
-        if ($content === false) {
+        $output = [];
+        exec(sprintf('sudo cat %s 2>&1', escapeshellarg($path)), $output, $returnCode);
+
+        if ($returnCode !== 0) {
             throw new \RuntimeException("Échec de la lecture du fichier authorized_keys");
         }
 
-        return $content;
+        return implode("\n", $output);
     }
 
     /**
-     * Écrire le fichier authorized_keys
+     * Écrire le fichier authorized_keys via sudo
      */
     private function writeAuthorizedKeys(string $content): void
     {
         $path = self::AUTHORIZED_KEYS_PATH;
+        $tempFile = '/tmp/phpborg_authorized_keys_' . uniqid();
 
-        $this->ensureAuthorizedKeysExists();
-
-        if (file_put_contents($path, $content, LOCK_EX) === false) {
-            throw new \RuntimeException("Échec de l'écriture du fichier authorized_keys");
+        // Écrire dans un fichier temporaire
+        if (file_put_contents($tempFile, $content) === false) {
+            throw new \RuntimeException("Échec de l'écriture du fichier temporaire");
         }
 
-        // S'assurer des bonnes permissions
-        chmod($path, 0600);
+        // Déplacer avec sudo et définir les permissions
+        $commands = [
+            sprintf('sudo cp %s %s', escapeshellarg($tempFile), escapeshellarg($path)),
+            sprintf('sudo chown %s:%s %s', self::BORG_USER, self::BORG_USER, escapeshellarg($path)),
+            sprintf('sudo chmod 600 %s', escapeshellarg($path)),
+        ];
+
+        foreach ($commands as $cmd) {
+            exec($cmd . ' 2>&1', $output, $returnCode);
+            if ($returnCode !== 0) {
+                @unlink($tempFile);
+                throw new \RuntimeException("Échec de l'écriture du fichier authorized_keys");
+            }
+        }
+
+        @unlink($tempFile);
     }
 }
