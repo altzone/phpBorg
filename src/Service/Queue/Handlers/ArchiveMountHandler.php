@@ -86,16 +86,17 @@ final class ArchiveMountHandler implements JobHandlerInterface
                 throw new \Exception("Repository '{$archive->repoId}' not found");
             }
 
-            // Step 4: Create mount directory
+            // Step 4: Create mount directory as phpborg-borg (borg runs as this user)
             $queue->updateProgress($job->id, 40, "Creating mount directory...");
             $mountPath = self::MOUNT_BASE_PATH . '/' . $archiveId;
 
+            // Create directories as phpborg-borg since borg mount runs as that user
             if (!is_dir(self::MOUNT_BASE_PATH)) {
-                mkdir(self::MOUNT_BASE_PATH, 0755, true);
+                exec('sudo -u phpborg-borg mkdir -p ' . escapeshellarg(self::MOUNT_BASE_PATH));
             }
 
             if (!is_dir($mountPath)) {
-                mkdir($mountPath, 0755, true);
+                exec('sudo -u phpborg-borg mkdir -p ' . escapeshellarg($mountPath));
             }
 
             // Step 5: Create mount record

@@ -111,3 +111,16 @@ www-data ALL=(ALL) NOPASSWD: /bin/systemctl list-units phpborg-* --no-pager
 # Example for root user (if SSH as root - simpler approach):
 # root ALL=(postgres) NOPASSWD: ALL
 # root ALL=(mysql) NOPASSWD: ALL
+
+# ========================================================================
+# Borg Operations as phpborg-borg
+# ========================================================================
+# All local Borg repositories are owned by phpborg-borg:phpborg-borg
+# Workers run as phpborg but need to access repos via sudo
+
+# Allow phpborg to run all borg commands as phpborg-borg with env vars
+phpborg ALL=(phpborg-borg) NOPASSWD: SETENV: /usr/bin/borg *
+
+# Mount directories for borg archive browsing
+phpborg ALL=(phpborg-borg) NOPASSWD: /bin/mkdir -p /var/lib/phpborg/mounts/*
+phpborg ALL=(phpborg-borg) NOPASSWD: /bin/rmdir /var/lib/phpborg/mounts/*
