@@ -994,7 +994,18 @@
       "dns_instructions": "DNS-Eintrag Anweisungen",
       "add_txt_record": "Fügen Sie den folgenden TXT-Eintrag zu Ihrem DNS hinzu",
       "record_name": "Name",
-      "record_type": "Typ"
+      "record_type": "Typ",
+      "operation_in_progress": "SSL-Vorgang läuft",
+      "please_wait": "Bitte warten...",
+      "processing": "Verarbeitung...",
+      "starting_operation": "Vorgang wird gestartet...",
+      "job_id": "Auftrag",
+      "operation_success": "SSL-Zertifikat erfolgreich konfiguriert!",
+      "operation_failed": "SSL-Vorgang fehlgeschlagen",
+      "ssl_configured": "SSL erfolgreich konfiguriert!",
+      "redirecting_https": "Weiterleitung zu HTTPS in...",
+      "or_click_redirect": "Oder klicken Sie auf die Schaltfläche, um jetzt weiterzuleiten",
+      "redirect_now": "Jetzt weiterleiten"
     },
     "system": {
       "title": "Systemeinstellungen",

@@ -415,11 +415,60 @@
     <div v-if="message" class="p-4 rounded-lg" :class="messageType === 'success' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'">
       {{ message }}
     </div>
+
+    <!-- Job Progress Modal -->
+    <div v-if="currentJob" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+        <div class="text-center">
+          <div class="w-16 h-16 mx-auto mb-4 relative">
+            <svg class="animate-spin w-16 h-16 text-primary-500" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="absolute inset-0 flex items-center justify-center text-sm font-bold text-primary-600">
+              {{ currentJob.progress }}%
+            </span>
+          </div>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">{{ $t('settings.ssl.operation_in_progress') }}</h3>
+          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">{{ currentJob.message || $t('settings.ssl.please_wait') }}</p>
+
+          <!-- Progress bar -->
+          <div class="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2 mb-4">
+            <div class="bg-primary-500 h-2 rounded-full transition-all duration-300" :style="{ width: currentJob.progress + '%' }"></div>
+          </div>
+
+          <!-- Status -->
+          <p class="text-xs text-gray-500 dark:text-gray-500">
+            {{ $t('settings.ssl.job_id') }}: #{{ currentJob.id }} - {{ currentJob.status }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- HTTPS Redirect Modal -->
+    <div v-if="redirecting" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+        <div class="text-center">
+          <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+            <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">{{ $t('settings.ssl.ssl_configured') }}</h3>
+          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">{{ $t('settings.ssl.redirecting_https') }}</p>
+          <p class="text-2xl font-bold text-primary-600">{{ redirectCountdown }}</p>
+          <p class="text-xs text-gray-500 mt-2">{{ $t('settings.ssl.or_click_redirect') }}</p>
+          <button @click="redirectToHttps" class="btn btn-primary mt-4">
+            {{ $t('settings.ssl.redirect_now') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '../../services/api'
 
@@ -440,6 +489,15 @@ const messageType = ref('success')
 const cloudflareStatus = ref(null)
 const validationResult = ref(null)
 const dnsChallenge = ref(null)
+
+// Job tracking
+const currentJob = ref(null)
+let jobPollInterval = null
+
+// HTTPS redirect
+const redirecting = ref(false)
+const redirectCountdown = ref(5)
+let redirectInterval = null
 
 const selfSignedForm = reactive({
   domain: '',
@@ -506,16 +564,19 @@ const validateCustomCert = async () => {
       key: customForm.key,
       chain: customForm.chain || null
     })
-    validationResult.value = response.data.data
+
+    // Response contains job_id
+    if (response.data.data.job_id) {
+      startJobPolling(response.data.data.job_id, 'validate')
+    }
   } catch (error) {
+    validating.value = false
     validationResult.value = {
       valid: false,
       errors: [error.response?.data?.error?.message || error.message],
       warnings: [],
       info: null
     }
-  } finally {
-    validating.value = false
   }
 }
 
@@ -548,17 +609,17 @@ const generateSelfSigned = async () => {
 
   generating.value = true
   try {
-    await api.post('/ssl/self-signed', {
+    const response = await api.post('/ssl/self-signed', {
       domain: selfSignedForm.domain,
       days: selfSignedForm.days
     })
-    showMessage(t('settings.ssl.generated_success'), 'success')
-    await loadStatus()
-    selectedType.value = null
+
+    if (response.data.data.job_id) {
+      startJobPolling(response.data.data.job_id, 'self_signed')
+    }
   } catch (error) {
-    showMessage(error.response?.data?.error?.message || error.message, 'error')
-  } finally {
     generating.value = false
+    showMessage(error.response?.data?.error?.message || error.message, 'error')
   }
 }
 
@@ -570,30 +631,33 @@ const requestLetsEncrypt = async () => {
 
   generating.value = true
   try {
+    let response
     if (letsencryptForm.method === 'http') {
-      await api.post('/ssl/letsencrypt/http', {
+      response = await api.post('/ssl/letsencrypt/http', {
         domain: letsencryptForm.domain,
         email: letsencryptForm.email
       })
-    } else {
+      if (response.data.data.job_id) {
+        startJobPolling(response.data.data.job_id, 'letsencrypt_http')
+      }
+    } else if (letsencryptForm.method === 'cloudflare') {
       if (!letsencryptForm.cloudflareToken) {
         showMessage(t('settings.ssl.cloudflare_token_required'), 'error')
         generating.value = false
         return
       }
-      await api.post('/ssl/letsencrypt/cloudflare', {
+      response = await api.post('/ssl/letsencrypt/cloudflare', {
         domain: letsencryptForm.domain,
         email: letsencryptForm.email,
         cloudflare_token: letsencryptForm.cloudflareToken
       })
+      if (response.data.data.job_id) {
+        startJobPolling(response.data.data.job_id, 'letsencrypt_dns')
+      }
     }
-    showMessage(t('settings.ssl.letsencrypt_success'), 'success')
-    await loadStatus()
-    selectedType.value = null
   } catch (error) {
-    showMessage(error.response?.data?.error?.message || error.message, 'error')
-  } finally {
     generating.value = false
+    showMessage(error.response?.data?.error?.message || error.message, 'error')
   }
 }
 
@@ -605,18 +669,18 @@ const uploadCertificate = async () => {
 
   generating.value = true
   try {
-    await api.post('/ssl/upload', {
+    const response = await api.post('/ssl/upload', {
       cert: customForm.cert,
       key: customForm.key,
       chain: customForm.chain || null
     })
-    showMessage(t('settings.ssl.upload_success'), 'success')
-    await loadStatus()
-    selectedType.value = null
+
+    if (response.data.data.job_id) {
+      startJobPolling(response.data.data.job_id, 'apply')
+    }
   } catch (error) {
-    showMessage(error.response?.data?.error?.message || error.message, 'error')
-  } finally {
     generating.value = false
+    showMessage(error.response?.data?.error?.message || error.message, 'error')
   }
 }
 
@@ -655,13 +719,14 @@ const testRenewal = async () => {
 const forceRenewal = async () => {
   renewing.value = true
   try {
-    await api.post('/ssl/renew')
-    showMessage(t('settings.ssl.renewed_success'), 'success')
-    await loadStatus()
+    const response = await api.post('/ssl/renew')
+
+    if (response.data.data.job_id) {
+      startJobPolling(response.data.data.job_id, 'renew')
+    }
   } catch (error) {
-    showMessage(error.response?.data?.error?.message || error.message, 'error')
-  } finally {
     renewing.value = false
+    showMessage(error.response?.data?.error?.message || error.message, 'error')
   }
 }
 
@@ -690,11 +755,15 @@ const getDnsChallenge = async () => {
 const disableSsl = async () => {
   if (!confirm(t('settings.ssl.disable_confirm'))) return
 
+  generating.value = true
   try {
-    await api.post('/ssl/disable')
-    showMessage(t('settings.ssl.disabled_success'), 'success')
-    await loadStatus()
+    const response = await api.post('/ssl/disable')
+
+    if (response.data.data.job_id) {
+      startJobPolling(response.data.data.job_id, 'disable')
+    }
   } catch (error) {
+    generating.value = false
     showMessage(error.response?.data?.error?.message || error.message, 'error')
   }
 }
@@ -704,6 +773,151 @@ const showMessage = (msg, type) => {
   messageType.value = type
   setTimeout(() => { message.value = '' }, 5000)
 }
+
+// Job polling
+const startJobPolling = (jobId, action) => {
+  currentJob.value = {
+    id: jobId,
+    progress: 0,
+    status: 'pending',
+    message: t('settings.ssl.starting_operation'),
+    action: action
+  }
+
+  jobPollInterval = setInterval(async () => {
+    try {
+      const response = await api.get(`/jobs/${jobId}`)
+      const job = response.data.data
+
+      currentJob.value = {
+        id: jobId,
+        progress: job.progress || 0,
+        status: job.status,
+        message: job.output || t('settings.ssl.processing'),
+        action: action
+      }
+
+      if (job.status === 'completed') {
+        stopJobPolling()
+        handleJobSuccess(action, job)
+      } else if (job.status === 'failed') {
+        stopJobPolling()
+        handleJobFailure(job)
+      }
+    } catch (error) {
+      console.error('Error polling job:', error)
+    }
+  }, 1000)
+}
+
+const stopJobPolling = () => {
+  if (jobPollInterval) {
+    clearInterval(jobPollInterval)
+    jobPollInterval = null
+  }
+  currentJob.value = null
+}
+
+const handleJobSuccess = async (action, job) => {
+  generating.value = false
+  validating.value = false
+  renewing.value = false
+
+  // For validation, parse the result
+  if (action === 'validate') {
+    try {
+      const result = JSON.parse(job.output)
+      validationResult.value = {
+        valid: result.valid,
+        info: {
+          domain: result.subject,
+          issuer: result.issuer,
+          valid_from: result.valid_from,
+          valid_to: result.valid_to,
+          days_remaining: result.days_remaining
+        },
+        errors: [],
+        warnings: result.days_remaining <= 30 ? [t('settings.ssl.expires_warning', { days: result.days_remaining })] : []
+      }
+      showMessage(t('settings.ssl.validation_success'), 'success')
+    } catch (e) {
+      validationResult.value = { valid: true, info: null, errors: [], warnings: [] }
+      showMessage(t('settings.ssl.validation_success'), 'success')
+    }
+    return
+  }
+
+  // For SSL-enabling actions, trigger HTTPS redirect
+  const sslEnablingActions = ['apply', 'self_signed', 'letsencrypt_http', 'letsencrypt_dns']
+  if (sslEnablingActions.includes(action)) {
+    showMessage(t('settings.ssl.operation_success'), 'success')
+    await loadStatus()
+    selectedType.value = null
+
+    // Only redirect if currently on HTTP
+    if (window.location.protocol === 'http:') {
+      startHttpsRedirect()
+    }
+  } else if (action === 'renew') {
+    showMessage(t('settings.ssl.renewed_success'), 'success')
+    await loadStatus()
+  } else if (action === 'disable') {
+    showMessage(t('settings.ssl.disabled_success'), 'success')
+    await loadStatus()
+  }
+}
+
+const handleJobFailure = (job) => {
+  generating.value = false
+  validating.value = false
+  renewing.value = false
+
+  const errorMsg = job.error || t('settings.ssl.operation_failed')
+  showMessage(errorMsg, 'error')
+
+  // For validation failure, show in result
+  if (currentJob.value?.action === 'validate') {
+    validationResult.value = {
+      valid: false,
+      errors: [errorMsg],
+      warnings: [],
+      info: null
+    }
+  }
+}
+
+// HTTPS redirect
+const startHttpsRedirect = () => {
+  redirecting.value = true
+  redirectCountdown.value = 5
+
+  redirectInterval = setInterval(() => {
+    redirectCountdown.value--
+    if (redirectCountdown.value <= 0) {
+      redirectToHttps()
+    }
+  }, 1000)
+}
+
+const redirectToHttps = () => {
+  if (redirectInterval) {
+    clearInterval(redirectInterval)
+    redirectInterval = null
+  }
+  redirecting.value = false
+
+  // Redirect to HTTPS
+  const httpsUrl = window.location.href.replace('http:', 'https:')
+  window.location.href = httpsUrl
+}
+
+// Cleanup on unmount
+onUnmounted(() => {
+  stopJobPolling()
+  if (redirectInterval) {
+    clearInterval(redirectInterval)
+  }
+})
 
 onMounted(() => {
   loadStatus()

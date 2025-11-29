@@ -995,7 +995,18 @@
       "dns_instructions": "DNS Record Instructions",
       "add_txt_record": "Add the following TXT record to your DNS",
       "record_name": "Name",
-      "record_type": "Type"
+      "record_type": "Type",
+      "operation_in_progress": "SSL Operation in Progress",
+      "please_wait": "Please wait...",
+      "processing": "Processing...",
+      "starting_operation": "Starting operation...",
+      "job_id": "Job",
+      "operation_success": "SSL certificate configured successfully!",
+      "operation_failed": "SSL operation failed",
+      "ssl_configured": "SSL Configured Successfully!",
+      "redirecting_https": "Redirecting to HTTPS in...",
+      "or_click_redirect": "Or click the button to redirect now",
+      "redirect_now": "Redirect Now"
     },
     "system": {
       "title": "System Settings",
