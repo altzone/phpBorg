@@ -49,6 +49,7 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
         $phpborgRoot = $this->getPhpBorgRoot();
         $preUpdateBackupId = null;
         $currentCommit = $this->getCurrentCommit($phpborgRoot);
+        $codeUpdated = false; // Track if git pull succeeded (only rollback if true)
 
         try {
             // Step 1: Pre-checks (5%)
@@ -69,6 +70,7 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             $queue->updateProgress($job->id, 20, "Mise à jour du code depuis Git...");
             $this->logger->info("Updating code from git...", 'PHPBORG_UPDATE');
             $this->gitUpdate($phpborgRoot, $targetCommit);
+            $codeUpdated = true; // Git pull succeeded, rollback needed if anything fails from here
             $newCommit = $this->getCurrentCommit($phpborgRoot);
             $queue->updateProgress($job->id, 25, "Code mis à jour: " . substr($currentCommit, 0, 7) . " → " . substr($newCommit, 0, 7));
             $this->logger->info("Code updated", 'PHPBORG_UPDATE', [
@@ -184,12 +186,15 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             return $message;
 
         } catch (\Exception $e) {
-            $this->logger->error("Update failed, attempting rollback...", 'PHPBORG_UPDATE', [
-                'error' => $e->getMessage()
+            $this->logger->error("Update failed", 'PHPBORG_UPDATE', [
+                'error' => $e->getMessage(),
+                'code_updated' => $codeUpdated
             ]);
 
-            // Auto-rollback if we have a pre-update backup
-            if ($preUpdateBackupId) {
+            // Auto-rollback ONLY if code was updated (git pull succeeded)
+            // If git pull failed, nothing changed - no rollback needed
+            if ($preUpdateBackupId && $codeUpdated) {
+                $this->logger->info("Code was modified, attempting rollback...", 'PHPBORG_UPDATE');
                 try {
                     $this->logger->info("Rolling back to pre-update backup", 'PHPBORG_UPDATE', [
                         'backup_id' => $preUpdateBackupId
