@@ -71,12 +71,20 @@ Traditional (SSH Push):          phpBorg 2.0 (Agent Pull):
 - **Wizards**: Step-by-step server and backup configuration
 
 ### Security
+- **SSL/TLS Web Interface**: HTTPS with Let's Encrypt, self-signed, or custom certificates
 - **mTLS Agent Authentication**: Certificate-based mutual TLS
 - **Automatic Certificate Renewal**: 30 days before expiration
 - **Role-Based Access Control (RBAC)**: Admin and user roles
 - **JWT Authentication**: Access and refresh tokens
 - **Append-Only Borg Mode**: Ransomware protection for backups
 - **Dedicated Borg SSH Server**: Isolated SSH daemon on port 2222
+
+### SSL/TLS Configuration
+Configure HTTPS directly from the web interface (Settings → SSL/TLS):
+- **Let's Encrypt (HTTP-01)**: Automatic certificate via HTTP validation
+- **Let's Encrypt (DNS-01)**: Wildcard certificates via Cloudflare DNS
+- **Self-Signed**: Quick setup for internal/dev environments
+- **Custom Certificate**: Upload your own certificate and key
 
 ---
 
@@ -89,13 +97,14 @@ curl -fsSL https://raw.githubusercontent.com/altzone/phpBorg/master/install.sh |
 ```
 
 The installer will:
-1. Install all dependencies (PHP, Go, Node.js, MariaDB, Redis, Docker, Borg)
+1. Install all dependencies (PHP, Go, Node.js, MariaDB, Redis, Docker, Borg, Certbot)
 2. Setup database and create admin user
 3. Configure web server (Nginx)
 4. Build frontend and compile Go agent
 5. Generate Certificate Authority for mTLS
 6. Setup dedicated Borg SSH server
-7. Start all services
+7. Install Certbot for Let's Encrypt SSL
+8. Start all services
 
 **Installation time**: 10-20 minutes
 
