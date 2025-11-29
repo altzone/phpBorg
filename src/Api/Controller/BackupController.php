@@ -299,9 +299,10 @@ class BackupController extends BaseController
         
         // Format duration
         $duration = (float)($row['dur'] ?? 0);
-        $hours = (int)floor($duration / 3600);
-        $minutes = (int)floor(($duration % 3600) / 60);
-        $seconds = (int)round($duration % 60);
+        $durationInt = (int)$duration;
+        $hours = (int)floor($durationInt / 3600);
+        $minutes = (int)floor(($durationInt % 3600) / 60);
+        $seconds = $durationInt % 60;
         $durationFormatted = sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds);
 
         return [
