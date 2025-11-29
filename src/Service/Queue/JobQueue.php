@@ -164,11 +164,21 @@ final class JobQueue
     }
 
     /**
-     * Update job progress
+     * Update job progress (database + Redis for real-time UI)
      */
-    public function updateProgress(int $jobId, int $progress, ?string $output = null): void
+    public function updateProgress(int $jobId, int $progress, ?string $message = null): void
     {
-        $this->jobRepository->updateProgress($jobId, $progress, $output);
+        // Update database
+        $this->jobRepository->updateProgress($jobId, $progress, $message);
+
+        // Also update Redis for real-time UI updates
+        if ($message !== null) {
+            $this->setProgressInfo($jobId, [
+                'progress' => $progress,
+                'message' => $message,
+                'updated_at' => time()
+            ]);
+        }
     }
 
     /**
