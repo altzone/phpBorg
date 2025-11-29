@@ -406,6 +406,11 @@
           </form>
         </div>
 
+        <!-- SSL Settings -->
+        <div v-show="activeTab === 'ssl'">
+          <SslSettings />
+        </div>
+
         <!-- Update Settings -->
         <div v-show="activeTab === 'update'">
           <UpdateSettings />
@@ -470,6 +475,7 @@ import { useRoute } from 'vue-router'
 import { useSettingsStore } from '@/stores/settings'
 import { emailService } from '@/services/email'
 import UpdateSettings from '@/components/UpdateSettings.vue'
+import SslSettings from '@/components/settings/SslSettings.vue'
 import phpborgUpdateService from '@/services/phpborgUpdate'
 
 const { t } = useI18n()
@@ -495,6 +501,7 @@ const tabs = computed(() => [
   { id: 'borg', label: t('settings.tabs.borg') },
   { id: 'security', label: t('settings.tabs.security') },
   { id: 'network', label: t('settings.tabs.network') },
+  { id: 'ssl', label: t('settings.tabs.ssl') },
   { id: 'system', label: t('settings.tabs.system') },
   { id: 'update', label: t('settings.tabs.update') },
 ])

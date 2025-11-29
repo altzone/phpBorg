@@ -585,32 +585,6 @@ final class AgentGatewayController extends BaseController
     }
 
     /**
-     * Get the path to the agent binary for a specific version
-     */
-    private function getAgentBinaryPath(string $releasesDir, string $version): ?string
-    {
-        // Check versioned directory first
-        $versionedPath = $releasesDir . '/' . $version . '/phpborg-agent';
-        if (file_exists($versionedPath)) {
-            return $versionedPath;
-        }
-
-        // Check v-prefixed version directory
-        $vVersionedPath = $releasesDir . '/v' . $version . '/phpborg-agent';
-        if (file_exists($vVersionedPath)) {
-            return $vVersionedPath;
-        }
-
-        // Fallback to root releases directory
-        $rootPath = $releasesDir . '/phpborg-agent';
-        if (file_exists($rootPath)) {
-            return $rootPath;
-        }
-
-        return null;
-    }
-
-    /**
      * Renew agent certificate
      * POST /api/agent/certificate/renew
      *

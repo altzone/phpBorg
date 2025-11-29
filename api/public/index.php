@@ -44,6 +44,7 @@ use PhpBorg\Api\Controller\WorkerStreamController;
 use PhpBorg\Api\Controller\SetupController;
 use PhpBorg\Api\Controller\AgentGatewayController;
 use PhpBorg\Api\Controller\DownloadController;
+use PhpBorg\Api\Controller\SslController;
 
 try {
     // Initialize application
@@ -212,6 +213,23 @@ try {
     $router->get('/settings/:category', SettingsController::class, 'getByCategory', requireAuth: true);
     $router->put('/settings', SettingsController::class, 'update', requireAuth: true);
     $router->put('/settings/:category', SettingsController::class, 'updateCategory', requireAuth: true);
+
+    // ===========================================
+    // SSL/TLS Certificate Routes (Protected)
+    // ===========================================
+    $router->get('/ssl/status', SslController::class, 'getStatus', requireAuth: true);
+    $router->post('/ssl/self-signed', SslController::class, 'generateSelfSigned', requireAuth: true);
+    $router->post('/ssl/letsencrypt/http', SslController::class, 'requestLetsEncryptHttp', requireAuth: true);
+    $router->post('/ssl/letsencrypt/cloudflare', SslController::class, 'requestLetsEncryptCloudflare', requireAuth: true);
+    $router->post('/ssl/letsencrypt/dns-challenge', SslController::class, 'getDnsChallenge', requireAuth: true);
+    $router->post('/ssl/upload', SslController::class, 'uploadCertificate', requireAuth: true);
+    $router->post('/ssl/disable', SslController::class, 'disable', requireAuth: true);
+    $router->post('/ssl/renew', SslController::class, 'renewCertificate', requireAuth: true);
+    $router->post('/ssl/test-renewal', SslController::class, 'testRenewal', requireAuth: true);
+    $router->get('/ssl/auto-renewal-status', SslController::class, 'getAutoRenewalStatus', requireAuth: true);
+    $router->post('/ssl/ensure-auto-renewal', SslController::class, 'ensureAutoRenewal', requireAuth: true);
+    $router->post('/ssl/cloudflare/test', SslController::class, 'testCloudflareToken', requireAuth: true);
+    $router->post('/ssl/cloudflare/zones', SslController::class, 'getCloudflareZones', requireAuth: true);
 
     // ===========================================
     // Storage Pool Routes (Protected)

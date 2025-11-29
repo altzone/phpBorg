@@ -240,6 +240,7 @@ load_modules() {
         "services"
         "webserver"
         "frontend"
+        "ssl"
     )
 
     for module in "${modules[@]}"; do
@@ -329,6 +330,9 @@ run_installation() {
         log_info "Frontend already setup (skipped)"
     fi
 
+    # Phase 8: SSL Setup (Optional)
+    setup_ssl || true  # SSL setup is optional, don't count as error
+
     # Calculate installation time
     local end_time=$(date +%s)
     local duration=$((end_time - start_time))
@@ -407,8 +411,16 @@ print_post_installation_info() {
     echo "  1. Access the web interface and login with admin credentials"
     echo "  2. Configure your first backup server"
     echo "  3. Create a backup job"
-    echo "  4. Configure SSL/TLS for production (optional)"
-    echo "  5. Setup email notifications (optional)"
+    echo ""
+
+    # SSL status
+    if [ -f "/etc/phpborg/ssl/cert.pem" ]; then
+        echo -e "${GREEN}SSL Status:${NC}"
+        echo "  SSL is configured and active"
+    else
+        echo -e "${YELLOW}SSL Setup (recommended for production):${NC}"
+        echo "  Run: ${PHPBORG_ROOT}/bin/setup-ssl.sh"
+    fi
     echo ""
 
     # Documentation
