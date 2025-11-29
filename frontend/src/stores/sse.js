@@ -177,6 +177,51 @@ export const useSSEStore = defineStore('sse', () => {
         reconnectAttempts.value = 0
       })
 
+      // Token expiring warning - proactively refresh before expiration
+      eventSource.value.addEventListener('token_expiring', async (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          console.log(`[SSE] Token expiring in ${data.expires_in}s, refreshing proactively...`)
+
+          // Refresh token before it expires
+          const refreshed = await authStore.refreshAccessToken()
+          if (refreshed) {
+            console.log('[SSE] Token refreshed, reconnecting with new token...')
+            // Small delay to ensure new token is available
+            setTimeout(() => {
+              reconnect()
+            }, 500)
+          } else {
+            console.warn('[SSE] Token refresh failed, will switch to polling when expired')
+          }
+        } catch (e) {
+          console.error('[SSE] Error handling token_expiring:', e)
+        }
+      })
+
+      // Graceful close event - server is asking us to reconnect
+      eventSource.value.addEventListener('close', (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          console.log(`[SSE] Server requested close: ${data.reason} - ${data.message}`)
+
+          // Close current connection
+          if (eventSource.value) {
+            eventSource.value.close()
+            eventSource.value = null
+          }
+
+          // Reconnect after short delay
+          reconnectAttempts.value = 0 // Reset since this is expected
+          setTimeout(() => {
+            console.log('[SSE] Reconnecting after graceful close...')
+            setupSSE()
+          }, 1000)
+        } catch (e) {
+          console.error('[SSE] Error handling close event:', e)
+        }
+      })
+
       // Handle token expiration errors sent as message events
       eventSource.value.addEventListener('message', (event) => {
         try {

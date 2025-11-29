@@ -93,6 +93,35 @@ export const useAuthStore = defineStore('auth', () => {
     return roles.some((role) => hasRole(role))
   }
 
+  /**
+   * Refresh the access token using the stored refresh token
+   * @returns {Promise<boolean>} True if refresh succeeded
+   */
+  async function refreshAccessToken() {
+    const currentRefreshToken = refreshToken.value || localStorage.getItem('refresh_token')
+    if (!currentRefreshToken) {
+      console.warn('[Auth] No refresh token available')
+      return false
+    }
+
+    try {
+      const data = await authService.refreshToken(currentRefreshToken)
+
+      // Store new tokens
+      accessToken.value = data.access_token
+      refreshToken.value = data.refresh_token
+      localStorage.setItem('access_token', data.access_token)
+      localStorage.setItem('refresh_token', data.refresh_token)
+
+      console.log('[Auth] Token refreshed successfully')
+      return true
+    } catch (err) {
+      console.error('[Auth] Token refresh failed:', err)
+      error.value = err.response?.data?.error?.message || 'Token refresh failed'
+      return false
+    }
+  }
+
   return {
     // State
     user,
@@ -112,5 +141,6 @@ export const useAuthStore = defineStore('auth', () => {
     fetchCurrentUser,
     hasRole,
     hasAnyRole,
+    refreshAccessToken,
   }
 })

@@ -38,6 +38,12 @@ class SSEController extends BaseController
      */
     public function stream(): void
     {
+        // Disable output buffering for real-time streaming
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        ob_implicit_flush(true);
+
         // Set SSE headers
         header('Content-Type: text/event-stream');
         header('Cache-Control: no-cache');
@@ -53,7 +59,8 @@ class SSEController extends BaseController
             return;
         }
 
-        // Validate JWT token
+        // Validate JWT token and get expiration time
+        $tokenExpiration = 0;
         try {
             $app = new Application();
             $jwtService = $app->getJwtService();
@@ -65,6 +72,9 @@ class SSEController extends BaseController
                 flush();
                 return;
             }
+
+            // Get token expiration from JWT payload
+            $tokenExpiration = $payload['exp'] ?? (time() + 900);
         } catch (\Exception $e) {
             echo "event: error\n";
             echo "data: " . json_encode(['error' => 'Token verification failed: ' . $e->getMessage()]) . "\n\n";
@@ -78,13 +88,23 @@ class SSEController extends BaseController
         $lastRecoveryHash = null;
         $lastServersHash = null;
 
-        // Stream loop
+        // Timing controls
         $startTime = time();
-        $maxDuration = 900; // 15 minutes max (before token expires)
+        $lastHeartbeat = $startTime;
+        $lastWorkersCheck = 0;
+        $lastServersCheck = 0;
+        $tokenExpiringWarned = false;
+        $maxDuration = min(900, $tokenExpiration - time() - 30); // Stop 30s before token expires
 
         while (true) {
+            $now = time();
+
             // Check if we should stop (max duration or connection closed)
-            if (time() - $startTime > $maxDuration) {
+            if ($now - $startTime > $maxDuration) {
+                // Send graceful close event
+                echo "event: close\n";
+                echo "data: " . json_encode(['reason' => 'session_timeout', 'message' => 'Please reconnect']) . "\n\n";
+                flush();
                 break;
             }
 
@@ -92,11 +112,21 @@ class SSEController extends BaseController
                 break;
             }
 
-            // Send heartbeat every 15 seconds
-            if (time() % 15 === 0) {
-                echo "event: heartbeat\n";
-                echo "data: " . json_encode(['timestamp' => time()]) . "\n\n";
+            // Warn client 60 seconds before token expires (only once)
+            $timeUntilExpiry = $tokenExpiration - $now;
+            if (!$tokenExpiringWarned && $timeUntilExpiry <= 60 && $timeUntilExpiry > 0) {
+                echo "event: token_expiring\n";
+                echo "data: " . json_encode(['expires_in' => $timeUntilExpiry]) . "\n\n";
                 flush();
+                $tokenExpiringWarned = true;
+            }
+
+            // Send heartbeat every 15 seconds (based on elapsed time, not wall-clock)
+            if ($now - $lastHeartbeat >= 15) {
+                echo "event: heartbeat\n";
+                echo "data: " . json_encode(['timestamp' => $now, 'uptime' => $now - $startTime]) . "\n\n";
+                flush();
+                $lastHeartbeat = $now;
             }
 
             // JOBS: Get all jobs and send if changed
@@ -139,33 +169,37 @@ class SSEController extends BaseController
                 error_log("SSE jobs error: " . $e->getMessage());
             }
 
-            // WORKERS: Stream worker status
-            try {
-                $workers = [];
+            // WORKERS: Stream worker status (every 3 seconds - balance between reactivity and performance)
+            if ($now - $lastWorkersCheck >= 3) {
+                try {
+                    $workers = [];
 
-                // Get scheduler status
-                $workers[] = $this->getServiceStatus('phpborg-scheduler');
+                    // Get scheduler status
+                    $workers[] = $this->getServiceStatus('phpborg-scheduler');
 
-                // Get worker pool status (1 to 4)
-                for ($i = 1; $i <= 4; $i++) {
-                    $workers[] = $this->getServiceStatus("phpborg-worker@{$i}");
+                    // Get worker pool status (1 to 4)
+                    for ($i = 1; $i <= 4; $i++) {
+                        $workers[] = $this->getServiceStatus("phpborg-worker@{$i}");
+                    }
+
+                    $workersData = [
+                        'workers' => $workers,
+                        'total' => count($workers),
+                    ];
+
+                    $workersHash = md5(json_encode($workersData));
+
+                    if ($workersHash !== $lastWorkersHash) {
+                        echo "event: workers\n";
+                        echo "data: " . json_encode($workersData) . "\n\n";
+                        flush();
+                        $lastWorkersHash = $workersHash;
+                    }
+
+                    $lastWorkersCheck = $now;
+                } catch (\Exception $e) {
+                    error_log("SSE workers error: " . $e->getMessage());
                 }
-
-                $workersData = [
-                    'workers' => $workers,
-                    'total' => count($workers),
-                ];
-
-                $workersHash = md5(json_encode($workersData));
-
-                if ($workersHash !== $lastWorkersHash) {
-                    echo "event: workers\n";
-                    echo "data: " . json_encode($workersData) . "\n\n";
-                    flush();
-                    $lastWorkersHash = $workersHash;
-                }
-            } catch (\Exception $e) {
-                error_log("SSE workers error: " . $e->getMessage());
             }
 
             // INSTANT RECOVERY: Stream active sessions
@@ -228,68 +262,72 @@ class SSEController extends BaseController
                 error_log("SSE instant recovery error: " . $e->getMessage());
             }
 
-            // SERVERS: Stream server list with agent status
-            try {
-                $servers = $this->serverRepo->findAll();
-                $latestVersion = \PhpBorg\Api\Controller\DownloadController::getLatestAgentVersion();
+            // SERVERS: Stream server list with agent status (every 3 seconds)
+            if ($now - $lastServersCheck >= 3) {
+                try {
+                    $servers = $this->serverRepo->findAll();
+                    $latestVersion = \PhpBorg\Api\Controller\DownloadController::getLatestAgentVersion();
 
-                $serversData = [
-                    'servers' => array_map(function($server) use ($latestVersion) {
-                        $serverArray = $server->toArray();
+                    $serversData = [
+                        'servers' => array_map(function($server) use ($latestVersion) {
+                            $serverArray = $server->toArray();
 
-                        // Add agent info if applicable
-                        if ($server->connectionMode === 'agent') {
-                            $isOnline = false;
-                            $lastSeenAgo = null;
+                            // Add agent info if applicable
+                            if ($server->connectionMode === 'agent') {
+                                $isOnline = false;
+                                $lastSeenAgo = null;
 
-                            if ($server->agentLastHeartbeat) {
-                                $now = new \DateTime();
-                                $diff = $now->getTimestamp() - $server->agentLastHeartbeat->getTimestamp();
-                                $isOnline = $diff < 300;
+                                if ($server->agentLastHeartbeat) {
+                                    $nowDt = new \DateTime();
+                                    $diff = $nowDt->getTimestamp() - $server->agentLastHeartbeat->getTimestamp();
+                                    $isOnline = $diff < 300;
 
-                                if ($diff < 60) {
-                                    $lastSeenAgo = $diff . 's';
-                                } elseif ($diff < 3600) {
-                                    $lastSeenAgo = floor($diff / 60) . 'm';
-                                } elseif ($diff < 86400) {
-                                    $lastSeenAgo = floor($diff / 3600) . 'h';
-                                } else {
-                                    $lastSeenAgo = floor($diff / 86400) . 'd';
+                                    if ($diff < 60) {
+                                        $lastSeenAgo = $diff . 's';
+                                    } elseif ($diff < 3600) {
+                                        $lastSeenAgo = floor($diff / 60) . 'm';
+                                    } elseif ($diff < 86400) {
+                                        $lastSeenAgo = floor($diff / 3600) . 'h';
+                                    } else {
+                                        $lastSeenAgo = floor($diff / 86400) . 'd';
+                                    }
                                 }
+
+                                $needsUpdate = false;
+                                if ($server->agentVersion && $latestVersion) {
+                                    $needsUpdate = version_compare($server->agentVersion, $latestVersion, '<');
+                                }
+
+                                $serverArray['agent'] = [
+                                    'uuid' => $server->agentUuid,
+                                    'status' => $server->agentStatus,
+                                    'version' => $server->agentVersion,
+                                    'latest_version' => $latestVersion,
+                                    'needs_update' => $needsUpdate,
+                                    'is_online' => $isOnline,
+                                    'last_heartbeat' => $server->agentLastHeartbeat?->format('Y-m-d H:i:s'),
+                                    'last_seen_ago' => $lastSeenAgo,
+                                ];
                             }
 
-                            $needsUpdate = false;
-                            if ($server->agentVersion && $latestVersion) {
-                                $needsUpdate = version_compare($server->agentVersion, $latestVersion, '<');
-                            }
+                            return $serverArray;
+                        }, $servers),
+                        'timestamp' => $now
+                    ];
 
-                            $serverArray['agent'] = [
-                                'uuid' => $server->agentUuid,
-                                'status' => $server->agentStatus,
-                                'version' => $server->agentVersion,
-                                'latest_version' => $latestVersion,
-                                'needs_update' => $needsUpdate,
-                                'is_online' => $isOnline,
-                                'last_heartbeat' => $server->agentLastHeartbeat?->format('Y-m-d H:i:s'),
-                                'last_seen_ago' => $lastSeenAgo,
-                            ];
-                        }
+                    $serversHash = md5(json_encode($serversData));
 
-                        return $serverArray;
-                    }, $servers),
-                    'timestamp' => time()
-                ];
+                    if ($serversHash !== $lastServersHash) {
+                        echo "event: servers\n";
+                        echo "data: " . json_encode($serversData) . "\n\n";
+                        flush();
+                        $lastServersHash = $serversHash;
+                    }
 
-                $serversHash = md5(json_encode($serversData));
-
-                if ($serversHash !== $lastServersHash) {
-                    echo "event: servers\n";
-                    echo "data: " . json_encode($serversData) . "\n\n";
-                    flush();
-                    $lastServersHash = $serversHash;
+                    $lastServersCheck = $now;
+                } catch (\Exception $e) {
+                    error_log("SSE servers error: " . $e->getMessage());
                 }
-            } catch (\Exception $e) {
-                error_log("SSE servers error: " . $e->getMessage());
             }
 
             // Sleep to avoid hammering the server
