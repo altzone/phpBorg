@@ -981,7 +981,21 @@
       "renewal_test_success": "Renewal test successful! Certificate can be renewed.",
       "renewal_test_failed": "Renewal test failed",
       "renewed_success": "Certificate renewed successfully!",
-      "disabled_success": "SSL disabled. Connection is now HTTP."
+      "disabled_success": "SSL disabled. Connection is now HTTP.",
+      "upload_file": "Upload file",
+      "validation_success": "Certificate is valid",
+      "validation_failed": "Certificate validation failed",
+      "validate_first": "Validate Certificate",
+      "apply_certificate": "Apply Certificate",
+      "validate_hint": "Please validate the certificate before applying to ensure nginx won't fail.",
+      "manual": "Manual",
+      "dns_manual_desc": "Create TXT record manually in your DNS provider",
+      "dns_manual_info": "Click the button below to get the DNS record you need to create. After creating it, wait a few minutes for propagation.",
+      "get_dns_challenge": "Get DNS Challenge",
+      "dns_instructions": "DNS Record Instructions",
+      "add_txt_record": "Add the following TXT record to your DNS",
+      "record_name": "Name",
+      "record_type": "Type"
     },
     "system": {
       "title": "System Settings",

@@ -171,6 +171,24 @@ get_golang_packages() {
     esac
 }
 
+# Certbot packages (for Let's Encrypt SSL)
+get_certbot_packages() {
+    case "${OS_DISTRO}" in
+        debian|ubuntu|linuxmint|pop)
+            echo "certbot python3-certbot-nginx python3-certbot-dns-cloudflare"
+            ;;
+        rhel|centos|rocky|almalinux|fedora)
+            echo "certbot python3-certbot-nginx python3-certbot-dns-cloudflare"
+            ;;
+        arch|manjaro)
+            echo "certbot certbot-nginx certbot-dns-cloudflare"
+            ;;
+        alpine)
+            echo "certbot certbot-nginx certbot-dns-cloudflare"
+            ;;
+    esac
+}
+
 # Utility packages
 get_utility_packages() {
     case "${OS_DISTRO}" in
@@ -750,6 +768,35 @@ install_golang() {
     fi
 }
 
+install_certbot() {
+    print_section "Installing Certbot (Let's Encrypt)"
+
+    # Check if certbot is already installed
+    if command -v certbot &>/dev/null; then
+        local certbot_version=$(certbot --version 2>&1 | awk '{print $2}')
+        log_info "Certbot already installed: ${certbot_version}"
+        save_state "install_certbot" "completed"
+        return 0
+    fi
+
+    local packages=$(get_certbot_packages)
+
+    if install_packages_with_progress "Installing Certbot" "${packages}"; then
+        if command -v certbot &>/dev/null; then
+            local certbot_version=$(certbot --version 2>&1 | awk '{print $2}')
+            log_success "Certbot installed: ${certbot_version}"
+            save_state "install_certbot" "completed"
+            return 0
+        else
+            log_error "Certbot installed but not found in PATH"
+            return 1
+        fi
+    else
+        log_error "Failed to install Certbot"
+        return 1
+    fi
+}
+
 build_phpborg_agent() {
     print_section "Building phpBorg Agent"
 
@@ -835,6 +882,7 @@ install_all_dependencies() {
     configure_fuse || errors=$((errors + 1))
     install_fuse_overlayfs || errors=$((errors + 1))
     install_golang || errors=$((errors + 1))
+    install_certbot || errors=$((errors + 1))
 
     if [ ${errors} -eq 0 ]; then
         log_success "All dependencies installed successfully"

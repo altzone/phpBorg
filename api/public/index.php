@@ -222,6 +222,7 @@ try {
     $router->post('/ssl/letsencrypt/http', SslController::class, 'requestLetsEncryptHttp', requireAuth: true);
     $router->post('/ssl/letsencrypt/cloudflare', SslController::class, 'requestLetsEncryptCloudflare', requireAuth: true);
     $router->post('/ssl/letsencrypt/dns-challenge', SslController::class, 'getDnsChallenge', requireAuth: true);
+    $router->post('/ssl/validate', SslController::class, 'validateCertificate', requireAuth: true);
     $router->post('/ssl/upload', SslController::class, 'uploadCertificate', requireAuth: true);
     $router->post('/ssl/disable', SslController::class, 'disable', requireAuth: true);
     $router->post('/ssl/renew', SslController::class, 'renewCertificate', requireAuth: true);
@@ -230,6 +231,8 @@ try {
     $router->post('/ssl/ensure-auto-renewal', SslController::class, 'ensureAutoRenewal', requireAuth: true);
     $router->post('/ssl/cloudflare/test', SslController::class, 'testCloudflareToken', requireAuth: true);
     $router->post('/ssl/cloudflare/zones', SslController::class, 'getCloudflareZones', requireAuth: true);
+    $router->get('/ssl/domain', SslController::class, 'getDomain', requireAuth: true);
+    $router->post('/ssl/domain', SslController::class, 'setDomain', requireAuth: true);
 
     // ===========================================
     // Storage Pool Routes (Protected)

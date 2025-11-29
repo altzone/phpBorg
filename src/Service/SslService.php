@@ -337,60 +337,141 @@ final class SslService
     }
 
     /**
+     * Validate certificate without applying (for testing before upload)
+     */
+    public function validateCertificate(string $cert, string $key, ?string $chain = null): array
+    {
+        $errors = [];
+        $warnings = [];
+        $info = [];
+
+        // Validate certificate format
+        $certData = openssl_x509_parse($cert);
+        if (!$certData) {
+            $errors[] = "Invalid certificate format - cannot parse PEM";
+            return ['valid' => false, 'errors' => $errors, 'warnings' => $warnings, 'info' => $info];
+        }
+
+        $info['domain'] = $certData['subject']['CN'] ?? 'unknown';
+        $info['issuer'] = $certData['issuer']['CN'] ?? $certData['issuer']['O'] ?? 'Unknown';
+        $info['valid_from'] = date('Y-m-d H:i:s', $certData['validFrom_time_t']);
+        $info['valid_to'] = date('Y-m-d H:i:s', $certData['validTo_time_t']);
+
+        // Check expiry
+        $daysRemaining = ($certData['validTo_time_t'] - time()) / 86400;
+        $info['days_remaining'] = (int) $daysRemaining;
+
+        if ($daysRemaining <= 0) {
+            $errors[] = "Certificate has expired!";
+        } elseif ($daysRemaining <= 7) {
+            $warnings[] = "Certificate expires in {$info['days_remaining']} days - critical!";
+        } elseif ($daysRemaining <= 30) {
+            $warnings[] = "Certificate expires in {$info['days_remaining']} days - consider renewing soon";
+        }
+
+        // Validate private key format
+        $keyResource = openssl_pkey_get_private($key);
+        if (!$keyResource) {
+            $errors[] = "Invalid private key format - cannot parse PEM";
+            return ['valid' => false, 'errors' => $errors, 'warnings' => $warnings, 'info' => $info];
+        }
+
+        // Verify key matches certificate
+        if (!openssl_x509_check_private_key($cert, $keyResource)) {
+            $errors[] = "Private key does not match certificate - keys must be paired";
+            return ['valid' => false, 'errors' => $errors, 'warnings' => $warnings, 'info' => $info];
+        }
+
+        // Validate chain if provided
+        if ($chain) {
+            $chainData = openssl_x509_parse($chain);
+            if (!$chainData) {
+                $warnings[] = "CA chain format may be invalid - could cause browser warnings";
+            }
+        }
+
+        return [
+            'valid' => count($errors) === 0,
+            'errors' => $errors,
+            'warnings' => $warnings,
+            'info' => $info,
+        ];
+    }
+
+    /**
      * Upload custom certificate
      */
     public function uploadCertificate(string $cert, string $key, ?string $chain = null): array
     {
         $this->logger->info("Uploading custom certificate", 'SSL');
 
-        // Validate certificate
+        // First validate everything
+        $validation = $this->validateCertificate($cert, $key, $chain);
+        if (!$validation['valid']) {
+            throw new \Exception("Certificate validation failed: " . implode(', ', $validation['errors']));
+        }
+
+        // Parse certificate for info
         $certData = openssl_x509_parse($cert);
-        if (!$certData) {
-            throw new \Exception("Invalid certificate format");
-        }
-
-        // Validate private key
-        $keyResource = openssl_pkey_get_private($key);
-        if (!$keyResource) {
-            throw new \Exception("Invalid private key format");
-        }
-
-        // Verify key matches certificate
-        if (!openssl_x509_check_private_key($cert, $keyResource)) {
-            throw new \Exception("Private key does not match certificate");
-        }
+        $domain = $certData['subject']['CN'] ?? 'unknown';
 
         $this->ensureCertDir();
 
-        // Save files
+        // Save to temporary location first
+        $tempDir = self::CERT_DIR . '/temp_' . uniqid();
+        mkdir($tempDir, 0700, true);
+
+        $tempCertFile = $tempDir . '/cert.pem';
+        $tempKeyFile = $tempDir . '/privkey.pem';
+        $tempFullchainFile = $tempDir . '/fullchain.pem';
+
+        file_put_contents($tempKeyFile, $key);
+        chmod($tempKeyFile, 0600);
+
+        if ($chain) {
+            file_put_contents($tempFullchainFile, $cert . "\n" . $chain);
+        } else {
+            file_put_contents($tempFullchainFile, $cert);
+        }
+        file_put_contents($tempCertFile, $cert);
+        chmod($tempCertFile, 0644);
+        chmod($tempFullchainFile, 0644);
+
+        // Test nginx config with new certificates BEFORE applying
+        $testResult = $this->testNginxConfigWithCerts($domain, $tempDir);
+        if (!$testResult['success']) {
+            // Cleanup temp files
+            $this->removeDir($tempDir);
+            throw new \Exception("Nginx configuration test failed: " . $testResult['error']);
+        }
+
+        // Backup current certificates if they exist
+        $this->backupCurrentCerts();
+
+        // Move temp files to final location
         $certFile = self::CERT_DIR . '/cert.pem';
         $keyFile = self::CERT_DIR . '/privkey.pem';
         $chainFile = self::CERT_DIR . '/chain.pem';
         $fullchainFile = self::CERT_DIR . '/fullchain.pem';
 
-        file_put_contents($keyFile, $key);
-        chmod($keyFile, 0600);
+        rename($tempKeyFile, $keyFile);
+        rename($tempCertFile, $certFile);
+        rename($tempFullchainFile, $fullchainFile);
 
         if ($chain) {
             file_put_contents($chainFile, $chain);
-            file_put_contents($fullchainFile, $cert . "\n" . $chain);
-            file_put_contents($certFile, $cert);
-        } else {
-            file_put_contents($certFile, $cert);
-            file_put_contents($fullchainFile, $cert);
+            chmod($chainFile, 0644);
         }
 
-        chmod($certFile, 0644);
-        chmod($fullchainFile, 0644);
-
-        $domain = $certData['subject']['CN'] ?? 'unknown';
+        // Cleanup temp directory
+        @rmdir($tempDir);
 
         // Save settings
         $this->settings->set('ssl.type', 'custom');
         $this->settings->set('ssl.domain', $domain);
         $this->settings->set('ssl.enabled', '1');
 
-        // Update nginx config
+        // Update nginx config (already tested)
         $this->updateNginxConfig($domain);
 
         $this->logger->info("Custom certificate uploaded successfully", 'SSL');
@@ -401,7 +482,91 @@ final class SslService
             'domain' => $domain,
             'issuer' => $certData['issuer']['CN'] ?? $certData['issuer']['O'] ?? 'Unknown',
             'valid_to' => date('Y-m-d H:i:s', $certData['validTo_time_t']),
+            'warnings' => $validation['warnings'],
         ];
+    }
+
+    /**
+     * Test nginx config with specific certificates (without applying)
+     */
+    private function testNginxConfigWithCerts(string $domain, string $certDir): array
+    {
+        $phpborgRoot = dirname(__DIR__, 2);
+        $phpFpmSock = $this->detectPhpFpmSocket();
+
+        // Generate test config
+        $templateFile = $phpborgRoot . '/install/templates/nginx-ssl.conf.template';
+        if (file_exists($templateFile)) {
+            $template = file_get_contents($templateFile);
+        } else {
+            $template = $this->getInlineSslTemplate();
+        }
+
+        $testConfig = str_replace(
+            ['__DOMAIN__', '__PHPBORG_ROOT__', '__CERT_DIR__', '__PHP_FPM_SOCK__'],
+            [$domain, $phpborgRoot, $certDir, $phpFpmSock],
+            $template
+        );
+
+        // Write to temp config file
+        $tempConfigFile = '/tmp/phpborg-nginx-test-' . uniqid() . '.conf';
+        file_put_contents($tempConfigFile, $testConfig);
+
+        // Test the configuration
+        exec("nginx -t -c /etc/nginx/nginx.conf 2>&1", $output, $exitCode);
+
+        // Also test with our specific config included
+        exec("nginx -t 2>&1", $output2, $exitCode2);
+
+        // Cleanup
+        @unlink($tempConfigFile);
+
+        if ($exitCode !== 0 || $exitCode2 !== 0) {
+            return [
+                'success' => false,
+                'error' => implode("\n", array_merge($output, $output2)),
+            ];
+        }
+
+        return ['success' => true];
+    }
+
+    /**
+     * Backup current certificates
+     */
+    private function backupCurrentCerts(): void
+    {
+        $backupDir = self::CERT_DIR . '/backup_' . date('Y-m-d_His');
+
+        if (file_exists(self::CERT_DIR . '/cert.pem')) {
+            mkdir($backupDir, 0700, true);
+
+            foreach (['cert.pem', 'privkey.pem', 'fullchain.pem', 'chain.pem'] as $file) {
+                $src = self::CERT_DIR . '/' . $file;
+                if (file_exists($src)) {
+                    copy($src, $backupDir . '/' . $file);
+                }
+            }
+
+            $this->logger->info("Current certificates backed up to {$backupDir}", 'SSL');
+        }
+    }
+
+    /**
+     * Remove directory recursively
+     */
+    private function removeDir(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $files = array_diff(scandir($dir), ['.', '..']);
+        foreach ($files as $file) {
+            $path = $dir . '/' . $file;
+            is_dir($path) ? $this->removeDir($path) : unlink($path);
+        }
+        rmdir($dir);
     }
 
     /**
@@ -672,9 +837,9 @@ CRON;
         $phpborgRoot = dirname(__DIR__, 2);
 
         if ($enableSsl && $domain) {
-            $template = $this->getNginxSslTemplate($domain, $phpborgRoot);
+            $config = $this->generateNginxSslConfig($domain, $phpborgRoot);
         } else {
-            $template = $this->getNginxHttpTemplate($phpborgRoot);
+            $config = $this->generateNginxHttpConfig($phpborgRoot);
         }
 
         // Backup current config
@@ -682,7 +847,7 @@ CRON;
             copy(self::NGINX_CONF, self::NGINX_CONF . '.bak');
         }
 
-        file_put_contents(self::NGINX_CONF, $template);
+        file_put_contents(self::NGINX_CONF, $config);
 
         // Ensure symlink exists
         if (!file_exists(self::NGINX_ENABLED)) {
@@ -708,91 +873,209 @@ CRON;
         }
     }
 
-    private function getNginxSslTemplate(string $domain, string $phpborgRoot): string
+    /**
+     * Generate nginx SSL config from template
+     */
+    private function generateNginxSslConfig(string $domain, string $phpborgRoot): string
     {
-        $certDir = self::CERT_DIR;
+        $templateFile = $phpborgRoot . '/install/templates/nginx-ssl.conf.template';
 
-        return <<<NGINX
+        if (file_exists($templateFile)) {
+            $template = file_get_contents($templateFile);
+        } else {
+            // Fallback to inline template if file not found
+            $template = $this->getInlineSslTemplate();
+        }
+
+        $phpFpmSock = $this->detectPhpFpmSocket();
+
+        return str_replace(
+            ['__DOMAIN__', '__PHPBORG_ROOT__', '__CERT_DIR__', '__PHP_FPM_SOCK__'],
+            [$domain, $phpborgRoot, self::CERT_DIR, $phpFpmSock],
+            $template
+        );
+    }
+
+    /**
+     * Generate nginx HTTP config from template
+     */
+    private function generateNginxHttpConfig(string $phpborgRoot): string
+    {
+        $templateFile = $phpborgRoot . '/install/templates/nginx.conf.template';
+
+        if (file_exists($templateFile)) {
+            $template = file_get_contents($templateFile);
+            $phpVersion = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
+
+            return str_replace(
+                ['__DOMAIN__', '__PHPBORG_ROOT__', '__PHP_VERSION__'],
+                ['_', $phpborgRoot, $phpVersion],
+                $template
+            );
+        }
+
+        // Fallback to inline template
+        return $this->getInlineHttpTemplate($phpborgRoot);
+    }
+
+    /**
+     * Detect the PHP-FPM socket path
+     */
+    private function detectPhpFpmSocket(): string
+    {
+        $phpVersion = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
+
+        $possibleSockets = [
+            "/run/php/phpborg-{$phpVersion}-fpm.sock",
+            "/run/php/phpborg-fpm.sock",
+            "/run/php/php{$phpVersion}-fpm.sock",
+            "/run/php-fpm/php-fpm.sock",
+            "/var/run/php/php{$phpVersion}-fpm.sock",
+            "/var/run/php/php-fpm.sock",
+        ];
+
+        foreach ($possibleSockets as $socket) {
+            if (file_exists($socket)) {
+                return $socket;
+            }
+        }
+
+        return "/run/php/php{$phpVersion}-fpm.sock";
+    }
+
+    /**
+     * Get domain from settings or detect from current certificate
+     */
+    public function getDomain(): ?string
+    {
+        // First check settings
+        $domain = $this->settings->get('ssl.domain');
+        if ($domain) {
+            return $domain;
+        }
+
+        // Try to get from app.domain setting
+        $domain = $this->settings->get('app.domain');
+        if ($domain) {
+            return $domain;
+        }
+
+        // Try to detect from current certificate
+        $certFile = self::CERT_DIR . '/cert.pem';
+        if (file_exists($certFile)) {
+            $certData = openssl_x509_parse(file_get_contents($certFile));
+            if ($certData && isset($certData['subject']['CN'])) {
+                return $certData['subject']['CN'];
+            }
+        }
+
+        // Try to detect from current nginx config
+        if (file_exists(self::NGINX_CONF)) {
+            $config = file_get_contents(self::NGINX_CONF);
+            if (preg_match('/server_name\s+([^;\s]+);/', $config, $matches)) {
+                if ($matches[1] !== '_') {
+                    return $matches[1];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Set domain in settings
+     */
+    public function setDomain(string $domain): void
+    {
+        $this->settings->set('ssl.domain', $domain);
+        $this->settings->set('app.domain', $domain);
+    }
+
+    /**
+     * Inline SSL template fallback
+     */
+    private function getInlineSslTemplate(): string
+    {
+        return <<<'NGINX'
 # phpBorg Nginx Configuration (SSL)
 # Generated by phpBorg SSL Service
 
-# Redirect HTTP to HTTPS
 server {
     listen 80;
     listen [::]:80;
-    server_name {$domain};
+    server_name __DOMAIN__;
 
-    # Allow Let's Encrypt HTTP-01 challenge
     location /.well-known/acme-challenge/ {
         root /var/www/html;
     }
 
     location / {
-        return 301 https://\$host\$request_uri;
+        return 301 https://$host$request_uri;
     }
 }
 
-# HTTPS server
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name {$domain};
+    server_name __DOMAIN__;
 
-    # SSL certificates
-    ssl_certificate {$certDir}/fullchain.pem;
-    ssl_certificate_key {$certDir}/privkey.pem;
-
-    # SSL settings
+    ssl_certificate __CERT_DIR__/fullchain.pem;
+    ssl_certificate_key __CERT_DIR__/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
     ssl_prefer_server_ciphers off;
     ssl_session_timeout 1d;
     ssl_session_cache shared:SSL:10m;
-    ssl_session_tickets off;
 
-    # HSTS (uncomment for production)
-    # add_header Strict-Transport-Security "max-age=63072000" always;
+    root __PHPBORG_ROOT__/frontend/dist;
+    index index.html;
 
-    root {$phpborgRoot}/public;
-    index index.php index.html;
+    client_max_body_size 100M;
 
-    # Gzip
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
-
-    # API routes
-    location /api {
-        try_files \$uri /api/index.php\$is_args\$args;
-    }
-
-    # PHP handling
-    location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
-        include fastcgi_params;
-        fastcgi_read_timeout 300;
-    }
-
-    # Frontend (Vue.js SPA)
     location / {
-        try_files \$uri \$uri/ /index.html;
+        try_files $uri $uri/ /index.html;
     }
 
-    # Security headers
+    location /api/sse/stream {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 86400s;
+    }
+
+    location ~ ^/api/ {
+        fastcgi_pass unix:__PHP_FPM_SOCK__;
+        fastcgi_param SCRIPT_FILENAME __PHPBORG_ROOT__/api/public/index.php;
+        include fastcgi_params;
+        fastcgi_read_timeout 300s;
+    }
+
+    location ~ ^/downloads/ {
+        fastcgi_pass unix:__PHP_FPM_SOCK__;
+        fastcgi_param SCRIPT_FILENAME __PHPBORG_ROOT__/api/public/index.php;
+        include fastcgi_params;
+    }
+
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
 
-    # Deny access to sensitive files
-    location ~ /\. {
+    location ~ /\.(?!well-known).* {
         deny all;
     }
 }
 NGINX;
     }
 
-    private function getNginxHttpTemplate(string $phpborgRoot): string
+    /**
+     * Inline HTTP template fallback
+     */
+    private function getInlineHttpTemplate(string $phpborgRoot): string
     {
+        $phpFpmSock = $this->detectPhpFpmSocket();
+
         return <<<NGINX
 # phpBorg Nginx Configuration (HTTP)
 # Generated by phpBorg SSL Service
@@ -802,37 +1085,45 @@ server {
     listen [::]:80;
     server_name _;
 
-    root {$phpborgRoot}/public;
-    index index.php index.html;
+    root {$phpborgRoot}/frontend/dist;
+    index index.html;
 
-    # Gzip
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    client_max_body_size 100M;
 
-    # API routes
-    location /api {
-        try_files \$uri /api/index.php\$is_args\$args;
-    }
-
-    # PHP handling
-    location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
-        include fastcgi_params;
-        fastcgi_read_timeout 300;
-    }
-
-    # Frontend (Vue.js SPA)
     location / {
         try_files \$uri \$uri/ /index.html;
     }
 
-    # Let's Encrypt challenge
+    location /api/sse/stream {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host \$host;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 86400s;
+    }
+
+    location ~ ^/api/ {
+        fastcgi_pass unix:{$phpFpmSock};
+        fastcgi_param SCRIPT_FILENAME {$phpborgRoot}/api/public/index.php;
+        include fastcgi_params;
+        fastcgi_read_timeout 300s;
+    }
+
+    location ~ ^/downloads/ {
+        fastcgi_pass unix:{$phpFpmSock};
+        fastcgi_param SCRIPT_FILENAME {$phpborgRoot}/api/public/index.php;
+        include fastcgi_params;
+    }
+
     location /.well-known/acme-challenge/ {
         root /var/www/html;
     }
 
-    # Deny access to sensitive files
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+
     location ~ /\. {
         deny all;
     }

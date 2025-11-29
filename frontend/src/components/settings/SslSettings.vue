@@ -215,12 +215,46 @@
                 </div>
               </label>
               <label class="flex items-center p-3 border border-gray-200 dark:border-slate-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                <input v-model="letsencryptForm.method" type="radio" value="dns-manual" class="mr-3" />
+                <div>
+                  <span class="font-medium text-gray-900 dark:text-white">DNS-01 ({{ $t('settings.ssl.manual') }})</span>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">{{ $t('settings.ssl.dns_manual_desc') }}</p>
+                </div>
+              </label>
+              <label class="flex items-center p-3 border border-gray-200 dark:border-slate-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/50">
                 <input v-model="letsencryptForm.method" type="radio" value="cloudflare" class="mr-3" />
                 <div>
                   <span class="font-medium text-gray-900 dark:text-white">DNS-01 (Cloudflare)</span>
                   <p class="text-sm text-gray-500 dark:text-gray-400">{{ $t('settings.ssl.dns_cloudflare_desc') }}</p>
                 </div>
               </label>
+            </div>
+          </div>
+
+          <!-- Manual DNS-01 Instructions -->
+          <div v-if="letsencryptForm.method === 'dns-manual'" class="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div v-if="!dnsChallenge">
+              <p class="text-sm text-blue-700 dark:text-blue-400 mb-3">{{ $t('settings.ssl.dns_manual_info') }}</p>
+              <button @click="getDnsChallenge" :disabled="gettingChallenge" class="btn btn-secondary">
+                <svg v-if="gettingChallenge" class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                {{ $t('settings.ssl.get_dns_challenge') }}
+              </button>
+            </div>
+            <div v-else class="space-y-3">
+              <h5 class="font-medium text-blue-800 dark:text-blue-300">{{ $t('settings.ssl.dns_instructions') }}</h5>
+              <div class="bg-white dark:bg-slate-800 rounded p-3 border border-blue-200 dark:border-slate-700">
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">{{ $t('settings.ssl.add_txt_record') }}:</p>
+                <div class="font-mono text-sm space-y-1">
+                  <p><span class="text-gray-500">{{ $t('settings.ssl.record_name') }}:</span> <code class="bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">{{ dnsChallenge.record_name }}</code></p>
+                  <p><span class="text-gray-500">{{ $t('settings.ssl.record_type') }}:</span> <code class="bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">TXT</code></p>
+                </div>
+              </div>
+              <div class="text-sm text-blue-700 dark:text-blue-400">
+                <p v-for="(instruction, idx) in dnsChallenge.instructions" :key="idx">{{ instruction }}</p>
+              </div>
             </div>
           </div>
 
@@ -241,7 +275,7 @@
             </div>
           </div>
 
-          <button @click="requestLetsEncrypt" :disabled="generating" class="btn btn-primary">
+          <button @click="requestLetsEncrypt" :disabled="generating || (letsencryptForm.method === 'dns-manual')" class="btn btn-primary">
             <svg v-if="generating" class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -252,21 +286,114 @@
 
         <!-- Custom Certificate Form -->
         <div v-if="selectedType === 'custom'" class="space-y-4">
+          <!-- Certificate -->
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.ssl.certificate') }} (PEM)</label>
-            <textarea v-model="customForm.cert" rows="6" class="input w-full font-mono text-xs" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+            <div class="flex gap-2 mb-2">
+              <input type="file" ref="certFileInput" @change="handleCertFile" accept=".pem,.crt,.cer" class="hidden" />
+              <button @click="$refs.certFileInput.click()" class="btn btn-secondary text-sm">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                {{ $t('settings.ssl.upload_file') }}
+              </button>
+              <span v-if="customForm.certFileName" class="text-sm text-gray-500 self-center">{{ customForm.certFileName }}</span>
+            </div>
+            <textarea v-model="customForm.cert" rows="4" class="input w-full font-mono text-xs" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
           </div>
+
+          <!-- Private Key -->
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.ssl.private_key') }} (PEM)</label>
-            <textarea v-model="customForm.key" rows="6" class="input w-full font-mono text-xs" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
+            <div class="flex gap-2 mb-2">
+              <input type="file" ref="keyFileInput" @change="handleKeyFile" accept=".pem,.key" class="hidden" />
+              <button @click="$refs.keyFileInput.click()" class="btn btn-secondary text-sm">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                {{ $t('settings.ssl.upload_file') }}
+              </button>
+              <span v-if="customForm.keyFileName" class="text-sm text-gray-500 self-center">{{ customForm.keyFileName }}</span>
+            </div>
+            <textarea v-model="customForm.key" rows="4" class="input w-full font-mono text-xs" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
           </div>
+
+          <!-- Chain -->
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.ssl.chain') }} ({{ $t('settings.ssl.optional') }})</label>
-            <textarea v-model="customForm.chain" rows="4" class="input w-full font-mono text-xs" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+            <div class="flex gap-2 mb-2">
+              <input type="file" ref="chainFileInput" @change="handleChainFile" accept=".pem,.crt,.cer" class="hidden" />
+              <button @click="$refs.chainFileInput.click()" class="btn btn-secondary text-sm">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                {{ $t('settings.ssl.upload_file') }}
+              </button>
+              <span v-if="customForm.chainFileName" class="text-sm text-gray-500 self-center">{{ customForm.chainFileName }}</span>
+            </div>
+            <textarea v-model="customForm.chain" rows="3" class="input w-full font-mono text-xs" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
           </div>
-          <button @click="uploadCertificate" :disabled="generating" class="btn btn-primary">
-            {{ $t('settings.ssl.upload') }}
-          </button>
+
+          <!-- Validation Results -->
+          <div v-if="validationResult" class="rounded-lg p-4" :class="validationResult.valid ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'">
+            <div class="flex items-center gap-2 mb-2">
+              <svg v-if="validationResult.valid" class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+              </svg>
+              <svg v-else class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+              </svg>
+              <span class="font-medium" :class="validationResult.valid ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'">
+                {{ validationResult.valid ? $t('settings.ssl.validation_success') : $t('settings.ssl.validation_failed') }}
+              </span>
+            </div>
+
+            <!-- Certificate Info -->
+            <div v-if="validationResult.info" class="text-sm space-y-1 mb-2">
+              <p><span class="text-gray-500">{{ $t('settings.ssl.domain') }}:</span> {{ validationResult.info.domain }}</p>
+              <p><span class="text-gray-500">{{ $t('settings.ssl.issued_by') }}:</span> {{ validationResult.info.issuer }}</p>
+              <p><span class="text-gray-500">{{ $t('settings.ssl.valid_until') }}:</span> {{ validationResult.info.valid_to }}</p>
+              <p><span class="text-gray-500">{{ $t('settings.ssl.days_remaining') }}:</span>
+                <span :class="validationResult.info.days_remaining <= 30 ? 'text-yellow-600 font-medium' : ''">{{ validationResult.info.days_remaining }} {{ $t('settings.ssl.days') }}</span>
+              </p>
+            </div>
+
+            <!-- Errors -->
+            <div v-if="validationResult.errors?.length" class="text-sm text-red-600 dark:text-red-400">
+              <p v-for="err in validationResult.errors" :key="err" class="flex items-center gap-1">
+                <span>•</span> {{ err }}
+              </p>
+            </div>
+
+            <!-- Warnings -->
+            <div v-if="validationResult.warnings?.length" class="text-sm text-yellow-600 dark:text-yellow-400 mt-2">
+              <p v-for="warn in validationResult.warnings" :key="warn" class="flex items-center gap-1">
+                <span>⚠</span> {{ warn }}
+              </p>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex gap-3">
+            <button @click="validateCustomCert" :disabled="validating || !customForm.cert || !customForm.key" class="btn btn-secondary">
+              <svg v-if="validating" class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              {{ $t('settings.ssl.validate_first') }}
+            </button>
+            <button @click="uploadCertificate" :disabled="generating || !validationResult?.valid" class="btn btn-primary">
+              <svg v-if="generating" class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              {{ $t('settings.ssl.apply_certificate') }}
+            </button>
+          </div>
+
+          <p v-if="!validationResult?.valid && customForm.cert && customForm.key" class="text-sm text-gray-500">
+            {{ $t('settings.ssl.validate_hint') }}
+          </p>
         </div>
       </div>
     </div>
@@ -303,12 +430,16 @@ const generating = ref(false)
 const testing = ref(false)
 const renewing = ref(false)
 const testingCloudflare = ref(false)
+const validating = ref(false)
+const gettingChallenge = ref(false)
 
 const status = ref(null)
 const selectedType = ref(null)
 const message = ref('')
 const messageType = ref('success')
 const cloudflareStatus = ref(null)
+const validationResult = ref(null)
+const dnsChallenge = ref(null)
 
 const selfSignedForm = reactive({
   domain: '',
@@ -325,8 +456,68 @@ const letsencryptForm = reactive({
 const customForm = reactive({
   cert: '',
   key: '',
-  chain: ''
+  chain: '',
+  certFileName: '',
+  keyFileName: '',
+  chainFileName: ''
 })
+
+// File handlers
+const handleCertFile = async (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    customForm.cert = await file.text()
+    customForm.certFileName = file.name
+    validationResult.value = null
+  }
+}
+
+const handleKeyFile = async (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    customForm.key = await file.text()
+    customForm.keyFileName = file.name
+    validationResult.value = null
+  }
+}
+
+const handleChainFile = async (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    customForm.chain = await file.text()
+    customForm.chainFileName = file.name
+    validationResult.value = null
+  }
+}
+
+// Validate certificate before applying
+const validateCustomCert = async () => {
+  if (!customForm.cert || !customForm.key) {
+    showMessage(t('settings.ssl.cert_key_required'), 'error')
+    return
+  }
+
+  validating.value = true
+  validationResult.value = null
+
+  try {
+    const response = await api.post('/ssl/validate', {
+      cert: customForm.cert,
+      key: customForm.key,
+      chain: customForm.chain || null
+    })
+    validationResult.value = response.data.data
+  } catch (error) {
+    validationResult.value = {
+      valid: false,
+      errors: [error.response?.data?.error?.message || error.message],
+      warnings: [],
+      info: null
+    }
+  } finally {
+    validating.value = false
+  }
+}
 
 const loadStatus = async () => {
   loading.value = true
@@ -471,6 +662,28 @@ const forceRenewal = async () => {
     showMessage(error.response?.data?.error?.message || error.message, 'error')
   } finally {
     renewing.value = false
+  }
+}
+
+const getDnsChallenge = async () => {
+  if (!letsencryptForm.domain || !letsencryptForm.email) {
+    showMessage(t('settings.ssl.domain_email_required'), 'error')
+    return
+  }
+
+  gettingChallenge.value = true
+  dnsChallenge.value = null
+
+  try {
+    const response = await api.post('/ssl/letsencrypt/dns-challenge', {
+      domain: letsencryptForm.domain,
+      email: letsencryptForm.email
+    })
+    dnsChallenge.value = response.data.data
+  } catch (error) {
+    showMessage(error.response?.data?.error?.message || error.message, 'error')
+  } finally {
+    gettingChallenge.value = false
   }
 }
 

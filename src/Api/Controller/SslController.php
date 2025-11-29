@@ -150,6 +150,37 @@ final class SslController extends BaseController
     }
 
     /**
+     * Validate certificate without applying
+     * POST /api/ssl/validate
+     * Body: { cert: string, key: string, chain?: string }
+     */
+    public function validateCertificate(): void
+    {
+        $data = $this->getJsonBody();
+
+        if (empty($data['cert'])) {
+            $this->error('Certificate is required', 400);
+            return;
+        }
+
+        if (empty($data['key'])) {
+            $this->error('Private key is required', 400);
+            return;
+        }
+
+        try {
+            $result = $this->sslService->validateCertificate(
+                $data['cert'],
+                $data['key'],
+                $data['chain'] ?? null
+            );
+            $this->success($result);
+        } catch (\Exception $e) {
+            $this->error($e->getMessage(), 500);
+        }
+    }
+
+    /**
      * Upload custom certificate
      * POST /api/ssl/upload
      * Body: { cert: string, key: string, chain?: string }
@@ -289,6 +320,42 @@ final class SslController extends BaseController
         try {
             $zones = $this->sslService->getCloudflareZones($data['token']);
             $this->success(['zones' => $zones]);
+        } catch (\Exception $e) {
+            $this->error($e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get current domain configuration
+     * GET /api/ssl/domain
+     */
+    public function getDomain(): void
+    {
+        try {
+            $domain = $this->sslService->getDomain();
+            $this->success(['domain' => $domain]);
+        } catch (\Exception $e) {
+            $this->error($e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Set domain configuration
+     * POST /api/ssl/domain
+     * Body: { domain: string }
+     */
+    public function setDomain(): void
+    {
+        $data = $this->getJsonBody();
+
+        if (empty($data['domain'])) {
+            $this->error('Domain is required', 400);
+            return;
+        }
+
+        try {
+            $this->sslService->setDomain($data['domain']);
+            $this->success(['domain' => $data['domain']]);
         } catch (\Exception $e) {
             $this->error($e->getMessage(), 500);
         }

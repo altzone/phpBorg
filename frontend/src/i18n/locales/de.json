@@ -980,7 +980,21 @@
       "renewal_test_success": "Erneuerungstest erfolgreich! Zertifikat kann erneuert werden.",
       "renewal_test_failed": "Erneuerungstest fehlgeschlagen",
       "renewed_success": "Zertifikat erfolgreich erneuert!",
-      "disabled_success": "SSL deaktiviert. Verbindung ist jetzt HTTP."
+      "disabled_success": "SSL deaktiviert. Verbindung ist jetzt HTTP.",
+      "upload_file": "Datei hochladen",
+      "validation_success": "Zertifikat ist gültig",
+      "validation_failed": "Zertifikatvalidierung fehlgeschlagen",
+      "validate_first": "Zertifikat validieren",
+      "apply_certificate": "Zertifikat anwenden",
+      "validate_hint": "Bitte validieren Sie das Zertifikat vor der Anwendung, um sicherzustellen, dass nginx nicht fehlschlägt.",
+      "manual": "Manuell",
+      "dns_manual_desc": "TXT-Eintrag manuell bei Ihrem DNS-Anbieter erstellen",
+      "dns_manual_info": "Klicken Sie auf die Schaltfläche unten, um den DNS-Eintrag zu erhalten. Nach der Erstellung warten Sie einige Minuten auf die Propagation.",
+      "get_dns_challenge": "DNS-Challenge abrufen",
+      "dns_instructions": "DNS-Eintrag Anweisungen",
+      "add_txt_record": "Fügen Sie den folgenden TXT-Eintrag zu Ihrem DNS hinzu",
+      "record_name": "Name",
+      "record_type": "Typ"
     },
     "system": {
       "title": "Systemeinstellungen",

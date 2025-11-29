@@ -982,7 +982,21 @@
       "renewal_test_success": "Test de renouvellement réussi ! Le certificat peut être renouvelé.",
       "renewal_test_failed": "Échec du test de renouvellement",
       "renewed_success": "Certificat renouvelé avec succès !",
-      "disabled_success": "SSL désactivé. La connexion est maintenant HTTP."
+      "disabled_success": "SSL désactivé. La connexion est maintenant HTTP.",
+      "upload_file": "Télécharger un fichier",
+      "validation_success": "Le certificat est valide",
+      "validation_failed": "Échec de la validation du certificat",
+      "validate_first": "Valider le certificat",
+      "apply_certificate": "Appliquer le certificat",
+      "validate_hint": "Veuillez valider le certificat avant de l'appliquer pour vous assurer que nginx ne plantera pas.",
+      "manual": "Manuel",
+      "dns_manual_desc": "Créer l'enregistrement TXT manuellement chez votre fournisseur DNS",
+      "dns_manual_info": "Cliquez sur le bouton ci-dessous pour obtenir l'enregistrement DNS à créer. Après l'avoir créé, attendez quelques minutes pour la propagation.",
+      "get_dns_challenge": "Obtenir le challenge DNS",
+      "dns_instructions": "Instructions pour l'enregistrement DNS",
+      "add_txt_record": "Ajoutez l'enregistrement TXT suivant à votre DNS",
+      "record_name": "Nom",
+      "record_type": "Type"
     },
     "system": {
       "title": "Paramètres système",
