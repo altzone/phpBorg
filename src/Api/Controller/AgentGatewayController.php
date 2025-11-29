@@ -36,6 +36,7 @@ final class AgentGatewayController extends BaseController
     private readonly LoggerInterface $logger;
     private readonly \PhpBorg\Repository\ServerRepository $serverRepo;
     private readonly JobQueue $jobQueue;
+    private readonly \PhpBorg\Database\Connection $connection;
 
     public function __construct(Application $app)
     {
@@ -46,6 +47,7 @@ final class AgentGatewayController extends BaseController
         $this->logger = $app->getLogger();
         $this->serverRepo = $app->getServerRepository();
         $this->jobQueue = $app->getJobQueue();
+        $this->connection = $app->getConnection();
     }
 
     /**
@@ -858,7 +860,7 @@ final class AgentGatewayController extends BaseController
         }
 
         // Verify admin user
-        $userRepo = new \PhpBorg\Repository\UserRepository(new \PhpBorg\Database\Database());
+        $userRepo = new \PhpBorg\Repository\UserRepository($this->connection);
         $user = $userRepo->findByToken($token);
         if (!$user || !in_array($user['role'], ['admin', 'operator'])) {
             $this->error('Insufficient permissions', 403);
@@ -884,7 +886,7 @@ final class AgentGatewayController extends BaseController
         $serverUrl = $protocol . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
 
         // Get registration token
-        $settingsRepo = new \PhpBorg\Repository\SettingsRepository(new \PhpBorg\Database\Database());
+        $settingsRepo = new \PhpBorg\Repository\SettingsRepository($this->connection);
         $registrationToken = $settingsRepo->get('agent.registration_token');
         if (!$registrationToken) {
             $registrationToken = bin2hex(random_bytes(32));
@@ -949,9 +951,7 @@ final class AgentGatewayController extends BaseController
     private function validateRegistrationToken(string $token): bool
     {
         // Get registration token from settings
-        $settingsRepo = new \PhpBorg\Repository\SettingsRepository(
-            new \PhpBorg\Database\Database()
-        );
+        $settingsRepo = new \PhpBorg\Repository\SettingsRepository($this->connection);
         $validToken = $settingsRepo->get('agent.registration_token');
 
         if (!$validToken) {
