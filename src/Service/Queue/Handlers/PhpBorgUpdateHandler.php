@@ -70,13 +70,20 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             $queue->updateProgress($job->id, 20, "Mise à jour du code depuis Git...");
             $this->logger->info("Updating code from git...", 'PHPBORG_UPDATE');
             $this->gitUpdate($phpborgRoot, $targetCommit);
-            $codeUpdated = true; // Git pull succeeded, rollback needed if anything fails from here
             $newCommit = $this->getCurrentCommit($phpborgRoot);
+            $codeUpdated = ($newCommit !== $currentCommit); // Only true if commit actually changed
             $queue->updateProgress($job->id, 25, "Code mis à jour: " . substr($currentCommit, 0, 7) . " → " . substr($newCommit, 0, 7));
             $this->logger->info("Code updated", 'PHPBORG_UPDATE', [
                 'from' => substr($currentCommit, 0, 7),
                 'to' => substr($newCommit, 0, 7)
             ]);
+
+            // If no changes, exit early with success
+            if (!$codeUpdated) {
+                $queue->updateProgress($job->id, 100, "Déjà à jour (aucun changement)");
+                $this->logger->info("Already up to date, nothing to do", 'PHPBORG_UPDATE');
+                return "phpBorg already at latest version ({$newCommit})";
+            }
 
             // Analyze what changed for smart update
             $changedFiles = $this->getChangedFiles($phpborgRoot, $currentCommit, $newCommit);
