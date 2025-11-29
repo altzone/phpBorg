@@ -76,35 +76,77 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
                 'to' => substr($newCommit, 0, 7)
             ]);
 
-            // Step 4: Composer install (40%)
-            $queue->updateProgress($job->id, 30, "Installation des dépendances PHP (Composer)...");
-            $this->logger->info("Installing PHP dependencies...", 'PHPBORG_UPDATE');
-            $this->composerInstall($phpborgRoot);
-            $queue->updateProgress($job->id, 40, "Dépendances PHP installées");
+            // Analyze what changed for smart update
+            $changedFiles = $this->getChangedFiles($phpborgRoot, $currentCommit, $newCommit);
+            $needsComposer = $this->needsComposerInstall($changedFiles);
+            $needsFrontend = $this->needsFrontendBuild($changedFiles);
+            $needsAgent = $this->needsAgentBuild($changedFiles);
+            $needsMigrations = $this->needsMigrations($changedFiles);
+            $needsSystemd = $this->needsSystemdRegeneration($changedFiles);
 
-            // Step 5: NPM build (60%)
-            $queue->updateProgress($job->id, 45, "Construction du frontend (npm install)...");
-            $this->logger->info("Building frontend...", 'PHPBORG_UPDATE');
-            $this->npmBuild($phpborgRoot);
-            $queue->updateProgress($job->id, 60, "Frontend construit avec succès");
+            $this->logger->info("Smart update analysis", 'PHPBORG_UPDATE', [
+                'files_changed' => count($changedFiles),
+                'needs_composer' => $needsComposer,
+                'needs_frontend' => $needsFrontend,
+                'needs_agent' => $needsAgent,
+                'needs_migrations' => $needsMigrations,
+                'needs_systemd' => $needsSystemd,
+            ]);
 
-            // Step 5b: Rebuild Go agent (70%)
-            $queue->updateProgress($job->id, 65, "Reconstruction de l'agent Go...");
-            $this->logger->info("Rebuilding Go agent...", 'PHPBORG_UPDATE');
-            $this->rebuildAgent($phpborgRoot);
-            $queue->updateProgress($job->id, 70, "Agent Go traité");
+            // Step 4: Composer install (40%) - only if needed
+            if ($needsComposer) {
+                $queue->updateProgress($job->id, 30, "Installation des dépendances PHP (Composer)...");
+                $this->logger->info("Installing PHP dependencies...", 'PHPBORG_UPDATE');
+                $this->composerInstall($phpborgRoot);
+                $queue->updateProgress($job->id, 40, "Dépendances PHP installées");
+            } else {
+                $queue->updateProgress($job->id, 40, "⏭️ Composer: aucun changement détecté");
+                $this->logger->info("Skipping Composer install (no changes)", 'PHPBORG_UPDATE');
+            }
 
-            // Step 6: Database migrations (80%)
-            $queue->updateProgress($job->id, 75, "Exécution des migrations de base de données...");
-            $this->logger->info("Running database migrations...", 'PHPBORG_UPDATE');
-            $this->runMigrations($phpborgRoot);
-            $queue->updateProgress($job->id, 80, "Migrations terminées");
+            // Step 5: NPM build (60%) - only if frontend changed
+            if ($needsFrontend) {
+                $queue->updateProgress($job->id, 45, "Construction du frontend (npm install + build)...");
+                $this->logger->info("Building frontend...", 'PHPBORG_UPDATE');
+                $this->npmBuild($phpborgRoot);
+                $queue->updateProgress($job->id, 60, "Frontend construit avec succès");
+            } else {
+                $queue->updateProgress($job->id, 60, "⏭️ Frontend: aucun changement détecté");
+                $this->logger->info("Skipping frontend build (no changes)", 'PHPBORG_UPDATE');
+            }
 
-            // Step 7: Regenerate systemd services (85%)
-            $queue->updateProgress($job->id, 82, "Régénération des services systemd...");
-            $this->logger->info("Regenerating systemd services...", 'PHPBORG_UPDATE');
-            $this->regenerateSystemdServices($phpborgRoot);
-            $queue->updateProgress($job->id, 85, "Services systemd régénérés");
+            // Step 5b: Rebuild Go agent (70%) - only if agent changed
+            if ($needsAgent) {
+                $queue->updateProgress($job->id, 65, "Reconstruction de l'agent Go...");
+                $this->logger->info("Rebuilding Go agent...", 'PHPBORG_UPDATE');
+                $this->rebuildAgent($phpborgRoot);
+                $queue->updateProgress($job->id, 70, "Agent Go reconstruit");
+            } else {
+                $queue->updateProgress($job->id, 70, "⏭️ Agent Go: aucun changement détecté");
+                $this->logger->info("Skipping agent rebuild (no changes)", 'PHPBORG_UPDATE');
+            }
+
+            // Step 6: Database migrations (80%) - only if migrations changed
+            if ($needsMigrations) {
+                $queue->updateProgress($job->id, 75, "Exécution des migrations de base de données...");
+                $this->logger->info("Running database migrations...", 'PHPBORG_UPDATE');
+                $this->runMigrations($phpborgRoot);
+                $queue->updateProgress($job->id, 80, "Migrations terminées");
+            } else {
+                $queue->updateProgress($job->id, 80, "⏭️ Migrations: aucun changement détecté");
+                $this->logger->info("Skipping migrations (no changes)", 'PHPBORG_UPDATE');
+            }
+
+            // Step 7: Regenerate systemd services (85%) - only if systemd files changed
+            if ($needsSystemd) {
+                $queue->updateProgress($job->id, 82, "Régénération des services systemd...");
+                $this->logger->info("Regenerating systemd services...", 'PHPBORG_UPDATE');
+                $this->regenerateSystemdServices($phpborgRoot);
+                $queue->updateProgress($job->id, 85, "Services systemd régénérés");
+            } else {
+                $queue->updateProgress($job->id, 85, "⏭️ Systemd: aucun changement détecté");
+                $this->logger->info("Skipping systemd regeneration (no changes)", 'PHPBORG_UPDATE');
+            }
 
             // Step 8: Pre-restart health check (90%)
             $queue->updateProgress($job->id, 88, "Vérification de santé pré-redémarrage...");
@@ -116,10 +158,19 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             }
             $queue->updateProgress($job->id, 90, "Vérification de santé réussie");
 
+            // Build summary of what was done
+            $actions = [];
+            if ($needsComposer) $actions[] = 'composer';
+            if ($needsFrontend) $actions[] = 'frontend';
+            if ($needsAgent) $actions[] = 'agent';
+            if ($needsMigrations) $actions[] = 'migrations';
+            if ($needsSystemd) $actions[] = 'systemd';
+
             $message = sprintf(
-                "phpBorg updated successfully from %s to %s",
+                "phpBorg updated %s → %s (%s)",
                 substr($currentCommit, 0, 7),
-                substr($newCommit, 0, 7)
+                substr($newCommit, 0, 7),
+                empty($actions) ? 'code only' : implode(', ', $actions)
             );
 
             $this->logger->info($message, 'PHPBORG_UPDATE');
@@ -677,5 +728,109 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
     private function getPhpBorgRoot(): string
     {
         return dirname(__DIR__, 4);
+    }
+
+    // ==========================================
+    // Smart Update Detection Methods
+    // ==========================================
+
+    /**
+     * Get list of files changed between two commits
+     *
+     * @return array<string> List of changed file paths
+     */
+    private function getChangedFiles(string $phpborgRoot, string $fromCommit, string $toCommit): array
+    {
+        $cmd = "cd {$phpborgRoot} && git diff --name-only {$fromCommit}..{$toCommit} 2>&1";
+        exec($cmd, $output, $exitCode);
+
+        if ($exitCode !== 0) {
+            $this->logger->warning("Failed to get changed files, assuming full rebuild needed", 'PHPBORG_UPDATE');
+            return ['*']; // Wildcard = rebuild everything
+        }
+
+        return array_filter($output, fn($line) => !empty(trim($line)));
+    }
+
+    /**
+     * Check if Composer install is needed
+     * Triggers on: composer.json, composer.lock changes
+     */
+    private function needsComposerInstall(array $changedFiles): bool
+    {
+        if (in_array('*', $changedFiles)) return true;
+
+        foreach ($changedFiles as $file) {
+            if ($file === 'composer.json' || $file === 'composer.lock') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if frontend build is needed
+     * Triggers on: any file in frontend/ directory
+     */
+    private function needsFrontendBuild(array $changedFiles): bool
+    {
+        if (in_array('*', $changedFiles)) return true;
+
+        foreach ($changedFiles as $file) {
+            if (str_starts_with($file, 'frontend/')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if agent rebuild is needed
+     * Triggers on: any file in agent/ directory
+     */
+    private function needsAgentBuild(array $changedFiles): bool
+    {
+        if (in_array('*', $changedFiles)) return true;
+
+        foreach ($changedFiles as $file) {
+            if (str_starts_with($file, 'agent/')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if database migrations are needed
+     * Triggers on: any file in migrations/ directory
+     */
+    private function needsMigrations(array $changedFiles): bool
+    {
+        if (in_array('*', $changedFiles)) return true;
+
+        foreach ($changedFiles as $file) {
+            if (str_starts_with($file, 'migrations/')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if systemd service regeneration is needed
+     * Triggers on: systemd template files or bin/regenerate-systemd-services.sh
+     */
+    private function needsSystemdRegeneration(array $changedFiles): bool
+    {
+        if (in_array('*', $changedFiles)) return true;
+
+        foreach ($changedFiles as $file) {
+            if (str_starts_with($file, 'systemd/') ||
+                str_contains($file, '.service') ||
+                $file === 'bin/regenerate-systemd-services.sh') {
+                return true;
+            }
+        }
+        return false;
     }
 }
