@@ -154,23 +154,54 @@
           </div>
         </div>
 
-        <!-- Update Button -->
-        <div class="flex gap-3">
+        <!-- Update Button / Confirmation -->
+        <div v-if="!showConfirmation" class="flex gap-3">
           <button
-            @click="startUpdate"
+            @click="showConfirmation = true"
             :disabled="updating"
             class="btn btn-primary flex-1"
           >
-            <svg v-if="!updating" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
-            <div v-else class="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-            {{ updating ? $t('settings.update.updating') : $t('settings.update.install_button') }}
+            {{ $t('settings.update.install_button') }}
           </button>
         </div>
 
+        <!-- Confirmation Panel -->
+        <div v-else class="p-4 bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-300 dark:border-orange-700 rounded-lg space-y-4">
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div>
+              <p class="font-semibold text-orange-900 dark:text-orange-100">{{ $t('settings.update.confirm_title') }}</p>
+              <p class="text-sm text-orange-800 dark:text-orange-200 mt-1">{{ $t('settings.update.confirm_message') }}</p>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <button
+              @click="showConfirmation = false"
+              class="btn btn-secondary flex-1"
+            >
+              {{ $t('common.cancel') }}
+            </button>
+            <button
+              @click="startUpdate"
+              :disabled="updating"
+              class="btn bg-orange-600 hover:bg-orange-700 text-white flex-1"
+            >
+              <div v-if="updating" class="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+              <svg v-else class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+              {{ updating ? $t('settings.update.updating') : $t('settings.update.confirm_button') }}
+            </button>
+          </div>
+        </div>
+
         <!-- Warning -->
-        <div class="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+        <div v-if="!showConfirmation" class="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
           <p class="text-xs text-yellow-900 dark:text-yellow-200">
             <strong>{{ $t('settings.update.warning_title') }}:</strong> {{ $t('settings.update.warning_message') }}
           </p>
@@ -271,6 +302,7 @@ const changelogExpanded = ref(false) // Accordion state
 // Update progress modal
 const showUpdateModal = ref(false)
 const updateJobId = ref(null)
+const showConfirmation = ref(false)
 
 // Watch store updates and sync local state
 watch(() => updateStore.updateInfo, (newVal) => {
@@ -336,11 +368,8 @@ async function checkForUpdates() {
 }
 
 async function startUpdate() {
-  if (!confirm(t('settings.update.confirm_message'))) {
-    return
-  }
-
   updating.value = true
+  showConfirmation.value = false
   try {
     const result = await phpborgUpdateService.startUpdate()
     if (result.success && result.data.job_id) {
