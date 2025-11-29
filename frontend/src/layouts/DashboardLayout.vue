@@ -297,12 +297,15 @@
       <UpdateBanner />
 
       <!-- Page content -->
-      <main
-        class="p-4 sm:p-6 lg:p-8 transition-[padding-bottom] duration-300"
-        :class="taskBarStore.expanded ? 'pb-[420px]' : 'pb-16'"
-      >
+      <main class="p-4 sm:p-6 lg:p-8">
         <RouterView />
       </main>
+
+      <!-- Spacer for TaskBar (ensures content doesn't get hidden) -->
+      <div
+        class="transition-all duration-300"
+        :style="{ height: taskBarStore.expanded ? '450px' : '60px' }"
+      ></div>
     </div>
 
     <!-- Task Bar (Global - All Running Jobs) -->

@@ -1,8 +1,7 @@
 <template>
-  <!-- Task Bar Container - Fixed at bottom of screen (ALWAYS visible) -->
+  <!-- Task Bar Container - Fixed at bottom of content area (respects sidebar) -->
   <div
-    class="fixed bottom-0 left-0 right-0 z-40 transition-transform duration-300"
-    :class="taskBarStore.expanded ? 'translate-y-0' : 'translate-y-[calc(100%-48px)]'"
+    class="fixed bottom-0 left-0 right-0 lg:left-64 z-40"
   >
     <!-- Header Bar (always visible) - Blue when jobs active, Gray when idle -->
     <div
