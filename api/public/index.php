@@ -318,6 +318,14 @@ try {
     // Agent Certificate Routes
     $router->post('/agent/certificate/renew', AgentGatewayController::class, 'renewCertificate', requireAuth: false); // mTLS auth
 
+    // Agent Download Routes (Public - requires registration token)
+    $router->get('/agent/download/windows', AgentGatewayController::class, 'downloadWindows', requireAuth: false);
+    $router->get('/agent/download/linux', AgentGatewayController::class, 'downloadLinux', requireAuth: false);
+    $router->get('/agent/installer/windows', AgentGatewayController::class, 'getWindowsInstaller', requireAuth: false);
+
+    // Agent Registration with Token (for installer scripts)
+    $router->post('/agent/register-token', AgentGatewayController::class, 'registerWithToken', requireAuth: false);
+
     // ===========================================
     // Future Routes (To be implemented)
     // ===========================================

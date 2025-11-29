@@ -18,16 +18,35 @@ import (
 	"github.com/phpborg/phpborg-agent/internal/task"
 )
 
-const Version = "2.2.0"
+const Version = "2.3.0"
 
 func main() {
 	// Parse command line flags
-	configPath := flag.String("config", "/etc/phpborg-agent/config.yaml", "Path to configuration file")
+	configPath := flag.String("config", config.GetDefaultConfigPath(), "Path to configuration file")
 	showVersion := flag.Bool("version", false, "Show version and exit")
+	installService := flag.Bool("install", false, "Install as system service")
+	uninstallService := flag.Bool("uninstall", false, "Uninstall system service")
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Printf("phpborg-agent version %s\n", Version)
+		os.Exit(0)
+	}
+
+	// Handle service installation/uninstallation
+	if *installService {
+		if err := installAsService(); err != nil {
+			log.Fatalf("Failed to install service: %v", err)
+		}
+		fmt.Println("Service installed successfully")
+		os.Exit(0)
+	}
+
+	if *uninstallService {
+		if err := uninstallServiceCmd(); err != nil {
+			log.Fatalf("Failed to uninstall service: %v", err)
+		}
+		fmt.Println("Service uninstalled successfully")
 		os.Exit(0)
 	}
 

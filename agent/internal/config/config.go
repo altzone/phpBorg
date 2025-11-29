@@ -3,10 +3,63 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"time"
 
 	"gopkg.in/yaml.v3"
 )
+
+// GetDefaultConfigPath returns the platform-specific default config path
+func GetDefaultConfigPath() string {
+	if runtime.GOOS == "windows" {
+		programData := os.Getenv("ProgramData")
+		if programData == "" {
+			programData = "C:\\ProgramData"
+		}
+		return filepath.Join(programData, "phpborg-agent", "config.yaml")
+	}
+	return "/etc/phpborg-agent/config.yaml"
+}
+
+// GetDefaultLogPath returns the platform-specific default log path
+func GetDefaultLogPath() string {
+	if runtime.GOOS == "windows" {
+		programData := os.Getenv("ProgramData")
+		if programData == "" {
+			programData = "C:\\ProgramData"
+		}
+		return filepath.Join(programData, "phpborg-agent", "logs", "agent.log")
+	}
+	return "/var/log/phpborg-agent/agent.log"
+}
+
+// GetDefaultDataDir returns the platform-specific default data directory
+func GetDefaultDataDir() string {
+	if runtime.GOOS == "windows" {
+		programData := os.Getenv("ProgramData")
+		if programData == "" {
+			programData = "C:\\ProgramData"
+		}
+		return filepath.Join(programData, "phpborg-agent", "data")
+	}
+	return "/var/lib/phpborg-agent"
+}
+
+// GetDefaultTempDir returns the platform-specific temp directory
+func GetDefaultTempDir() string {
+	if runtime.GOOS == "windows" {
+		temp := os.Getenv("TEMP")
+		if temp == "" {
+			temp = os.Getenv("TMP")
+		}
+		if temp == "" {
+			temp = "C:\\Windows\\Temp"
+		}
+		return temp
+	}
+	return "/tmp"
+}
 
 // Config holds all agent configuration
 type Config struct {

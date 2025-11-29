@@ -12,7 +12,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/phpborg/phpborg-agent/internal/config"
@@ -51,8 +50,8 @@ func (e *Executor) Run(ctx context.Context, command string, args []string, timeo
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	// Set process group for proper cleanup
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	// Set process group for proper cleanup (platform-specific)
+	SetProcessGroup(cmd)
 
 	err := cmd.Run()
 	duration := time.Since(start)
@@ -221,7 +220,7 @@ func (e *Executor) runWithEnvAndProgress(ctx context.Context, command string, ar
 
 	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Env = env
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	SetProcessGroup(cmd)
 
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
@@ -370,7 +369,7 @@ func (e *Executor) runWithEnvAndDir(ctx context.Context, command string, args []
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	SetProcessGroup(cmd)
 
 	err := cmd.Run()
 	duration := time.Since(start)

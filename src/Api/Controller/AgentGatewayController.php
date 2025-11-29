@@ -660,6 +660,272 @@ final class AgentGatewayController extends BaseController
     }
 
     /**
+     * Download Windows agent binary (public endpoint)
+     * GET /api/agent/download/windows
+     *
+     * Requires X-Registration-Token header
+     */
+    public function downloadWindows(): void
+    {
+        // Validate registration token
+        $token = $_SERVER['HTTP_X_REGISTRATION_TOKEN'] ?? null;
+        if (!$token || !$this->validateRegistrationToken($token)) {
+            $this->error('Invalid registration token', 401, 'INVALID_TOKEN');
+            return;
+        }
+
+        $releasesDir = dirname(__DIR__, 3) . '/releases/agent';
+        $binaryPath = $this->getAgentBinaryPath($releasesDir, $this->getLatestAgentVersion($releasesDir), 'windows');
+
+        if (!$binaryPath || !file_exists($binaryPath)) {
+            $this->error('Windows agent binary not found', 404, 'BINARY_NOT_FOUND');
+            return;
+        }
+
+        $this->logger->info("Windows agent download requested", 'AGENT_API');
+
+        // Send binary file
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="phpborg-agent.exe"');
+        header('Content-Length: ' . filesize($binaryPath));
+        header('X-Agent-Version: ' . $this->getLatestAgentVersion($releasesDir));
+        header('X-Checksum-SHA256: ' . hash_file('sha256', $binaryPath));
+
+        readfile($binaryPath);
+        exit;
+    }
+
+    /**
+     * Download Linux agent binary (public endpoint)
+     * GET /api/agent/download/linux
+     *
+     * Requires X-Registration-Token header
+     */
+    public function downloadLinux(): void
+    {
+        // Validate registration token
+        $token = $_SERVER['HTTP_X_REGISTRATION_TOKEN'] ?? null;
+        if (!$token || !$this->validateRegistrationToken($token)) {
+            $this->error('Invalid registration token', 401, 'INVALID_TOKEN');
+            return;
+        }
+
+        $releasesDir = dirname(__DIR__, 3) . '/releases/agent';
+        $binaryPath = $this->getAgentBinaryPath($releasesDir, $this->getLatestAgentVersion($releasesDir), 'linux');
+
+        if (!$binaryPath || !file_exists($binaryPath)) {
+            $this->error('Linux agent binary not found', 404, 'BINARY_NOT_FOUND');
+            return;
+        }
+
+        $this->logger->info("Linux agent download requested", 'AGENT_API');
+
+        // Send binary file
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="phpborg-agent"');
+        header('Content-Length: ' . filesize($binaryPath));
+        header('X-Agent-Version: ' . $this->getLatestAgentVersion($releasesDir));
+        header('X-Checksum-SHA256: ' . hash_file('sha256', $binaryPath));
+
+        readfile($binaryPath);
+        exit;
+    }
+
+    /**
+     * Register agent with registration token (for installer scripts)
+     * POST /api/agent/register-token
+     *
+     * Request body:
+     * {
+     *   "name": "server-name",
+     *   "registration_token": "token-from-ui",
+     *   "os": "Windows",
+     *   "os_version": "Windows Server 2022",
+     *   "hostname": "server.example.com",
+     *   "architecture": "AMD64",
+     *   "cpu_cores": 4,
+     *   "cpu_model": "Intel...",
+     *   "total_memory_mb": 16384,
+     *   "agent_version": "2.3.0"
+     * }
+     */
+    public function registerWithToken(): void
+    {
+        $data = $this->getJsonBody();
+        $this->validateRequired($data, ['name', 'registration_token']);
+
+        $token = $data['registration_token'];
+        if (!$this->validateRegistrationToken($token)) {
+            $this->error('Invalid registration token', 401, 'INVALID_TOKEN');
+            return;
+        }
+
+        $name = $data['name'];
+        $hostname = $data['hostname'] ?? $name;
+        $os = $data['os'] ?? 'Unknown';
+        $osVersion = $data['os_version'] ?? '';
+        $architecture = $data['architecture'] ?? '';
+        $version = $data['agent_version'] ?? null;
+
+        // Check if agent already exists
+        if ($this->agentRepo->findByName($name) !== null) {
+            $this->error('Agent with this name already exists', 409, 'AGENT_EXISTS');
+            return;
+        }
+
+        try {
+            // Generate UUID
+            $uuid = $this->generateUuid();
+
+            // Generate SSH key pair for the agent
+            $sshKeyPair = $this->generateSSHKeyPair();
+
+            // Register agent with generated SSH key
+            $sshConfig = $this->agentManager->registerAgent(
+                $uuid,
+                $name,
+                $sshKeyPair['public'],
+                true // append-only by default
+            );
+
+            // Generate mTLS certificate
+            $certificates = $this->certManager->generateAgentCertificate($uuid, $name);
+
+            // Create database record
+            $agentId = $this->agentRepo->create(
+                uuid: $uuid,
+                name: $name,
+                hostname: $hostname,
+                sshPublicKey: $sshKeyPair['public'],
+                backupPath: $sshConfig['backup_path'],
+            );
+
+            // Update with certificate info
+            $certExpiry = $this->certManager->getAgentCertificateExpiry($uuid);
+            if ($certExpiry) {
+                $this->agentRepo->updateCertificate(
+                    $agentId,
+                    "agent-{$uuid}",
+                    $certExpiry,
+                    hash('sha256', $certificates['cert'])
+                );
+            }
+
+            // Update OS info
+            $osInfo = "{$os} {$osVersion} ({$architecture})";
+            $this->agentRepo->updateOsInfo($agentId, $osInfo);
+
+            if ($version) {
+                $this->agentRepo->updateHeartbeat($agentId, $_SERVER['REMOTE_ADDR'] ?? null, $version);
+            }
+
+            // Activate the agent
+            $this->agentRepo->updateStatus($agentId, 'active');
+
+            $this->logger->info("Agent registered via token: {$name} ({$uuid}) - OS: {$os}", 'AGENT_API');
+
+            $this->success([
+                'uuid' => $uuid,
+                'borg_host' => $_SERVER['SERVER_NAME'] ?? 'localhost',
+                'borg_port' => $sshConfig['ssh_port'],
+                'borg_user' => $sshConfig['ssh_user'],
+                'backup_path' => $sshConfig['backup_path'],
+                'ssh_private_key' => $sshKeyPair['private'],
+                'tls_cert' => $certificates['cert'],
+                'tls_key' => $certificates['key'],
+                'ca_cert' => $certificates['ca'],
+            ], 'Agent registered successfully', 201);
+
+        } catch (\Exception $e) {
+            $this->logger->error("Agent registration failed: {$e->getMessage()}", 'AGENT_API');
+            $this->error('Registration failed: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get installer script for Windows
+     * GET /api/agent/installer/windows
+     */
+    public function getWindowsInstaller(): void
+    {
+        $installerPath = dirname(__DIR__, 3) . '/agent/install/install-windows.ps1';
+
+        if (!file_exists($installerPath)) {
+            $this->error('Windows installer not found', 404);
+            return;
+        }
+
+        header('Content-Type: text/plain; charset=utf-8');
+        header('Content-Disposition: attachment; filename="install-phpborg.ps1"');
+        header('Content-Length: ' . filesize($installerPath));
+
+        readfile($installerPath);
+        exit;
+    }
+
+    /**
+     * Validate registration token
+     */
+    private function validateRegistrationToken(string $token): bool
+    {
+        // Get registration token from settings
+        $settingsRepo = new \PhpBorg\Repository\SettingsRepository(
+            new \PhpBorg\Database\Database()
+        );
+        $validToken = $settingsRepo->get('agent.registration_token');
+
+        if (!$validToken) {
+            // Generate a default token if not set
+            $validToken = bin2hex(random_bytes(32));
+            $settingsRepo->set('agent.registration_token', $validToken);
+        }
+
+        return hash_equals($validToken, $token);
+    }
+
+    /**
+     * Generate SSH key pair
+     */
+    private function generateSSHKeyPair(): array
+    {
+        // Generate ED25519 key pair using OpenSSL
+        $tempDir = sys_get_temp_dir() . '/phpborg-keygen-' . uniqid();
+        mkdir($tempDir, 0700, true);
+
+        $privateKeyPath = $tempDir . '/id_ed25519';
+        $publicKeyPath = $tempDir . '/id_ed25519.pub';
+
+        // Generate key using ssh-keygen
+        $cmd = sprintf(
+            'ssh-keygen -t ed25519 -f %s -N "" -C "phpborg-agent" 2>/dev/null',
+            escapeshellarg($privateKeyPath)
+        );
+        exec($cmd, $output, $returnCode);
+
+        if ($returnCode !== 0 || !file_exists($privateKeyPath)) {
+            // Fallback: generate RSA key
+            $cmd = sprintf(
+                'ssh-keygen -t rsa -b 4096 -f %s -N "" -C "phpborg-agent" 2>/dev/null',
+                escapeshellarg($privateKeyPath)
+            );
+            exec($cmd, $output, $returnCode);
+        }
+
+        $privateKey = file_exists($privateKeyPath) ? file_get_contents($privateKeyPath) : '';
+        $publicKey = file_exists($publicKeyPath) ? trim(file_get_contents($publicKeyPath)) : '';
+
+        // Cleanup
+        @unlink($privateKeyPath);
+        @unlink($publicKeyPath);
+        @rmdir($tempDir);
+
+        return [
+            'private' => $privateKey,
+            'public' => $publicKey,
+        ];
+    }
+
+    /**
      * Generate UUID v4
      */
     private function generateUuid(): string
@@ -669,5 +935,32 @@ final class AgentGatewayController extends BaseController
         $data[8] = chr(ord($data[8]) & 0x3f | 0x80); // Variant
 
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+    }
+
+    /**
+     * Get the path to the agent binary for a specific version and platform
+     */
+    private function getAgentBinaryPath(string $releasesDir, string $version, string $platform = 'linux'): ?string
+    {
+        $binaryName = $platform === 'windows' ? 'phpborg-agent-windows-amd64.exe' : 'phpborg-agent-linux-amd64';
+        $fallbackName = $platform === 'windows' ? 'phpborg-agent.exe' : 'phpborg-agent';
+
+        // Check versioned directory first
+        $paths = [
+            $releasesDir . '/' . $version . '/' . $binaryName,
+            $releasesDir . '/v' . $version . '/' . $binaryName,
+            $releasesDir . '/' . $binaryName,
+            $releasesDir . '/' . $version . '/' . $fallbackName,
+            $releasesDir . '/v' . $version . '/' . $fallbackName,
+            $releasesDir . '/' . $fallbackName,
+        ];
+
+        foreach ($paths as $path) {
+            if (file_exists($path)) {
+                return $path;
+            }
+        }
+
+        return null;
     }
 }
