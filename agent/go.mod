@@ -1,6 +1,8 @@
 module github.com/phpborg/phpborg-agent
 
-go 1.21
+go 1.24.0
+
+toolchain go1.24.10
 
 require (
 	github.com/ncruces/zenity v0.10.10
@@ -13,5 +15,5 @@ require (
 	github.com/dchest/jsmin v0.0.0-20220218165748-59f39799265f // indirect
 	github.com/josephspurrier/goversioninfo v1.4.0 // indirect
 	github.com/randall77/makefat v0.0.0-20210315173500-7ddd0e42c844 // indirect
-	golang.org/x/image v0.10.0 // indirect
+	golang.org/x/image v0.33.0 // indirect
 )
