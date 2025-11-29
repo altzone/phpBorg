@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,28 +27,23 @@ func NewClient(cfg *config.Config) (*Client, error) {
 
 	// Check if mTLS is configured
 	if cfg.UseTLS() {
-		// Load client certificate
+		// Load client certificate for mTLS authentication
 		cert, err := tls.LoadX509KeyPair(cfg.TLS.CertFile, cfg.TLS.KeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load client certificate: %w", err)
 		}
 
-		// Load CA certificate
-		caCert, err := os.ReadFile(cfg.TLS.CAFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load CA certificate: %w", err)
-		}
+		// Note: We don't set RootCAs here because:
+		// - RootCAs is for verifying the SERVER's SSL certificate
+		// - We want to use system CA trust store (for Let's Encrypt, Sectigo, etc.)
+		// - The mTLS CA is only for the SERVER to verify our CLIENT certificate
+		// - The server-side uses our CA to verify agent certs, not the other way around
 
-		caCertPool := x509.NewCertPool()
-		if !caCertPool.AppendCertsFromPEM(caCert) {
-			return nil, fmt.Errorf("failed to parse CA certificate")
-		}
-
-		// Configure TLS with client certs
+		// Configure TLS with client certs (mTLS) but use system CAs for server verification
 		tlsConfig := &tls.Config{
 			Certificates:       []tls.Certificate{cert},
-			RootCAs:            caCertPool,
 			InsecureSkipVerify: cfg.Server.InsecureSkipVerify,
+			// RootCAs: nil = use system CA trust store
 		}
 
 		transport = &http.Transport{
