@@ -148,9 +148,10 @@ set_permissions() {
         find "${PHPBORG_ROOT}/bin" -type f -name "*.sh" -exec chmod +x {} \;
     fi
 
-    # Secure sensitive files
+    # Secure sensitive files (readable by www-data for PHP-FPM)
     log_info "Securing sensitive files"
-    chmod 600 "${PHPBORG_ROOT}/.env"
+    chmod 640 "${PHPBORG_ROOT}/.env"
+    chown phpborg:www-data "${PHPBORG_ROOT}/.env"
     if [ -f "${PHPBORG_ROOT}/.install-credentials" ]; then
         chmod 600 "${PHPBORG_ROOT}/.install-credentials"
     fi
