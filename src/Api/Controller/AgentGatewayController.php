@@ -855,7 +855,7 @@ final class AgentGatewayController extends BaseController
         // User is already authenticated by middleware (requireAuth: true)
         // Check if user has admin or operator role
         $user = $_SERVER['USER'] ?? null;
-        if (!$user || !in_array($user->role, ['admin', 'operator'])) {
+        if (!$user || !$user->hasAnyRole(['ROLE_ADMIN', 'ROLE_OPERATOR'])) {
             $this->error('Insufficient permissions', 403);
             return;
         }
