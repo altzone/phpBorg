@@ -561,6 +561,21 @@ class ServerController extends BaseController
                         $lastBackup = $archives[0]->end->format('Y-m-d H:i:s');
                     }
 
+                    // Calculate stats from archives if repository stats are null
+                    $size = $repo->size;
+                    $compressedSize = $repo->compressedSize;
+                    $deduplicatedSize = $repo->deduplicatedSize;
+
+                    // If repository stats are null but we have archives, use the latest archive stats
+                    // (This is the deduplicated size for the whole repo, approximated from latest archive)
+                    if (($size === null || $size === 0) && $archiveCount > 0) {
+                        // Sum original sizes of all archives for total size
+                        $size = array_reduce($archives, fn($sum, $a) => $sum + ($a->originalSize ?? 0), 0);
+                        $compressedSize = array_reduce($archives, fn($sum, $a) => $sum + ($a->compressedSize ?? 0), 0);
+                        // For deduplicated size, use the latest archive's value (most accurate for repo)
+                        $deduplicatedSize = $archives[0]->deduplicatedSize ?? 0;
+                    }
+
                     return [
                         'id' => $repo->id,
                         'server_id' => $repo->serverId,
@@ -573,8 +588,8 @@ class ServerController extends BaseController
                         'encryption' => $repo->encryption,
                         'archive_count' => $archiveCount,
                         'last_backup_at' => $lastBackup,
-                        'size' => $repo->size,
-                        'deduplicated_size' => $repo->deduplicatedSize,
+                        'size' => $size,
+                        'deduplicated_size' => $deduplicatedSize,
                         'created_at' => $repo->modified->format('Y-m-d H:i:s'),
                         // Retention policy
                         'retention' => [
@@ -585,9 +600,9 @@ class ServerController extends BaseController
                         ],
                         // Statistics
                         'stats' => [
-                            'size' => $repo->size,
-                            'compressed_size' => $repo->compressedSize,
-                            'deduplicated_size' => $repo->deduplicatedSize,
+                            'size' => $size,
+                            'compressed_size' => $compressedSize,
+                            'deduplicated_size' => $deduplicatedSize,
                             'total_unique_chunks' => $repo->totalUniqueChunks,
                             'total_chunks' => $repo->totalChunks,
                         ],
