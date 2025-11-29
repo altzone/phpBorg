@@ -48,34 +48,25 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import phpborgUpdateService from '@/services/phpborgUpdate'
+import { useUpdateStore } from '@/stores/update'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const updateStore = useUpdateStore()
 
-const updateInfo = ref({
+const showBanner = ref(true)
+
+// Use store's update info
+const updateInfo = computed(() => updateStore.updateInfo || {
   available: false,
   commits_behind: 0,
   current_commit_short: '',
   latest_commit_short: ''
 })
-const showBanner = ref(true)
-const checkInterval = ref(null)
 
 const updateAvailable = computed(() => {
-  return updateInfo.value.available && authStore.isAdmin
+  return updateStore.hasUpdate && authStore.isAdmin
 })
-
-async function checkForUpdates() {
-  try {
-    const result = await phpborgUpdateService.checkForUpdates()
-    if (result.success) {
-      updateInfo.value = result.data
-    }
-  } catch (error) {
-    console.error('Failed to check for updates:', error)
-  }
-}
 
 function dismissBanner() {
   showBanner.value = false
@@ -87,8 +78,8 @@ function goToSettings() {
   router.push({ name: 'settings', query: { tab: 'update' } })
 }
 
-onMounted(async () => {
-  // Only check for updates if user is admin
+onMounted(() => {
+  // Only show banner if user is admin
   if (!authStore.isAdmin) return
 
   // Check if banner was dismissed recently (within last 6 hours)
@@ -98,22 +89,7 @@ onMounted(async () => {
     const sixHoursAgo = Date.now() - (6 * 60 * 60 * 1000)
     if (dismissedTime > sixHoursAgo) {
       showBanner.value = false
-      return
     }
-  }
-
-  // Initial check
-  await checkForUpdates()
-
-  // Check every 30 minutes
-  checkInterval.value = setInterval(checkForUpdates, 30 * 60 * 1000)
-})
-
-// Cleanup on unmount
-import { onUnmounted } from 'vue'
-onUnmounted(() => {
-  if (checkInterval.value) {
-    clearInterval(checkInterval.value)
   }
 })
 </script>

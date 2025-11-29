@@ -79,18 +79,73 @@
           </div>
         </div>
 
-        <!-- Changelog -->
+        <!-- Changelog Accordion -->
         <div v-if="changelog && changelog.commits && changelog.commits.length > 0">
-          <h5 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">{{ $t('settings.update.changelog_title') }}</h5>
-          <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 max-h-64 overflow-y-auto">
-            <div v-for="commit in changelog.commits" :key="commit.hash" class="mb-3 last:mb-0 pb-3 last:pb-0 border-b dark:border-gray-700 last:border-0">
-              <div class="flex items-start gap-2">
-                <span class="font-mono text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ commit.hash_short }}</span>
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm text-gray-900 dark:text-gray-100">{{ commit.message }}</p>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {{ commit.author }} • {{ formatDate(commit.date) }}
-                  </p>
+          <button
+            @click="changelogExpanded = !changelogExpanded"
+            class="w-full flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          >
+            <div class="flex items-center gap-2">
+              <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              <span class="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                {{ $t('settings.update.changelog_title') }}
+              </span>
+              <span class="px-2 py-0.5 text-xs font-bold bg-blue-600 text-white rounded-full">
+                {{ changelog.commits.length }}
+              </span>
+            </div>
+            <svg
+              :class="['w-5 h-5 text-gray-500 transition-transform duration-200', changelogExpanded ? 'rotate-180' : '']"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          <!-- Expandable Commits List -->
+          <div
+            v-show="changelogExpanded"
+            class="mt-2 bg-gray-50 dark:bg-gray-800 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"
+          >
+            <div class="max-h-80 overflow-y-auto">
+              <div
+                v-for="(commit, index) in changelog.commits"
+                :key="commit.hash"
+                class="p-3 border-b dark:border-gray-700 last:border-0 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+              >
+                <div class="flex items-start gap-3">
+                  <!-- Commit Icon -->
+                  <div class="flex-shrink-0 mt-1">
+                    <div class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                      <svg class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                      </svg>
+                    </div>
+                  </div>
+                  <!-- Commit Details -->
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="font-mono text-xs px-1.5 py-0.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded">
+                        {{ commit.hash_short }}
+                      </span>
+                      <span class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ formatDate(commit.date) }}
+                      </span>
+                    </div>
+                    <p class="text-sm text-gray-900 dark:text-gray-100 font-medium">{{ commit.message }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      <span class="inline-flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        {{ commit.author }}
+                      </span>
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -180,22 +235,42 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSSEStore } from '@/stores/sse'
+import { useUpdateStore } from '@/stores/update'
 import phpborgUpdateService from '@/services/phpborgUpdate'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 const router = useRouter()
 const sseStore = useSSEStore()
+const updateStore = useUpdateStore()
 
+// Local state (synced with store)
 const versionInfo = ref(null)
 const updateInfo = ref(null)
 const changelog = ref(null)
 const loadingVersion = ref(true) // Start as true since we load on mount
-const checkingUpdates = ref(false)
+const checkingUpdates = computed(() => updateStore.checking)
 const updating = ref(false)
+const changelogExpanded = ref(false) // Accordion state
+
+// Watch store updates and sync local state
+watch(() => updateStore.updateInfo, (newVal) => {
+  if (newVal) updateInfo.value = newVal
+}, { immediate: true })
+
+watch(() => updateStore.changelog, (newVal) => {
+  if (newVal) changelog.value = newVal
+}, { immediate: true })
+
+watch(() => updateStore.versionInfo, (newVal) => {
+  if (newVal) {
+    versionInfo.value = newVal
+    loadingVersion.value = false
+  }
+}, { immediate: true })
 
 // Toast system
 const toasts = ref([])
@@ -217,111 +292,32 @@ function removeToast(id) {
   }
 }
 
-async function loadCurrentVersion() {
-  loadingVersion.value = true
-  try {
-    const result = await phpborgUpdateService.getCurrentVersion()
-    if (result.success) {
-      versionInfo.value = result.data
-    }
-  } catch (error) {
-    console.error('Failed to load version:', error)
-  } finally {
-    loadingVersion.value = false
-  }
-}
-
-let checkJobId = ref(null)
-let sseUnsubscribe = null
-let pollingInterval = null
-
+/**
+ * Check for updates using the store
+ * The store handles the async job polling and updates its state
+ */
 async function checkForUpdates() {
-  checkingUpdates.value = true
   try {
-    const result = await phpborgUpdateService.checkForUpdates()
-    if (result.success && result.data.job_id) {
-      checkJobId.value = result.data.job_id
+    const result = await updateStore.refresh()
 
-      // Subscribe to SSE for this job
-      sseUnsubscribe = sseStore.subscribe(`job.${checkJobId.value}.completed`, handleCheckCompleted)
+    if (result) {
+      // Show toast based on result
+      if (result.update_info?.available) {
+        showToast(t('settings.update.update_available_toast', { commits: result.update_info.commits_behind }), '', 'info')
+      } else {
+        showToast(t('settings.update.uptodate_toast'), '', 'success')
+      }
 
-      // Fallback: polling every 2 seconds
-      pollingInterval = setInterval(async () => {
-        const jobResult = await phpborgUpdateService.getJobResult(checkJobId.value)
-        if (jobResult.success && jobResult.data.job &&
-            (jobResult.data.job.status === 'completed' || jobResult.data.job.status === 'failed')) {
-          handleCheckCompleted({ job_id: checkJobId.value })
-        }
-      }, 2000)
-    }
-  } catch (error) {
-    console.error('Failed to check updates:', error)
-    showToast(t('settings.update.check_error'), '', 'error')
-    checkingUpdates.value = false
-  }
-}
-
-async function handleCheckCompleted(event) {
-  // Cleanup
-  if (sseUnsubscribe) {
-    sseUnsubscribe()
-    sseUnsubscribe = null
-  }
-  if (pollingInterval) {
-    clearInterval(pollingInterval)
-    pollingInterval = null
-  }
-
-  try {
-    // Get job result
-    const jobResult = await phpborgUpdateService.getJobResult(checkJobId.value)
-    if (jobResult.success && jobResult.data.job) {
-      const job = jobResult.data.job
-
-      if (job.status === 'completed') {
-        // Parse the output field (not result)
-        const resultData = JSON.parse(job.output || '{}')
-
-        if (resultData.update_info) {
-          updateInfo.value = resultData.update_info
-          changelog.value = resultData.changelog
-
-          // Populate version info from the check result
-          if (resultData.version_info) {
-            versionInfo.value = resultData.version_info
-            loadingVersion.value = false
-          }
-
-          if (resultData.update_info.available) {
-            showToast(t('settings.update.update_available_toast', { commits: resultData.update_info.commits_behind }), '', 'info')
-          } else {
-            showToast(t('settings.update.uptodate_toast'), '', 'success')
-          }
-        }
-      } else if (job.status === 'failed') {
-        showToast(t('settings.update.check_error'), job.error || '', 'error')
+      // Update local loading state
+      if (result.version_info) {
         loadingVersion.value = false
       }
     }
   } catch (error) {
-    console.error('Failed to get check result:', error)
+    console.error('Failed to check updates:', error)
     showToast(t('settings.update.check_error'), '', 'error')
-    loadingVersion.value = false
-  } finally {
-    checkingUpdates.value = false
-    checkJobId.value = null
   }
 }
-
-// Cleanup on unmount
-onUnmounted(() => {
-  if (sseUnsubscribe) {
-    sseUnsubscribe()
-  }
-  if (pollingInterval) {
-    clearInterval(pollingInterval)
-  }
-})
 
 async function startUpdate() {
   if (!confirm(t('settings.update.confirm_message'))) {
@@ -367,7 +363,16 @@ function formatDate(dateString) {
 }
 
 onMounted(async () => {
-  // Auto-check for updates on mount (will also populate version info)
-  await checkForUpdates()
+  // If store already has data, use it; otherwise trigger a refresh
+  if (updateStore.updateInfo) {
+    loadingVersion.value = false
+    // Expand accordion if there are updates
+    if (updateStore.hasUpdate && updateStore.commits.length > 0) {
+      changelogExpanded.value = true
+    }
+  } else {
+    // Auto-check for updates on mount (will also populate version info)
+    await checkForUpdates()
+  }
 })
 </script>
