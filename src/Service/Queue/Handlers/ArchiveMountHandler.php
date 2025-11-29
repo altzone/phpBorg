@@ -90,9 +90,12 @@ final class ArchiveMountHandler implements JobHandlerInterface
             $queue->updateProgress($job->id, 40, "Creating mount directory...");
             $mountPath = self::MOUNT_BASE_PATH . '/' . $archiveId;
 
-            // Always create/ensure directories as phpborg-borg since borg mount runs as that user
-            // Remove any existing directory with wrong ownership
-            if (is_dir($mountPath)) {
+            // Clean up any stale FUSE mounts (dead "Transport endpoint not connected")
+            if (file_exists($mountPath)) {
+                // Try to unmount in case it's a stale FUSE mount
+                exec('fusermount -u ' . escapeshellarg($mountPath) . ' 2>/dev/null');
+                exec('sudo umount -l ' . escapeshellarg($mountPath) . ' 2>/dev/null');
+                // Now remove the directory
                 exec('sudo rm -rf ' . escapeshellarg($mountPath));
             }
             exec('sudo -u phpborg-borg mkdir -p ' . escapeshellarg($mountPath));

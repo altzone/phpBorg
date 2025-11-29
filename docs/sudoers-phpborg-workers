@@ -125,3 +125,4 @@ phpborg ALL=(phpborg-borg) NOPASSWD: SETENV: /usr/bin/borg *
 phpborg ALL=(phpborg-borg) NOPASSWD: /bin/mkdir -p /var/lib/phpborg/mounts/*
 phpborg ALL=(phpborg-borg) NOPASSWD: /bin/rmdir /var/lib/phpborg/mounts/*
 phpborg ALL=(ALL) NOPASSWD: /bin/rm -rf /var/lib/phpborg/mounts/*
+phpborg ALL=(ALL) NOPASSWD: /bin/umount -l /var/lib/phpborg/mounts/*
