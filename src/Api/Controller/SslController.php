@@ -7,8 +7,6 @@ namespace PhpBorg\Api\Controller;
 use PhpBorg\Application;
 use PhpBorg\Repository\SettingRepository;
 use PhpBorg\Service\SslService;
-use Monolog\Logger;
-use Monolog\Handler\StreamHandler;
 
 /**
  * SSL/TLS Certificate Management API Controller
@@ -20,14 +18,7 @@ final class SslController extends BaseController
     public function __construct(Application $app)
     {
         $settingRepository = new SettingRepository($app->getConnection());
-
-        // Create logger
-        $logger = new Logger('ssl');
-        $logPathSetting = $settingRepository->findByKey('log_path');
-        $logPath = $logPathSetting?->value ?? '/var/log/phpborg/app.log';
-        $logger->pushHandler(new StreamHandler($logPath, Logger::INFO));
-
-        $this->sslService = new SslService($settingRepository, $logger);
+        $this->sslService = new SslService($settingRepository, $app->getLogger());
     }
 
     /**
