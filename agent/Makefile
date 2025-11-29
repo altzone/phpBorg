@@ -6,6 +6,7 @@ BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
 LDFLAGS := -ldflags "-s -w -X main.BuildDate=$(BUILD_DATE) -X main.GitCommit=$(GIT_COMMIT)"
+LDFLAGS_GUI := -ldflags "-s -w -H windowsgui"
 
 # Output directory
 BUILD_DIR := build
@@ -15,11 +16,12 @@ BINARY_NAME := phpborg-agent
 BINARY_LINUX := $(BINARY_NAME)-linux-amd64
 BINARY_LINUX_ARM64 := $(BINARY_NAME)-linux-arm64
 BINARY_WINDOWS := $(BINARY_NAME)-windows-amd64.exe
+BINARY_INSTALLER := phpborg-installer.exe
 
-.PHONY: all clean linux linux-arm64 windows deps test help
+.PHONY: all clean linux linux-arm64 windows installer deps test help
 
 # Default target: build for all platforms
-all: clean deps linux linux-arm64 windows
+all: clean deps linux linux-arm64 windows installer
 	@echo "Build complete. Binaries in $(BUILD_DIR)/"
 	@ls -la $(BUILD_DIR)/
 
@@ -33,9 +35,11 @@ help:
 	@echo "  linux         - Build for Linux amd64"
 	@echo "  linux-arm64   - Build for Linux arm64"
 	@echo "  windows       - Build for Windows amd64"
+	@echo "  installer     - Build Windows GUI installer"
 	@echo "  deps          - Download dependencies"
 	@echo "  test          - Run tests"
 	@echo "  clean         - Remove build artifacts"
+	@echo "  release       - Create release archives"
 	@echo ""
 	@echo "Version: $(VERSION)"
 
@@ -68,6 +72,12 @@ windows:
 	@echo "Building for Windows amd64..."
 	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_WINDOWS) ./cmd/phpborg-agent
 	@echo "Built: $(BUILD_DIR)/$(BINARY_WINDOWS)"
+
+# Build Windows GUI installer
+installer:
+	@echo "Building Windows GUI installer..."
+	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build $(LDFLAGS_GUI) -o $(BUILD_DIR)/$(BINARY_INSTALLER) ./cmd/phpborg-installer
+	@echo "Built: $(BUILD_DIR)/$(BINARY_INSTALLER)"
 
 # Run tests
 test:
