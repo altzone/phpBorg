@@ -127,18 +127,17 @@ final class SslCertificateApplyHandler implements JobHandlerInterface
 
         $queue->updateProgress($job->id, 40, "Écriture des nouveaux certificats...");
 
-        // Write new certificates
-        file_put_contents(self::CERT_DIR . '/cert.pem', $cert);
-        file_put_contents(self::CERT_DIR . '/privkey.pem', $key);
-        chmod(self::CERT_DIR . '/privkey.pem', 0600);
+        // Write new certificates using sudo
+        $this->sudoWrite(self::CERT_DIR . '/cert.pem', $cert, '0644');
+        $this->sudoWrite(self::CERT_DIR . '/privkey.pem', $key, '0600');
 
         // Create fullchain
         $fullchain = $cert;
         if ($chain) {
             $fullchain .= "\n" . $chain;
-            file_put_contents(self::CERT_DIR . '/chain.pem', $chain);
+            $this->sudoWrite(self::CERT_DIR . '/chain.pem', $chain, '0644');
         }
-        file_put_contents(self::CERT_DIR . '/fullchain.pem', $fullchain);
+        $this->sudoWrite(self::CERT_DIR . '/fullchain.pem', $fullchain, '0644');
 
         $queue->updateProgress($job->id, 60, "Mise à jour de la configuration nginx...");
 
@@ -148,14 +147,14 @@ final class SslCertificateApplyHandler implements JobHandlerInterface
 
         // Backup nginx config
         if (file_exists(self::NGINX_CONF)) {
-            copy(self::NGINX_CONF, self::NGINX_CONF . '.bak');
+            exec(sprintf('sudo cp %s %s 2>&1', escapeshellarg(self::NGINX_CONF), escapeshellarg(self::NGINX_CONF . '.bak')));
         }
 
-        file_put_contents(self::NGINX_CONF, $config);
+        $this->sudoWrite(self::NGINX_CONF, $config, '0644');
 
         // Ensure symlink exists
         if (!file_exists(self::NGINX_ENABLED)) {
-            symlink(self::NGINX_CONF, self::NGINX_ENABLED);
+            exec(sprintf('sudo ln -s %s %s 2>&1', escapeshellarg(self::NGINX_CONF), escapeshellarg(self::NGINX_ENABLED)));
         }
 
         $queue->updateProgress($job->id, 80, "Test de la configuration nginx...");
@@ -207,27 +206,43 @@ final class SslCertificateApplyHandler implements JobHandlerInterface
 
         $this->ensureCertDir();
 
-        // Generate self-signed certificate
-        $keyFile = self::CERT_DIR . '/privkey.pem';
-        $certFile = self::CERT_DIR . '/cert.pem';
-        $fullchainFile = self::CERT_DIR . '/fullchain.pem';
+        // Generate self-signed certificate in temp directory first
+        $tempDir = '/tmp/phpborg-ssl-' . uniqid();
+        mkdir($tempDir, 0700, true);
+        $tempKeyFile = $tempDir . '/privkey.pem';
+        $tempCertFile = $tempDir . '/cert.pem';
 
         $cmd = sprintf(
             'openssl req -x509 -nodes -days %d -newkey rsa:2048 -keyout %s -out %s -subj "/CN=%s" 2>&1',
             $days,
-            escapeshellarg($keyFile),
-            escapeshellarg($certFile),
+            escapeshellarg($tempKeyFile),
+            escapeshellarg($tempCertFile),
             escapeshellarg($domain)
         );
 
         exec($cmd, $output, $exitCode);
 
         if ($exitCode !== 0) {
+            @unlink($tempKeyFile);
+            @unlink($tempCertFile);
+            @rmdir($tempDir);
             throw new \Exception("Failed to generate certificate: " . implode("\n", $output));
         }
 
-        chmod($keyFile, 0600);
-        copy($certFile, $fullchainFile);
+        // Copy to final location using sudo
+        $keyFile = self::CERT_DIR . '/privkey.pem';
+        $certFile = self::CERT_DIR . '/cert.pem';
+        $fullchainFile = self::CERT_DIR . '/fullchain.pem';
+
+        exec(sprintf('sudo cp %s %s 2>&1', escapeshellarg($tempKeyFile), escapeshellarg($keyFile)));
+        exec(sprintf('sudo cp %s %s 2>&1', escapeshellarg($tempCertFile), escapeshellarg($certFile)));
+        exec(sprintf('sudo cp %s %s 2>&1', escapeshellarg($tempCertFile), escapeshellarg($fullchainFile)));
+        exec(sprintf('sudo chmod 0600 %s 2>&1', escapeshellarg($keyFile)));
+
+        // Cleanup temp files
+        @unlink($tempKeyFile);
+        @unlink($tempCertFile);
+        @rmdir($tempDir);
 
         $queue->updateProgress($job->id, 50, "Mise à jour de la configuration nginx...");
 
@@ -236,13 +251,13 @@ final class SslCertificateApplyHandler implements JobHandlerInterface
         $config = $this->generateNginxSslConfig($domain, $phpborgRoot);
 
         if (file_exists(self::NGINX_CONF)) {
-            copy(self::NGINX_CONF, self::NGINX_CONF . '.bak');
+            exec(sprintf('sudo cp %s %s 2>&1', escapeshellarg(self::NGINX_CONF), escapeshellarg(self::NGINX_CONF . '.bak')));
         }
 
-        file_put_contents(self::NGINX_CONF, $config);
+        $this->sudoWrite(self::NGINX_CONF, $config, '0644');
 
         if (!file_exists(self::NGINX_ENABLED)) {
-            symlink(self::NGINX_CONF, self::NGINX_ENABLED);
+            exec(sprintf('sudo ln -s %s %s 2>&1', escapeshellarg(self::NGINX_CONF), escapeshellarg(self::NGINX_ENABLED)));
         }
 
         $queue->updateProgress($job->id, 70, "Test de la configuration nginx...");
@@ -319,20 +334,20 @@ final class SslCertificateApplyHandler implements JobHandlerInterface
         $config = $this->generateNginxSslConfig($domain, $phpborgRoot);
 
         if (file_exists(self::NGINX_CONF)) {
-            copy(self::NGINX_CONF, self::NGINX_CONF . '.bak');
+            exec(sprintf('sudo cp %s %s 2>&1', escapeshellarg(self::NGINX_CONF), escapeshellarg(self::NGINX_CONF . '.bak')));
         }
 
-        file_put_contents(self::NGINX_CONF, $config);
+        $this->sudoWrite(self::NGINX_CONF, $config, '0644');
 
         if (!file_exists(self::NGINX_ENABLED)) {
-            symlink(self::NGINX_CONF, self::NGINX_ENABLED);
+            exec(sprintf('sudo ln -s %s %s 2>&1', escapeshellarg(self::NGINX_CONF), escapeshellarg(self::NGINX_ENABLED)));
         }
 
         exec('sudo nginx -t 2>&1', $testOutput, $exitCode);
 
         if ($exitCode !== 0) {
             if (file_exists(self::NGINX_CONF . '.bak')) {
-                copy(self::NGINX_CONF . '.bak', self::NGINX_CONF);
+                exec(sprintf('sudo cp %s %s 2>&1', escapeshellarg(self::NGINX_CONF . '.bak'), escapeshellarg(self::NGINX_CONF)));
             }
             throw new \Exception("Nginx config test failed: " . implode("\n", $testOutput));
         }
@@ -415,20 +430,20 @@ final class SslCertificateApplyHandler implements JobHandlerInterface
         $config = $this->generateNginxSslConfig($domain, $phpborgRoot);
 
         if (file_exists(self::NGINX_CONF)) {
-            copy(self::NGINX_CONF, self::NGINX_CONF . '.bak');
+            exec(sprintf('sudo cp %s %s 2>&1', escapeshellarg(self::NGINX_CONF), escapeshellarg(self::NGINX_CONF . '.bak')));
         }
 
-        file_put_contents(self::NGINX_CONF, $config);
+        $this->sudoWrite(self::NGINX_CONF, $config, '0644');
 
         if (!file_exists(self::NGINX_ENABLED)) {
-            symlink(self::NGINX_CONF, self::NGINX_ENABLED);
+            exec(sprintf('sudo ln -s %s %s 2>&1', escapeshellarg(self::NGINX_CONF), escapeshellarg(self::NGINX_ENABLED)));
         }
 
         exec('sudo nginx -t 2>&1', $testOutput, $exitCode);
 
         if ($exitCode !== 0) {
             if (file_exists(self::NGINX_CONF . '.bak')) {
-                copy(self::NGINX_CONF . '.bak', self::NGINX_CONF);
+                exec(sprintf('sudo cp %s %s 2>&1', escapeshellarg(self::NGINX_CONF . '.bak'), escapeshellarg(self::NGINX_CONF)));
             }
             throw new \Exception("Nginx config test failed: " . implode("\n", $testOutput));
         }
@@ -494,10 +509,10 @@ final class SslCertificateApplyHandler implements JobHandlerInterface
         $config = $this->generateNginxHttpConfig($phpborgRoot);
 
         if (file_exists(self::NGINX_CONF)) {
-            copy(self::NGINX_CONF, self::NGINX_CONF . '.ssl.bak');
+            exec(sprintf('sudo cp %s %s 2>&1', escapeshellarg(self::NGINX_CONF), escapeshellarg(self::NGINX_CONF . '.ssl.bak')));
         }
 
-        file_put_contents(self::NGINX_CONF, $config);
+        $this->sudoWrite(self::NGINX_CONF, $config, '0644');
 
         $queue->updateProgress($job->id, 50, "Test de la configuration nginx...");
 
@@ -505,7 +520,7 @@ final class SslCertificateApplyHandler implements JobHandlerInterface
 
         if ($exitCode !== 0) {
             if (file_exists(self::NGINX_CONF . '.ssl.bak')) {
-                copy(self::NGINX_CONF . '.ssl.bak', self::NGINX_CONF);
+                exec(sprintf('sudo cp %s %s 2>&1', escapeshellarg(self::NGINX_CONF . '.ssl.bak'), escapeshellarg(self::NGINX_CONF)));
             }
             throw new \Exception("Nginx config test failed: " . implode("\n", $output));
         }
@@ -526,11 +541,51 @@ final class SslCertificateApplyHandler implements JobHandlerInterface
 
     // Helper methods
 
+    /**
+     * Write file using sudo tee (for files owned by root)
+     */
+    private function sudoWrite(string $path, string $content, string $mode = '0644'): void
+    {
+        $tempFile = '/tmp/phpborg-ssl-' . uniqid() . '.tmp';
+        if (file_put_contents($tempFile, $content) === false) {
+            throw new \Exception("Failed to write temp file");
+        }
+
+        // Use sudo cp to copy file to destination
+        exec(sprintf('sudo cp %s %s 2>&1', escapeshellarg($tempFile), escapeshellarg($path)), $output, $exitCode);
+        @unlink($tempFile);
+
+        if ($exitCode !== 0) {
+            throw new \Exception("Failed to write {$path}: " . implode("\n", $output));
+        }
+
+        // Set permissions
+        exec(sprintf('sudo chmod %s %s 2>&1', $mode, escapeshellarg($path)), $output, $exitCode);
+        if ($exitCode !== 0) {
+            $this->logger->warning("Failed to set permissions on {$path}", 'SSL');
+        }
+    }
+
+    /**
+     * Create directory using sudo
+     */
+    private function sudoMkdir(string $path, string $mode = '0755'): void
+    {
+        if (is_dir($path)) {
+            return;
+        }
+
+        exec(sprintf('sudo mkdir -p %s 2>&1', escapeshellarg($path)), $output, $exitCode);
+        if ($exitCode !== 0) {
+            throw new \Exception("Failed to create directory {$path}: " . implode("\n", $output));
+        }
+
+        exec(sprintf('sudo chmod %s %s 2>&1', $mode, escapeshellarg($path)));
+    }
+
     private function ensureCertDir(): void
     {
-        if (!is_dir(self::CERT_DIR)) {
-            mkdir(self::CERT_DIR, 0700, true);
-        }
+        $this->sudoMkdir(self::CERT_DIR, '0700');
     }
 
     private function backupCurrentCerts(): void
@@ -538,10 +593,11 @@ final class SslCertificateApplyHandler implements JobHandlerInterface
         $backupDir = self::CERT_DIR . '/backup_' . date('Y-m-d_His');
 
         if (file_exists(self::CERT_DIR . '/cert.pem')) {
-            mkdir($backupDir, 0700, true);
+            $this->sudoMkdir($backupDir, '0700');
             foreach (['cert.pem', 'privkey.pem', 'fullchain.pem', 'chain.pem'] as $file) {
-                if (file_exists(self::CERT_DIR . '/' . $file)) {
-                    copy(self::CERT_DIR . '/' . $file, $backupDir . '/' . $file);
+                $src = self::CERT_DIR . '/' . $file;
+                if (file_exists($src)) {
+                    exec(sprintf('sudo cp %s %s 2>&1', escapeshellarg($src), escapeshellarg($backupDir . '/' . $file)));
                 }
             }
             $this->logger->info("Certificates backed up", 'SSL', ['backup_dir' => $backupDir]);
@@ -558,12 +614,19 @@ final class SslCertificateApplyHandler implements JobHandlerInterface
 
         $this->ensureCertDir();
 
-        copy($leDir . '/cert.pem', self::CERT_DIR . '/cert.pem');
-        copy($leDir . '/privkey.pem', self::CERT_DIR . '/privkey.pem');
-        copy($leDir . '/fullchain.pem', self::CERT_DIR . '/fullchain.pem');
-        copy($leDir . '/chain.pem', self::CERT_DIR . '/chain.pem');
+        // Use sudo to copy Let's Encrypt certs (they're readable but we write to /etc/phpborg/ssl)
+        foreach (['cert.pem', 'privkey.pem', 'fullchain.pem', 'chain.pem'] as $file) {
+            $src = $leDir . '/' . $file;
+            $dst = self::CERT_DIR . '/' . $file;
+            if (file_exists($src)) {
+                exec(sprintf('sudo cp %s %s 2>&1', escapeshellarg($src), escapeshellarg($dst)), $output, $exitCode);
+                if ($exitCode !== 0) {
+                    throw new \Exception("Failed to copy {$file}: " . implode("\n", $output));
+                }
+            }
+        }
 
-        chmod(self::CERT_DIR . '/privkey.pem', 0600);
+        exec(sprintf('sudo chmod 0600 %s 2>&1', escapeshellarg(self::CERT_DIR . '/privkey.pem')));
     }
 
     private function setupAutoRenewal(): void
@@ -571,8 +634,7 @@ final class SslCertificateApplyHandler implements JobHandlerInterface
         $cronContent = "# phpBorg SSL auto-renewal\n";
         $cronContent .= "0 3 * * * root certbot renew --cert-name phpborg --quiet --deploy-hook \"systemctl reload nginx\"\n";
 
-        file_put_contents('/etc/cron.d/phpborg-ssl-renew', $cronContent);
-        chmod('/etc/cron.d/phpborg-ssl-renew', 0644);
+        $this->sudoWrite('/etc/cron.d/phpborg-ssl-renew', $cronContent, '0644');
 
         $this->logger->info("Auto-renewal cron configured", 'SSL');
     }

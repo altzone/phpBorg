@@ -139,6 +139,13 @@ phpborg ALL=(ALL) NOPASSWD: /usr/bin/certbot certonly *
 phpborg ALL=(ALL) NOPASSWD: /usr/bin/certbot renew *
 phpborg ALL=(ALL) NOPASSWD: /usr/bin/certbot certificates *
 
+# SSL file management (certificates and nginx config)
+phpborg ALL=(ALL) NOPASSWD: /bin/mkdir -p /etc/phpborg/ssl*
+phpborg ALL=(ALL) NOPASSWD: /bin/cp * /etc/phpborg/ssl/*
+phpborg ALL=(ALL) NOPASSWD: /bin/cp * /etc/nginx/sites-available/phpborg*
+phpborg ALL=(ALL) NOPASSWD: /bin/chmod * /etc/phpborg/ssl*
+phpborg ALL=(ALL) NOPASSWD: /bin/ln -s /etc/nginx/sites-available/phpborg /etc/nginx/sites-enabled/phpborg
+
 # Mount directories for borg archive browsing
 phpborg ALL=(phpborg-borg) NOPASSWD: /bin/mkdir -p /var/lib/phpborg/mounts/*
 phpborg ALL=(phpborg-borg) NOPASSWD: /bin/rmdir /var/lib/phpborg/mounts/*
