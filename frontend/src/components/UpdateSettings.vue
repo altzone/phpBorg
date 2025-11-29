@@ -137,6 +137,8 @@
                       </span>
                     </div>
                     <p class="text-sm text-gray-900 dark:text-gray-100 font-medium">{{ commit.message }}</p>
+                    <!-- Commit body (description) -->
+                    <p v-if="commit.body" class="text-xs text-gray-600 dark:text-gray-300 mt-2 whitespace-pre-line bg-gray-100 dark:bg-gray-700 p-2 rounded">{{ commit.body }}</p>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       <span class="inline-flex items-center gap-1">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

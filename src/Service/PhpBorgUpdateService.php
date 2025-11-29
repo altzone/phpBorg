@@ -130,7 +130,7 @@ final class PhpBorgUpdateService
     /**
      * Get changelog between current and latest version
      *
-     * @return array{commits: array<array{hash: string, author: string, date: string, message: string}>, error: ?string}
+     * @return array{commits: array<array{hash: string, author: string, date: string, message: string, body: string}>, error: ?string}
      */
     public function getChangelog(): array
     {
@@ -138,25 +138,39 @@ final class PhpBorgUpdateService
             $gitDir = $this->getGitDirectory();
             $remoteRef = self::GIT_REMOTE . '/' . self::GIT_BRANCH;
 
-            // Get commits between HEAD and origin/master
-            $format = '--pretty=format:{"hash":"%H","hash_short":"%h","author":"%an","date":"%ai","message":"%s"}';
-            $cmd = "cd {$gitDir} && git log HEAD..{$remoteRef} {$format} 2>&1";
-
-            exec($cmd, $output, $exitCode);
+            // Get commit hashes first
+            $cmd = "cd {$gitDir} && git log HEAD..{$remoteRef} --pretty=format:'%H' 2>&1";
+            exec($cmd, $hashOutput, $exitCode);
 
             if ($exitCode !== 0) {
-                throw new \Exception("Failed to get changelog: " . implode("\n", $output));
+                throw new \Exception("Failed to get changelog: " . implode("\n", $hashOutput));
             }
 
             $commits = [];
-            foreach ($output as $line) {
-                if (empty(trim($line))) {
+            foreach ($hashOutput as $hash) {
+                $hash = trim($hash);
+                if (empty($hash)) {
                     continue;
                 }
 
-                $commit = json_decode($line, true);
-                if ($commit) {
-                    $commits[] = $commit;
+                // Get commit details with body
+                // Use a unique delimiter that won't appear in commit messages
+                $delimiter = '|||PHPBORG_DELIM|||';
+                $detailCmd = "cd {$gitDir} && git log -1 --pretty=format:'%h{$delimiter}%an{$delimiter}%ai{$delimiter}%s{$delimiter}%b' {$hash} 2>&1";
+                $detailOutput = shell_exec($detailCmd);
+
+                if ($detailOutput) {
+                    $parts = explode($delimiter, $detailOutput, 5);
+                    if (count($parts) >= 4) {
+                        $commits[] = [
+                            'hash' => $hash,
+                            'hash_short' => $parts[0],
+                            'author' => $parts[1],
+                            'date' => $parts[2],
+                            'message' => $parts[3],
+                            'body' => isset($parts[4]) ? trim($parts[4]) : ''
+                        ];
+                    }
                 }
             }
 
