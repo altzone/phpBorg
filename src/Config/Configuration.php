@@ -70,7 +70,7 @@ final readonly class Configuration
             borgLvmSnapName: $_ENV['BORG_LVM_SNAP_NAME'] ?? 'phpborg',
             borgServerIpPublic: $_ENV['BORG_SERVER_IP_PUBLIC'] ?? '',
             borgServerIpPrivate: $_ENV['BORG_SERVER_IP_PRIVATE'] ?? '',
-            logPath: $_ENV['LOG_PATH'] ?? '/var/log/phpborg.log',
+            logPath: $_ENV['LOG_PATH'] ?? '/var/log/phpborg/phpborg.log',
             logLevel: $_ENV['LOG_LEVEL'] ?? 'info',
             logChannel: $_ENV['LOG_CHANNEL'] ?? 'phpborg',
             appEnv: $_ENV['APP_ENV'] ?? 'production',
