@@ -51,53 +51,70 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
         $currentCommit = $this->getCurrentCommit($phpborgRoot);
 
         try {
-            // Step 1: Pre-checks
+            // Step 1: Pre-checks (5%)
+            $queue->updateProgress($job->id, 5, "Vérification des prérequis...");
             $this->logger->info("Running pre-update checks...", 'PHPBORG_UPDATE');
             $this->preChecks($phpborgRoot);
 
-            // Step 2: Create pre-update backup (MANDATORY)
+            // Step 2: Create pre-update backup (15%)
+            $queue->updateProgress($job->id, 10, "Création de la sauvegarde pré-mise à jour...");
             $this->logger->info("Creating pre-update backup...", 'PHPBORG_UPDATE');
             $preUpdateBackupId = $this->createPreUpdateBackup();
+            $queue->updateProgress($job->id, 15, "Sauvegarde créée (ID: {$preUpdateBackupId})");
             $this->logger->info("Pre-update backup created", 'PHPBORG_UPDATE', [
                 'backup_id' => $preUpdateBackupId
             ]);
 
-            // Step 3: Git update
+            // Step 3: Git update (25%)
+            $queue->updateProgress($job->id, 20, "Mise à jour du code depuis Git...");
             $this->logger->info("Updating code from git...", 'PHPBORG_UPDATE');
             $this->gitUpdate($phpborgRoot, $targetCommit);
             $newCommit = $this->getCurrentCommit($phpborgRoot);
+            $queue->updateProgress($job->id, 25, "Code mis à jour: " . substr($currentCommit, 0, 7) . " → " . substr($newCommit, 0, 7));
             $this->logger->info("Code updated", 'PHPBORG_UPDATE', [
                 'from' => substr($currentCommit, 0, 7),
                 'to' => substr($newCommit, 0, 7)
             ]);
 
-            // Step 4: Composer install
+            // Step 4: Composer install (40%)
+            $queue->updateProgress($job->id, 30, "Installation des dépendances PHP (Composer)...");
             $this->logger->info("Installing PHP dependencies...", 'PHPBORG_UPDATE');
             $this->composerInstall($phpborgRoot);
+            $queue->updateProgress($job->id, 40, "Dépendances PHP installées");
 
-            // Step 5: NPM build
+            // Step 5: NPM build (60%)
+            $queue->updateProgress($job->id, 45, "Construction du frontend (npm install)...");
             $this->logger->info("Building frontend...", 'PHPBORG_UPDATE');
             $this->npmBuild($phpborgRoot);
+            $queue->updateProgress($job->id, 60, "Frontend construit avec succès");
 
-            // Step 5b: Rebuild Go agent (if Go is available)
+            // Step 5b: Rebuild Go agent (70%)
+            $queue->updateProgress($job->id, 65, "Reconstruction de l'agent Go...");
             $this->logger->info("Rebuilding Go agent...", 'PHPBORG_UPDATE');
             $this->rebuildAgent($phpborgRoot);
+            $queue->updateProgress($job->id, 70, "Agent Go traité");
 
-            // Step 6: Database migrations
+            // Step 6: Database migrations (80%)
+            $queue->updateProgress($job->id, 75, "Exécution des migrations de base de données...");
             $this->logger->info("Running database migrations...", 'PHPBORG_UPDATE');
             $this->runMigrations($phpborgRoot);
+            $queue->updateProgress($job->id, 80, "Migrations terminées");
 
-            // Step 7: Regenerate systemd services (if changed)
+            // Step 7: Regenerate systemd services (85%)
+            $queue->updateProgress($job->id, 82, "Régénération des services systemd...");
             $this->logger->info("Regenerating systemd services...", 'PHPBORG_UPDATE');
             $this->regenerateSystemdServices($phpborgRoot);
+            $queue->updateProgress($job->id, 85, "Services systemd régénérés");
 
-            // Step 8: Pre-restart health check (verify core components before restart)
+            // Step 8: Pre-restart health check (90%)
+            $queue->updateProgress($job->id, 88, "Vérification de santé pré-redémarrage...");
             $this->logger->info("Running pre-restart health check...", 'PHPBORG_UPDATE');
             $healthCheck = $this->healthCheck();
 
             if (!$healthCheck['healthy']) {
                 throw new \Exception("Health check failed: " . $healthCheck['error']);
             }
+            $queue->updateProgress($job->id, 90, "Vérification de santé réussie");
 
             $message = sprintf(
                 "phpBorg updated successfully from %s to %s",
@@ -107,10 +124,11 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
 
             $this->logger->info($message, 'PHPBORG_UPDATE');
 
-            // Step 9: Request services restart (async - don't wait)
-            // This must be LAST because the restart will kill this process
+            // Step 9: Request services restart (95%)
+            $queue->updateProgress($job->id, 95, "Redémarrage des services en cours...");
             $this->logger->info("Requesting services restart...", 'PHPBORG_UPDATE');
             $this->restartServices($phpborgRoot);
+            $queue->updateProgress($job->id, 100, "Mise à jour terminée ! Redémarrage en cours...");
 
             return $message;
 

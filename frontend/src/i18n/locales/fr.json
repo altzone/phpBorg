@@ -974,7 +974,8 @@
       "confirm_message": "Êtes-vous sûr de vouloir mettre à jour phpBorg ? Une sauvegarde sera créée automatiquement avant la mise à jour.",
       "update_started": "Mise à jour démarrée. Vous pouvez suivre la progression dans la file des tâches.",
       "update_error": "Échec du démarrage de la mise à jour",
-      "update_job_title": "Mise à jour phpBorg"
+      "update_job_title": "Mise à jour phpBorg",
+      "update_success": "Mise à jour terminée avec succès !"
     },
     "save_success": "Paramètres enregistrés avec succès !"
   },
@@ -984,6 +985,24 @@
       "description": "{commits} nouveau(x) commit(s) disponible(s)",
       "view_update": "Voir la mise à jour",
       "dismiss": "Ignorer"
+    },
+    "modal": {
+      "title": "Mise à jour phpBorg",
+      "progress": "Progression",
+      "status_pending": "En attente...",
+      "status_running": "Mise à jour en cours...",
+      "status_completed": "Mise à jour terminée !",
+      "status_failed": "Échec de la mise à jour",
+      "waiting": "Initialisation...",
+      "starting": "Démarrage de la mise à jour...",
+      "success_message": "phpBorg a été mis à jour avec succès ! Rechargez la page pour voir les changements.",
+      "failed_message": "La mise à jour a échoué. Consultez les logs pour plus de détails.",
+      "unknown_error": "Erreur inconnue",
+      "steps_history": "Historique des étapes",
+      "close_and_reload": "Fermer et recharger",
+      "minimize": "Réduire",
+      "job_continues": "La mise à jour continue en arrière-plan",
+      "please_wait": "Veuillez patienter..."
     }
   },
   "restore_wizard": {

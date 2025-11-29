@@ -231,6 +231,15 @@
         </div>
       </div>
     </div>
+
+    <!-- Update Progress Modal -->
+    <UpdateProgressModal
+      :is-open="showUpdateModal"
+      :job-id="updateJobId"
+      @close="closeUpdateModal"
+      @completed="handleUpdateCompleted"
+      @failed="handleUpdateFailed"
+    />
   </div>
 </template>
 
@@ -241,6 +250,7 @@ import { useSSEStore } from '@/stores/sse'
 import { useUpdateStore } from '@/stores/update'
 import phpborgUpdateService from '@/services/phpborgUpdate'
 import { useI18n } from 'vue-i18n'
+import UpdateProgressModal from './UpdateProgressModal.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -255,6 +265,10 @@ const loadingVersion = ref(true) // Start as true since we load on mount
 const checkingUpdates = computed(() => updateStore.checking)
 const updating = ref(false)
 const changelogExpanded = ref(false) // Accordion state
+
+// Update progress modal
+const showUpdateModal = ref(false)
+const updateJobId = ref(null)
 
 // Watch store updates and sync local state
 watch(() => updateStore.updateInfo, (newVal) => {
@@ -328,15 +342,10 @@ async function startUpdate() {
   try {
     const result = await phpborgUpdateService.startUpdate()
     if (result.success && result.data.job_id) {
-      showToast(t('settings.update.update_started'), '', 'success')
-
-      // Job will automatically appear in taskbar via SSE
-
-      // Reset state
+      // Show progress modal instead of navigating away
+      updateJobId.value = result.data.job_id
+      showUpdateModal.value = true
       updating.value = false
-
-      // Navigate to jobs page
-      router.push({ name: 'jobs' })
     } else {
       // API returned success:false
       showToast(t('settings.update.update_error'), result.message || '', 'error')
@@ -348,6 +357,18 @@ async function startUpdate() {
     showToast(t('settings.update.update_error'), errorMsg, 'error')
     updating.value = false
   }
+}
+
+function closeUpdateModal() {
+  showUpdateModal.value = false
+}
+
+function handleUpdateCompleted() {
+  showToast(t('settings.update.update_success'), '', 'success')
+}
+
+function handleUpdateFailed(error) {
+  showToast(t('settings.update.update_error'), error || '', 'error')
 }
 
 function formatDate(dateString) {

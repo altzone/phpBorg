@@ -973,7 +973,8 @@
       "confirm_message": "Are you sure you want to update phpBorg? A backup will be created automatically before the update.",
       "update_started": "Update started. You can monitor progress in the job queue.",
       "update_error": "Failed to start update",
-      "update_job_title": "phpBorg Update"
+      "update_job_title": "phpBorg Update",
+      "update_success": "Update completed successfully!"
     },
     "save_success": "Settings saved successfully!"
   },
@@ -983,6 +984,24 @@
       "description": "{commits} new commit(s) available",
       "view_update": "View Update",
       "dismiss": "Dismiss"
+    },
+    "modal": {
+      "title": "phpBorg Update",
+      "progress": "Progress",
+      "status_pending": "Waiting...",
+      "status_running": "Update in progress...",
+      "status_completed": "Update completed!",
+      "status_failed": "Update failed",
+      "waiting": "Initializing...",
+      "starting": "Starting update...",
+      "success_message": "phpBorg has been updated successfully! Reload the page to see the changes.",
+      "failed_message": "The update failed. Check the logs for more details.",
+      "unknown_error": "Unknown error",
+      "steps_history": "Steps history",
+      "close_and_reload": "Close and reload",
+      "minimize": "Minimize",
+      "job_continues": "The update continues in background",
+      "please_wait": "Please wait..."
     }
   },
   "restore_wizard": {
