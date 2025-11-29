@@ -322,6 +322,7 @@ try {
     $router->get('/agent/download/windows', AgentGatewayController::class, 'downloadWindows', requireAuth: false);
     $router->get('/agent/download/linux', AgentGatewayController::class, 'downloadLinux', requireAuth: false);
     $router->get('/agent/installer/windows', AgentGatewayController::class, 'getWindowsInstaller', requireAuth: false);
+    $router->get('/agent/installer/package', AgentGatewayController::class, 'getInstallerPackage', requireAuth: true);
 
     // Agent Registration with Token (for installer scripts)
     $router->post('/agent/register-token', AgentGatewayController::class, 'registerWithToken', requireAuth: false);
