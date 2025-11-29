@@ -19,6 +19,7 @@ use PhpBorg\Service\Queue\Handlers\PhpBorgBackupCreateHandler;
 use PhpBorg\Service\Queue\Handlers\PhpBorgBackupRestoreHandler;
 use PhpBorg\Service\Queue\Handlers\PhpBorgUpdateCheckHandler;
 use PhpBorg\Service\Queue\Handlers\PhpBorgUpdateHandler;
+use PhpBorg\Service\Queue\Handlers\SslCertificateApplyHandler;
 use PhpBorg\Service\Queue\Handlers\RepositoryDeleteHandler;
 use PhpBorg\Service\Queue\Handlers\ServerSetupHandler;
 use PhpBorg\Service\Queue\Handlers\ServerSetupPasswordHandler;
@@ -215,6 +216,11 @@ final class WorkerStartCommand extends Command
         $worker->registerHandler('phpborg_update', new PhpBorgUpdateHandler(
             $this->app->getConfig(),
             $this->app->getPhpBorgBackupRepository(),
+            $logger
+        ));
+
+        $worker->registerHandler('ssl_certificate', new SslCertificateApplyHandler(
+            $this->app->getSettingRepository(),
             $logger
         ));
 
