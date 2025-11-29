@@ -82,10 +82,8 @@ final class SslCertificateApplyHandler implements JobHandlerInterface
                 throw new \Exception("Invalid certificate format");
             }
 
-            $queue->updateProgress($job->id, 70, "Test de la configuration nginx...");
-
-            // Test nginx config with these certs
-            $this->testNginxConfig($tempCert, $tempKey, $chain);
+            // Note: We don't test nginx config here - that's done during apply
+            // Validation only checks cert/key match and cert validity
 
             $queue->updateProgress($job->id, 100, "Certificat valide");
 

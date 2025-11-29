@@ -113,6 +113,26 @@ www-data ALL=(ALL) NOPASSWD: /bin/systemctl list-units phpborg-* --no-pager
 # root ALL=(mysql) NOPASSWD: ALL
 
 # ========================================================================
+# SSL/TLS Certificate Management
+# ========================================================================
+# Allow phpborg user to manage nginx and certbot for SSL operations
+
+# Nginx test and reload
+phpborg ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
+phpborg ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t -c *
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl reload nginx
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl is-active nginx
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl is-active certbot.timer
+
+# Certbot for Let's Encrypt certificates
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/certbot certonly *
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/certbot renew *
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/certbot certificates *
+
+# Install certbot plugins if missing
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/apt-get install -y python3-certbot-dns-cloudflare
+
+# ========================================================================
 # Borg Operations as phpborg-borg
 # ========================================================================
 # All local Borg repositories are owned by phpborg-borg:phpborg-borg

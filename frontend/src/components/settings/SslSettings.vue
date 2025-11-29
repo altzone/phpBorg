@@ -787,13 +787,19 @@ const startJobPolling = (jobId, action) => {
   jobPollInterval = setInterval(async () => {
     try {
       const response = await api.get(`/jobs/${jobId}`)
-      const job = response.data.data
+      const data = response.data.data
+      const job = data.job
+      const progressInfo = data.progress_info
+
+      // Use progress_info for real-time progress when running
+      const progress = progressInfo?.progress ?? job.progress ?? 0
+      const message = progressInfo?.message ?? job.output ?? t('settings.ssl.processing')
 
       currentJob.value = {
         id: jobId,
-        progress: job.progress || 0,
+        progress: progress,
         status: job.status,
-        message: job.output || t('settings.ssl.processing'),
+        message: message,
         action: action
       }
 
@@ -806,6 +812,12 @@ const startJobPolling = (jobId, action) => {
       }
     } catch (error) {
       console.error('Error polling job:', error)
+      // Stop polling on error and show error
+      stopJobPolling()
+      showMessage(error.response?.data?.error?.message || error.message, 'error')
+      generating.value = false
+      validating.value = false
+      renewing.value = false
     }
   }, 1000)
 }
