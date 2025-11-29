@@ -156,7 +156,7 @@ set_permissions() {
         chmod 600 "${PHPBORG_ROOT}/.install-credentials"
     fi
 
-    # Writable directories
+    # Writable directories (group www-data for PHP-FPM access)
     log_info "Setting writable directories"
     local writable_dirs=(
         ".git"
@@ -171,13 +171,19 @@ set_permissions() {
     for dir in "${writable_dirs[@]}"; do
         if [ -d "${PHPBORG_ROOT}/${dir}" ]; then
             chmod -R 775 "${PHPBORG_ROOT}/${dir}"
-            chown -R phpborg:phpborg "${PHPBORG_ROOT}/${dir}"
+            chown -R phpborg:www-data "${PHPBORG_ROOT}/${dir}"
         else
             mkdir -p "${PHPBORG_ROOT}/${dir}"
             chmod 775 "${PHPBORG_ROOT}/${dir}"
-            chown phpborg:phpborg "${PHPBORG_ROOT}/${dir}"
+            chown phpborg:www-data "${PHPBORG_ROOT}/${dir}"
         fi
     done
+
+    # Log directory also needs www-data group
+    if [ -d "/var/log/phpborg" ]; then
+        chown -R phpborg:www-data /var/log/phpborg/
+        chmod -R 775 /var/log/phpborg/
+    fi
 
     log_success "File permissions set"
     save_state "set_permissions" "completed"
