@@ -128,6 +128,22 @@ phpborg ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-sshd
 phpborg ALL=(ALL) NOPASSWD: /bin/systemctl start phpborg-sshd
 phpborg ALL=(ALL) NOPASSWD: /bin/systemctl stop phpborg-sshd
 phpborg ALL=(ALL) NOPASSWD: /bin/systemctl restart phpborg-sshd
+
+# SSL/TLS Certificate Management
+phpborg ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
+phpborg ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t -c *
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl reload nginx
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl is-active nginx
+phpborg ALL=(ALL) NOPASSWD: /bin/systemctl is-active certbot.timer
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/certbot certonly *
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/certbot renew *
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/certbot certificates *
+
+# Mount directories for borg archive browsing
+phpborg ALL=(phpborg-borg) NOPASSWD: /bin/mkdir -p /var/lib/phpborg/mounts/*
+phpborg ALL=(phpborg-borg) NOPASSWD: /bin/rmdir /var/lib/phpborg/mounts/*
+phpborg ALL=(ALL) NOPASSWD: /bin/rm -rf /var/lib/phpborg/mounts/*
+phpborg ALL=(ALL) NOPASSWD: /bin/umount -l /var/lib/phpborg/mounts/*
 EOF
 
     chmod 440 "${sudoers_file}"
