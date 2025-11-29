@@ -48,8 +48,8 @@
           <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">{{ $t('server_wizard.step1_method.title') }}</h3>
           <p class="text-gray-600 dark:text-slate-400 mb-6">{{ $t('server_wizard.step1_method.description') }}</p>
 
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <!-- Method: Agent (Recommended) -->
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Method: Agent Linux (Recommended) -->
             <div
               @click="form.method = 'agent'"
               class="border-2 rounded-xl p-6 cursor-pointer transition hover:shadow-lg relative"
@@ -61,6 +61,7 @@
               <div class="flex items-center justify-center w-12 h-12 rounded-full mb-4 mx-auto mt-2"
                 :class="form.method === 'agent' ? 'bg-green-500' : 'bg-gray-400 dark:bg-slate-700'"
               >
+                <!-- Linux/Terminal icon -->
                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
@@ -79,6 +80,41 @@
                 <li class="flex items-center gap-2">
                   <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
                   {{ $t('server_wizard.step1_method.agent_feature3') }}
+                </li>
+              </ul>
+            </div>
+
+            <!-- Method: Agent Windows -->
+            <div
+              @click="form.method = 'agent_windows'"
+              class="border-2 rounded-xl p-6 cursor-pointer transition hover:shadow-lg relative"
+              :class="form.method === 'agent_windows' ? 'border-cyan-500 bg-cyan-500/10' : 'border-gray-300 dark:border-slate-600 hover:border-slate-500'"
+            >
+              <span class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-cyan-500 text-white text-xs rounded-full font-semibold">
+                Windows
+              </span>
+              <div class="flex items-center justify-center w-12 h-12 rounded-full mb-4 mx-auto mt-2"
+                :class="form.method === 'agent_windows' ? 'bg-cyan-500' : 'bg-gray-400 dark:bg-slate-700'"
+              >
+                <!-- Windows icon -->
+                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>
+                </svg>
+              </div>
+              <h4 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">{{ $t('server_wizard.step1_method.agent_windows_title') }}</h4>
+              <p class="text-sm text-gray-600 dark:text-slate-400 text-center">{{ $t('server_wizard.step1_method.agent_windows_desc') }}</p>
+              <ul class="mt-4 text-xs text-gray-500 dark:text-slate-500 space-y-1">
+                <li class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-cyan-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                  {{ $t('server_wizard.step1_method.windows_feature1') }}
+                </li>
+                <li class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-cyan-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                  {{ $t('server_wizard.step1_method.windows_feature2') }}
+                </li>
+                <li class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-cyan-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                  {{ $t('server_wizard.step1_method.windows_feature3') }}
                 </li>
               </ul>
             </div>
@@ -154,7 +190,7 @@
             </div>
 
             <!-- SSH-specific fields (only for SSH methods) -->
-            <div v-if="form.method !== 'agent'" class="space-y-4 pt-4 border-t border-gray-200 dark:border-slate-700">
+            <div v-if="form.method !== 'agent' && form.method !== 'agent_windows'" class="space-y-4 pt-4 border-t border-gray-200 dark:border-slate-700">
               <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-4">
                 <p class="text-sm text-blue-400">
                   <svg class="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
@@ -193,11 +229,19 @@
               </div>
             </div>
 
-            <!-- Agent info message -->
+            <!-- Agent info message (Linux) -->
             <div v-if="form.method === 'agent'" class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mt-4">
               <p class="text-sm text-green-400">
                 <svg class="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
                 {{ $t('server_wizard.step2_info.agent_info') }}
+              </p>
+            </div>
+
+            <!-- Agent info message (Windows) -->
+            <div v-if="form.method === 'agent_windows'" class="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-4 mt-4">
+              <p class="text-sm text-cyan-400">
+                <svg class="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                {{ $t('server_wizard.step2_info.agent_windows_info') }}
               </p>
             </div>
           </div>
@@ -286,6 +330,96 @@
                     <div>
                       <span class="text-gray-400">{{ $t('server_wizard.step3_config.borg_version') }}:</span>
                       <span class="text-white ml-2">{{ serverInfo.borg_version }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Agent Windows Method -->
+          <div v-if="form.method === 'agent_windows'">
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">{{ $t('server_wizard.step3_config.agent_windows_title') }}</h3>
+            <p class="text-gray-600 dark:text-slate-400 mb-6">{{ $t('server_wizard.step3_config.agent_windows_description') }}</p>
+
+            <div class="space-y-4">
+              <!-- Download installer button -->
+              <button
+                v-if="!windowsInstallerReady"
+                @click="prepareWindowsInstaller"
+                :disabled="preparingInstaller"
+                class="w-full px-4 py-3 bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-400 dark:disabled:bg-slate-600 text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
+              >
+                <svg v-if="preparingInstaller" class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <svg v-else class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>
+                </svg>
+                {{ preparingInstaller ? $t('server_wizard.step3_config.preparing') : $t('server_wizard.step3_config.prepare_windows_installer') }}
+              </button>
+
+              <div v-if="windowsInstallerReady" class="space-y-4">
+                <!-- Download link -->
+                <div class="bg-gray-50 dark:bg-slate-800 rounded-lg p-4 border border-gray-300 dark:border-slate-600">
+                  <div class="flex items-center justify-between mb-3">
+                    <label class="text-sm font-medium text-gray-900 dark:text-white">{{ $t('server_wizard.step3_config.installer_package') }}</label>
+                    <a
+                      :href="windowsInstallerUrl"
+                      download
+                      class="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white text-sm rounded-lg transition flex items-center gap-2"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      {{ $t('server_wizard.step3_config.download_package') }}
+                    </a>
+                  </div>
+                  <p class="text-sm text-gray-600 dark:text-slate-400">
+                    {{ $t('server_wizard.step3_config.package_contains') }}
+                  </p>
+                </div>
+
+                <div class="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-4">
+                  <h4 class="text-sm font-semibold text-cyan-600 dark:text-cyan-400 mb-2">{{ $t('server_wizard.step3_config.instructions_title') }}</h4>
+                  <ol class="text-sm text-gray-700 dark:text-slate-300 space-y-2 list-decimal list-inside">
+                    <li>{{ $t('server_wizard.step3_config.windows_step1') }}</li>
+                    <li>{{ $t('server_wizard.step3_config.windows_step2') }}</li>
+                    <li>{{ $t('server_wizard.step3_config.windows_step3') }}</li>
+                    <li>{{ $t('server_wizard.step3_config.windows_step4') }}</li>
+                  </ol>
+                </div>
+
+                <!-- Status display -->
+                <div class="flex items-center justify-between p-4 rounded-lg"
+                  :class="windowsInstallStatus === 'completed' ? 'bg-green-500/10 border border-green-500/30' : 'bg-yellow-500/10 border border-yellow-500/30'"
+                >
+                  <div class="flex items-center gap-3">
+                    <svg v-if="windowsInstallStatus === 'pending'" class="animate-spin h-6 w-6 text-yellow-400" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <svg v-else class="w-6 h-6 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                    </svg>
+                    <span :class="windowsInstallStatus === 'completed' ? 'text-green-400' : 'text-yellow-400'" class="font-medium">
+                      {{ windowsInstallStatus === 'completed' ? $t('server_wizard.step3_config.agent_connected') : $t('server_wizard.step3_config.waiting_windows_agent') }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Server info when connected -->
+                <div v-if="windowsInstallStatus === 'completed' && windowsServerInfo" class="bg-slate-800 rounded-lg p-4">
+                  <h4 class="text-sm font-semibold text-white mb-3">{{ $t('server_wizard.step3_config.detected_info') }}</h4>
+                  <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span class="text-gray-400">{{ $t('server_wizard.step3_config.hostname') }}:</span>
+                      <span class="text-white ml-2">{{ windowsServerInfo.hostname }}</span>
+                    </div>
+                    <div>
+                      <span class="text-gray-400">{{ $t('server_wizard.step3_config.os') }}:</span>
+                      <span class="text-white ml-2">{{ windowsServerInfo.os_info }}</span>
                     </div>
                   </div>
                 </div>
@@ -528,12 +662,20 @@ const pollInterval = ref(null)
 
 const createdServer = ref(null)
 
+// Windows agent variables
+const preparingInstaller = ref(false)
+const windowsInstallerReady = ref(false)
+const windowsInstallerUrl = ref('')
+const windowsInstallStatus = ref('pending')
+const windowsServerInfo = ref(null)
+const windowsPollInterval = ref(null)
+
 const canProceed = computed(() => {
   if (currentStep.value === 0) {
     return !!form.value.method
   }
   if (currentStep.value === 1) {
-    if (form.value.method === 'agent') {
+    if (form.value.method === 'agent' || form.value.method === 'agent_windows') {
       return !!form.value.name
     }
     return form.value.name && form.value.hostname
@@ -541,6 +683,9 @@ const canProceed = computed(() => {
   if (currentStep.value === 2) {
     if (form.value.method === 'agent') {
       return installStatus.value === 'completed'
+    }
+    if (form.value.method === 'agent_windows') {
+      return windowsInstallStatus.value === 'completed'
     }
     if (form.value.method === 'ssh_manual') {
       return connectionResult.value?.success === true
@@ -618,6 +763,9 @@ const close = () => {
   if (pollInterval.value) {
     clearInterval(pollInterval.value)
   }
+  if (windowsPollInterval.value) {
+    clearInterval(windowsPollInterval.value)
+  }
 
   // Reset form
   currentStep.value = 0
@@ -638,6 +786,13 @@ const close = () => {
   installStatus.value = 'pending'
   serverInfo.value = null
   createdServer.value = null
+
+  // Reset Windows variables
+  preparingInstaller.value = false
+  windowsInstallerReady.value = false
+  windowsInstallerUrl.value = ''
+  windowsInstallStatus.value = 'pending'
+  windowsServerInfo.value = null
 
   emit('close')
 }
@@ -840,6 +995,55 @@ const generateOneLiner = async () => {
     console.error('Failed to generate token:', error)
   } finally {
     generatingToken.value = false
+  }
+}
+
+const prepareWindowsInstaller = async () => {
+  preparingInstaller.value = true
+
+  try {
+    // Generate the download URL for the pre-configured installer package
+    const token = localStorage.getItem('access_token')
+    const agentName = encodeURIComponent(form.value.name)
+    windowsInstallerUrl.value = `/api/agent/installer/package?agent_name=${agentName}`
+
+    // Set as ready
+    windowsInstallerReady.value = true
+
+    // Start polling for agent registration
+    // The agent will register when the installer runs on Windows
+    windowsPollInterval.value = setInterval(async () => {
+      try {
+        // Check if an agent with this name has been registered
+        const response = await api.get('/servers')
+        const servers = response.data.data.servers || []
+
+        // Look for a server with matching name and Windows OS
+        const windowsServer = servers.find(s =>
+          s.name === form.value.name &&
+          s.os_info &&
+          s.os_info.toLowerCase().includes('windows')
+        )
+
+        if (windowsServer) {
+          windowsInstallStatus.value = 'completed'
+          windowsServerInfo.value = {
+            hostname: windowsServer.hostname,
+            os_info: windowsServer.os_info
+          }
+          createdServer.value = windowsServer
+          clearInterval(windowsPollInterval.value)
+          emit('created', windowsServer)
+        }
+      } catch (error) {
+        console.error('Failed to check Windows agent status:', error)
+      }
+    }, 5000)
+
+  } catch (error) {
+    console.error('Failed to prepare Windows installer:', error)
+  } finally {
+    preparingInstaller.value = false
   }
 }
 </script>

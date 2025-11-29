@@ -2022,7 +2022,12 @@
       "ssh_manual_title": "Cle SSH manuelle",
       "ssh_manual_desc": "Copiez manuellement la cle publique sur le serveur",
       "ssh_password_title": "Mot de passe SSH",
-      "ssh_password_desc": "Installation automatique via mot de passe SSH"
+      "ssh_password_desc": "Installation automatique via mot de passe SSH",
+      "agent_windows_title": "Agent Windows",
+      "agent_windows_desc": "Installez l'agent sur Windows Server",
+      "windows_feature1": "Installateur graphique simple",
+      "windows_feature2": "Configuration automatique",
+      "windows_feature3": "Service Windows natif"
     },
     "step2_info": {
       "title": "Informations du serveur",
@@ -2036,7 +2041,8 @@
       "hostname_placeholder": "Ex: 192.168.1.100 ou server.example.com",
       "port": "Port SSH",
       "username": "Utilisateur SSH",
-      "agent_info": "L'agent detectera automatiquement l'hostname et l'IP du serveur lors de son installation."
+      "agent_info": "L'agent detectera automatiquement l'hostname et l'IP du serveur lors de son installation.",
+      "agent_windows_info": "L'installateur Windows configurera automatiquement l'agent et le service."
     },
     "step3_config": {
       "agent_title": "Installation de l'agent",
@@ -2079,7 +2085,19 @@
       "start_setup": "Demarrer l'installation",
       "starting": "Demarrage...",
       "setup_success": "Installation reussie !",
-      "setup_failed": "Installation echouee"
+      "setup_failed": "Installation echouee",
+      "agent_windows_title": "Installation sur Windows",
+      "agent_windows_description": "Telechargez le package d'installation pre-configure pour Windows",
+      "preparing": "Preparation...",
+      "prepare_windows_installer": "Preparer le package d'installation",
+      "installer_package": "Package d'installation Windows",
+      "download_package": "Telecharger le package",
+      "package_contains": "Contient l'installateur et la configuration pre-remplie (URL serveur, token).",
+      "windows_step1": "Telechargez le package ZIP ci-dessus",
+      "windows_step2": "Copiez le ZIP sur le serveur Windows",
+      "windows_step3": "Extrayez les fichiers dans le meme dossier",
+      "windows_step4": "Executez phpborg-installer.exe en administrateur",
+      "waiting_windows_agent": "En attente de l'installation Windows..."
     },
     "step4_success": {
       "title": "Configuration terminee !",

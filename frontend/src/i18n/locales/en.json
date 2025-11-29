@@ -1972,7 +1972,12 @@
       "ssh_manual_title": "Manual SSH Key",
       "ssh_manual_desc": "Manually copy the public key to the server",
       "ssh_password_title": "SSH Password",
-      "ssh_password_desc": "Automatic installation via SSH password"
+      "ssh_password_desc": "Automatic installation via SSH password",
+      "agent_windows_title": "Windows Agent",
+      "agent_windows_desc": "Install the agent on Windows Server",
+      "windows_feature1": "Simple GUI installer",
+      "windows_feature2": "Automatic configuration",
+      "windows_feature3": "Native Windows service"
     },
     "step2_info": {
       "title": "Server Information",
@@ -1986,7 +1991,8 @@
       "hostname_placeholder": "Ex: 192.168.1.100 or server.example.com",
       "port": "SSH Port",
       "username": "SSH Username",
-      "agent_info": "The agent will automatically detect the hostname and IP of the server during installation."
+      "agent_info": "The agent will automatically detect the hostname and IP of the server during installation.",
+      "agent_windows_info": "The Windows installer will automatically configure the agent and service."
     },
     "step3_config": {
       "agent_title": "Agent Installation",
@@ -2029,7 +2035,19 @@
       "start_setup": "Start Installation",
       "starting": "Starting...",
       "setup_success": "Installation successful!",
-      "setup_failed": "Installation failed"
+      "setup_failed": "Installation failed",
+      "agent_windows_title": "Windows Installation",
+      "agent_windows_description": "Download the pre-configured installation package for Windows",
+      "preparing": "Preparing...",
+      "prepare_windows_installer": "Prepare installation package",
+      "installer_package": "Windows Installation Package",
+      "download_package": "Download package",
+      "package_contains": "Contains the installer and pre-filled configuration (server URL, token).",
+      "windows_step1": "Download the ZIP package above",
+      "windows_step2": "Copy the ZIP to the Windows server",
+      "windows_step3": "Extract the files to the same folder",
+      "windows_step4": "Run phpborg-installer.exe as administrator",
+      "waiting_windows_agent": "Waiting for Windows installation..."
     },
     "step4_success": {
       "title": "Setup Complete!",
