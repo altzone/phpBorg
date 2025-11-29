@@ -477,10 +477,12 @@ import { emailService } from '@/services/email'
 import UpdateSettings from '@/components/UpdateSettings.vue'
 import SslSettings from '@/components/settings/SslSettings.vue'
 import phpborgUpdateService from '@/services/phpborgUpdate'
+import { useToastStore } from '@/stores/toast'
 
 const { t } = useI18n()
 const route = useRoute()
 const settingsStore = useSettingsStore()
+const toast = useToastStore()
 
 const activeTab = ref(route.query.tab || 'general')
 const updateCommitCount = ref(0)
@@ -563,7 +565,7 @@ async function saveSettings(category) {
     }[category]
 
     await settingsStore.updateCategorySettings(category, formData)
-    alert(t('settings.save_success'))
+    toast.success(t('settings.save_success'))
   } catch (err) {
     // Error handled by store
   }

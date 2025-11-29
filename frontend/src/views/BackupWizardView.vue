@@ -1489,9 +1489,11 @@ import { useI18n } from 'vue-i18n'
 import { serverService } from '../services/server'
 import { storageService } from '../services/storage'
 import { wizardService } from '../services/wizardService'
+import { useToastStore } from '@/stores/toast'
 
 const router = useRouter()
 const { t } = useI18n()
+const toast = useToastStore()
 
 // Wizard steps
 const steps = computed(() => [
@@ -1826,11 +1828,11 @@ async function reloadCapabilities() {
 
     if (attempts >= maxAttempts) {
       console.error('Capabilities detection timed out')
-      alert('Capabilities detection timed out. Please try again.')
+      toast.error(t('backup_wizard.detection_timeout'))
     }
   } catch (error) {
     console.error('Failed to reload capabilities:', error)
-    alert('Failed to reload capabilities: ' + (error.response?.data?.error || error.message))
+    toast.error(t('backup_wizard.detection_failed'), error.response?.data?.error || error.message)
   } finally {
     detectingCapabilities.value = false
   }
@@ -1965,14 +1967,14 @@ async function detectMySQLCredentials() {
   const mysqlDb = getDetectedDatabase('mysql')
 
   if (!mysqlDb || !mysqlDb.auth) {
-    alert('No MySQL authentication detected. Please run "Detect Capabilities" first.')
+    toast.warning(t('backup_wizard.mysql_no_auth'))
     return
   }
 
   const auth = mysqlDb.auth
 
   if (!auth.working) {
-    alert('No working MySQL credentials detected. Please configure manually.')
+    toast.warning(t('backup_wizard.mysql_no_working_credentials'))
     return
   }
 
@@ -1984,12 +1986,12 @@ async function detectMySQLCredentials() {
 
   // Show success message with method used
   const methodText = auth.method === 'root_no_password'
-    ? 'root without password'
+    ? t('backup_wizard.mysql_method_root_no_password')
     : auth.method === 'debian_cnf'
-    ? 'debian-sys-maint from /etc/mysql/debian.cnf'
-    : 'detected credentials'
+    ? t('backup_wizard.mysql_method_debian_cnf')
+    : t('backup_wizard.mysql_method_detected')
 
-  alert(`✓ Credentials auto-filled using: ${methodText}`)
+  toast.success(t('backup_wizard.mysql_credentials_filled'), methodText)
 }
 
 async function saveAsTemplate() {
@@ -2096,7 +2098,7 @@ async function createBackup() {
     showSuccessModal.value = true
   } catch (error) {
     console.error('Failed to create backup:', error)
-    alert('Failed to create backup configuration: ' + (error.response?.data?.error || error.message))
+    toast.error(t('backup_wizard.create_failed'), error.response?.data?.error || error.message)
   } finally {
     creating.value = false
   }
@@ -2151,11 +2153,11 @@ function copyUsingFallback() {
       }, 3000)
     } else {
       console.error('Copy command failed')
-      alert('Could not copy passphrase. Please copy it manually:\n\n' + generatedPassphrase.value)
+      toast.warning(t('backup_wizard.copy_failed'), t('backup_wizard.copy_manually'))
     }
   } catch (err) {
     console.error('Fallback copy failed:', err)
-    alert('Could not copy passphrase. Please copy it manually:\n\n' + generatedPassphrase.value)
+    toast.warning(t('backup_wizard.copy_failed'), t('backup_wizard.copy_manually'))
   }
   
   document.body.removeChild(textArea)

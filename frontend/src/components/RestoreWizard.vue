@@ -388,8 +388,10 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { backupService } from '@/services/backups'
 import { serverService } from '@/services/server'
+import { useToastStore } from '@/stores/toast'
 
 const { t } = useI18n()
+const toast = useToastStore()
 
 const props = defineProps({
   show: Boolean,
@@ -572,7 +574,7 @@ async function handleSubmit() {
     emit('close')
   } catch (error) {
     console.error('Restore failed:', error)
-    alert('Restore failed: ' + (error.response?.data?.error?.message || error.message))
+    toast.error(t('restore_modal.restore_failed'), error.response?.data?.error?.message || error.message)
   } finally {
     loading.value = false
   }

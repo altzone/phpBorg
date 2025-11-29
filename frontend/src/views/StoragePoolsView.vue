@@ -302,9 +302,13 @@ import { ref, onMounted, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useStorageStore } from '@/stores/storage'
 import { storageService } from '@/services/storage'
+import { useToastStore } from '@/stores/toast'
+import { useConfirmStore } from '@/stores/confirm'
 
 const { t } = useI18n()
 const storageStore = useStorageStore()
+const toast = useToastStore()
+const confirmDialog = useConfirmStore()
 
 const showStorageModal = ref(false)
 const editingPool = ref(null)
@@ -375,7 +379,7 @@ async function analyzePath() {
     }
 
   } catch (error) {
-    alert(error.response?.data?.error || t('storage_pools.analyze_error'))
+    toast.error(t('storage_pools.analyze_error'), error.response?.data?.error)
     pathAnalysis.value = null
   } finally {
     analyzingPath.value = false
@@ -435,13 +439,18 @@ async function saveStoragePool() {
 
 async function deleteStoragePool(pool) {
   if (pool.repository_count > 0) {
-    alert(t('storage_pools.delete_error', { name: pool.name, count: pool.repository_count }))
+    toast.error(t('storage_pools.delete_error', { name: pool.name, count: pool.repository_count }))
     return
   }
 
-  if (!confirm(t('storage_pools.delete_confirm', { name: pool.name }))) {
-    return
-  }
+  const confirmed = await confirmDialog.show({
+    title: t('storage_pools.delete_pool'),
+    message: t('storage_pools.delete_confirm', { name: pool.name }),
+    confirmText: t('common.delete'),
+    cancelText: t('common.cancel'),
+    type: 'danger'
+  })
+  if (!confirmed) return
 
   try {
     await storageStore.deleteStoragePool(pool.id)

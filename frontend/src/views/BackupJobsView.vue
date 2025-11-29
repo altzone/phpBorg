@@ -322,8 +322,12 @@ import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { backupJobsService } from '../services/backupJobs'
 import { repositoryService } from '../services/repository'
+import { useToastStore } from '@/stores/toast'
+import { useConfirmStore } from '@/stores/confirm'
 
 const { t } = useI18n()
+const toast = useToastStore()
+const confirmDialog = useConfirmStore()
 
 const backupJobs = ref([])
 const repositories = ref([])
@@ -530,9 +534,14 @@ async function toggleJob(job) {
 }
 
 async function deleteJob(job) {
-  if (!confirm(t('backup_jobs.delete_confirm', { name: job.name }))) {
-    return
-  }
+  const confirmed = await confirmDialog.show({
+    title: t('backup_jobs.delete_job'),
+    message: t('backup_jobs.delete_confirm', { name: job.name }),
+    confirmText: t('common.delete'),
+    cancelText: t('common.cancel'),
+    type: 'danger'
+  })
+  if (!confirmed) return
 
   try {
     error.value = null
@@ -551,8 +560,8 @@ async function runJobNow(job) {
     // Call the API to run the job immediately
     await backupJobsService.runBackupJob(job.id)
 
-    // Show success message (you could add a toast notification here)
-    alert(t('backup_jobs.success_job_queued', { name: job.name }))
+    // Show success message
+    toast.success(t('backup_jobs.success_job_queued', { name: job.name }))
 
     // Reload to get updated status
     await loadBackupJobs()

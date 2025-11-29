@@ -306,6 +306,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useBackupStore } from '@/stores/backups'
 import { useServerStore } from '@/stores/server'
+import { useToastStore } from '@/stores/toast'
 
 const { t } = useI18n()
 
@@ -313,6 +314,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const backupStore = useBackupStore()
 const serverStore = useServerStore()
+const toast = useToastStore()
 
 const showDeleteModal = ref(false)
 const backupToDelete = ref(null)
@@ -421,11 +423,10 @@ async function handleDelete() {
       backupToDelete.value = null
 
       // Show success message with job info
-      const message = `${t('backups.delete_success.title')}\n\n${t('backups.delete_success.message', { name: result.archive_name })}\n\n${t('backups.delete_success.job_id', { id: result.job_id })}\n\n${t('backups.delete_success.monitor')}`
-      alert(message)
-
-      // Optionally redirect to jobs page to monitor progress
-      // router.push('/jobs')
+      toast.success(
+        t('backups.delete_success.title'),
+        t('backups.delete_success.message', { name: result.archive_name }) + ' ' + t('backups.delete_success.job_id', { id: result.job_id })
+      )
     }
   } catch (err) {
     console.error('Delete error:', err)

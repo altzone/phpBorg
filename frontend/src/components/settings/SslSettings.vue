@@ -472,9 +472,11 @@ import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '../../services/api'
 import { useSSE } from '@/composables/useSSE'
+import { useConfirmStore } from '@/stores/confirm'
 
 const { t } = useI18n()
 const { subscribe, isConnected } = useSSE()
+const confirmDialog = useConfirmStore()
 
 const loading = ref(false)
 const generating = ref(false)
@@ -757,7 +759,14 @@ const getDnsChallenge = async () => {
 }
 
 const disableSsl = async () => {
-  if (!confirm(t('settings.ssl.disable_confirm'))) return
+  const confirmed = await confirmDialog.show({
+    title: t('settings.ssl.disable_ssl'),
+    message: t('settings.ssl.disable_confirm'),
+    confirmText: t('common.disable'),
+    cancelText: t('common.cancel'),
+    type: 'danger'
+  })
+  if (!confirmed) return
 
   generating.value = true
   try {

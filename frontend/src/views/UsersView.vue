@@ -246,10 +246,14 @@ import { ref, computed, onMounted, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
 import { useAuthStore } from '@/stores/auth'
+import { useToastStore } from '@/stores/toast'
+import { useConfirmStore } from '@/stores/confirm'
 
 const { t } = useI18n()
 const userStore = useUserStore()
 const authStore = useAuthStore()
+const toast = useToastStore()
+const confirmDialog = useConfirmStore()
 
 const showUserModal = ref(false)
 const showPasswordModal = ref(false)
@@ -335,7 +339,7 @@ function closeUserModal() {
 async function saveUser() {
   try {
     if (userForm.roles.length === 0) {
-      alert(t('users.role_required'))
+      toast.warning(t('users.role_required'))
       return
     }
 
@@ -378,13 +382,13 @@ function closePasswordModal() {
 
 async function resetPassword() {
   if (newPassword.value !== confirmPassword.value) {
-    alert(t('users.passwords_mismatch'))
+    toast.warning(t('users.passwords_mismatch'))
     return
   }
 
   try {
     await userStore.resetPassword(passwordUser.value.id, newPassword.value)
-    alert(t('users.password_reset_success'))
+    toast.success(t('users.password_reset_success'))
     closePasswordModal()
   } catch (err) {
     // Error handled by store
@@ -393,13 +397,18 @@ async function resetPassword() {
 
 async function confirmDelete(user) {
   if (user.id === authStore.user?.id) {
-    alert(t('users.delete_self_error'))
+    toast.error(t('users.delete_self_error'))
     return
   }
 
-  if (!confirm(t('users.delete_confirm', { username: user.username }))) {
-    return
-  }
+  const confirmed = await confirmDialog.show({
+    title: t('users.delete_user'),
+    message: t('users.delete_confirm', { username: user.username }),
+    confirmText: t('common.delete'),
+    cancelText: t('common.cancel'),
+    type: 'danger'
+  })
+  if (!confirmed) return
 
   try {
     await userStore.deleteUser(user.id)

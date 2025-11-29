@@ -125,9 +125,11 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoleStore } from '@/stores/role'
+import { useToastStore } from '@/stores/toast'
 
 const { t } = useI18n()
 const roleStore = useRoleStore()
+const toast = useToastStore()
 
 const permissionsForms = reactive({})
 
@@ -194,13 +196,13 @@ async function savePermissions(roleName) {
     if (roleName === 'ROLE_ADMIN') {
       const enabledCount = Object.values(permissions).filter(Boolean).length
       if (enabledCount === 0) {
-        alert('Admin role must have at least one permission enabled')
+        toast.warning(t('roles.admin_requires_permission'))
         return
       }
     }
 
     await roleStore.updateRolePermissions(roleName, permissions)
-    alert(`Permissions for ${getRoleDisplayName(roleName)} updated successfully`)
+    toast.success(t('roles.permissions_updated', { role: getRoleDisplayName(roleName) }))
   } catch (err) {
     // Error handled by store
   }

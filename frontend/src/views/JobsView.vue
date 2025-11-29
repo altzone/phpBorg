@@ -480,10 +480,12 @@ import { onMounted, ref, computed, h } from 'vue'
 import { useJobStore } from '@/stores/jobs'
 import { useI18n } from 'vue-i18n'
 import { useSSE } from '@/composables/useSSE'
+import { useConfirmStore } from '@/stores/confirm'
 
 const jobStore = useJobStore()
 const { t } = useI18n()
 const { subscribe } = useSSE()
+const confirmDialog = useConfirmStore()
 
 // Filter state
 const showSystemJobs = ref(false)
@@ -574,7 +576,14 @@ async function loadData() {
 }
 
 async function handleCancel(id) {
-  if (!confirm(t('jobs.cancel_confirm'))) return
+  const confirmed = await confirmDialog.show({
+    title: t('jobs.cancel_job'),
+    message: t('jobs.cancel_confirm'),
+    confirmText: t('common.cancel'),
+    cancelText: t('common.close'),
+    type: 'warning'
+  })
+  if (!confirmed) return
   await jobStore.cancelJob(id)
 }
 

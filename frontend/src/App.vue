@@ -6,6 +6,10 @@
     :show="showSetupWizard"
     @complete="onSetupComplete"
   />
+
+  <!-- Global notifications -->
+  <ToastNotifications />
+  <ConfirmDialog />
 </template>
 
 <script setup>
@@ -15,6 +19,8 @@ import { useThemeStore } from '@/stores/theme'
 import { useSSEStore } from '@/stores/sse'
 import { useAuthStore } from '@/stores/auth'
 import SetupWizard from '@/components/SetupWizard.vue'
+import ToastNotifications from '@/components/ToastNotifications.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import setupService from '@/services/setup'
 
 // Initialize theme store to apply saved theme on load

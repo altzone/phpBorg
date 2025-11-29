@@ -331,11 +331,13 @@ import { useTaskBarStore } from '@/stores/taskbar'
 import { useJobStore } from '@/stores/jobs'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import { useConfirmStore } from '@/stores/confirm'
 
 const taskBarStore = useTaskBarStore()
 const jobStore = useJobStore()
 const { t } = useI18n()
 const router = useRouter()
+const confirmDialog = useConfirmStore()
 
 function formatJobType(type) {
   const translationKey = `jobs.types.${type}`
@@ -398,9 +400,14 @@ function viewJobDetails(job) {
 }
 
 async function cancelJob(job) {
-  if (!confirm(t('taskbar.cancel_confirm', { id: job.id }))) {
-    return
-  }
+  const confirmed = await confirmDialog.show({
+    title: t('taskbar.cancel_job'),
+    message: t('taskbar.cancel_confirm', { id: job.id }),
+    confirmText: t('common.cancel'),
+    cancelText: t('common.close'),
+    type: 'warning'
+  })
+  if (!confirmed) return
 
   await jobStore.cancelJob(job.id)
 }
@@ -450,9 +457,14 @@ function viewSessionDetails(session) {
 async function stopSession(session) {
   if (session.stopping) return
 
-  if (!confirm(t('taskbar.stop_session_confirm', { id: session.id }))) {
-    return
-  }
+  const confirmed = await confirmDialog.show({
+    title: t('taskbar.stop_session'),
+    message: t('taskbar.stop_session_confirm', { id: session.id }),
+    confirmText: t('common.stop'),
+    cancelText: t('common.cancel'),
+    type: 'warning'
+  })
+  if (!confirmed) return
 
   session.stopping = true
 
