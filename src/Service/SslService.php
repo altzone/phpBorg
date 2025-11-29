@@ -186,7 +186,7 @@ final class SslService
 
         // Run certbot with webroot plugin
         $cmd = sprintf(
-            'certbot certonly --webroot -w %s -d %s --email %s --agree-tos --non-interactive --cert-name phpborg 2>&1',
+            'sudo certbot certonly --webroot -w %s -d %s --email %s --agree-tos --non-interactive --cert-name phpborg 2>&1',
             escapeshellarg($webroot),
             escapeshellarg($domain),
             escapeshellarg($email)
@@ -242,7 +242,7 @@ final class SslService
         // Check for Cloudflare plugin
         if (!$this->commandExists('certbot') || !file_exists('/usr/lib/python3/dist-packages/certbot_dns_cloudflare')) {
             // Try to install it
-            exec('apt-get install -y python3-certbot-dns-cloudflare 2>&1', $output, $exitCode);
+            exec('sudo apt-get install -y python3-certbot-dns-cloudflare 2>&1', $output, $exitCode);
             if ($exitCode !== 0) {
                 throw new \Exception("python3-certbot-dns-cloudflare is not installed");
             }
@@ -257,7 +257,7 @@ final class SslService
 
         // Run certbot with Cloudflare DNS plugin
         $cmd = sprintf(
-            'certbot certonly --dns-cloudflare --dns-cloudflare-credentials %s -d %s --email %s --agree-tos --non-interactive --cert-name phpborg 2>&1',
+            'sudo certbot certonly --dns-cloudflare --dns-cloudflare-credentials %s -d %s --email %s --agree-tos --non-interactive --cert-name phpborg 2>&1',
             escapeshellarg($cfCredsFile),
             escapeshellarg($domain),
             escapeshellarg($email)
@@ -513,10 +513,10 @@ final class SslService
         file_put_contents($tempConfigFile, $testConfig);
 
         // Test the configuration
-        exec("nginx -t -c /etc/nginx/nginx.conf 2>&1", $output, $exitCode);
+        exec("sudo nginx -t -c /etc/nginx/nginx.conf 2>&1", $output, $exitCode);
 
         // Also test with our specific config included
-        exec("nginx -t 2>&1", $output2, $exitCode2);
+        exec("sudo nginx -t 2>&1", $output2, $exitCode2);
 
         // Cleanup
         @unlink($tempConfigFile);
@@ -600,7 +600,7 @@ final class SslService
             throw new \Exception("Auto-renewal is only available for Let's Encrypt certificates");
         }
 
-        exec('certbot renew --cert-name phpborg 2>&1', $output, $exitCode);
+        exec('sudo certbot renew --cert-name phpborg 2>&1', $output, $exitCode);
 
         if ($exitCode !== 0) {
             $this->logger->error("Certificate renewal failed", 'SSL', ['output' => implode("\n", $output)]);
@@ -611,7 +611,7 @@ final class SslService
         $this->copyLetsEncryptCerts();
 
         // Reload nginx
-        exec('systemctl reload nginx 2>&1');
+        exec('sudo systemctl reload nginx 2>&1');
 
         $this->logger->info("Certificate renewed successfully", 'SSL');
 
@@ -631,7 +631,7 @@ final class SslService
             throw new \Exception("Renewal test is only available for Let's Encrypt certificates");
         }
 
-        exec('certbot renew --cert-name phpborg --dry-run 2>&1', $output, $exitCode);
+        exec('sudo certbot renew --cert-name phpborg --dry-run 2>&1', $output, $exitCode);
 
         $outputStr = implode("\n", $output);
 
@@ -671,11 +671,11 @@ final class SslService
         $status['cron_exists'] = file_exists('/etc/cron.d/phpborg-ssl-renew');
 
         // Check certbot systemd timer (if exists)
-        exec('systemctl is-active certbot.timer 2>&1', $output, $exitCode);
+        exec('sudo systemctl is-active certbot.timer 2>&1', $output, $exitCode);
         $status['certbot_timer_active'] = ($exitCode === 0);
 
         // Get next renewal date from certbot
-        exec('certbot certificates --cert-name phpborg 2>&1', $output, $exitCode);
+        exec('sudo certbot certificates --cert-name phpborg 2>&1', $output, $exitCode);
         $outputStr = implode("\n", $output);
 
         if (preg_match('/Expiry Date:\s*(\d{4}-\d{2}-\d{2})/', $outputStr, $matches)) {
@@ -855,7 +855,7 @@ CRON;
         }
 
         // Test nginx config
-        exec('nginx -t 2>&1', $output, $exitCode);
+        exec('sudo nginx -t 2>&1', $output, $exitCode);
 
         if ($exitCode !== 0) {
             // Restore backup
@@ -866,7 +866,7 @@ CRON;
         }
 
         // Reload nginx
-        exec('systemctl reload nginx 2>&1', $output, $exitCode);
+        exec('sudo systemctl reload nginx 2>&1', $output, $exitCode);
 
         if ($exitCode !== 0) {
             $this->logger->warning("Failed to reload nginx", 'SSL', ['output' => implode("\n", $output)]);
