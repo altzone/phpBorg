@@ -23,7 +23,8 @@ final class SslController extends BaseController
 
         // Create logger
         $logger = new Logger('ssl');
-        $logPath = $settingRepository->get('system', 'log_path', '/var/log/phpborg/app.log');
+        $logPathSetting = $settingRepository->findByKey('log_path');
+        $logPath = $logPathSetting?->value ?? '/var/log/phpborg/app.log';
         $logger->pushHandler(new StreamHandler($logPath, Logger::INFO));
 
         $this->sslService = new SslService($settingRepository, $logger);
