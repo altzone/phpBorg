@@ -178,11 +178,11 @@ final class ArchiveMountHandler implements JobHandlerInterface
             $queue->updateProgress($job->id, 30, "Updating mount status...");
             $this->mountRepo->updateStatus($mount->id, 'unmounting');
 
-            // Step 3: Unmount with Borg
+            // Step 3: Unmount with Borg (as phpborg-borg, same user that mounted)
             $queue->updateProgress($job->id, 50, "Unmounting archive...");
             $this->logger->info("Unmounting archive from: {$mount->mountPath}", 'JOB');
 
-            $this->borgExecutor->umountArchive($mount->mountPath);
+            $this->borgExecutor->umountArchive($mount->mountPath, 'phpborg-borg');
 
             // Step 4: Remove mount directory
             $queue->updateProgress($job->id, 70, "Cleaning up mount directory...");

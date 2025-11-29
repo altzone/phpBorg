@@ -504,12 +504,13 @@ final class BorgExecutor
      *
      * @throws BackupException
      */
-    public function umountArchive(string $mountPoint): void
+    public function umountArchive(string $mountPoint, ?string $runAsUser = null): void
     {
         $result = $this->execute(
             ['umount', $mountPoint],
             '',
-            60
+            60,
+            $runAsUser
         );
 
         if ($result['exitCode'] !== 0) {
