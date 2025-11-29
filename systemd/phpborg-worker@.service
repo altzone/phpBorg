@@ -10,38 +10,22 @@ User=phpborg
 Group=phpborg
 WorkingDirectory=/opt/newphpborg/phpBorg
 
-# Load environment variables from .env
 EnvironmentFile=/opt/newphpborg/phpBorg/.env
-
-# Environment
 Environment="PHP_ENV=production"
 Environment="WORKER_ID=%i"
 
-# Main command
 ExecStart=/usr/bin/php8.3 /opt/newphpborg/phpBorg/bin/phpborg worker:start --queue=default --worker-id=%i
 
-# Restart policy
 Restart=always
 RestartSec=5s
 
-# Logging
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=phpborg-worker@%i
 
-# Security
-# PrivateTmp disabled - FUSE mounts need to be visible globally
-PrivateTmp=false
-# NoNewPrivileges must be false to allow sudo -u phpborg-borg for borg operations
+# No namespace isolation - FUSE mounts need global visibility
 NoNewPrivileges=false
-# ProtectSystem=full allows writing to /opt, /srv, /var while protecting /usr, /boot
-ProtectSystem=full
-ProtectHome=true
-ReadWritePaths=/opt/newphpborg/phpBorg /opt/backups /var/lib/phpborg /var/log/phpborg /tmp
-# MountFlags=shared ensures FUSE mounts are visible to other processes (PHP-FPM)
-MountFlags=shared
 
-# Resource limits
 LimitNOFILE=65536
 TimeoutStopSec=30s
 
