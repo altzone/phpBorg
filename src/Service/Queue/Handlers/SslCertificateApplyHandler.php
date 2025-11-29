@@ -211,13 +211,58 @@ final class SslCertificateApplyHandler implements JobHandlerInterface
         mkdir($tempDir, 0700, true);
         $tempKeyFile = $tempDir . '/privkey.pem';
         $tempCertFile = $tempDir . '/cert.pem';
+        $tempConfigFile = $tempDir . '/openssl.cnf';
+
+        // Build Subject Alternative Names (SANs)
+        $sans = ["DNS:$domain"];
+
+        // Add wildcard if not already a wildcard domain
+        if (strpos($domain, '*.') !== 0) {
+            $sans[] = "DNS:*.$domain";
+        }
+
+        // Add server IPs from database settings
+        $db = new \PhpBorg\Database\Database();
+        $settingsRepo = new \PhpBorg\Repository\SettingsRepository($db);
+        $externalIp = $settingsRepo->get('network.external_ip');
+        $internalIp = $settingsRepo->get('network.internal_ip');
+
+        if ($externalIp) {
+            $sans[] = "IP:$externalIp";
+        }
+        if ($internalIp && $internalIp !== $externalIp) {
+            $sans[] = "IP:$internalIp";
+        }
+
+        // Always add localhost
+        $sans[] = "IP:127.0.0.1";
+
+        // Create OpenSSL config with SANs
+        $opensslConfig = "[req]
+default_bits = 2048
+prompt = no
+default_md = sha256
+distinguished_name = dn
+x509_extensions = v3_ext
+
+[dn]
+CN = $domain
+
+[v3_ext]
+subjectAltName = " . implode(',', $sans) . "
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+";
+
+        file_put_contents($tempConfigFile, $opensslConfig);
 
         $cmd = sprintf(
-            'openssl req -x509 -nodes -days %d -newkey rsa:2048 -keyout %s -out %s -subj "/CN=%s" 2>&1',
+            'openssl req -x509 -nodes -days %d -newkey rsa:2048 -keyout %s -out %s -config %s 2>&1',
             $days,
             escapeshellarg($tempKeyFile),
             escapeshellarg($tempCertFile),
-            escapeshellarg($domain)
+            escapeshellarg($tempConfigFile)
         );
 
         exec($cmd, $output, $exitCode);
@@ -225,6 +270,7 @@ final class SslCertificateApplyHandler implements JobHandlerInterface
         if ($exitCode !== 0) {
             @unlink($tempKeyFile);
             @unlink($tempCertFile);
+            @unlink($tempConfigFile);
             @rmdir($tempDir);
             throw new \Exception("Failed to generate certificate: " . implode("\n", $output));
         }
@@ -242,6 +288,7 @@ final class SslCertificateApplyHandler implements JobHandlerInterface
         // Cleanup temp files
         @unlink($tempKeyFile);
         @unlink($tempCertFile);
+        @unlink($tempConfigFile);
         @rmdir($tempDir);
 
         $queue->updateProgress($job->id, 50, "Mise à jour de la configuration nginx...");
