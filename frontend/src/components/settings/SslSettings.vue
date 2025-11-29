@@ -468,11 +468,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '../../services/api'
+import { useSSE } from '@/composables/useSSE'
 
 const { t } = useI18n()
+const { subscribe, isConnected } = useSSE()
 
 const loading = ref(false)
 const generating = ref(false)
@@ -492,7 +494,9 @@ const dnsChallenge = ref(null)
 
 // Job tracking
 const currentJob = ref(null)
+const currentJobAction = ref(null)
 let jobPollInterval = null
+let sseUnsubscribe = null
 
 // HTTPS redirect
 const redirecting = ref(false)
@@ -567,7 +571,7 @@ const validateCustomCert = async () => {
 
     // Response contains job_id
     if (response.data.data.job_id) {
-      startJobPolling(response.data.data.job_id, 'validate')
+      startJobTracking(response.data.data.job_id, 'validate')
     }
   } catch (error) {
     validating.value = false
@@ -615,7 +619,7 @@ const generateSelfSigned = async () => {
     })
 
     if (response.data.data.job_id) {
-      startJobPolling(response.data.data.job_id, 'self_signed')
+      startJobTracking(response.data.data.job_id, 'self_signed')
     }
   } catch (error) {
     generating.value = false
@@ -638,7 +642,7 @@ const requestLetsEncrypt = async () => {
         email: letsencryptForm.email
       })
       if (response.data.data.job_id) {
-        startJobPolling(response.data.data.job_id, 'letsencrypt_http')
+        startJobTracking(response.data.data.job_id, 'letsencrypt_http')
       }
     } else if (letsencryptForm.method === 'cloudflare') {
       if (!letsencryptForm.cloudflareToken) {
@@ -652,7 +656,7 @@ const requestLetsEncrypt = async () => {
         cloudflare_token: letsencryptForm.cloudflareToken
       })
       if (response.data.data.job_id) {
-        startJobPolling(response.data.data.job_id, 'letsencrypt_dns')
+        startJobTracking(response.data.data.job_id, 'letsencrypt_dns')
       }
     }
   } catch (error) {
@@ -676,7 +680,7 @@ const uploadCertificate = async () => {
     })
 
     if (response.data.data.job_id) {
-      startJobPolling(response.data.data.job_id, 'apply')
+      startJobTracking(response.data.data.job_id, 'apply')
     }
   } catch (error) {
     generating.value = false
@@ -722,7 +726,7 @@ const forceRenewal = async () => {
     const response = await api.post('/ssl/renew')
 
     if (response.data.data.job_id) {
-      startJobPolling(response.data.data.job_id, 'renew')
+      startJobTracking(response.data.data.job_id, 'renew')
     }
   } catch (error) {
     renewing.value = false
@@ -760,7 +764,7 @@ const disableSsl = async () => {
     const response = await api.post('/ssl/disable')
 
     if (response.data.data.job_id) {
-      startJobPolling(response.data.data.job_id, 'disable')
+      startJobTracking(response.data.data.job_id, 'disable')
     }
   } catch (error) {
     generating.value = false
@@ -774,15 +778,55 @@ const showMessage = (msg, type) => {
   setTimeout(() => { message.value = '' }, 5000)
 }
 
-// Job polling
-const startJobPolling = (jobId, action) => {
+// Job tracking - SSE primary with polling fallback
+const startJobTracking = (jobId, action) => {
+  currentJobAction.value = action
   currentJob.value = {
     id: jobId,
     progress: 0,
     status: 'pending',
-    message: t('settings.ssl.starting_operation'),
-    action: action
+    message: t('settings.ssl.starting_operation')
   }
+
+  // Subscribe to SSE for real-time updates
+  sseUnsubscribe = subscribe('jobs', (data) => {
+    // Check if this update is for our job
+    if (data.job_id === jobId && data.progress_info) {
+      currentJob.value = {
+        ...currentJob.value,
+        progress: data.progress_info.progress ?? currentJob.value.progress,
+        message: data.progress_info.message ?? currentJob.value.message
+      }
+    }
+
+    // Check for job completion in jobs list
+    if (data.jobs) {
+      const job = data.jobs.find(j => j.id === jobId)
+      if (job) {
+        currentJob.value = {
+          ...currentJob.value,
+          status: job.status,
+          progress: job.progress ?? currentJob.value.progress
+        }
+
+        if (job.status === 'completed') {
+          stopJobTracking()
+          handleJobSuccess(action, job)
+        } else if (job.status === 'failed') {
+          stopJobTracking()
+          handleJobFailure(job)
+        }
+      }
+    }
+  })
+
+  // Start polling as fallback (slower interval since SSE is primary)
+  startPollingFallback(jobId, action)
+}
+
+// Polling fallback - runs less frequently when SSE is connected
+const startPollingFallback = (jobId, action) => {
+  const pollInterval = isConnected.value ? 5000 : 1000 // 5s with SSE, 1s without
 
   jobPollInterval = setInterval(async () => {
     try {
@@ -799,35 +843,45 @@ const startJobPolling = (jobId, action) => {
         id: jobId,
         progress: progress,
         status: job.status,
-        message: message,
-        action: action
+        message: message
       }
 
       if (job.status === 'completed') {
-        stopJobPolling()
+        stopJobTracking()
         handleJobSuccess(action, job)
       } else if (job.status === 'failed') {
-        stopJobPolling()
+        stopJobTracking()
         handleJobFailure(job)
       }
     } catch (error) {
       console.error('Error polling job:', error)
-      // Stop polling on error and show error
-      stopJobPolling()
-      showMessage(error.response?.data?.error?.message || error.message, 'error')
-      generating.value = false
-      validating.value = false
-      renewing.value = false
+      // Only stop on repeated errors, not on single failure
+      if (!isConnected.value) {
+        stopJobTracking()
+        showMessage(error.response?.data?.error?.message || error.message, 'error')
+        generating.value = false
+        validating.value = false
+        renewing.value = false
+      }
     }
-  }, 1000)
+  }, pollInterval)
 }
 
-const stopJobPolling = () => {
+const stopJobTracking = () => {
+  // Unsubscribe from SSE
+  if (sseUnsubscribe) {
+    sseUnsubscribe()
+    sseUnsubscribe = null
+  }
+
+  // Stop polling
   if (jobPollInterval) {
     clearInterval(jobPollInterval)
     jobPollInterval = null
   }
+
   currentJob.value = null
+  currentJobAction.value = null
 }
 
 const handleJobSuccess = async (action, job) => {
@@ -925,7 +979,7 @@ const redirectToHttps = () => {
 
 // Cleanup on unmount
 onUnmounted(() => {
-  stopJobPolling()
+  stopJobTracking()
   if (redirectInterval) {
     clearInterval(redirectInterval)
   }
