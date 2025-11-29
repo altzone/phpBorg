@@ -843,7 +843,8 @@
       "borg": "Borg",
       "security": "Sicherheit",
       "network": "Netzwerk",
-      "system": "System"
+      "system": "System",
+      "update": "Aktualisierung"
     },
     "general": {
       "title": "Allgemeine Einstellungen",
@@ -945,7 +946,62 @@
       "stats_note": "Hinweis: Nach Änderungen starten Sie den Scheduler auf der Workers-Seite neu, um den neuen Wert anzuwenden.",
       "save": "Systemeinstellungen speichern"
     },
+    "update": {
+      "title": "phpBorg-Aktualisierung",
+      "current_version": "Aktuelle Version",
+      "commit": "Commit",
+      "branch": "Branch",
+      "date": "Datum",
+      "author": "Autor",
+      "message": "Nachricht",
+      "check_title": "Nach Updates suchen",
+      "check_button": "Nach Updates suchen",
+      "available_title": "Update verfügbar!",
+      "available_description": "{commits} neue(r) Commit(s) verfügbar",
+      "changelog_title": "Änderungsprotokoll",
+      "install_button": "Update installieren",
+      "updating": "Aktualisierung läuft...",
+      "warning_title": "Achtung",
+      "warning_message": "phpBorg erstellt automatisch ein Backup vor dem Update und macht bei Problemen ein Rollback.",
+      "uptodate_title": "Aktuell",
+      "uptodate_description": "Ihre phpBorg-Installation ist auf dem neuesten Stand.",
+      "not_checked": "Klicken Sie auf 'Nach Updates suchen', um zu prüfen, ob eine neue Version verfügbar ist.",
+      "update_available_toast": "{commits} Update(s) verfügbar",
+      "uptodate_toast": "phpBorg ist auf dem neuesten Stand",
+      "check_error": "Fehler bei der Update-Prüfung",
+      "confirm_message": "Möchten Sie phpBorg wirklich aktualisieren? Ein Backup wird automatisch vor dem Update erstellt.",
+      "update_started": "Update gestartet. Sie können den Fortschritt in der Aufgabenwarteschlange verfolgen.",
+      "update_error": "Fehler beim Starten des Updates",
+      "update_job_title": "phpBorg-Aktualisierung",
+      "update_success": "Update erfolgreich abgeschlossen!"
+    },
     "save_success": "Einstellungen erfolgreich gespeichert!"
+  },
+  "update": {
+    "banner": {
+      "title": "Update verfügbar!",
+      "description": "{commits} neue(r) Commit(s) verfügbar",
+      "view_update": "Update ansehen",
+      "dismiss": "Ausblenden"
+    },
+    "modal": {
+      "title": "phpBorg-Aktualisierung",
+      "progress": "Fortschritt",
+      "status_pending": "Warten...",
+      "status_running": "Aktualisierung läuft...",
+      "status_completed": "Aktualisierung abgeschlossen!",
+      "status_failed": "Aktualisierung fehlgeschlagen",
+      "waiting": "Initialisierung...",
+      "starting": "Update wird gestartet...",
+      "success_message": "phpBorg wurde erfolgreich aktualisiert! Laden Sie die Seite neu, um die Änderungen zu sehen.",
+      "failed_message": "Das Update ist fehlgeschlagen. Überprüfen Sie die Logs für Details.",
+      "unknown_error": "Unbekannter Fehler",
+      "steps_history": "Schrittprotokoll",
+      "close_and_reload": "Schließen und neu laden",
+      "minimize": "Minimieren",
+      "job_continues": "Das Update läuft im Hintergrund weiter",
+      "please_wait": "Bitte warten..."
+    }
   },
   "restore_wizard": {
     "title": "Durchsuchen & Wiederherstellen",
