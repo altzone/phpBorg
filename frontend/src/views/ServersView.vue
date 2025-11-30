@@ -497,8 +497,24 @@ onMounted(async () => {
 
   // Subscribe to real-time server updates via SSE
   subscribe('servers', (data) => {
-    if (data.servers) {
-      serverStore.servers = data.servers
+    if (data.servers && Array.isArray(data.servers)) {
+      // Merge SSE data with existing servers, preserving backup_stats
+      // SSE only sends live data (active, agent, stats like cpu/memory/disk)
+      // backup_stats are pre-computed and loaded from initial API call
+      data.servers.forEach(sseServer => {
+        const existingServer = serverStore.servers.find(s => s.id === sseServer.id)
+        if (existingServer) {
+          // Update only live fields, preserve backup_stats
+          existingServer.active = sseServer.active
+          existingServer.stats = sseServer.stats
+          if (sseServer.agent) {
+            existingServer.agent = sseServer.agent
+          }
+        } else {
+          // New server, add it (won't have backup_stats until next full fetch)
+          serverStore.servers.push(sseServer)
+        }
+      })
       // Check if any pending agent updates completed
       checkPendingUpdates(data.servers)
     }
