@@ -255,6 +255,8 @@
     "capabilities_detected": "Fähigkeiten erkannt",
     "capabilities_detected_desc": "Die Serverfähigkeiten wurden aktualisiert.",
     "capabilities_detection_failed": "Erkennung fehlgeschlagen",
+    "capabilities_detection_timeout": "Zeitüberschreitung",
+    "capabilities_detection_timeout_desc": "Die Erkennung läuft möglicherweise noch im Hintergrund",
     "running": "Läuft"
   },
   "repositories": {

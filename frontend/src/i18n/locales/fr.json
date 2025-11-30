@@ -257,6 +257,8 @@
     "capabilities_detected": "Capacités détectées",
     "capabilities_detected_desc": "Les capacités du serveur ont été mises à jour.",
     "capabilities_detection_failed": "Échec de la détection",
+    "capabilities_detection_timeout": "Délai d'attente dépassé",
+    "capabilities_detection_timeout_desc": "La détection peut encore s'exécuter en arrière-plan",
     "running": "En cours d'exécution"
   },
   "repositories": {

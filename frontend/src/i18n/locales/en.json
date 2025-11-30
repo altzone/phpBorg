@@ -257,6 +257,8 @@
     "capabilities_detected": "Capabilities detected",
     "capabilities_detected_desc": "Server capabilities have been updated.",
     "capabilities_detection_failed": "Detection failed",
+    "capabilities_detection_timeout": "Detection timeout",
+    "capabilities_detection_timeout_desc": "Detection may still be running in the background",
     "running": "Running"
   },
   "repositories": {

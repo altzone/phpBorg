@@ -575,6 +575,14 @@ func (h *Handler) handleAgentUpdate(ctx context.Context, task api.Task) (map[str
 	os.Remove(tmpFile)    // Clean up temp file
 	os.Remove(oldBinary)  // Clean up old binary
 
+	h.client.UpdateProgress(ctx, task.ID, 85, "Updating system configuration...")
+
+	// Update systemd service file to ensure correct configuration
+	h.updateSystemdService()
+
+	// Update sudoers file to ensure all required permissions
+	h.updateSudoersFile()
+
 	h.client.UpdateProgress(ctx, task.ID, 90, "Restarting agent via systemd...")
 
 	// Restart via systemd (this will kill us, but the task is essentially done)
@@ -652,4 +660,126 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return os.Chmod(dst, sourceInfo.Mode())
+}
+
+// updateSystemdService updates the systemd service file to the latest configuration
+func (h *Handler) updateSystemdService() {
+	log.Println("[UPDATE] Updating systemd service file...")
+
+	serviceContent := `[Unit]
+Description=phpBorg Agent
+Documentation=https://github.com/altzone/phpBorg
+After=network.target
+
+[Service]
+Type=simple
+# Agent runs as root to access all files for full system backups
+User=root
+Group=root
+ExecStart=/var/lib/phpborg-agent/bin/phpborg-agent -config /etc/phpborg-agent/config.yaml
+Restart=always
+RestartSec=10
+
+# Minimal security hardening (agent needs full access for backups)
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
+`
+
+	servicePath := "/etc/systemd/system/phpborg-agent.service"
+
+	// Write the service file
+	if err := os.WriteFile(servicePath, []byte(serviceContent), 0644); err != nil {
+		log.Printf("[UPDATE] Warning: failed to update systemd service: %v", err)
+		return
+	}
+
+	// Reload systemd daemon
+	reloadCmd := exec.Command("systemctl", "daemon-reload")
+	if err := reloadCmd.Run(); err != nil {
+		log.Printf("[UPDATE] Warning: failed to reload systemd daemon: %v", err)
+	} else {
+		log.Println("[UPDATE] Systemd service file updated successfully")
+	}
+}
+
+// updateSudoersFile updates the sudoers file with the latest required permissions
+func (h *Handler) updateSudoersFile() {
+	log.Println("[UPDATE] Updating sudoers file...")
+
+	sudoersContent := `# phpBorg Agent sudoers rules
+# Minimal privileges for backup operations
+# Auto-updated by agent self-update
+
+Defaults:phpborg-agent !requiretty
+Defaults:phpborg-agent env_reset
+
+# System information (read-only)
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/cat /etc/*
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/cat /proc/*
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/df *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/du *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/find *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/which *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/systemctl is-active *
+
+# MySQL/MariaDB (read-only dumps)
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/mysqldump *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/mariadb-dump *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/mysql -e *
+
+# PostgreSQL (read-only dumps)
+phpborg-agent ALL=(postgres) NOPASSWD: /usr/bin/pg_dump *
+phpborg-agent ALL=(postgres) NOPASSWD: /usr/bin/pg_dumpall *
+phpborg-agent ALL=(postgres) NOPASSWD: /usr/bin/psql -t -c *
+
+# Borg Backup
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/borg --version
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/borg create *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/borg extract *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/borg list *
+
+# LVM Detection (read-only)
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/lvs *
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/vgs *
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/pvs *
+
+# LVM Snapshots (restricted naming pattern)
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/lvcreate -L * -s -n phpborg_snap_* *
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/lvremove -f /dev/*/phpborg_snap_*
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/mount -o ro /dev/*/phpborg_snap_* /mnt/phpborg_*
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/umount /mnt/phpborg_*
+
+# Btrfs Detection and Snapshots
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/btrfs subvolume list *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/btrfs subvolume snapshot *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/btrfs subvolume delete *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/btrfs filesystem show *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/btrfs filesystem usage *
+
+# ZFS Detection and Snapshots
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/zfs list *
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/zfs snapshot *
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/zfs destroy *
+
+# Agent self-update (restart service)
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/systemctl restart phpborg-agent
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/systemctl stop phpborg-agent
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start phpborg-agent
+
+# Restore operations (restricted paths)
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/mkdir -p /var/restore/*
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/rm -rf /var/restore/*
+`
+
+	sudoersPath := "/etc/sudoers.d/phpborg-agent"
+
+	// Write the sudoers file
+	if err := os.WriteFile(sudoersPath, []byte(sudoersContent), 0440); err != nil {
+		log.Printf("[UPDATE] Warning: failed to update sudoers file: %v", err)
+		return
+	}
+
+	log.Println("[UPDATE] Sudoers file updated successfully")
 }

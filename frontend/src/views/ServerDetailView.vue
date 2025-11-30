@@ -934,6 +934,9 @@ async function detectCapabilities() {
   const serverId = parseInt(route.params.id)
   detectingCapabilities.value = true
 
+  // Store original capabilities_detected_at to detect changes
+  const originalDetectedAt = serverData.value?.capabilities?.capabilities_detected_at
+
   try {
     await serverService.detectCapabilities(serverId)
     toast.success(
@@ -941,15 +944,46 @@ async function detectCapabilities() {
       t('serverDetail.capabilities_detection_started_desc')
     )
 
-    // Refresh server data after a delay to get updated capabilities
-    setTimeout(async () => {
-      await fetchServerData()
-      detectingCapabilities.value = false
-      toast.success(
-        t('serverDetail.capabilities_detected'),
-        t('serverDetail.capabilities_detected_desc')
-      )
-    }, 5000)
+    // Poll for capabilities update every 2 seconds for up to 60 seconds
+    let pollCount = 0
+    const maxPolls = 30 // 30 * 2s = 60 seconds max
+    const pollInterval = setInterval(async () => {
+      pollCount++
+
+      try {
+        // Fetch capabilities directly
+        const capsResponse = await serverService.getCapabilities(serverId)
+        const newDetectedAt = capsResponse.capabilities_detected_at
+
+        // Check if capabilities were updated (detected_at changed)
+        if (newDetectedAt && newDetectedAt !== originalDetectedAt) {
+          clearInterval(pollInterval)
+          detectingCapabilities.value = false
+
+          // Refresh full server data to get new capabilities
+          await fetchServerData()
+
+          toast.success(
+            t('serverDetail.capabilities_detected'),
+            t('serverDetail.capabilities_detected_desc')
+          )
+          return
+        }
+      } catch (e) {
+        console.error('Error polling capabilities:', e)
+      }
+
+      // Timeout after max polls
+      if (pollCount >= maxPolls) {
+        clearInterval(pollInterval)
+        detectingCapabilities.value = false
+        await fetchServerData() // Still refresh to get any partial results
+        toast.warning(
+          t('serverDetail.capabilities_detection_timeout') || 'Detection timeout',
+          t('serverDetail.capabilities_detection_timeout_desc') || 'Detection may still be running in the background'
+        )
+      }
+    }, 2000)
   } catch (error) {
     console.error('Failed to detect capabilities:', error)
     detectingCapabilities.value = false
