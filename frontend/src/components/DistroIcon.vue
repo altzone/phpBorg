@@ -1,69 +1,12 @@
 <template>
-  <div class="flex items-center justify-center" :class="sizeClass">
-    <!-- Ubuntu -->
-    <svg v-if="isUbuntu" viewBox="0 0 24 24" fill="currentColor" :class="[iconClass, 'text-orange-500']">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 2c1.93 0 3.68.78 4.95 2.05l-1.41 1.41A5.98 5.98 0 0012 6c-1.3 0-2.51.42-3.49 1.13l-1.41-1.4A7.95 7.95 0 0112 4zm-6 8c0-1.3.42-2.51 1.13-3.49l1.4 1.41A3.98 3.98 0 008 12c0 .87.28 1.67.74 2.33l-1.4 1.41A5.98 5.98 0 016 12zm6 6c-1.93 0-3.68-.78-4.95-2.05l1.41-1.41A5.98 5.98 0 0012 18c1.3 0 2.51-.42 3.49-1.13l1.41 1.4A7.95 7.95 0 0112 20zm6-8c0 1.3-.42 2.51-1.13 3.49l-1.4-1.41A3.98 3.98 0 0016 12c0-.87-.28-1.67-.74-2.33l1.4-1.41A5.98 5.98 0 0118 12z"/>
-      <circle cx="12" cy="12" r="2"/>
-      <circle cx="6" cy="12" r="1.5"/>
-      <circle cx="15.5" cy="7" r="1.5"/>
-      <circle cx="15.5" cy="17" r="1.5"/>
-    </svg>
-
-    <!-- Debian -->
-    <svg v-else-if="isDebian" viewBox="0 0 24 24" fill="currentColor" :class="[iconClass, 'text-red-600']">
-      <path d="M12.31 2c-.55.02-1.14.13-1.7.3-.1.03-.15.04-.14.07.02.02.1.04.2.04.18 0 .25-.02.25-.06 0-.05.04-.04.28.05.25.1.32.1.36.01.03-.05.06-.04.15.03.15.11.27.09.27-.05 0-.08.06-.07.29.05.24.12.32.13.45.06.11-.07.13-.05.2.11.08.18.1.19.23.09.14-.1.25-.08.4.08.15.15.18.15.35.02.19-.14.27-.12.55.15.19.19.25.2.47.11.28-.11.55-.02.72.24.08.12.14.16.22.14.11-.04.3.14.3.28 0 .08.06.13.28.21.33.12.4.18.33.32-.04.09-.01.15.14.3.2.2.22.25.2.44-.02.17 0 .23.14.35.16.14.18.14.4-.02.16-.11.24-.13.3-.07.11.1 0 .35-.2.46-.12.07-.13.1-.04.3.05.11.07.24.05.28-.03.05.02.13.12.2.16.1.18.14.14.27-.03.11.0.19.13.31.2.18.26.34.17.5-.05.09-.03.2.07.36.1.18.13.34.11.64-.02.35.0.43.15.55.17.14.18.16.1.5-.07.3-.06.37.04.54.14.21.13.43-.04.71-.07.12-.13.26-.13.33 0 .25-.27.54-.7.73-.23.1-.59.18-.96.22-.48.04-.59.02-1.22-.23-.56-.22-.71-.25-1.1-.21-.46.04-.68-.02-1.17-.32-.31-.2-.6-.3-.84-.3-.22 0-.29-.05-.53-.38-.25-.35-.28-.4-.28-.72 0-.28-.03-.38-.18-.57-.17-.2-.18-.26-.13-.63.04-.3.02-.49-.09-.74-.15-.38-.14-.55.09-1 .19-.4.17-.56-.1-.91-.27-.35-.32-.52-.25-.88.05-.25.02-.37-.14-.64-.2-.35-.19-.57.04-.99.15-.28.17-.39.1-.65-.08-.27-.05-.38.2-.82.14-.25.27-.58.28-.73.03-.28.02-.29-.28-.38-.32-.1-.4-.2-.32-.38.03-.07.02-.19-.02-.27-.07-.14-.04-.19.2-.42.29-.28.29-.29.16-.54-.1-.2-.11-.32-.04-.48.07-.16.06-.24-.03-.42-.1-.18-.1-.28-.02-.45.07-.16.06-.27-.03-.49-.1-.27-.1-.32.02-.53.13-.23.14-.23.55-.08.37.14.45.14.63.02.13-.08.26-.1.36-.05.14.06.17.04.2-.11.02-.11.08-.2.14-.2.06 0 .14-.07.17-.15.08-.2.5-.37.63-.26.06.05.17.01.33-.11.24-.18.25-.18.58-.04.31.14.36.14.58.01.18-.11.3-.13.48-.09.18.04.27.01.4-.12.18-.18.19-.18.56-.02l.37.16.24-.13c.2-.1.28-.1.47-.02.17.08.28.08.45.02.2-.07.24-.04.4.2.1.15.24.3.3.34.16.08.19.02.16-.33l-.03-.27.17.12c.16.12.18.12.25.0.06-.12.1-.12.32-.03.2.09.32.09.52.02.26-.1.27-.1.5.14.22.22.27.24.45.18.15-.05.24-.02.36.1.16.14.18.14.39.01.16-.11.28-.13.43-.09.18.06.22.03.3-.15.09-.21.1-.21.27-.08.12.1.25.12.42.08.2-.05.27-.02.42.15.15.17.2.19.38.13.16-.05.23-.03.35.09.11.11.22.14.37.11.18-.03.24.01.38.22.1.16.22.25.32.25.1 0 .22.08.3.21.1.14.19.2.28.18.11-.02.17.05.25.27.06.17.14.31.17.31.04 0 .12.12.19.27.08.18.2.32.33.38.15.08.21.17.22.35.02.22.09.32.52.73.13.13.13.15.0.2-.09.04-.11.09-.05.16.04.06.05.17.01.24-.05.1-.02.15.13.2.15.05.19.12.18.3-.02.16.02.26.12.32.13.08.13.11.02.27-.08.13-.1.25-.04.35.08.14.05.2-.16.39-.23.2-.24.24-.16.44.07.18.05.27-.11.46-.15.18-.19.32-.17.52.02.22-.01.32-.17.48-.18.19-.2.25-.13.51.07.27.04.34-.22.58-.24.21-.3.33-.33.57-.02.27-.06.34-.29.49-.21.14-.28.26-.32.5-.05.26-.1.34-.33.46-.21.1-.3.23-.38.48-.07.24-.16.37-.34.48-.19.1-.26.22-.3.45-.04.22-.12.36-.28.47-.15.1-.25.26-.3.46-.05.22-.13.35-.28.44-.2.1-.22.16-.2.4.02.22-.02.33-.17.47-.14.13-.2.28-.22.5-.02.23-.08.36-.24.5-.18.16-.22.27-.2.5.02.22-.02.34-.17.48-.16.15-.2.26-.17.5.02.2-.01.36-.11.47-.13.15-.14.2-.04.42.1.2.1.31-.02.49-.11.17-.12.26-.04.42.07.15.07.27-.02.47-.07.16-.09.34-.05.47.06.18.03.27-.14.47-.17.2-.2.31-.16.52.05.2.02.32-.09.47-.13.16-.14.24-.05.45.08.2.07.32-.06.55-.14.26-.14.33-.02.53.11.2.12.28.04.45-.08.15-.07.27.02.48.08.18.1.34.06.47-.05.14-.02.28.09.46l.15.25-.26-.06c-.27-.06-.27-.06-.31.21-.04.24-.06.28-.32.35-.21.06-.3.14-.35.31-.07.2-.11.24-.35.24-.19 0-.32.06-.42.18-.12.15-.19.18-.4.16-.21-.02-.28.01-.4.18-.13.17-.18.2-.42.17-.22-.02-.3.01-.42.15-.14.17-.17.18-.42.11-.23-.06-.3-.04-.44.1-.16.15-.2.16-.44.09-.24-.07-.28-.05-.44.11-.16.17-.19.18-.44.1-.25-.09-.28-.07-.44.12-.15.18-.2.2-.44.16-.24-.04-.29-.02-.43.14-.17.19-.17.19-.54.12-.35-.07-.38-.06-.51.11-.13.18-.18.2-.47.17-.27-.02-.36.01-.53.17l-.2.19-.24-.09c-.18-.06-.3-.06-.44.02-.17.1-.23.1-.5.0-.26-.1-.34-.09-.52.03-.2.13-.26.13-.53.04-.25-.09-.35-.08-.53.02-.19.1-.27.11-.5.05-.24-.07-.32-.06-.52.06-.21.12-.27.13-.5.06-.24-.08-.31-.06-.5.07-.19.13-.27.15-.5.1-.21-.05-.33-.04-.5.06-.2.1-.27.11-.5.05-.22-.06-.33-.04-.52.08-.22.13-.27.14-.5.05-.22-.1-.3-.08-.5.06-.19.13-.28.15-.5.1-.24-.06-.32-.04-.52.1-.22.15-.26.16-.51.07-.24-.09-.31-.06-.52.12-.2.17-.26.19-.51.13-.23-.06-.33-.03-.52.11-.22.16-.26.18-.52.1-.26-.08-.32-.05-.51.13-.18.17-.26.2-.52.17-.25-.03-.34 0-.52.15-.2.17-.25.19-.52.12-.27-.06-.34-.04-.53.14-.17.16-.28.21-.5.21-.26 0-.32.03-.5.24-.17.2-.27.25-.5.25-.21 0-.36.07-.54.24-.22.22-.28.25-.53.21-.25-.03-.32.0-.54.22-.22.22-.29.25-.55.22-.24-.03-.34.01-.54.2-.22.21-.27.23-.55.2-.29-.03-.33-.01-.56.23-.15.16-.3.24-.38.22-.09-.02-.25.05-.42.19-.24.19-.3.21-.57.16-.28-.06-.32-.04-.55.2-.23.23-.28.26-.56.22-.28-.03-.33-.01-.56.23-.14.15-.31.25-.4.24-.09-.01-.25.07-.4.21-.22.19-.28.22-.56.17-.29-.05-.33-.03-.56.22-.23.24-.27.27-.56.24-.29-.03-.33-.01-.55.24-.13.15-.31.26-.42.26-.1 0-.26.09-.38.23-.18.19-.26.23-.52.21-.28-.02-.33.01-.56.28-.18.22-.3.3-.43.3-.1 0-.27.1-.41.27-.21.23-.28.28-.53.27-.25-.01-.32.03-.55.3-.2.24-.32.32-.47.32-.13 0-.29.1-.44.28-.2.24-.27.29-.53.29-.26 0-.33.04-.56.33-.2.25-.32.33-.48.33-.14 0-.3.1-.44.29-.18.23-.27.29-.51.3-.26.01-.32.05-.55.36-.17.24-.31.35-.45.37-.13.01-.3.14-.46.33-.23.28-.28.32-.55.32-.28.0-.32.03-.55.36-.19.28-.29.37-.45.38-.15.01-.3.12-.46.33-.22.27-.28.32-.55.33-.28.01-.32.05-.53.37-.16.25-.28.35-.42.37-.14.01-.3.14-.47.38-.21.29-.27.35-.52.38-.27.02-.3.05-.51.41-.14.24-.27.38-.4.42-.13.03-.29.2-.47.48-.24.37-.27.44-.2.56.05.08.02.22-.1.38-.14.21-.16.31-.1.52.05.2.03.32-.09.48-.11.15-.14.28-.1.44.04.15.01.3-.1.46-.13.18-.14.28-.07.48.06.18.04.32-.07.51-.11.19-.13.3-.07.5.06.19.04.31-.08.5-.12.18-.14.28-.08.46.05.15.04.28-.03.39-.08.12-.09.26-.04.43.06.18.04.3-.08.47-.12.18-.15.28-.1.47.06.18.03.3-.08.46-.13.18-.14.26-.07.47.06.18.04.3-.07.48-.12.19-.14.28-.07.47.06.17.05.28-.07.47-.11.18-.14.27-.09.44.05.17.03.29-.08.46-.12.18-.14.27-.08.45.06.17.04.29-.07.46-.12.18-.14.27-.09.45.05.16.03.28-.08.45-.11.17-.15.28-.1.45.05.16.02.28-.1.45-.13.18-.15.27-.09.46.06.18.03.29-.09.47-.11.17-.14.27-.09.46.05.17.03.28-.08.46-.12.18-.14.27-.07.45.05.17.04.29-.06.46-.11.18-.13.28-.07.47.05.17.03.3-.08.46z"/>
-    </svg>
-
-    <!-- CentOS / Rocky / AlmaLinux / RHEL -->
-    <svg v-else-if="isRHEL" viewBox="0 0 24 24" fill="currentColor" :class="[iconClass, 'text-green-600']">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
-      <path d="M12 4l8 8-8 8-8-8 8-8zm0 2.83L6.83 12 12 17.17 17.17 12 12 6.83z"/>
-    </svg>
-
-    <!-- Fedora -->
-    <svg v-else-if="isFedora" viewBox="0 0 24 24" fill="currentColor" :class="[iconClass, 'text-blue-600']">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3v4c0 1.66-1.34 3-3 3s-3-1.34-3-3V8c0-1.66 1.34-3 3-3zm-4 9h2v2H8v-2zm6 0h2v2h-2v-2zm-3 3h2v2h-2v-2z"/>
-    </svg>
-
-    <!-- Arch Linux -->
-    <svg v-else-if="isArch" viewBox="0 0 24 24" fill="currentColor" :class="[iconClass, 'text-cyan-500']">
-      <path d="M12 2L3 22h4l5-12 5 12h4L12 2zm0 6l2.5 6h-5L12 8z"/>
-    </svg>
-
-    <!-- Windows -->
-    <svg v-else-if="isWindows" viewBox="0 0 24 24" fill="currentColor" :class="[iconClass, 'text-blue-500']">
-      <path d="M3 12V6.5l8-1.2v6.5L3 12zm0 .5l8 .2v6.5l-8-1.2V12.5zm9-.5V5l9-1.4v8.4l-9 .5zm0 1l9 .5v8.4L12 20V13z"/>
-    </svg>
-
-    <!-- SUSE / openSUSE -->
-    <svg v-else-if="isSUSE" viewBox="0 0 24 24" fill="currentColor" :class="[iconClass, 'text-green-500']">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
-      <circle cx="9" cy="10" r="1.5"/>
-      <circle cx="15" cy="10" r="1.5"/>
-      <path d="M12 17c-2 0-4-1.5-4-3h8c0 1.5-2 3-4 3z"/>
-    </svg>
-
-    <!-- Alpine -->
-    <svg v-else-if="isAlpine" viewBox="0 0 24 24" fill="currentColor" :class="[iconClass, 'text-blue-700']">
-      <path d="M12 3L2 21h20L12 3zm0 4l6.5 11h-13L12 7z"/>
-    </svg>
-
-    <!-- Generic Linux (Tux) -->
-    <svg v-else-if="isLinux" viewBox="0 0 24 24" fill="currentColor" :class="[iconClass, 'text-gray-700 dark:text-gray-300']">
-      <path d="M12.504 2c-.962 0-1.75 1.057-1.75 2.352 0 .466.115.9.31 1.27-.65.314-1.192.811-1.555 1.424-.477.806-.685 1.755-.685 2.704 0 1.054.25 2.065.72 2.936.19.354.413.68.66.972-.86.57-1.51 1.284-1.922 2.078-.52 1.002-.752 2.142-.752 3.264 0 1.54.414 3.014 1.222 4.13.396.547.876 1.007 1.422 1.358.154.512.424.974.78 1.346C11.374 26.36 11.93 26.7 12.5 26.7c.572 0 1.127-.34 1.546-.866.356-.372.627-.834.78-1.346.547-.35 1.027-.81 1.423-1.358.808-1.116 1.222-2.59 1.222-4.13 0-1.122-.232-2.262-.752-3.264-.412-.794-1.063-1.508-1.922-2.078.247-.292.47-.618.66-.972.47-.87.72-1.882.72-2.936 0-.95-.208-1.898-.685-2.704-.363-.613-.906-1.11-1.555-1.425.195-.368.31-.803.31-1.27 0-1.294-.788-2.35-1.75-2.35zm-.5 1c.416 0 .75.522.75 1.165s-.334 1.165-.75 1.165-.75-.522-.75-1.165S11.588 3 12.004 3zm1 0c.416 0 .75.522.75 1.165s-.334 1.165-.75 1.165-.75-.522-.75-1.165.334-1.165.75-1.165z"/>
-      <ellipse cx="10" cy="9" rx="1" ry="1.2"/>
-      <ellipse cx="14" cy="9" rx="1" ry="1.2"/>
-    </svg>
-
-    <!-- Unknown / Default Server Icon -->
-    <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" :class="[iconClass, 'text-gray-500']">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-    </svg>
+  <div class="inline-flex items-center justify-center" :class="sizeClass">
+    <Icon :icon="iconName" :class="iconClass" />
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+import { Icon } from '@iconify/vue'
 
 const props = defineProps({
   distribution: {
@@ -73,30 +16,117 @@ const props = defineProps({
   size: {
     type: String,
     default: 'md',
-    validator: (value) => ['xs', 'sm', 'md', 'lg', 'xl'].includes(value)
+    validator: (value) => ['xs', 'sm', 'md', 'lg', 'xl', '2xl'].includes(value)
+  },
+  type: {
+    type: String,
+    default: 'os',
+    validator: (value) => ['os', 'database', 'service'].includes(value)
   }
 })
 
 const distroLower = computed(() => (props.distribution || '').toLowerCase())
 
-const isUbuntu = computed(() => distroLower.value.includes('ubuntu'))
-const isDebian = computed(() => distroLower.value.includes('debian'))
-const isRHEL = computed(() =>
-  distroLower.value.includes('centos') ||
-  distroLower.value.includes('rocky') ||
-  distroLower.value.includes('alma') ||
-  distroLower.value.includes('rhel') ||
-  distroLower.value.includes('red hat')
-)
-const isFedora = computed(() => distroLower.value.includes('fedora'))
-const isArch = computed(() => distroLower.value.includes('arch'))
-const isWindows = computed(() => distroLower.value.includes('windows'))
-const isSUSE = computed(() => distroLower.value.includes('suse'))
-const isAlpine = computed(() => distroLower.value.includes('alpine'))
-const isLinux = computed(() =>
-  distroLower.value.includes('linux') ||
-  distroLower.value.length > 0
-)
+// OS/Distribution icons mapping
+const osIcons = {
+  ubuntu: 'simple-icons:ubuntu',
+  debian: 'simple-icons:debian',
+  centos: 'simple-icons:centos',
+  rocky: 'simple-icons:rockylinux',
+  alma: 'simple-icons:almalinux',
+  rhel: 'simple-icons:redhat',
+  'red hat': 'simple-icons:redhat',
+  redhat: 'simple-icons:redhat',
+  fedora: 'simple-icons:fedora',
+  arch: 'simple-icons:archlinux',
+  manjaro: 'simple-icons:manjaro',
+  windows: 'simple-icons:windows',
+  suse: 'simple-icons:suse',
+  opensuse: 'simple-icons:opensuse',
+  alpine: 'simple-icons:alpinelinux',
+  gentoo: 'simple-icons:gentoo',
+  mint: 'simple-icons:linuxmint',
+  kali: 'simple-icons:kalilinux',
+  nixos: 'simple-icons:nixos',
+  void: 'simple-icons:voidlinux',
+  freebsd: 'simple-icons:freebsd',
+  openbsd: 'simple-icons:openbsd',
+  macos: 'simple-icons:macos',
+  darwin: 'simple-icons:apple'
+}
+
+// Database icons mapping
+const dbIcons = {
+  postgresql: 'simple-icons:postgresql',
+  postgres: 'simple-icons:postgresql',
+  mysql: 'simple-icons:mysql',
+  mariadb: 'simple-icons:mariadb',
+  mongodb: 'simple-icons:mongodb',
+  redis: 'simple-icons:redis',
+  sqlite: 'simple-icons:sqlite',
+  oracle: 'simple-icons:oracle',
+  sqlserver: 'simple-icons:microsoftsqlserver',
+  'sql server': 'simple-icons:microsoftsqlserver',
+  cassandra: 'simple-icons:apachecassandra',
+  elasticsearch: 'simple-icons:elasticsearch',
+  neo4j: 'simple-icons:neo4j',
+  couchdb: 'simple-icons:apachecouchdb',
+  influxdb: 'simple-icons:influxdb'
+}
+
+// Service icons mapping
+const serviceIcons = {
+  docker: 'simple-icons:docker',
+  kubernetes: 'simple-icons:kubernetes',
+  k8s: 'simple-icons:kubernetes',
+  podman: 'simple-icons:podman',
+  nginx: 'simple-icons:nginx',
+  apache: 'simple-icons:apache',
+  borg: 'mdi:package-variant-closed',
+  borgbackup: 'mdi:package-variant-closed',
+  restic: 'mdi:archive',
+  lvm: 'mdi:harddisk-plus',
+  zfs: 'simple-icons:openzfs',
+  btrfs: 'mdi:harddisk',
+  git: 'simple-icons:git',
+  ssh: 'mdi:ssh',
+  proxmox: 'simple-icons:proxmox',
+  vmware: 'simple-icons:vmware',
+  virtualbox: 'simple-icons:virtualbox',
+  qemu: 'simple-icons:qemu'
+}
+
+const iconName = computed(() => {
+  const name = distroLower.value
+
+  // Check type-specific icons first
+  if (props.type === 'database') {
+    for (const [key, icon] of Object.entries(dbIcons)) {
+      if (name.includes(key)) return icon
+    }
+    return 'mdi:database'
+  }
+
+  if (props.type === 'service') {
+    for (const [key, icon] of Object.entries(serviceIcons)) {
+      if (name.includes(key)) return icon
+    }
+    return 'mdi:cog'
+  }
+
+  // Default: OS/Distribution detection
+  for (const [key, icon] of Object.entries(osIcons)) {
+    if (name.includes(key)) return icon
+  }
+
+  // Check for generic linux
+  if (name.includes('linux')) {
+    return 'simple-icons:linux'
+  }
+
+  // Fallback to server icon
+  return 'mdi:server'
+})
 
 const sizeClass = computed(() => {
   const sizes = {
@@ -104,18 +134,20 @@ const sizeClass = computed(() => {
     sm: 'w-5 h-5',
     md: 'w-6 h-6',
     lg: 'w-8 h-8',
-    xl: 'w-10 h-10'
+    xl: 'w-10 h-10',
+    '2xl': 'w-12 h-12'
   }
   return sizes[props.size]
 })
 
 const iconClass = computed(() => {
   const sizes = {
-    xs: 'w-4 h-4',
-    sm: 'w-5 h-5',
-    md: 'w-6 h-6',
-    lg: 'w-8 h-8',
-    xl: 'w-10 h-10'
+    xs: 'text-base',
+    sm: 'text-lg',
+    md: 'text-xl',
+    lg: 'text-2xl',
+    xl: 'text-3xl',
+    '2xl': 'text-4xl'
   }
   return sizes[props.size]
 })

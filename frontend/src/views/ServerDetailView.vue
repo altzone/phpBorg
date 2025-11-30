@@ -425,27 +425,35 @@
 
             <div class="space-y-2">
               <div v-if="capabilities.databases?.mysql" class="flex items-center gap-2 text-sm">
-                <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                <DistroIcon distribution="mysql" type="database" size="sm" class="text-blue-600 dark:text-blue-400" />
                 <span class="text-gray-700 dark:text-gray-300">MySQL {{ capabilities.databases.mysql.version }}</span>
               </div>
+              <div v-if="capabilities.databases?.mariadb" class="flex items-center gap-2 text-sm">
+                <DistroIcon distribution="mariadb" type="database" size="sm" class="text-amber-600 dark:text-amber-400" />
+                <span class="text-gray-700 dark:text-gray-300">MariaDB {{ capabilities.databases.mariadb.version }}</span>
+              </div>
               <div v-if="capabilities.databases?.postgresql" class="flex items-center gap-2 text-sm">
-                <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                <DistroIcon distribution="postgresql" type="database" size="sm" class="text-blue-700 dark:text-blue-300" />
                 <span class="text-gray-700 dark:text-gray-300">PostgreSQL {{ capabilities.databases.postgresql.version }}</span>
               </div>
               <div v-if="capabilities.databases?.mongodb" class="flex items-center gap-2 text-sm">
-                <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                <DistroIcon distribution="mongodb" type="database" size="sm" class="text-green-600 dark:text-green-400" />
                 <span class="text-gray-700 dark:text-gray-300">MongoDB {{ capabilities.databases.mongodb.version }}</span>
               </div>
+              <div v-if="capabilities.databases?.redis" class="flex items-center gap-2 text-sm">
+                <DistroIcon distribution="redis" type="database" size="sm" class="text-red-600 dark:text-red-400" />
+                <span class="text-gray-700 dark:text-gray-300">Redis {{ capabilities.databases.redis.version }}</span>
+              </div>
               <div v-if="capabilities.docker?.installed" class="flex items-center gap-2 text-sm">
-                <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                <DistroIcon distribution="docker" type="service" size="sm" class="text-blue-500 dark:text-blue-400" />
                 <span class="text-gray-700 dark:text-gray-300">Docker {{ capabilities.docker.version }}</span>
               </div>
               <div v-if="capabilities.lvm?.available" class="flex items-center gap-2 text-sm">
-                <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+                <DistroIcon distribution="lvm" type="service" size="sm" class="text-purple-600 dark:text-purple-400" />
                 <span class="text-gray-700 dark:text-gray-300">{{ $t('serverDetail.lvm_snapshots') }}</span>
               </div>
               <div v-if="capabilities.borg?.installed" class="flex items-center gap-2 text-sm">
-                <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                <DistroIcon distribution="borg" type="service" size="sm" class="text-amber-600 dark:text-amber-400" />
                 <span class="text-gray-700 dark:text-gray-300">Borg {{ capabilities.borg.version }}</span>
               </div>
             </div>
