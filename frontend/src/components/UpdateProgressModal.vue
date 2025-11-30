@@ -132,7 +132,19 @@
                 >
                   <span class="text-gray-400 font-mono w-8">{{ step.progress }}%</span>
                   <span class="text-gray-700 dark:text-gray-300 flex-1">{{ step.message }}</span>
-                  <span class="text-gray-400">{{ formatTime(step.time) }}</span>
+                  <span
+                    v-if="getStepDuration(index)"
+                    class="text-emerald-600 dark:text-emerald-400 font-mono whitespace-nowrap"
+                    :title="formatTime(step.time)"
+                  >
+                    {{ getStepDuration(index) }}
+                  </span>
+                  <span v-else class="text-gray-400 font-mono whitespace-nowrap">{{ formatTime(step.time) }}</span>
+                </div>
+                <!-- Total duration -->
+                <div v-if="steps.length > 1" class="flex items-center justify-end gap-2 pt-2 mt-2 border-t border-gray-300 dark:border-gray-600">
+                  <span class="text-xs text-gray-500 dark:text-gray-400">{{ $t('update.modal.total_duration') || 'Total' }}:</span>
+                  <span class="text-xs font-mono font-semibold text-blue-600 dark:text-blue-400">{{ getTotalDuration() }}</span>
                 </div>
               </div>
             </div>
@@ -229,6 +241,47 @@ const statusText = computed(() => {
 function formatTime(timestamp) {
   const date = new Date(timestamp)
   return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function formatDuration(ms) {
+  if (ms < 1000) {
+    return `${ms}ms`
+  } else if (ms < 60000) {
+    const seconds = (ms / 1000).toFixed(1)
+    return `${seconds}s`
+  } else {
+    const minutes = Math.floor(ms / 60000)
+    const seconds = Math.floor((ms % 60000) / 1000)
+    return `${minutes}m ${seconds}s`
+  }
+}
+
+function getStepDuration(index) {
+  if (index === 0) {
+    return null // First step has no previous to compare
+  }
+
+  const currentStep = steps.value[index]
+  const previousStep = steps.value[index - 1]
+
+  if (!currentStep || !previousStep) {
+    return null
+  }
+
+  const duration = currentStep.time - previousStep.time
+  return formatDuration(duration)
+}
+
+function getTotalDuration() {
+  if (steps.value.length < 2) {
+    return '0s'
+  }
+
+  const firstStep = steps.value[0]
+  const lastStep = steps.value[steps.value.length - 1]
+  const duration = lastStep.time - firstStep.time
+
+  return formatDuration(duration)
 }
 
 function addStep(progressValue, message) {

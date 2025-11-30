@@ -1211,6 +1211,7 @@
       "failed_message": "Das Update ist fehlgeschlagen. Überprüfen Sie die Logs für Details.",
       "unknown_error": "Unbekannter Fehler",
       "steps_history": "Schrittprotokoll",
+      "total_duration": "Gesamtdauer",
       "close_and_reload": "Schließen und neu laden",
       "minimize": "Minimieren",
       "job_continues": "Das Update läuft im Hintergrund weiter",

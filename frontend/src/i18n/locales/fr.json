@@ -1216,6 +1216,7 @@
       "failed_message": "La mise à jour a échoué. Consultez les logs pour plus de détails.",
       "unknown_error": "Erreur inconnue",
       "steps_history": "Historique des étapes",
+      "total_duration": "Durée totale",
       "close_and_reload": "Fermer et recharger",
       "minimize": "Réduire",
       "job_continues": "La mise à jour continue en arrière-plan",
