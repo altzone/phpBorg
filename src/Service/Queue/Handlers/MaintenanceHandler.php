@@ -201,7 +201,7 @@ final class MaintenanceHandler implements JobHandlerInterface
         }
 
         // Source NVM and run npm commands with bash
-        $nvmSource = 'export NVM_DIR=/var/lib/phpborg/.nvm && source $NVM_DIR/nvm.sh';
+        $nvmSource = 'export NVM_DIR=/var/lib/phpborg/.nvm && source \$NVM_DIR/nvm.sh';
 
         $queue->updateProgress($job->id, 10, "Installation des dépendances npm...");
         $this->logger->info("Installing npm dependencies...", 'MAINTENANCE');
