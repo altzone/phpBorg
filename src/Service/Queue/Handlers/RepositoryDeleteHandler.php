@@ -11,6 +11,7 @@ use PhpBorg\Repository\ArchiveMountRepository;
 use PhpBorg\Repository\BackupJobRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Service\Queue\JobQueue;
+use PhpBorg\Service\Server\ServerStatsComputer;
 
 /**
  * Repository Delete Handler
@@ -29,7 +30,8 @@ final class RepositoryDeleteHandler implements JobHandlerInterface
         private readonly ArchiveRepository $archiveRepo,
         private readonly ArchiveMountRepository $mountRepo,
         private readonly BackupJobRepository $jobRepo,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly ServerStatsComputer $statsComputer
     ) {
     }
 
@@ -107,6 +109,14 @@ final class RepositoryDeleteHandler implements JobHandlerInterface
 
         // Success
         $queue->updateProgress($job->id, 100, "Repository deleted successfully");
+
+        // Update pre-computed stats for server
+        try {
+            $this->statsComputer->onBackupDeleted($repository->serverId);
+            $this->logger->info("Updated server stats after repository deletion", 'JOB');
+        } catch (\Exception $statsEx) {
+            $this->logger->error("Failed to update server stats: {$statsEx->getMessage()}", 'JOB');
+        }
 
         $sizeFreed = $repository->deduplicatedSize;
 

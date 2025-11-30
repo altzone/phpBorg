@@ -28,6 +28,7 @@ class ServerController extends BaseController
     private readonly BackupJobRepository $backupJobRepository;
     private readonly ServerRepository $serverRepository;
     private readonly \PhpBorg\Repository\AgentRepository $agentRepository;
+    private readonly \PhpBorg\Service\Server\ServerStatsComputer $statsComputer;
 
     public function __construct(Application $app)
     {
@@ -40,6 +41,7 @@ class ServerController extends BaseController
         $this->backupJobRepository = $app->getBackupJobRepository();
         $this->serverRepository = $app->getServerRepository();
         $this->agentRepository = $app->getAgentRepository();
+        $this->statsComputer = $app->getServerStatsComputer();
     }
 
     /**
@@ -50,30 +52,21 @@ class ServerController extends BaseController
     {
         try {
             $servers = $this->serverManager->getAllServers();
-
-            // Get latest stats for all servers
             $serverIds = array_map(fn($server) => $server->id, $servers);
-            $statsMap = [];
 
+            // Get live stats (CPU, RAM, Disk) for all servers
+            $liveStatsMap = [];
             if (!empty($serverIds)) {
-                $statsMap = $this->statsRepository->getLatestStatsForServers($serverIds);
+                $liveStatsMap = $this->statsRepository->getLatestStatsForServers($serverIds);
             }
 
+            // Get pre-computed backup stats (cached, updated on events)
+            $computedStatsMap = $this->statsComputer->getStatsForServers($serverIds);
+
             $this->success([
-                'servers' => array_map(function($server) use ($statsMap) {
-                    $stats = $statsMap[$server->id] ?? null;
-
-                    // Get repository count for this server
-                    $repositories = $this->serverManager->getRepositoriesForServer($server->id);
-                    $repositoryCount = count($repositories);
-
-                    // Get backup statistics
-                    $backupCount = $this->archiveRepository->countByServerId($server->id);
-                    $storageStats = $this->archiveRepository->getStorageStatsByServerId($server->id);
-
-                    // Get last backup
-                    $lastBackups = $this->archiveRepository->findRecentByServerId($server->id, 1);
-                    $lastBackup = !empty($lastBackups) ? $lastBackups[0] : null;
+                'servers' => array_map(function($server) use ($liveStatsMap, $computedStatsMap) {
+                    $liveStats = $liveStatsMap[$server->id] ?? null;
+                    $computedStats = $computedStatsMap[$server->id] ?? null;
 
                     return [
                         'id' => $server->id,
@@ -82,28 +75,28 @@ class ServerController extends BaseController
                         'port' => $server->port,
                         'backupType' => $server->backupType,
                         'active' => $server->active,
-                        'repository_count' => $repositoryCount,
-                        // Backup statistics
-                        'backup_stats' => [
-                            'total_backups' => $backupCount,
-                            'original_size' => $storageStats['total_original_size'],
-                            'deduplicated_size' => $storageStats['total_deduplicated_size'],
-                            'last_backup' => $lastBackup ? [
-                                'id' => $lastBackup->id,
-                                'name' => $lastBackup->name,
-                                'date' => $lastBackup->start->format('Y-m-d H:i:s'),
-                                'duration' => $lastBackup->duration,
-                                'status' => 'success', // Archives are only stored if successful
+                        'repository_count' => $computedStats['repository_count'] ?? 0,
+                        // Pre-computed backup statistics (from cache)
+                        'backup_stats' => $computedStats ? [
+                            'total_backups' => $computedStats['total_backups'] ?? 0,
+                            'original_size' => $computedStats['original_size'] ?? 0,
+                            'deduplicated_size' => $computedStats['deduplicated_size'] ?? 0,
+                            'last_backup' => $computedStats['last_backup_at'] ? [
+                                'id' => $computedStats['last_backup_id'],
+                                'name' => $computedStats['last_backup_name'],
+                                'date' => $computedStats['last_backup_at'],
+                                'duration' => $computedStats['last_backup_duration'],
+                                'status' => 'success',
                             ] : null,
-                        ],
+                        ] : null,
                         // Agent information
                         'agent' => $this->formatAgentInfo($server),
-                        // Server resource stats
-                        'stats' => $stats ? [
-                            'os_distribution' => $stats['os_distribution'],
-                            'cpu_usage_percent' => $stats['cpu_usage_percent'],
-                            'memory_percent' => $stats['memory_percent'],
-                            'disk_percent' => $stats['disk_percent'],
+                        // Live resource stats (real-time via SSE)
+                        'stats' => $liveStats ? [
+                            'os_distribution' => $liveStats['os_distribution'],
+                            'cpu_usage_percent' => $liveStats['cpu_usage_percent'],
+                            'memory_percent' => $liveStats['memory_percent'],
+                            'disk_percent' => $liveStats['disk_percent'],
                         ] : null,
                     ];
                 }, $servers),

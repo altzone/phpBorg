@@ -110,7 +110,8 @@ final class WorkerStartCommand extends Command
             $this->app->getUserOperationLogger(),
             $this->app->getSettingRepository(),
             $this->app->getAgentRepository(),
-            $this->app->getArchiveRepository()
+            $this->app->getArchiveRepository(),
+            $this->app->getServerStatsComputer()
         ));
 
         $worker->registerHandler('capabilities_detection', new CapabilitiesDetectionHandler(
@@ -124,7 +125,8 @@ final class WorkerStartCommand extends Command
             $this->app->getArchiveRepository(),
             $this->app->getBorgRepositoryRepository(),
             $logger,
-            $this->app->getUserOperationLogger()
+            $this->app->getUserOperationLogger(),
+            $this->app->getServerStatsComputer()
         ));
 
         $worker->registerHandler('archive_mount', new ArchiveMountHandler(
@@ -162,7 +164,8 @@ final class WorkerStartCommand extends Command
             $this->app->getArchiveRepository(),
             $this->app->getArchiveMountRepository(),
             $this->app->getBackupJobRepository(),
-            $logger
+            $logger,
+            $this->app->getServerStatsComputer()
         ));
 
         $worker->registerHandler('instant_recovery_start', new InstantRecoveryStartHandler($this->app));

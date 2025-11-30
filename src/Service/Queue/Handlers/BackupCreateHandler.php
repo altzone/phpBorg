@@ -16,6 +16,7 @@ use PhpBorg\Service\Backup\BackupService;
 use PhpBorg\Service\Queue\JobQueue;
 use PhpBorg\Service\Repository\EncryptionService;
 use PhpBorg\Service\Server\ServerManager;
+use PhpBorg\Service\Server\ServerStatsComputer;
 use PhpBorg\Service\Email\BackupNotificationService;
 
 /**
@@ -38,7 +39,8 @@ final class BackupCreateHandler implements JobHandlerInterface
         private readonly UserOperationLogger $userLogger,
         private readonly SettingRepository $settingRepo,
         private readonly AgentRepository $agentRepo,
-        private readonly ArchiveRepository $archiveRepo
+        private readonly ArchiveRepository $archiveRepo,
+        private readonly ServerStatsComputer $statsComputer
     ) {
     }
 
@@ -167,6 +169,23 @@ final class BackupCreateHandler implements JobHandlerInterface
                     // Log but don't fail the backup if notification fails
                     $this->logger->error("Failed to send success notification: {$notifEx->getMessage()}", 'JOB');
                 }
+            }
+
+            // Update pre-computed stats for server
+            try {
+                $backupStats = $result['stats'] ?? [];
+                $this->statsComputer->onBackupCreated($serverId, [
+                    'id' => $result['archiveId'] ?? null,
+                    'name' => $archiveName,
+                    'date' => date('Y-m-d H:i:s'),
+                    'duration' => $backupStats['duration'] ?? null,
+                    'original_size' => $backupStats['original_size'] ?? 0,
+                    'compressed_size' => $backupStats['compressed_size'] ?? 0,
+                    'deduplicated_size' => $backupStats['deduplicated_size'] ?? 0,
+                ]);
+                $this->logger->info("Updated server stats after backup", 'JOB');
+            } catch (\Exception $statsEx) {
+                $this->logger->error("Failed to update server stats: {$statsEx->getMessage()}", 'JOB');
             }
 
             return "Backup '{$archiveName}' for server '{$server->name}' completed successfully";
@@ -546,6 +565,22 @@ final class BackupCreateHandler implements JobHandlerInterface
                     } catch (\Exception $notifEx) {
                         $this->logger->error("Failed to send notification: {$notifEx->getMessage()}", 'JOB');
                     }
+                }
+
+                // Update pre-computed stats for server
+                try {
+                    $this->statsComputer->onBackupCreated($server->id, [
+                        'id' => $archiveStats['archive_id'] ?? null,
+                        'name' => $archiveName,
+                        'date' => date('Y-m-d H:i:s'),
+                        'duration' => $archiveStats['duration'] ?? null,
+                        'original_size' => $archiveStats['original_size'] ?? 0,
+                        'compressed_size' => $archiveStats['compressed_size'] ?? 0,
+                        'deduplicated_size' => $archiveStats['deduplicated_size'] ?? 0,
+                    ]);
+                    $this->logger->info("Updated server stats after agent backup", 'JOB');
+                } catch (\Exception $statsEx) {
+                    $this->logger->error("Failed to update server stats: {$statsEx->getMessage()}", 'JOB');
                 }
 
                 return "Backup '{$archiveName}' for server '{$server->name}' completed via agent";

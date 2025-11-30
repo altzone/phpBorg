@@ -42,6 +42,7 @@ use PhpBorg\Service\InstantRecovery\InstantRecoveryManager;
 use PhpBorg\Service\Repository\EncryptionService;
 use PhpBorg\Service\Server\ServerManager;
 use PhpBorg\Service\Server\ServerStatsCollector;
+use PhpBorg\Service\Server\ServerStatsComputer;
 use PhpBorg\Service\Server\SshExecutor;
 use PhpBorg\Service\Setup\SetupService;
 use PhpBorg\Service\Agent\AgentManager;
@@ -270,6 +271,19 @@ final class Application
     {
         return $this->getService(ServerStatsCollector::class, fn() =>
             new ServerStatsCollector($this->getSshExecutor(), $this->logger)
+        );
+    }
+
+    public function getServerStatsComputer(): ServerStatsComputer
+    {
+        return $this->getService(ServerStatsComputer::class, fn() =>
+            new ServerStatsComputer(
+                $this->connection,
+                $this->getArchiveRepository(),
+                $this->getServerRepository(),
+                $this->getBackupJobRepository(),
+                $this->getBorgRepositoryRepository()
+            )
         );
     }
 

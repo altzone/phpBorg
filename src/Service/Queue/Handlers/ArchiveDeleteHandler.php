@@ -11,6 +11,7 @@ use PhpBorg\Repository\ArchiveRepository;
 use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Service\Backup\BorgExecutor;
 use PhpBorg\Service\Queue\JobQueue;
+use PhpBorg\Service\Server\ServerStatsComputer;
 
 /**
  * Handler for archive deletion jobs
@@ -26,7 +27,8 @@ final class ArchiveDeleteHandler implements JobHandlerInterface
         private readonly ArchiveRepository $archiveRepo,
         private readonly BorgRepositoryRepository $repositoryRepo,
         private readonly LoggerInterface $logger,
-        private readonly UserOperationLogger $userLogger
+        private readonly UserOperationLogger $userLogger,
+        private readonly ServerStatsComputer $statsComputer
     ) {
     }
 
@@ -143,6 +145,14 @@ final class ArchiveDeleteHandler implements JobHandlerInterface
                 'freed_space' => $cacheStats['unique_csize'] ?? null,
                 'job_id' => $job->id
             ]);
+
+            // Update pre-computed stats for server
+            try {
+                $this->statsComputer->onBackupDeleted($archive->serverId);
+                $this->logger->info("Updated server stats after archive deletion", 'JOB');
+            } catch (\Exception $statsEx) {
+                $this->logger->error("Failed to update server stats: {$statsEx->getMessage()}", 'JOB');
+            }
 
             return "Archive '{$archive->name}' deleted successfully from repository '{$repository->repoPath}'";
 
