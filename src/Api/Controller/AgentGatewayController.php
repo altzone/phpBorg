@@ -879,7 +879,7 @@ final class AgentGatewayController extends BaseController
         $serverUrl = $protocol . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
 
         // Get registration token
-        $settingsRepo = new \PhpBorg\Repository\SettingsRepository($this->connection);
+        $settingsRepo = new \PhpBorg\Repository\SettingRepository($this->connection);
         $registrationToken = $settingsRepo->get('agent.registration_token');
         if (!$registrationToken) {
             $registrationToken = bin2hex(random_bytes(32));
@@ -944,7 +944,7 @@ final class AgentGatewayController extends BaseController
     private function validateRegistrationToken(string $token): bool
     {
         // Get registration token from settings
-        $settingsRepo = new \PhpBorg\Repository\SettingsRepository($this->connection);
+        $settingsRepo = new \PhpBorg\Repository\SettingRepository($this->connection);
         $validToken = $settingsRepo->get('agent.registration_token');
 
         if (!$validToken) {
