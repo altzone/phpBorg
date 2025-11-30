@@ -102,7 +102,7 @@
                     'text-blue-800 dark:text-blue-200'
                   ]"
                 >
-                  {{ currentMessage || $t('update.modal.waiting') }}
+                  {{ translateMessage(currentMessage) || $t('update.modal.waiting') }}
                 </p>
               </div>
             </div>
@@ -131,7 +131,7 @@
                   class="flex items-start gap-2 py-1.5 text-xs border-b border-gray-200 dark:border-gray-700 last:border-0"
                 >
                   <span class="text-gray-400 font-mono w-8">{{ step.progress }}%</span>
-                  <span class="text-gray-700 dark:text-gray-300 flex-1">{{ step.message }}</span>
+                  <span class="text-gray-700 dark:text-gray-300 flex-1">{{ translateMessage(step.message) }}</span>
                   <span
                     class="font-mono whitespace-nowrap"
                     :class="getStepDuration(index) ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'"
@@ -240,6 +240,34 @@ const statusText = computed(() => {
 function formatTime(timestamp) {
   const date = new Date(timestamp)
   return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+/**
+ * Translate i18n keys from backend
+ * Format: "update.steps.key" or "update.steps.key|param1|param2"
+ */
+function translateMessage(message) {
+  if (!message) return ''
+
+  // Check if it's an i18n key (starts with "update.steps.")
+  if (message.startsWith('update.steps.')) {
+    // Check for parameters separated by |
+    const parts = message.split('|')
+    const key = parts[0]
+    const params = parts.slice(1)
+
+    // Build params object for interpolation
+    if (params.length === 1) {
+      return t(key, { id: params[0] })
+    } else if (params.length === 2) {
+      return t(key, { from: params[0], to: params[1] })
+    }
+
+    return t(key)
+  }
+
+  // Not an i18n key, return as-is (backward compatibility)
+  return message
 }
 
 function formatDuration(ms) {

@@ -53,34 +53,36 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
 
         try {
             // Step 1: Pre-checks (5%)
-            $queue->updateProgress($job->id, 5, "Vérification des prérequis...");
+            $queue->updateProgress($job->id, 5, "update.steps.pre_checks");
             $this->logger->info("Running pre-update checks...", 'PHPBORG_UPDATE');
             $this->preChecks($phpborgRoot);
 
             // Step 2: Create pre-update backup (15%)
-            $queue->updateProgress($job->id, 10, "Création de la sauvegarde pré-mise à jour...");
+            $queue->updateProgress($job->id, 10, "update.steps.backup_creating");
             $this->logger->info("Creating pre-update backup...", 'PHPBORG_UPDATE');
             $preUpdateBackupId = $this->createPreUpdateBackup();
-            $queue->updateProgress($job->id, 15, "Sauvegarde créée (ID: {$preUpdateBackupId})");
+            $queue->updateProgress($job->id, 15, "update.steps.backup_created|{$preUpdateBackupId}");
             $this->logger->info("Pre-update backup created", 'PHPBORG_UPDATE', [
                 'backup_id' => $preUpdateBackupId
             ]);
 
             // Step 3: Git update (25%)
-            $queue->updateProgress($job->id, 20, "Mise à jour du code depuis Git...");
+            $queue->updateProgress($job->id, 20, "update.steps.git_updating");
             $this->logger->info("Updating code from git...", 'PHPBORG_UPDATE');
             $this->gitUpdate($phpborgRoot, $targetCommit);
             $newCommit = $this->getCurrentCommit($phpborgRoot);
             $codeUpdated = ($newCommit !== $currentCommit); // Only true if commit actually changed
-            $queue->updateProgress($job->id, 25, "Code mis à jour: " . substr($currentCommit, 0, 7) . " → " . substr($newCommit, 0, 7));
+            $fromShort = substr($currentCommit, 0, 7);
+            $toShort = substr($newCommit, 0, 7);
+            $queue->updateProgress($job->id, 25, "update.steps.code_updated|{$fromShort}|{$toShort}");
             $this->logger->info("Code updated", 'PHPBORG_UPDATE', [
-                'from' => substr($currentCommit, 0, 7),
-                'to' => substr($newCommit, 0, 7)
+                'from' => $fromShort,
+                'to' => $toShort
             ]);
 
             // If no changes, exit early with success
             if (!$codeUpdated) {
-                $queue->updateProgress($job->id, 100, "Déjà à jour (aucun changement)");
+                $queue->updateProgress($job->id, 100, "update.steps.already_uptodate");
                 $this->logger->info("Already up to date, nothing to do", 'PHPBORG_UPDATE');
                 return "phpBorg already at latest version ({$newCommit})";
             }
@@ -106,79 +108,79 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
 
             // Step 4: Composer install (40%) - only if needed
             if ($needsComposer) {
-                $queue->updateProgress($job->id, 30, "Installation des dépendances PHP (Composer)...");
+                $queue->updateProgress($job->id, 30, "update.steps.composer_installing");
                 $this->logger->info("Installing PHP dependencies...", 'PHPBORG_UPDATE');
                 $this->composerInstall($phpborgRoot);
-                $queue->updateProgress($job->id, 40, "Dépendances PHP installées");
+                $queue->updateProgress($job->id, 40, "update.steps.composer_installed");
             } else {
-                $queue->updateProgress($job->id, 40, "⏭️ Composer: aucun changement détecté");
+                $queue->updateProgress($job->id, 40, "update.steps.composer_skipped");
                 $this->logger->info("Skipping Composer install (no changes)", 'PHPBORG_UPDATE');
             }
 
             // Step 5: NPM build (60%) - only if frontend changed
             if ($needsFrontend) {
-                $queue->updateProgress($job->id, 45, "Construction du frontend (npm install + build)...");
+                $queue->updateProgress($job->id, 45, "update.steps.frontend_building");
                 $this->logger->info("Building frontend...", 'PHPBORG_UPDATE');
                 $this->npmBuild($phpborgRoot);
-                $queue->updateProgress($job->id, 60, "Frontend construit avec succès");
+                $queue->updateProgress($job->id, 60, "update.steps.frontend_built");
             } else {
-                $queue->updateProgress($job->id, 60, "⏭️ Frontend: aucun changement détecté");
+                $queue->updateProgress($job->id, 60, "update.steps.frontend_skipped");
                 $this->logger->info("Skipping frontend build (no changes)", 'PHPBORG_UPDATE');
             }
 
             // Step 5b: Rebuild Go agent (70%) - only if agent changed
             if ($needsAgent) {
-                $queue->updateProgress($job->id, 65, "Reconstruction de l'agent Go...");
+                $queue->updateProgress($job->id, 65, "update.steps.agent_building");
                 $this->logger->info("Rebuilding Go agent...", 'PHPBORG_UPDATE');
                 $this->rebuildAgent($phpborgRoot);
-                $queue->updateProgress($job->id, 70, "Agent Go reconstruit");
+                $queue->updateProgress($job->id, 70, "update.steps.agent_built");
             } else {
-                $queue->updateProgress($job->id, 70, "⏭️ Agent Go: aucun changement détecté");
+                $queue->updateProgress($job->id, 70, "update.steps.agent_skipped");
                 $this->logger->info("Skipping agent rebuild (no changes)", 'PHPBORG_UPDATE');
             }
 
             // Step 6: Database migrations (80%) - only if migrations changed
             if ($needsMigrations) {
-                $queue->updateProgress($job->id, 75, "Exécution des migrations de base de données...");
+                $queue->updateProgress($job->id, 75, "update.steps.migrations_running");
                 $this->logger->info("Running database migrations...", 'PHPBORG_UPDATE');
                 $this->runMigrations($phpborgRoot);
-                $queue->updateProgress($job->id, 80, "Migrations terminées");
+                $queue->updateProgress($job->id, 80, "update.steps.migrations_done");
             } else {
-                $queue->updateProgress($job->id, 80, "⏭️ Migrations: aucun changement détecté");
+                $queue->updateProgress($job->id, 80, "update.steps.migrations_skipped");
                 $this->logger->info("Skipping migrations (no changes)", 'PHPBORG_UPDATE');
             }
 
             // Step 7: Regenerate systemd services (85%) - only if systemd files changed
             if ($needsSystemd) {
-                $queue->updateProgress($job->id, 82, "Régénération des services systemd...");
+                $queue->updateProgress($job->id, 82, "update.steps.systemd_regenerating");
                 $this->logger->info("Regenerating systemd services...", 'PHPBORG_UPDATE');
                 $this->regenerateSystemdServices($phpborgRoot);
-                $queue->updateProgress($job->id, 84, "Services systemd régénérés");
+                $queue->updateProgress($job->id, 84, "update.steps.systemd_regenerated");
             } else {
-                $queue->updateProgress($job->id, 84, "⏭️ Systemd: aucun changement détecté");
+                $queue->updateProgress($job->id, 84, "update.steps.systemd_skipped");
                 $this->logger->info("Skipping systemd regeneration (no changes)", 'PHPBORG_UPDATE');
             }
 
             // Step 7b: Rebuild Docker images (87%) - only if docker files changed
             if ($needsDocker) {
-                $queue->updateProgress($job->id, 85, "Reconstruction des images Docker...");
+                $queue->updateProgress($job->id, 85, "update.steps.docker_building");
                 $this->logger->info("Rebuilding Docker images...", 'PHPBORG_UPDATE');
                 $this->rebuildDockerImages($phpborgRoot);
-                $queue->updateProgress($job->id, 87, "Images Docker reconstruites");
+                $queue->updateProgress($job->id, 87, "update.steps.docker_built");
             } else {
-                $queue->updateProgress($job->id, 87, "⏭️ Docker: aucun changement détecté");
+                $queue->updateProgress($job->id, 87, "update.steps.docker_skipped");
                 $this->logger->info("Skipping Docker rebuild (no changes)", 'PHPBORG_UPDATE');
             }
 
             // Step 8: Pre-restart health check (90%)
-            $queue->updateProgress($job->id, 88, "Vérification de santé pré-redémarrage...");
+            $queue->updateProgress($job->id, 88, "update.steps.health_checking");
             $this->logger->info("Running pre-restart health check...", 'PHPBORG_UPDATE');
             $healthCheck = $this->healthCheck();
 
             if (!$healthCheck['healthy']) {
                 throw new \Exception("Health check failed: " . $healthCheck['error']);
             }
-            $queue->updateProgress($job->id, 90, "Vérification de santé réussie");
+            $queue->updateProgress($job->id, 90, "update.steps.health_passed");
 
             // Build summary of what was done
             $actions = [];
@@ -199,10 +201,10 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             $this->logger->info($message, 'PHPBORG_UPDATE');
 
             // Step 9: Request services restart (95%)
-            $queue->updateProgress($job->id, 95, "Redémarrage des services en cours...");
+            $queue->updateProgress($job->id, 95, "update.steps.restarting");
             $this->logger->info("Requesting services restart...", 'PHPBORG_UPDATE');
             $this->restartServices($phpborgRoot);
-            $queue->updateProgress($job->id, 100, "Mise à jour terminée ! Redémarrage en cours...");
+            $queue->updateProgress($job->id, 100, "update.steps.update_done");
 
             return $message;
 

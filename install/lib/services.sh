@@ -70,105 +70,20 @@ setup_sudoers_workers() {
     print_section "Configuring Sudoers for Workers"
 
     local sudoers_file="/etc/sudoers.d/phpborg-workers"
+    local sudoers_template="${PHPBORG_ROOT}/install/templates/sudoers-workers.conf"
 
     backup_file "${sudoers_file}"
 
-    log_info "Creating sudoers file: ${sudoers_file}"
+    log_info "Creating sudoers file from template: ${sudoers_file}"
 
-    cat > "${sudoers_file}" <<-'EOF'
-# phpBorg Workers - Systemd Service Management
-# Allows phpborg user to manage worker services via web interface
+    # Check if template exists
+    if [ ! -f "${sudoers_template}" ]; then
+        log_error "Sudoers template not found: ${sudoers_template}"
+        return 1
+    fi
 
-# Status checks (read-only)
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-*
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl is-active phpborg-*
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl is-enabled phpborg-*
-
-# Service management (start/stop/restart)
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl start phpborg-scheduler
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl stop phpborg-scheduler
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl restart phpborg-scheduler
-
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl start phpborg-worker@*
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl stop phpborg-worker@*
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl restart phpborg-worker@*
-
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl start phpborg-workers.target
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl stop phpborg-workers.target
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl restart phpborg-workers.target
-
-# Log viewing
-phpborg ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-* -n * --since * --output *
-phpborg ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-* -n *
-phpborg ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-*
-
-# Reload systemd daemon
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl daemon-reload
-
-# Regenerate systemd services (for updates)
-phpborg ALL=(ALL) NOPASSWD: /opt/newphpborg/phpBorg/bin/regenerate-systemd-services.sh
-
-# Restart services script (for updates)
-phpborg ALL=(ALL) NOPASSWD: /bin/bash ${PHPBORG_ROOT}/bin/restart-services.sh
-
-# Agent SSH key management (for AgentManager)
-phpborg ALL=(ALL) NOPASSWD: /bin/tee -a /var/lib/phpborg-borg/.ssh/authorized_keys
-phpborg ALL=(ALL) NOPASSWD: /bin/cp * /var/lib/phpborg-borg/.ssh/authorized_keys
-phpborg ALL=(ALL) NOPASSWD: /bin/chown phpborg-borg\:phpborg-borg /var/lib/phpborg-borg/.ssh/authorized_keys
-phpborg ALL=(ALL) NOPASSWD: /bin/chmod 600 /var/lib/phpborg-borg/.ssh/authorized_keys
-
-# Agent backup directory preparation (validates against storage pools)
-phpborg ALL=(ALL) NOPASSWD: /opt/newphpborg/phpBorg/bin/prepare-backup-directory.sh *
-
-# Borg init as phpborg-borg (for agent backups) - SETENV allows BORG_PASSPHRASE
-phpborg ALL=(phpborg-borg) NOPASSWD: SETENV: /usr/bin/borg *
-
-# Borg SSH server management
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-sshd
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl start phpborg-sshd
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl stop phpborg-sshd
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl restart phpborg-sshd
-
-# SSL/TLS Certificate Management
-phpborg ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
-phpborg ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t -c *
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl reload nginx
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl is-active nginx
-phpborg ALL=(ALL) NOPASSWD: /bin/systemctl is-active certbot.timer
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/certbot certonly *
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/certbot renew *
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/certbot certificates *
-
-# SSL file management (certificates and nginx config)
-phpborg ALL=(ALL) NOPASSWD: /bin/mkdir -p /etc/phpborg/ssl*
-phpborg ALL=(ALL) NOPASSWD: /bin/cp * /etc/phpborg/ssl/*
-phpborg ALL=(ALL) NOPASSWD: /bin/cp * /etc/nginx/sites-available/phpborg*
-phpborg ALL=(ALL) NOPASSWD: /bin/chmod * /etc/phpborg/ssl*
-phpborg ALL=(ALL) NOPASSWD: /bin/ln -s /etc/nginx/sites-available/phpborg /etc/nginx/sites-enabled/phpborg
-
-# Mount directories for borg archive browsing
-phpborg ALL=(phpborg-borg) NOPASSWD: /bin/mkdir -p /var/lib/phpborg/mounts/*
-phpborg ALL=(phpborg-borg) NOPASSWD: /bin/rmdir /var/lib/phpborg/mounts/*
-phpborg ALL=(ALL) NOPASSWD: /bin/rm -rf /var/lib/phpborg/mounts/*
-phpborg ALL=(ALL) NOPASSWD: /bin/umount -l /var/lib/phpborg/mounts/*
-
-# Instant Recovery - mount/unmount operations
-phpborg ALL=(ALL) NOPASSWD: /bin/mkdir -p /tmp/phpborg_*
-phpborg ALL=(ALL) NOPASSWD: /bin/rm -rf /tmp/phpborg_*
-phpborg ALL=(ALL) NOPASSWD: /bin/umount /tmp/phpborg_*
-phpborg ALL=(ALL) NOPASSWD: /bin/umount -l /tmp/phpborg_*
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/fusermount -u /tmp/phpborg_*
-phpborg ALL=(ALL) NOPASSWD: /bin/chown -R * /tmp/phpborg_*
-phpborg ALL=(ALL) NOPASSWD: /bin/chmod -R * /tmp/phpborg_*
-
-# Web interface (www-data via PHP-FPM) - read-only status checks
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-*
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl is-active phpborg-*
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl is-enabled phpborg-*
-www-data ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-* -n * --since * --output *
-www-data ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-* -n *
-www-data ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-*
-EOF
+    # Copy template and replace PHPBORG_ROOT placeholder
+    sed "s|/opt/newphpborg/phpBorg|${PHPBORG_ROOT}|g" "${sudoers_template}" > "${sudoers_file}"
 
     chmod 440 "${sudoers_file}"
 
@@ -192,48 +107,20 @@ setup_sudoers_backup_server() {
     print_section "Configuring Sudoers for Backup Operations"
 
     local sudoers_file="/etc/sudoers.d/phpborg-backup-server"
+    local sudoers_template="${PHPBORG_ROOT}/install/templates/sudoers-backup-server.conf"
 
     backup_file "${sudoers_file}"
 
-    log_info "Creating sudoers file: ${sudoers_file}"
+    log_info "Creating sudoers file from template: ${sudoers_file}"
 
-    cat > "${sudoers_file}" <<-'EOF'
-# phpBorg Backup Server - BorgBackup & Instant Recovery
-# Allows phpborg user to perform backup and recovery operations
+    # Check if template exists
+    if [ ! -f "${sudoers_template}" ]; then
+        log_error "Sudoers template not found: ${sudoers_template}"
+        return 1
+    fi
 
-# Borg mount operations (MUST be sudo for allow_other)
-phpborg ALL=(ALL) NOPASSWD: /bin/sh -c * borg mount * /tmp/phpborg_instant_recovery/*
-phpborg ALL=(ALL) NOPASSWD: /bin/sh -c * borg umount /tmp/phpborg_instant_recovery/*
-
-# Fuse-overlayfs (MUST be sudo to access root-owned Borg mount)
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/fuse-overlayfs * /tmp/phpborg_overlay_*
-phpborg ALL=(ALL) NOPASSWD: /bin/fusermount -u /tmp/phpborg_overlay_*
-
-# File access on root-owned Borg mount
-phpborg ALL=(ALL) NOPASSWD: /bin/ls * /tmp/phpborg_instant_recovery/*
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/find /tmp/phpborg_instant_recovery/* *
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/test * /tmp/phpborg_instant_recovery/*
-
-# Recursive ownership change (CRITICAL for Docker containers)
-phpborg ALL=(ALL) NOPASSWD: /bin/chown * /tmp/phpborg_overlay_*
-phpborg ALL=(ALL) NOPASSWD: /bin/chmod * /tmp/phpborg_overlay_*
-
-# Directory operations
-phpborg ALL=(ALL) NOPASSWD: /bin/mkdir -p /tmp/phpborg_instant_recovery/*
-phpborg ALL=(ALL) NOPASSWD: /bin/mkdir -p /tmp/phpborg_overlay_*
-phpborg ALL=(ALL) NOPASSWD: /bin/rm -rf /tmp/phpborg_instant_recovery/*
-phpborg ALL=(ALL) NOPASSWD: /bin/rm -rf /tmp/phpborg_overlay_*
-
-# Docker operations for instant recovery
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker run *
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker stop *
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker rm *
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker logs *
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker ps *
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker images *
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker build *
-phpborg ALL=(ALL) NOPASSWD: /usr/bin/docker buildx *
-EOF
+    # Copy template (no placeholders needed for this file)
+    cp "${sudoers_template}" "${sudoers_file}"
 
     chmod 440 "${sudoers_file}"
 
@@ -257,38 +144,20 @@ setup_sudoers_agent_worker() {
     print_section "Configuring Sudoers for Agent Worker"
 
     local sudoers_file="/etc/sudoers.d/phpborg-agent-worker"
+    local sudoers_template="${PHPBORG_ROOT}/install/templates/sudoers-agent-worker.conf"
 
     backup_file "${sudoers_file}"
 
-    log_info "Creating sudoers file: ${sudoers_file}"
+    log_info "Creating sudoers file from template: ${sudoers_file}"
 
-    cat > "${sudoers_file}" <<-'EOF'
-# phpBorg Agent Worker - Agent deployment operations
-# Allows phpborg user to manage agent SSH keys and backup directories
+    # Check if template exists
+    if [ ! -f "${sudoers_template}" ]; then
+        log_error "Sudoers template not found: ${sudoers_template}"
+        return 1
+    fi
 
-# Gestion des répertoires de backup pour les agents
-phpborg ALL=(root) NOPASSWD: /bin/mkdir -p /opt/backups/*
-phpborg ALL=(root) NOPASSWD: /bin/chown phpborg-borg\:phpborg-borg /opt/backups/*
-phpborg ALL=(root) NOPASSWD: /bin/chmod 750 /opt/backups/*
-
-# Gestion du répertoire SSH de phpborg-borg
-phpborg ALL=(root) NOPASSWD: /bin/mkdir -p /var/lib/phpborg-borg/.ssh
-phpborg ALL=(root) NOPASSWD: /bin/chown phpborg-borg\:phpborg-borg /var/lib/phpborg-borg/.ssh
-phpborg ALL=(root) NOPASSWD: /bin/chmod 700 /var/lib/phpborg-borg/.ssh
-
-# Gestion du fichier authorized_keys
-phpborg ALL=(root) NOPASSWD: /bin/touch /var/lib/phpborg-borg/.ssh/authorized_keys
-phpborg ALL=(root) NOPASSWD: /bin/cat /var/lib/phpborg-borg/.ssh/authorized_keys
-phpborg ALL=(root) NOPASSWD: /bin/cp /tmp/phpborg_authorized_keys_* /var/lib/phpborg-borg/.ssh/authorized_keys
-phpborg ALL=(root) NOPASSWD: /bin/chown phpborg-borg\:phpborg-borg /var/lib/phpborg-borg/.ssh/authorized_keys
-phpborg ALL=(root) NOPASSWD: /bin/chmod 600 /var/lib/phpborg-borg/.ssh/authorized_keys
-
-# Lecture des répertoires (pour vérification)
-phpborg ALL=(root) NOPASSWD: /bin/ls /var/lib/phpborg-borg
-phpborg ALL=(root) NOPASSWD: /bin/ls /var/lib/phpborg-borg/.ssh
-phpborg ALL=(root) NOPASSWD: /bin/ls /opt/backups
-phpborg ALL=(root) NOPASSWD: /bin/ls /opt/backups/*
-EOF
+    # Copy template (no placeholders needed for this file)
+    cp "${sudoers_template}" "${sudoers_file}"
 
     chmod 440 "${sudoers_file}"
 
@@ -299,6 +168,43 @@ EOF
         return 0
     else
         log_error "Agent worker sudoers syntax validation failed"
+        rm -f "${sudoers_file}"
+        return 1
+    fi
+}
+
+#
+# Configure sudoers for www-data (PHP-FPM web interface)
+#
+
+setup_sudoers_www_data() {
+    print_section "Configuring Sudoers for Web Interface (www-data)"
+
+    local sudoers_file="/etc/sudoers.d/phpborg-www-data"
+    local sudoers_template="${PHPBORG_ROOT}/install/templates/sudoers-www-data.conf"
+
+    backup_file "${sudoers_file}"
+
+    log_info "Creating sudoers file from template: ${sudoers_file}"
+
+    # Check if template exists
+    if [ ! -f "${sudoers_template}" ]; then
+        log_error "Sudoers template not found: ${sudoers_template}"
+        return 1
+    fi
+
+    # Copy template (no placeholders needed for this file)
+    cp "${sudoers_template}" "${sudoers_file}"
+
+    chmod 440 "${sudoers_file}"
+
+    # Validate sudoers syntax
+    if visudo -c -f "${sudoers_file}" &>/dev/null; then
+        log_success "www-data sudoers file created and validated"
+        save_state "setup_sudoers_www_data" "completed"
+        return 0
+    else
+        log_error "www-data sudoers syntax validation failed"
         rm -f "${sudoers_file}"
         return 1
     fi
@@ -929,6 +835,12 @@ setup_services() {
         setup_sudoers_agent_worker || errors=$((errors + 1))
     else
         log_info "Agent worker sudoers already configured (skipped)"
+    fi
+
+    if ! is_step_completed "setup_sudoers_www_data"; then
+        setup_sudoers_www_data || errors=$((errors + 1))
+    else
+        log_info "www-data sudoers already configured (skipped)"
     fi
 
     # Create directories

@@ -14,50 +14,56 @@ log() {
 
 log "Starting phpBorg services restart..."
 
-# Update sudoers rules (new rules may be needed)
-log "Updating sudoers rules..."
-SUDOERS_FILE="/etc/sudoers.d/phpborg-workers"
-SUDOERS_UPDATED=false
+# Update all sudoers files from templates
+log "Updating sudoers rules from templates..."
 
-# Ensure prepare-backup-directory.sh rule exists
-if [ -f "$SUDOERS_FILE" ]; then
-    if ! grep -q "prepare-backup-directory.sh" "$SUDOERS_FILE" 2>/dev/null; then
-        log "Adding prepare-backup-directory.sh sudoers rule..."
-        echo "" >> "$SUDOERS_FILE"
-        echo "# Agent backup directory preparation (validates against storage pools)" >> "$SUDOERS_FILE"
-        echo "phpborg ALL=(ALL) NOPASSWD: ${PHPBORG_ROOT}/bin/prepare-backup-directory.sh *" >> "$SUDOERS_FILE"
-        SUDOERS_UPDATED=true
+update_sudoers_from_template() {
+    local name="$1"
+    local sudoers_file="/etc/sudoers.d/phpborg-${name}"
+    local sudoers_template="${PHPBORG_ROOT}/install/templates/sudoers-${name}.conf"
+
+    if [ ! -f "$sudoers_template" ]; then
+        log "WARNING: Sudoers template not found: $sudoers_template"
+        return 1
     fi
 
-    # Ensure borg init as phpborg-borg rule exists with SETENV (for BORG_PASSPHRASE)
-    if ! grep -q "phpborg-borg.*SETENV:.*/usr/bin/borg" "$SUDOERS_FILE" 2>/dev/null; then
-        # Remove old rule without SETENV if exists
-        if grep -q "phpborg-borg.*/usr/bin/borg" "$SUDOERS_FILE" 2>/dev/null; then
-            log "Updating borg sudoers rule to include SETENV..."
-            sed -i '/phpborg-borg.*\/usr\/bin\/borg/d' "$SUDOERS_FILE"
-            sed -i '/# Borg init as phpborg-borg/d' "$SUDOERS_FILE"
+    # Replace PHPBORG_ROOT placeholder in template (only workers template has it)
+    local sudoers_content
+    sudoers_content=$(sed "s|/opt/newphpborg/phpBorg|${PHPBORG_ROOT}|g" "$sudoers_template")
+
+    # Check if current file differs from template
+    local current_content=""
+    if [ -f "$sudoers_file" ]; then
+        current_content=$(cat "$sudoers_file")
+    fi
+
+    if [ "$sudoers_content" != "$current_content" ]; then
+        log "Updating ${name} sudoers rules..."
+
+        # Write to temp file first for validation
+        local temp_sudoers
+        temp_sudoers=$(mktemp)
+        echo "$sudoers_content" > "$temp_sudoers"
+
+        # Validate sudoers syntax
+        if visudo -c -f "$temp_sudoers" &>/dev/null; then
+            cp "$temp_sudoers" "$sudoers_file"
+            chmod 440 "$sudoers_file"
+            log "${name} sudoers rules updated successfully"
         else
-            log "Adding borg init as phpborg-borg sudoers rule..."
+            log "ERROR: ${name} sudoers template syntax validation failed"
         fi
-        echo "" >> "$SUDOERS_FILE"
-        echo "# Borg init as phpborg-borg (for agent backups) - SETENV allows BORG_PASSPHRASE" >> "$SUDOERS_FILE"
-        echo "phpborg ALL=(phpborg-borg) NOPASSWD: SETENV: /usr/bin/borg *" >> "$SUDOERS_FILE"
-        SUDOERS_UPDATED=true
-    fi
-fi
-
-if [ "$SUDOERS_UPDATED" = "true" ]; then
-    # Validate sudoers syntax
-    if visudo -c -f "$SUDOERS_FILE" &>/dev/null; then
-        log "Sudoers rules updated successfully"
+        rm -f "$temp_sudoers"
     else
-        log "ERROR: Sudoers syntax validation failed, reverting..."
-        # Remove the bad lines we just added
-        sed -i '/prepare-backup-directory.sh/d' "$SUDOERS_FILE"
+        log "${name} sudoers rules already up to date"
     fi
-else
-    log "Sudoers rules already up to date"
-fi
+}
+
+# Update all sudoers files
+update_sudoers_from_template "workers"
+update_sudoers_from_template "backup-server"
+update_sudoers_from_template "agent-worker"
+update_sudoers_from_template "www-data"
 
 # Update systemd service files from repository (may have changed)
 log "Syncing systemd service files from repository..."
