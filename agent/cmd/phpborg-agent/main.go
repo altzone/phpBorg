@@ -18,7 +18,7 @@ import (
 	"github.com/phpborg/phpborg-agent/internal/task"
 )
 
-const Version = "2.3.3"
+const Version = "2.3.4"
 
 func main() {
 	// Parse command line flags
@@ -69,7 +69,9 @@ func main() {
 		log.SetOutput(f)
 	}
 
-	log.Printf("[AGENT] phpborg-agent version %s starting...", Version)
+	log.Println("============================================================")
+	log.Printf("  phpBorg Agent v%s", Version)
+	log.Println("============================================================")
 	log.Printf("[AGENT] Agent: %s (%s)", cfg.Agent.Name, cfg.Agent.UUID)
 	log.Printf("[AGENT] Server URL: %s", cfg.Server.URL)
 
