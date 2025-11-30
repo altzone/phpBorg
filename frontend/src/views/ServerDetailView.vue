@@ -1013,17 +1013,52 @@ function handleStatsUpdate(data) {
 function handleServerUpdate(data) {
   const serverId = parseInt(route.params.id)
 
-  // Handle server status changes
+  // SSE sends { servers: [...], timestamp: ... } - find our server in the array
+  if (data.servers && Array.isArray(data.servers)) {
+    const updatedServer = data.servers.find(s => s.id === serverId)
+    if (updatedServer && serverData.value?.server) {
+      // Only update specific real-time fields, don't overwrite everything
+      serverData.value.server.active = updatedServer.active
+      if (updatedServer.agent) {
+        serverData.value.server.agent = {
+          ...serverData.value.server.agent,
+          ...updatedServer.agent
+        }
+      }
+      // Update stats if available (for resources display)
+      if (updatedServer.stats && serverData.value.system) {
+        if (updatedServer.stats.cpu_usage_percent !== undefined) {
+          serverData.value.system.cpu = {
+            ...serverData.value.system.cpu,
+            usage_percent: updatedServer.stats.cpu_usage_percent
+          }
+        }
+        if (updatedServer.stats.memory_percent !== undefined) {
+          serverData.value.system.memory = {
+            ...serverData.value.system.memory,
+            percent: updatedServer.stats.memory_percent
+          }
+        }
+        if (updatedServer.stats.disk_percent !== undefined) {
+          serverData.value.system.disk = {
+            ...serverData.value.system.disk,
+            percent: updatedServer.stats.disk_percent
+          }
+        }
+      }
+    }
+    return
+  }
+
+  // Handle single server update events
   if (data.server?.id === serverId || data.id === serverId) {
     if (serverData.value?.server) {
-      // Update server active status
       if (data.active !== undefined) {
         serverData.value.server.active = data.active
       }
       if (data.server?.active !== undefined) {
         serverData.value.server.active = data.server.active
       }
-      // Update agent status
       if (data.agent) {
         serverData.value.server.agent = {
           ...serverData.value.server.agent,
