@@ -2,34 +2,20 @@
   <div>
     <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ $t('settings.update.title') }}</h3>
 
-    <!-- Current Version Info -->
-    <div class="card p-4 mb-6">
-      <h4 class="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">{{ $t('settings.update.current_version') }}</h4>
-
-      <div v-if="loadingVersion" class="text-center py-4">
-        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+    <!-- Current Version Info (compact) -->
+    <div class="card p-3 mb-6">
+      <div v-if="loadingVersion" class="flex items-center justify-center py-2">
+        <div class="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600"></div>
       </div>
-
-      <div v-else-if="versionInfo" class="space-y-2 text-sm">
-        <div class="flex justify-between">
-          <span class="text-gray-600 dark:text-gray-400">{{ $t('settings.update.commit') }}:</span>
-          <span class="font-mono text-gray-900 dark:text-gray-100">{{ versionInfo.commit_short }}</span>
+      <div v-else-if="versionInfo" class="flex items-center justify-between flex-wrap gap-2 text-sm">
+        <div class="flex items-center gap-4">
+          <span class="text-gray-500 dark:text-gray-400">{{ $t('settings.update.current_version') }}:</span>
+          <span class="font-mono text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-gray-800 dark:text-gray-200">{{ versionInfo.commit_short }}</span>
+          <span class="text-gray-600 dark:text-gray-300">{{ versionInfo.branch }}</span>
         </div>
-        <div class="flex justify-between">
-          <span class="text-gray-600 dark:text-gray-400">{{ $t('settings.update.branch') }}:</span>
-          <span class="text-gray-900 dark:text-gray-100">{{ versionInfo.branch }}</span>
-        </div>
-        <div class="flex justify-between">
-          <span class="text-gray-600 dark:text-gray-400">{{ $t('settings.update.date') }}:</span>
-          <span class="text-gray-900 dark:text-gray-100">{{ formatDate(versionInfo.date) }}</span>
-        </div>
-        <div class="flex justify-between">
-          <span class="text-gray-600 dark:text-gray-400">{{ $t('settings.update.author') }}:</span>
-          <span class="text-gray-900 dark:text-gray-100">{{ versionInfo.author }}</span>
-        </div>
-        <div class="border-t dark:border-gray-700 pt-2 mt-2">
-          <span class="text-gray-600 dark:text-gray-400">{{ $t('settings.update.message') }}:</span>
-          <p class="text-gray-900 dark:text-gray-100 mt-1">{{ versionInfo.message }}</p>
+        <div class="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+          <span>{{ formatDate(versionInfo.date) }}</span>
+          <span>{{ versionInfo.author }}</span>
         </div>
       </div>
     </div>
