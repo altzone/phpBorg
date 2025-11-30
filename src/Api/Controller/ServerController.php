@@ -67,39 +67,43 @@ class ServerController extends BaseController
                     $repositories = $this->serverManager->getRepositoriesForServer($server->id);
                     $repositoryCount = count($repositories);
 
+                    // Get backup statistics
+                    $backupCount = $this->archiveRepository->countByServerId($server->id);
+                    $storageStats = $this->archiveRepository->getStorageStatsByServerId($server->id);
+
+                    // Get last backup
+                    $lastBackups = $this->archiveRepository->findRecentByServerId($server->id, 1);
+                    $lastBackup = !empty($lastBackups) ? $lastBackups[0] : null;
+
                     return [
                         'id' => $server->id,
                         'name' => $server->name,
-                        'hostname' => $server->host,  // Database field is 'host'
+                        'hostname' => $server->host,
                         'port' => $server->port,
-                        'username' => 'root',  // Not stored in DB yet
                         'backupType' => $server->backupType,
-                        'description' => null,  // Not stored in DB yet
                         'active' => $server->active,
                         'repository_count' => $repositoryCount,
+                        // Backup statistics
+                        'backup_stats' => [
+                            'total_backups' => $backupCount,
+                            'original_size' => $storageStats['total_original_size'],
+                            'deduplicated_size' => $storageStats['total_deduplicated_size'],
+                            'last_backup' => $lastBackup ? [
+                                'id' => $lastBackup->id,
+                                'name' => $lastBackup->name,
+                                'date' => $lastBackup->start->format('Y-m-d H:i:s'),
+                                'duration' => $lastBackup->duration,
+                                'status' => 'success', // Archives are only stored if successful
+                            ] : null,
+                        ],
                         // Agent information
                         'agent' => $this->formatAgentInfo($server),
-                        // Add server stats
+                        // Server resource stats
                         'stats' => $stats ? [
                             'os_distribution' => $stats['os_distribution'],
-                            'os_version' => $stats['os_version'],
-                            'kernel_version' => $stats['kernel_version'],
-                            'hostname' => $stats['hostname'],
-                            'architecture' => $stats['architecture'],
-                            'cpu_cores' => $stats['cpu_cores'],
-                            'cpu_model' => $stats['cpu_model'],
-                            'cpu_load_1' => $stats['cpu_load_1'],
                             'cpu_usage_percent' => $stats['cpu_usage_percent'],
-                            'memory_total_mb' => $stats['memory_total_mb'],
-                            'memory_used_mb' => $stats['memory_used_mb'],
                             'memory_percent' => $stats['memory_percent'],
-                            'disk_total_gb' => $stats['disk_total_gb'],
-                            'disk_used_gb' => $stats['disk_used_gb'],
                             'disk_percent' => $stats['disk_percent'],
-                            'uptime_seconds' => $stats['uptime_seconds'],
-                            'uptime_human' => $stats['uptime_human'],
-                            'ip_address' => $stats['ip_address'],
-                            'collected_at' => $stats['collected_at'],
                         ] : null,
                     ];
                 }, $servers),

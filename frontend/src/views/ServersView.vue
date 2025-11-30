@@ -60,28 +60,28 @@
         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead class="bg-gray-50 dark:bg-gray-800">
             <tr>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 {{ $t('servers.name') }}
               </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                {{ $t('servers.hostname') }}
-              </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                {{ $t('servers.username') }}
-              </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 {{ $t('servers.status') }}
               </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                IP
+              <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ $t('servers.repos') }}
               </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                {{ $t('servers.distribution') }}
+              <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ $t('servers.last_backup') }}
               </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                {{ $t('servers.version') }}
+              <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ $t('servers.storage') }}
               </th>
-              <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ $t('servers.resources') }}
+              </th>
+              <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ $t('servers.agent_col') }}
+              </th>
+              <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 {{ $t('common.actions') }}
               </th>
             </tr>
@@ -94,7 +94,8 @@
               class="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
               :class="{ 'opacity-60': !server.active }"
             >
-              <td class="px-6 py-4 whitespace-nowrap">
+              <!-- Name with distro icon -->
+              <td class="px-4 py-3 whitespace-nowrap">
                 <div class="flex items-center">
                   <div :class="[
                     'p-2 rounded-lg mr-3',
@@ -104,18 +105,17 @@
                   ]">
                     <DistroIcon :distribution="server.stats?.os_distribution" size="sm" class="text-white" />
                   </div>
-                  <div class="font-medium text-gray-900 dark:text-gray-100">{{ server.name }}</div>
+                  <div>
+                    <div class="font-medium text-gray-900 dark:text-gray-100">{{ server.name }}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400 font-mono">{{ server.hostname }}</div>
+                  </div>
                 </div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-900 dark:text-gray-300 font-mono">{{ server.hostname }}:{{ server.port }}</div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-700 dark:text-gray-400">{{ server.username || 'root' }}</div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
+
+              <!-- Status -->
+              <td class="px-4 py-3 whitespace-nowrap text-center">
                 <span :class="[
-                  'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium',
+                  'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium',
                   server.active
                     ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                     : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
@@ -127,50 +127,104 @@
                   {{ server.active ? $t('servers.online') : $t('servers.offline') }}
                 </span>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-700 dark:text-gray-400 font-mono">
-                  {{ server.stats?.ip_address || 'N/A' }}
+
+              <!-- Repos count -->
+              <td class="px-4 py-3 whitespace-nowrap text-center">
+                <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 font-semibold text-sm">
+                  {{ server.repository_count || 0 }}
+                </span>
+              </td>
+
+              <!-- Last backup -->
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div v-if="server.backup_stats?.last_backup" class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <div>
+                    <div class="text-sm text-gray-900 dark:text-gray-200">{{ formatTimeAgo(server.backup_stats.last_backup.date) }}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ server.backup_stats.total_backups }} {{ $t('servers.backups_total') }}</div>
+                  </div>
+                </div>
+                <div v-else class="text-sm text-gray-400 dark:text-gray-500 italic">
+                  {{ $t('servers.no_backups') }}
                 </div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-300">
-                  <DistroIcon :distribution="server.stats?.os_distribution" size="xs" />
-                  {{ server.stats?.os_distribution || 'N/A' }}
+
+              <!-- Storage -->
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div v-if="server.backup_stats?.original_size > 0">
+                  <div class="text-sm font-medium text-gray-900 dark:text-gray-200">
+                    {{ formatBytes(server.backup_stats.original_size) }}
+                  </div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400">
+                    → {{ formatBytes(server.backup_stats.deduplicated_size) }} {{ $t('servers.after_dedup') }}
+                  </div>
                 </div>
+                <div v-else class="text-sm text-gray-400 dark:text-gray-500">-</div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-700 dark:text-gray-400">
-                  <!-- Agent version for agent-based servers -->
-                  <template v-if="server.agent">
-                    <span class="flex items-center gap-2">
-                      <span class="font-mono">{{ server.agent.version || 'N/A' }}</span>
-                      <!-- Update badge (clickable) -->
-                      <button
-                        v-if="server.agent.needs_update && !updatingAgent[server.id]"
-                        @click.stop="updateAgent(server)"
-                        class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 hover:bg-yellow-200 dark:hover:bg-yellow-800 cursor-pointer transition-colors"
-                        :title="$t('servers.agent.update_available', { version: server.agent.latest_version })"
-                      >
-                        {{ $t('servers.agent.update') }}
-                      </button>
-                      <!-- Updating spinner -->
-                      <span
-                        v-if="updatingAgent[server.id]"
-                        class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                      >
-                        <svg class="animate-spin -ml-0.5 mr-1.5 h-3 w-3" fill="none" viewBox="0 0 24 24">
-                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        {{ $t('common.updating') }}
-                      </span>
-                    </span>
-                  </template>
-                  <!-- OS version for SSH-based servers -->
-                  <template v-else>
-                    {{ server.stats?.os_version || 'N/A' }}
-                  </template>
+
+              <!-- Resources (mini bars) -->
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div v-if="server.stats" class="flex items-center gap-2">
+                  <!-- CPU -->
+                  <div class="w-12" :title="'CPU: ' + Math.round(server.stats.cpu_usage_percent || 0) + '%'">
+                    <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div
+                        class="h-full rounded-full transition-all"
+                        :class="getResourceColor(server.stats.cpu_usage_percent)"
+                        :style="{ width: (server.stats.cpu_usage_percent || 0) + '%' }"
+                      ></div>
+                    </div>
+                  </div>
+                  <!-- RAM -->
+                  <div class="w-12" :title="'RAM: ' + Math.round(server.stats.memory_percent || 0) + '%'">
+                    <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div
+                        class="h-full rounded-full transition-all"
+                        :class="getResourceColor(server.stats.memory_percent)"
+                        :style="{ width: (server.stats.memory_percent || 0) + '%' }"
+                      ></div>
+                    </div>
+                  </div>
+                  <!-- Disk -->
+                  <div class="w-12" :title="'Disk: ' + Math.round(server.stats.disk_percent || 0) + '%'">
+                    <div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div
+                        class="h-full rounded-full transition-all"
+                        :class="getResourceColor(server.stats.disk_percent)"
+                        :style="{ width: (server.stats.disk_percent || 0) + '%' }"
+                      ></div>
+                    </div>
+                  </div>
                 </div>
+                <div v-else class="text-xs text-gray-400">-</div>
+              </td>
+
+              <!-- Agent -->
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div v-if="server.agent" class="flex items-center gap-2">
+                  <span class="text-xs font-mono text-gray-600 dark:text-gray-400">{{ server.agent.version || '-' }}</span>
+                  <!-- Update button -->
+                  <button
+                    v-if="server.agent.needs_update && !updatingAgent[server.id]"
+                    @click.stop="updateAgent(server)"
+                    class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 hover:bg-yellow-200 dark:hover:bg-yellow-800"
+                    :title="$t('servers.agent.update_available', { version: server.agent.latest_version })"
+                  >
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                  </button>
+                  <!-- Updating spinner -->
+                  <span v-if="updatingAgent[server.id]" class="text-blue-500">
+                    <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </span>
+                </div>
+                <div v-else class="text-xs text-gray-400 dark:text-gray-500">SSH</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <div class="flex items-center justify-end gap-2">
@@ -650,5 +704,32 @@ function removeToast(id) {
   if (index > -1) {
     toasts.value.splice(index, 1)
   }
+}
+
+function formatTimeAgo(dateString) {
+  if (!dateString) return '-'
+  const date = new Date(dateString.replace(' ', 'T'))
+  const now = new Date()
+  const diff = Math.floor((now - date) / 1000)
+
+  if (diff < 60) return 'à l\'instant'
+  if (diff < 3600) return `il y a ${Math.floor(diff / 60)}m`
+  if (diff < 86400) return `il y a ${Math.floor(diff / 3600)}h`
+  if (diff < 604800) return `il y a ${Math.floor(diff / 86400)}j`
+  return date.toLocaleDateString()
+}
+
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+}
+
+function getResourceColor(percent) {
+  if (percent >= 90) return 'bg-red-500'
+  if (percent >= 70) return 'bg-amber-500'
+  return 'bg-green-500'
 }
 </script>

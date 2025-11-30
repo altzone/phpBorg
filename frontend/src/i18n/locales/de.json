@@ -168,7 +168,14 @@
     "repositories": "Repositories",
     "archives": "Archive",
     "backup_jobs": "Aufgaben",
-    "total_data": "Daten"
+    "total_data": "Daten",
+    "repos": "Repos",
+    "storage": "Speicher",
+    "resources": "Ressourcen",
+    "agent_col": "Agent",
+    "backups_total": "Backups",
+    "no_backups": "Keine Backups",
+    "after_dedup": "nach Dedup"
   },
   "serverDetail": {
     "back_to_servers": "Zurück zu Servern",
