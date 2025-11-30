@@ -55,6 +55,18 @@
                   <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
                   Agent v{{ server.agent.version }}
                 </span>
+                <!-- SSE Connection Status -->
+                <span
+                  v-if="isConnected"
+                  :class="[
+                    'flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full',
+                    connectionType === 'sse' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-yellow-500/20 text-yellow-300'
+                  ]"
+                  :title="connectionType === 'sse' ? 'Connexion temps réel active' : 'Mode polling (rafraîchissement toutes les 5s)'"
+                >
+                  <span :class="['w-1.5 h-1.5 rounded-full', connectionType === 'sse' ? 'bg-emerald-400 animate-pulse' : 'bg-yellow-400']"></span>
+                  {{ connectionType === 'sse' ? 'Live' : 'Polling' }}
+                </span>
               </div>
               <div class="flex items-center gap-4 mt-1 text-sm text-gray-300">
                 <span class="flex items-center gap-1">
@@ -508,6 +520,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useSSE } from '@/composables/useSSE'
 import { serverService } from '@/services/server'
 import ServerFormModal from '@/components/ServerFormModal.vue'
 import DeleteConfirmModal from '@/components/DeleteConfirmModal.vue'
@@ -516,6 +529,7 @@ import RetentionModal from '@/components/RetentionModal.vue'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const { subscribe, isConnected, connectionType } = useSSE()
 
 // State
 const loading = ref(true)
@@ -656,10 +670,120 @@ async function handleRetentionUpdated() {
   await fetchServerData()
 }
 
+// SSE event handlers
+function handleStatsUpdate(data) {
+  // Check if this update is for our server
+  const serverId = parseInt(route.params.id)
+
+  if (data.server_id === serverId && serverData.value) {
+    // Update system stats in real-time
+    if (data.cpu !== undefined && serverData.value.system) {
+      serverData.value.system.cpu = {
+        ...serverData.value.system.cpu,
+        usage_percent: data.cpu,
+        load_1: data.load_1 || serverData.value.system.cpu?.load_1
+      }
+    }
+    if (data.memory !== undefined && serverData.value.system) {
+      serverData.value.system.memory = {
+        ...serverData.value.system.memory,
+        percent: data.memory
+      }
+    }
+    if (data.disk !== undefined && serverData.value.system) {
+      serverData.value.system.disk = {
+        ...serverData.value.system.disk,
+        percent: data.disk
+      }
+    }
+    if (data.uptime && serverData.value.system) {
+      serverData.value.system.uptime = {
+        ...serverData.value.system.uptime,
+        human: data.uptime
+      }
+    }
+
+    // Add to stats history for real-time chart update
+    if (statsHistory.value.length > 0) {
+      const newPoint = {
+        created_at: new Date().toISOString(),
+        cpu_usage: data.cpu || 0,
+        memory_percent: data.memory || 0,
+        disk_percent: data.disk || 0
+      }
+      statsHistory.value.push(newPoint)
+      // Keep max 100 points for performance
+      if (statsHistory.value.length > 100) {
+        statsHistory.value.shift()
+      }
+    }
+  }
+}
+
+function handleServerUpdate(data) {
+  const serverId = parseInt(route.params.id)
+
+  // Handle server status changes
+  if (data.server?.id === serverId || data.id === serverId) {
+    if (serverData.value?.server) {
+      // Update server active status
+      if (data.active !== undefined) {
+        serverData.value.server.active = data.active
+      }
+      if (data.server?.active !== undefined) {
+        serverData.value.server.active = data.server.active
+      }
+      // Update agent status
+      if (data.agent) {
+        serverData.value.server.agent = {
+          ...serverData.value.server.agent,
+          ...data.agent
+        }
+      }
+    }
+  }
+
+  // Handle server deleted
+  if (data.deleted && (data.server_id === serverId || data.id === serverId)) {
+    router.push('/servers')
+  }
+}
+
+function handleBackupUpdate(data) {
+  const serverId = parseInt(route.params.id)
+
+  // Check if backup is for one of our repositories
+  if (data.server_id === serverId && data.backup) {
+    // Add new backup to recent backups
+    if (serverData.value?.recent_backups) {
+      serverData.value.recent_backups.unshift(data.backup)
+      // Keep max 10 recent backups
+      if (serverData.value.recent_backups.length > 10) {
+        serverData.value.recent_backups.pop()
+      }
+    }
+
+    // Update backup stats
+    if (serverData.value?.backup_statistics) {
+      serverData.value.backup_statistics.total_backups =
+        (serverData.value.backup_statistics.total_backups || 0) + 1
+      if (data.backup.deduplicated_size) {
+        serverData.value.backup_statistics.storage_used =
+          (serverData.value.backup_statistics.storage_used || 0) + data.backup.deduplicated_size
+      }
+    }
+  }
+}
+
 // Lifecycle
 onMounted(async () => {
   await fetchServerData()
   await fetchStatsHistory()
+
+  // Subscribe to SSE events for real-time updates
+  subscribe('stats', handleStatsUpdate)
+  subscribe('servers', handleServerUpdate)
+  subscribe('backups', handleBackupUpdate)
 })
 
 watch(() => route.params.id, async () => {

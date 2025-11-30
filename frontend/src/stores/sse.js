@@ -394,6 +394,14 @@ export const useSSEStore = defineStore('sse', () => {
           })
         }
 
+        // Fetch servers list
+        const serversResponse = await api.get('/servers')
+        if (serversResponse.data?.data?.servers || serversResponse.data?.servers) {
+          notifySubscribers('servers', {
+            servers: serversResponse.data.data?.servers || serversResponse.data.servers
+          })
+        }
+
         // Every 30 seconds (6 polls), try to reconnect to SSE
         pollCount++
 

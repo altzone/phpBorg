@@ -9,6 +9,7 @@ use PhpBorg\Repository\JobRepository;
 use PhpBorg\Repository\InstantRecoverySessionRepository;
 use PhpBorg\Repository\ArchiveRepository;
 use PhpBorg\Repository\ServerRepository;
+use PhpBorg\Repository\ServerStatsRepository;
 use PhpBorg\Service\Queue\JobQueue;
 
 /**
@@ -22,6 +23,7 @@ class SSEController extends BaseController
     private readonly InstantRecoverySessionRepository $sessionRepo;
     private readonly ArchiveRepository $archiveRepo;
     private readonly ServerRepository $serverRepo;
+    private readonly ServerStatsRepository $statsRepo;
 
     public function __construct(Application $app)
     {
@@ -30,6 +32,7 @@ class SSEController extends BaseController
         $this->sessionRepo = $app->getInstantRecoverySessionRepository();
         $this->archiveRepo = $app->getArchiveRepository();
         $this->serverRepo = $app->getServerRepository();
+        $this->statsRepo = $app->getServerStatsRepository();
     }
 
     /**
@@ -87,12 +90,14 @@ class SSEController extends BaseController
         $lastWorkersHash = null;
         $lastRecoveryHash = null;
         $lastServersHash = null;
+        $lastStatsHash = [];
 
         // Timing controls
         $startTime = time();
         $lastHeartbeat = $startTime;
         $lastWorkersCheck = 0;
         $lastServersCheck = 0;
+        $lastStatsCheck = 0;
         $tokenExpiringWarned = false;
         $maxDuration = min(900, $tokenExpiration - time() - 30); // Stop 30s before token expires
 
@@ -327,6 +332,48 @@ class SSEController extends BaseController
                     $lastServersCheck = $now;
                 } catch (\Exception $e) {
                     error_log("SSE servers error: " . $e->getMessage());
+                }
+            }
+
+            // STATS: Stream server resource stats (every 5 seconds)
+            if ($now - $lastStatsCheck >= 5) {
+                try {
+                    $servers = $this->serverRepo->findAll();
+                    $serverIds = array_map(fn($s) => $s->id, $servers);
+
+                    if (!empty($serverIds)) {
+                        $allStats = $this->statsRepo->getLatestStatsForServers($serverIds);
+
+                        foreach ($allStats as $serverId => $stats) {
+                            $statsData = [
+                                'server_id' => $serverId,
+                                'cpu' => (float)($stats['cpu_usage_percent'] ?? 0),
+                                'memory' => (float)($stats['memory_percent'] ?? 0),
+                                'disk' => (float)($stats['disk_percent'] ?? 0),
+                                'load_1' => (float)($stats['cpu_load_1'] ?? 0),
+                                'load_5' => (float)($stats['cpu_load_5'] ?? 0),
+                                'load_15' => (float)($stats['cpu_load_15'] ?? 0),
+                                'uptime' => $stats['uptime_human'] ?? null,
+                                'timestamp' => $stats['collected_at'] ?? null
+                            ];
+
+                            // Create hash for this server's stats
+                            $serverStatsHash = md5(json_encode($statsData));
+                            $hashKey = "stats_{$serverId}";
+
+                            // Only send if changed
+                            if (!isset($lastStatsHash[$hashKey]) || $lastStatsHash[$hashKey] !== $serverStatsHash) {
+                                echo "event: stats\n";
+                                echo "data: " . json_encode($statsData) . "\n\n";
+                                flush();
+                                $lastStatsHash[$hashKey] = $serverStatsHash;
+                            }
+                        }
+                    }
+
+                    $lastStatsCheck = $now;
+                } catch (\Exception $e) {
+                    error_log("SSE stats error: " . $e->getMessage());
                 }
             }
 
