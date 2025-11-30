@@ -62,7 +62,9 @@ class SettingsController extends BaseController
                 return;
             }
 
-            $settings = $this->settingRepository->findByCategory($category);
+            // Map email -> smtp for storage
+            $fetchCategory = ($category === 'email') ? 'smtp' : $category;
+            $settings = $this->settingRepository->findByCategory($fetchCategory);
 
             // Convert to key-value array
             $result = [];
@@ -157,34 +159,48 @@ class SettingsController extends BaseController
                 return;
             }
 
-            // Get existing settings for this category
-            $existingSettings = $this->settingRepository->findByCategory($category);
-            $existingKeys = array_map(fn($s) => $s->key, $existingSettings);
+            // Define allowed settings per category (with types)
+            $allowedSettings = $this->getAllowedSettingsForCategory($category);
 
-            // Update each setting
+            // Update or create each setting
             foreach ($data['settings'] as $key => $value) {
-                // Only update settings that exist in this category
-                if (!in_array($key, $existingKeys)) {
+                // Check if this key is allowed for this category
+                if (!isset($allowedSettings[$key])) {
                     continue;
                 }
 
-                // Get setting to validate type
-                $setting = $this->settingRepository->findByKey($key);
-                if (!$setting || $setting->category !== $category) {
-                    continue;
-                }
+                $settingDef = $allowedSettings[$key];
+                $type = $settingDef['type'];
 
                 // Validate value based on type
-                if (!$this->validateSettingValue($value, $setting->type)) {
+                if (!$this->validateSettingValue($value, $type)) {
                     $this->error("Invalid value for setting: $key", 400, 'INVALID_VALUE');
                     return;
                 }
 
-                $this->settingRepository->updateValue($key, $value);
+                // Determine the actual storage category (email -> smtp)
+                $storageCategory = ($category === 'email') ? 'smtp' : $category;
+
+                // Check if setting exists
+                $setting = $this->settingRepository->findByKey($key);
+                if ($setting) {
+                    // Update existing
+                    $this->settingRepository->updateValue($key, $value);
+                } else {
+                    // Create new setting (create() handles value formatting)
+                    $this->settingRepository->create(
+                        $key,
+                        $value,
+                        $storageCategory,
+                        $type,
+                        $settingDef['description'] ?? ''
+                    );
+                }
             }
 
-            // Get updated settings for this category
-            $settings = $this->settingRepository->findByCategory($category);
+            // Get updated settings for this category (email -> smtp)
+            $fetchCategory = ($category === 'email') ? 'smtp' : $category;
+            $settings = $this->settingRepository->findByCategory($fetchCategory);
             $result = [];
             foreach ($settings as $setting) {
                 $result[$setting->key] = $setting->getTypedValue();
@@ -200,6 +216,36 @@ class SettingsController extends BaseController
         } catch (PhpBorgException $e) {
             $this->error($e->getMessage(), 500, 'SETTINGS_UPDATE_ERROR');
         }
+    }
+
+    /**
+     * Get allowed settings definition for a category
+     */
+    private function getAllowedSettingsForCategory(string $category): array
+    {
+        return match ($category) {
+            'smtp', 'email' => [
+                'smtp.enabled' => ['type' => 'boolean', 'description' => 'Enable SMTP notifications'],
+                'smtp.host' => ['type' => 'string', 'description' => 'SMTP server host'],
+                'smtp.port' => ['type' => 'integer', 'description' => 'SMTP server port'],
+                'smtp.encryption' => ['type' => 'string', 'description' => 'SMTP encryption (none, ssl, tls)'],
+                'smtp.username' => ['type' => 'string', 'description' => 'SMTP username'],
+                'smtp.password' => ['type' => 'string', 'description' => 'SMTP password'],
+                'smtp.from_email' => ['type' => 'string', 'description' => 'From email address'],
+                'smtp.from_name' => ['type' => 'string', 'description' => 'From name'],
+            ],
+            'general' => [
+                'app.name' => ['type' => 'string', 'description' => 'Application name'],
+                'app.timezone' => ['type' => 'string', 'description' => 'Application timezone'],
+                'app.language' => ['type' => 'string', 'description' => 'Application language'],
+                'notification.email' => ['type' => 'string', 'description' => 'Notification email'],
+            ],
+            'backup' => [
+                'backup.retention_days' => ['type' => 'integer', 'description' => 'Backup retention in days'],
+                'backup.compression' => ['type' => 'string', 'description' => 'Compression algorithm'],
+            ],
+            default => [],
+        };
     }
 
     /**
