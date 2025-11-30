@@ -742,6 +742,12 @@ install_fuse_overlayfs() {
 install_golang() {
     print_section "Installing Go (for agent build)"
 
+    # Ensure make is installed (required for agent build)
+    if ! command -v make &>/dev/null; then
+        log_info "Installing make (required for agent build)"
+        apt-get install -y make >> "${INSTALL_LOG}" 2>&1 || yum install -y make >> "${INSTALL_LOG}" 2>&1 || true
+    fi
+
     # Check if Go is already installed
     if command -v go &>/dev/null; then
         local go_version=$(go version 2>/dev/null | awk '{print $3}' | sed 's/go//')
