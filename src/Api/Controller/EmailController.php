@@ -5,16 +5,19 @@ namespace PhpBorg\Api\Controller;
 use PhpBorg\Application;
 use PhpBorg\Repository\SettingRepository;
 use PhpBorg\Exception\PhpBorgException;
+use PhpBorg\Logger\LoggerInterface;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 class EmailController extends BaseController
 {
     private readonly SettingRepository $settingRepository;
+    private readonly LoggerInterface $logger;
 
     public function __construct(Application $app)
     {
         $this->settingRepository = new SettingRepository($app->getConnection());
+        $this->logger = $app->getLogger();
     }
 
     /**
@@ -74,8 +77,21 @@ class EmailController extends BaseController
                 return;
             }
 
+            // Log SMTP configuration (without password)
+            $this->logger->info("Attempting to send test email", 'EMAIL', [
+                'to' => $toEmail,
+                'host' => $smtpSettings['smtp.host'] ?? 'not set',
+                'port' => $smtpSettings['smtp.port'] ?? 'not set',
+                'encryption' => $smtpSettings['smtp.encryption'] ?? 'none',
+                'username' => $smtpSettings['smtp.username'] ?? 'not set',
+                'from_email' => $smtpSettings['smtp.from_email'] ?? 'not set',
+            ]);
+
             // Create PHPMailer instance
             $mail = new PHPMailer(true);
+
+            // Capture debug output
+            $debugOutput = '';
 
             try {
                 // Server settings
@@ -88,21 +104,42 @@ class EmailController extends BaseController
                     $mail->SMTPAuth = true;
                     $mail->Username = $smtpSettings['smtp.username'];
                     $mail->Password = $smtpSettings['smtp.password'];
+                    $this->logger->info("SMTP Auth enabled", 'EMAIL', ['username' => $smtpSettings['smtp.username']]);
                 } else {
                     $mail->SMTPAuth = false;
+                    $this->logger->info("SMTP Auth disabled (no credentials)", 'EMAIL');
                 }
 
                 // Encryption
                 $encryption = strtolower($smtpSettings['smtp.encryption'] ?? 'none');
                 if ($encryption === 'ssl') {
                     $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+                    $this->logger->info("Using SSL/SMTPS encryption", 'EMAIL');
                 } elseif ($encryption === 'tls') {
                     $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                    $this->logger->info("Using TLS/STARTTLS encryption", 'EMAIL');
+                } else {
+                    $this->logger->info("No encryption", 'EMAIL');
                 }
-                // If encryption is 'none', we don't set SMTPSecure
 
-                // Enable verbose debug output (for logging)
-                $mail->SMTPDebug = 0; // Set to 2 for detailed debug
+                // Disable SSL certificate verification for self-signed certs
+                // This is common in internal mail servers
+                $mail->SMTPOptions = [
+                    'ssl' => [
+                        'verify_peer' => false,
+                        'verify_peer_name' => false,
+                        'allow_self_signed' => true
+                    ]
+                ];
+
+                // Enable debug output capture
+                $mail->SMTPDebug = 2;
+                $mail->Debugoutput = function($str, $level) use (&$debugOutput) {
+                    $debugOutput .= $str;
+                };
+
+                // Timeout settings
+                $mail->Timeout = 30;
 
                 // Recipients
                 $fromEmail = $smtpSettings['smtp.from_email'] ?? $smtpSettings['smtp.username'] ?? 'noreply@phpborg.local';
@@ -121,12 +158,18 @@ class EmailController extends BaseController
                 // Send email
                 $mail->send();
 
+                $this->logger->info("Test email sent successfully", 'EMAIL', ['to' => $toEmail]);
+
                 $this->success(
                     ['recipient' => $toEmail],
                     "Test email sent successfully to {$toEmail}"
                 );
 
             } catch (Exception $e) {
+                $this->logger->error("Failed to send test email", 'EMAIL', [
+                    'error' => $mail->ErrorInfo,
+                    'debug' => $debugOutput
+                ]);
                 $this->error('Failed to send email: ' . $mail->ErrorInfo, 500, 'EMAIL_SEND_FAILED');
             }
 
