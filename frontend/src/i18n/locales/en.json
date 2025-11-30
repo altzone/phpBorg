@@ -249,7 +249,8 @@
     "capabilities_detection_started_desc": "Analyzing server capabilities...",
     "capabilities_detected": "Capabilities detected",
     "capabilities_detected_desc": "Server capabilities have been updated.",
-    "capabilities_detection_failed": "Detection failed"
+    "capabilities_detection_failed": "Detection failed",
+    "running": "Running"
   },
   "repositories": {
     "title": "Repositories",

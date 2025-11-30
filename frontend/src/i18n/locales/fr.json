@@ -249,7 +249,8 @@
     "capabilities_detection_started_desc": "Analyse des capacités du serveur en cours...",
     "capabilities_detected": "Capacités détectées",
     "capabilities_detected_desc": "Les capacités du serveur ont été mises à jour.",
-    "capabilities_detection_failed": "Échec de la détection"
+    "capabilities_detection_failed": "Échec de la détection",
+    "running": "En cours d'exécution"
   },
   "repositories": {
     "title": "Dépôts",

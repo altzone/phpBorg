@@ -441,35 +441,32 @@
               </button>
             </div>
 
-            <div v-if="capabilities" class="space-y-2">
-              <div v-if="capabilities.databases?.mysql" class="flex items-center gap-2 text-sm">
-                <DistroIcon distribution="mysql" type="database" size="sm" class="text-blue-600 dark:text-blue-400" />
-                <span class="text-gray-700 dark:text-gray-300">MySQL {{ capabilities.databases.mysql.version }}</span>
+            <div v-if="capabilities && hasAnyCapability" class="space-y-2">
+              <!-- Databases (array structure) -->
+              <div
+                v-for="db in detectedDatabases"
+                :key="db.type"
+                class="flex items-center gap-2 text-sm"
+              >
+                <DistroIcon :distribution="db.type" type="database" size="sm" :class="getDbIconColor(db.type)" />
+                <span class="text-gray-700 dark:text-gray-300">{{ db.name }} {{ formatDbVersion(db.version) }}</span>
+                <span v-if="db.running" class="w-2 h-2 rounded-full bg-green-500" :title="$t('serverDetail.running')"></span>
               </div>
-              <div v-if="capabilities.databases?.mariadb" class="flex items-center gap-2 text-sm">
-                <DistroIcon distribution="mariadb" type="database" size="sm" class="text-amber-600 dark:text-amber-400" />
-                <span class="text-gray-700 dark:text-gray-300">MariaDB {{ capabilities.databases.mariadb.version }}</span>
-              </div>
-              <div v-if="capabilities.databases?.postgresql" class="flex items-center gap-2 text-sm">
-                <DistroIcon distribution="postgresql" type="database" size="sm" class="text-blue-700 dark:text-blue-300" />
-                <span class="text-gray-700 dark:text-gray-300">PostgreSQL {{ capabilities.databases.postgresql.version }}</span>
-              </div>
-              <div v-if="capabilities.databases?.mongodb" class="flex items-center gap-2 text-sm">
-                <DistroIcon distribution="mongodb" type="database" size="sm" class="text-green-600 dark:text-green-400" />
-                <span class="text-gray-700 dark:text-gray-300">MongoDB {{ capabilities.databases.mongodb.version }}</span>
-              </div>
-              <div v-if="capabilities.databases?.redis" class="flex items-center gap-2 text-sm">
-                <DistroIcon distribution="redis" type="database" size="sm" class="text-red-600 dark:text-red-400" />
-                <span class="text-gray-700 dark:text-gray-300">Redis {{ capabilities.databases.redis.version }}</span>
-              </div>
+
+              <!-- Docker -->
               <div v-if="capabilities.docker?.installed" class="flex items-center gap-2 text-sm">
                 <DistroIcon distribution="docker" type="service" size="sm" class="text-blue-500 dark:text-blue-400" />
                 <span class="text-gray-700 dark:text-gray-300">Docker {{ capabilities.docker.version }}</span>
+                <span v-if="capabilities.docker.running" class="w-2 h-2 rounded-full bg-green-500" :title="$t('serverDetail.running')"></span>
               </div>
+
+              <!-- LVM -->
               <div v-if="capabilities.lvm?.available" class="flex items-center gap-2 text-sm">
                 <DistroIcon distribution="lvm" type="service" size="sm" class="text-purple-600 dark:text-purple-400" />
                 <span class="text-gray-700 dark:text-gray-300">{{ $t('serverDetail.lvm_snapshots') }}</span>
               </div>
+
+              <!-- Borg -->
               <div v-if="capabilities.borg?.installed" class="flex items-center gap-2 text-sm">
                 <DistroIcon distribution="borg" type="service" size="sm" class="text-amber-600 dark:text-amber-400" />
                 <span class="text-gray-700 dark:text-gray-300">Borg {{ capabilities.borg.version }}</span>
@@ -607,6 +604,26 @@ const scheduledJobs = computed(() => {
   }
 
   return sorted
+})
+
+// Detected databases from capabilities array
+const detectedDatabases = computed(() => {
+  if (!capabilities.value?.databases || !Array.isArray(capabilities.value.databases)) {
+    return []
+  }
+  return capabilities.value.databases.filter(db => db.detected)
+})
+
+// Check if any capability is detected
+const hasAnyCapability = computed(() => {
+  if (!capabilities.value) return false
+
+  const hasDatabases = detectedDatabases.value.length > 0
+  const hasDocker = capabilities.value.docker?.installed
+  const hasLvm = capabilities.value.lvm?.available
+  const hasBorg = capabilities.value.borg?.installed
+
+  return hasDatabases || hasDocker || hasLvm || hasBorg
 })
 
 // ApexCharts configuration
@@ -828,6 +845,30 @@ function getDiskColor(percent) {
   if (percent >= 90) return 'bg-red-500'
   if (percent >= 80) return 'bg-amber-500'
   return 'bg-green-500'
+}
+
+function getDbIconColor(type) {
+  const colors = {
+    mysql: 'text-blue-600 dark:text-blue-400',
+    mariadb: 'text-amber-600 dark:text-amber-400',
+    postgresql: 'text-blue-700 dark:text-blue-300',
+    mongodb: 'text-green-600 dark:text-green-400',
+    redis: 'text-red-600 dark:text-red-400',
+    sqlite: 'text-cyan-600 dark:text-cyan-400'
+  }
+  return colors[type] || 'text-gray-600 dark:text-gray-400'
+}
+
+function formatDbVersion(version) {
+  if (!version) return ''
+  // Extract version number from long version strings
+  // e.g. "mysql  Ver 15.1 Distrib 10.11.13-MariaDB..." -> "10.11.13"
+  const match = version.match(/(\d+\.\d+\.?\d*)/g)
+  if (match && match.length > 0) {
+    // Return the most relevant version (usually the last one for MariaDB/MySQL)
+    return match[match.length - 1]
+  }
+  return version.substring(0, 20)
 }
 
 function formatBytes(bytes) {

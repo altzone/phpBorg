@@ -247,7 +247,8 @@
     "capabilities_detection_started_desc": "Serverfähigkeiten werden analysiert...",
     "capabilities_detected": "Fähigkeiten erkannt",
     "capabilities_detected_desc": "Die Serverfähigkeiten wurden aktualisiert.",
-    "capabilities_detection_failed": "Erkennung fehlgeschlagen"
+    "capabilities_detection_failed": "Erkennung fehlgeschlagen",
+    "running": "Läuft"
   },
   "repositories": {
     "title": "Repositories",
