@@ -45,6 +45,7 @@ use PhpBorg\Api\Controller\SetupController;
 use PhpBorg\Api\Controller\AgentGatewayController;
 use PhpBorg\Api\Controller\DownloadController;
 use PhpBorg\Api\Controller\SslController;
+use PhpBorg\Api\Controller\MaintenanceController;
 
 try {
     // Initialize application
@@ -320,6 +321,18 @@ try {
     $router->get('/phpborg-update/version', PhpBorgUpdateController::class, 'version', requireAuth: true);
     $router->get('/phpborg-update/changelog', PhpBorgUpdateController::class, 'changelog', requireAuth: true);
     $router->post('/phpborg-update/start', PhpBorgUpdateController::class, 'start', requireAuth: true);
+
+    // ===========================================
+    // Maintenance Routes (Protected - Admin only)
+    // ===========================================
+    $router->get('/maintenance/status', MaintenanceController::class, 'status', requireAuth: true);
+    $router->post('/maintenance/restart-workers', MaintenanceController::class, 'restartWorkers', requireAuth: true);
+    $router->post('/maintenance/rebuild-agent', MaintenanceController::class, 'rebuildAgent', requireAuth: true);
+    $router->post('/maintenance/rebuild-frontend', MaintenanceController::class, 'rebuildFrontend', requireAuth: true);
+    $router->post('/maintenance/composer-install', MaintenanceController::class, 'composerInstall', requireAuth: true);
+    $router->post('/maintenance/run-migrations', MaintenanceController::class, 'runMigrations', requireAuth: true);
+    $router->post('/maintenance/recompute-stats', MaintenanceController::class, 'recomputeStats', requireAuth: true);
+    $router->post('/maintenance/clear-cache', MaintenanceController::class, 'clearCache', requireAuth: true);
 
     // ===========================================
     // Agent Gateway API Routes (mTLS authenticated)

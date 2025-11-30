@@ -411,6 +411,11 @@
           <SslSettings />
         </div>
 
+        <!-- Maintenance Settings -->
+        <div v-show="activeTab === 'maintenance'">
+          <MaintenanceSettings />
+        </div>
+
         <!-- Update Settings -->
         <div v-show="activeTab === 'update'">
           <UpdateSettings />
@@ -475,6 +480,7 @@ import { useRoute } from 'vue-router'
 import { useSettingsStore } from '@/stores/settings'
 import { emailService } from '@/services/email'
 import UpdateSettings from '@/components/UpdateSettings.vue'
+import MaintenanceSettings from '@/components/MaintenanceSettings.vue'
 import SslSettings from '@/components/settings/SslSettings.vue'
 import phpborgUpdateService from '@/services/phpborgUpdate'
 import { useToastStore } from '@/stores/toast'
@@ -505,6 +511,7 @@ const tabs = computed(() => [
   { id: 'network', label: t('settings.tabs.network') },
   { id: 'ssl', label: t('settings.tabs.ssl') },
   { id: 'system', label: t('settings.tabs.system') },
+  { id: 'maintenance', label: t('settings.tabs.maintenance') },
   { id: 'update', label: t('settings.tabs.update') },
 ])
 
