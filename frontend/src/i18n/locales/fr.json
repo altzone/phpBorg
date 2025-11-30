@@ -1002,7 +1002,10 @@
       "test_sending": "Envoi en cours...",
       "test_send": "Envoyer l'email de test",
       "test_success": "Email de test envoyé avec succès !",
-      "test_error": "Échec de l'envoi de l'email de test. Veuillez vérifier vos paramètres SMTP."
+      "test_error": "Échec de l'envoi de l'email de test. Veuillez vérifier vos paramètres SMTP.",
+      "provider": "Fournisseur de messagerie",
+      "custom": "Personnalisé",
+      "create_app_password": "Créer un mot de passe d'application"
     },
     "backup": {
       "title": "Paramètres par défaut des backups",
