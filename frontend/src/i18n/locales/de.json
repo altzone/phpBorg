@@ -239,7 +239,15 @@
     "architecture": "Architektur",
     "swap": "Swap",
     "mount_point": "Einhängepunkt",
-    "created_at": "Erstellt am"
+    "created_at": "Erstellt am",
+    "detect_capabilities": "Fähigkeiten erkennen",
+    "no_capabilities": "Keine Fähigkeiten erkannt",
+    "click_refresh_to_detect": "Klicken Sie auf Aktualisieren zum Erkennen",
+    "capabilities_detection_started": "Erkennung gestartet",
+    "capabilities_detection_started_desc": "Serverfähigkeiten werden analysiert...",
+    "capabilities_detected": "Fähigkeiten erkannt",
+    "capabilities_detected_desc": "Die Serverfähigkeiten wurden aktualisiert.",
+    "capabilities_detection_failed": "Erkennung fehlgeschlagen"
   },
   "repositories": {
     "title": "Repositories",

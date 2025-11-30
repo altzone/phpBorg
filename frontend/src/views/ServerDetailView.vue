@@ -420,10 +420,28 @@
           </div>
 
           <!-- Capabilities -->
-          <div class="card" v-if="capabilities">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ $t('serverDetail.capabilities') }}</h2>
+          <div class="card">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ $t('serverDetail.capabilities') }}</h2>
+              <button
+                v-if="authStore.isAdmin"
+                @click="detectCapabilities"
+                :disabled="detectingCapabilities"
+                :title="$t('serverDetail.detect_capabilities')"
+                class="p-2 text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <svg
+                  :class="['w-5 h-5', detectingCapabilities ? 'animate-spin' : '']"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </div>
 
-            <div class="space-y-2">
+            <div v-if="capabilities" class="space-y-2">
               <div v-if="capabilities.databases?.mysql" class="flex items-center gap-2 text-sm">
                 <DistroIcon distribution="mysql" type="database" size="sm" class="text-blue-600 dark:text-blue-400" />
                 <span class="text-gray-700 dark:text-gray-300">MySQL {{ capabilities.databases.mysql.version }}</span>
@@ -456,6 +474,15 @@
                 <DistroIcon distribution="borg" type="service" size="sm" class="text-amber-600 dark:text-amber-400" />
                 <span class="text-gray-700 dark:text-gray-300">Borg {{ capabilities.borg.version }}</span>
               </div>
+            </div>
+
+            <!-- Empty state -->
+            <div v-else class="text-center py-4 text-gray-500 dark:text-gray-400">
+              <svg class="w-8 h-8 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              <p class="text-sm">{{ $t('serverDetail.no_capabilities') }}</p>
+              <p class="text-xs mt-1">{{ $t('serverDetail.click_refresh_to_detect') }}</p>
             </div>
           </div>
 
@@ -529,6 +556,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { useToastStore } from '@/stores/toast'
 import { useSSE } from '@/composables/useSSE'
 import { serverService } from '@/services/server'
 import VueApexCharts from 'vue3-apexcharts'
@@ -543,6 +571,7 @@ const apexchart = VueApexCharts
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const toast = useToastStore()
 const { subscribe, isConnected, connectionType } = useSSE()
 
 // State
@@ -554,6 +583,7 @@ const showEditModal = ref(false)
 const showDeleteModal = ref(false)
 const showRetentionModal = ref(false)
 const selectedRepository = ref(null)
+const detectingCapabilities = ref(false)
 
 // Computed
 const server = computed(() => serverData.value?.server || {})
@@ -857,6 +887,36 @@ async function handleDelete() {
 
 async function handleRetentionUpdated() {
   await fetchServerData()
+}
+
+async function detectCapabilities() {
+  const serverId = parseInt(route.params.id)
+  detectingCapabilities.value = true
+
+  try {
+    await serverService.detectCapabilities(serverId)
+    toast.success(
+      t('serverDetail.capabilities_detection_started'),
+      t('serverDetail.capabilities_detection_started_desc')
+    )
+
+    // Refresh server data after a delay to get updated capabilities
+    setTimeout(async () => {
+      await fetchServerData()
+      detectingCapabilities.value = false
+      toast.success(
+        t('serverDetail.capabilities_detected'),
+        t('serverDetail.capabilities_detected_desc')
+      )
+    }, 5000)
+  } catch (error) {
+    console.error('Failed to detect capabilities:', error)
+    detectingCapabilities.value = false
+    toast.error(
+      t('serverDetail.capabilities_detection_failed'),
+      error.response?.data?.error?.message || t('common.unknown_error')
+    )
+  }
 }
 
 // SSE event handlers

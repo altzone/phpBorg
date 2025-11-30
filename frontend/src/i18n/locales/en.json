@@ -241,7 +241,15 @@
     "architecture": "Architecture",
     "swap": "Swap",
     "mount_point": "Mount point",
-    "created_at": "Created at"
+    "created_at": "Created at",
+    "detect_capabilities": "Detect capabilities",
+    "no_capabilities": "No capabilities detected",
+    "click_refresh_to_detect": "Click refresh button to detect",
+    "capabilities_detection_started": "Detection started",
+    "capabilities_detection_started_desc": "Analyzing server capabilities...",
+    "capabilities_detected": "Capabilities detected",
+    "capabilities_detected_desc": "Server capabilities have been updated.",
+    "capabilities_detection_failed": "Detection failed"
   },
   "repositories": {
     "title": "Repositories",

@@ -241,7 +241,15 @@
     "architecture": "Architecture",
     "swap": "Swap",
     "mount_point": "Point de montage",
-    "created_at": "Créé le"
+    "created_at": "Créé le",
+    "detect_capabilities": "Détecter les capacités",
+    "no_capabilities": "Aucune capacité détectée",
+    "click_refresh_to_detect": "Cliquez sur le bouton refresh pour détecter",
+    "capabilities_detection_started": "Détection lancée",
+    "capabilities_detection_started_desc": "Analyse des capacités du serveur en cours...",
+    "capabilities_detected": "Capacités détectées",
+    "capabilities_detected_desc": "Les capacités du serveur ont été mises à jour.",
+    "capabilities_detection_failed": "Échec de la détection"
   },
   "repositories": {
     "title": "Dépôts",
