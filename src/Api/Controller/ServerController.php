@@ -857,8 +857,20 @@ class ServerController extends BaseController
                 return;
             }
 
-            $binaryPath = dirname(__DIR__, 3) . '/releases/agent/phpborg-agent';
-            if (!file_exists($binaryPath)) {
+            // Find the correct binary (platform-specific first, then fallback)
+            $releasesDir = dirname(__DIR__, 3) . '/releases/agent';
+            $binaryPath = null;
+            $possiblePaths = [
+                $releasesDir . '/phpborg-agent-linux-amd64',
+                $releasesDir . '/phpborg-agent',
+            ];
+            foreach ($possiblePaths as $path) {
+                if (file_exists($path)) {
+                    $binaryPath = $path;
+                    break;
+                }
+            }
+            if (!$binaryPath) {
                 $this->error('No agent binary available. Run build first.', 404, 'NO_BINARY');
                 return;
             }
