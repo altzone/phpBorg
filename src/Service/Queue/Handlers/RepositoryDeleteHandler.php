@@ -158,9 +158,9 @@ final class RepositoryDeleteHandler implements JobHandlerInterface
             }
         }
 
-        // Fallback to rm -rf if PHP method fails (permissions, special files, etc.)
+        // Fallback to sudo rm -rf (borg repos are owned by phpborg-borg, worker runs as phpborg)
         $escapedDir = escapeshellarg($dir);
-        $result = shell_exec("rm -rf {$escapedDir} 2>&1");
+        shell_exec("sudo rm -rf {$escapedDir} 2>&1");
 
         // Check if directory is gone
         return !is_dir($dir);
