@@ -134,27 +134,36 @@ final class RepositoryDeleteHandler implements JobHandlerInterface
     private function deleteDirectory(string $dir): bool
     {
         if (!is_dir($dir)) {
-            return false;
+            // Directory doesn't exist, consider it deleted
+            return true;
         }
 
+        // Try PHP method first
         $scan = scandir($dir);
-        if ($scan === false) {
-            return false;
-        }
+        if ($scan !== false) {
+            $files = array_diff($scan, ['.', '..']);
 
-        $files = array_diff($scan, ['.', '..']);
+            foreach ($files as $file) {
+                $path = $dir . '/' . $file;
 
-        foreach ($files as $file) {
-            $path = $dir . '/' . $file;
+                if (is_dir($path)) {
+                    $this->deleteDirectory($path);
+                } else {
+                    @unlink($path);
+                }
+            }
 
-            if (is_dir($path)) {
-                $this->deleteDirectory($path);
-            } else {
-                unlink($path);
+            if (@rmdir($dir)) {
+                return true;
             }
         }
 
-        return rmdir($dir);
+        // Fallback to rm -rf if PHP method fails (permissions, special files, etc.)
+        $escapedDir = escapeshellarg($dir);
+        $result = shell_exec("rm -rf {$escapedDir} 2>&1");
+
+        // Check if directory is gone
+        return !is_dir($dir);
     }
 
     /**
