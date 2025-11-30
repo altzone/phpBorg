@@ -273,9 +273,37 @@ class SSEController extends BaseController
                     $servers = $this->serverRepo->findAll();
                     $latestVersion = \PhpBorg\Api\Controller\DownloadController::getLatestAgentVersion();
 
+                    // Get latest stats for all servers
+                    $serverIds = array_map(fn($s) => $s->id, $servers);
+                    $statsMap = [];
+                    if (!empty($serverIds)) {
+                        $statsMap = $this->statsRepo->getLatestStatsForServers($serverIds);
+                    }
+
                     $serversData = [
-                        'servers' => array_map(function($server) use ($latestVersion) {
-                            $serverArray = $server->toArray();
+                        'servers' => array_map(function($server) use ($latestVersion, $statsMap) {
+                            $stats = $statsMap[$server->id] ?? null;
+
+                            // Build server data matching ServerController::list() format
+                            $serverArray = [
+                                'id' => $server->id,
+                                'name' => $server->name,
+                                'hostname' => $server->host,
+                                'port' => $server->port,
+                                'username' => 'root',
+                                'backupType' => $server->backupType,
+                                'active' => $server->active,
+                                'capabilities_detected' => $server->capabilitiesDetected,
+                                // Include stats for distribution icons
+                                'stats' => $stats ? [
+                                    'os_distribution' => $stats['os_distribution'] ?? null,
+                                    'os_version' => $stats['os_version'] ?? null,
+                                    'ip_address' => $stats['ip_address'] ?? null,
+                                    'cpu_usage_percent' => $stats['cpu_usage_percent'] ?? null,
+                                    'memory_percent' => $stats['memory_percent'] ?? null,
+                                    'disk_percent' => $stats['disk_percent'] ?? null,
+                                ] : null,
+                            ];
 
                             // Add agent info if applicable
                             if ($server->connectionMode === 'agent') {
