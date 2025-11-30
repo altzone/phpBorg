@@ -92,6 +92,7 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             $needsAgent = $this->needsAgentBuild($changedFiles);
             $needsMigrations = $this->needsMigrations($changedFiles);
             $needsSystemd = $this->needsSystemdRegeneration($changedFiles);
+            $needsDocker = $this->needsDockerBuild($changedFiles);
 
             $this->logger->info("Smart update analysis", 'PHPBORG_UPDATE', [
                 'files_changed' => count($changedFiles),
@@ -100,6 +101,7 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
                 'needs_agent' => $needsAgent,
                 'needs_migrations' => $needsMigrations,
                 'needs_systemd' => $needsSystemd,
+                'needs_docker' => $needsDocker,
             ]);
 
             // Step 4: Composer install (40%) - only if needed
@@ -151,10 +153,21 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
                 $queue->updateProgress($job->id, 82, "Régénération des services systemd...");
                 $this->logger->info("Regenerating systemd services...", 'PHPBORG_UPDATE');
                 $this->regenerateSystemdServices($phpborgRoot);
-                $queue->updateProgress($job->id, 85, "Services systemd régénérés");
+                $queue->updateProgress($job->id, 84, "Services systemd régénérés");
             } else {
-                $queue->updateProgress($job->id, 85, "⏭️ Systemd: aucun changement détecté");
+                $queue->updateProgress($job->id, 84, "⏭️ Systemd: aucun changement détecté");
                 $this->logger->info("Skipping systemd regeneration (no changes)", 'PHPBORG_UPDATE');
+            }
+
+            // Step 7b: Rebuild Docker images (87%) - only if docker files changed
+            if ($needsDocker) {
+                $queue->updateProgress($job->id, 85, "Reconstruction des images Docker...");
+                $this->logger->info("Rebuilding Docker images...", 'PHPBORG_UPDATE');
+                $this->rebuildDockerImages($phpborgRoot);
+                $queue->updateProgress($job->id, 87, "Images Docker reconstruites");
+            } else {
+                $queue->updateProgress($job->id, 87, "⏭️ Docker: aucun changement détecté");
+                $this->logger->info("Skipping Docker rebuild (no changes)", 'PHPBORG_UPDATE');
             }
 
             // Step 8: Pre-restart health check (90%)
@@ -174,6 +187,7 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             if ($needsAgent) $actions[] = 'agent';
             if ($needsMigrations) $actions[] = 'migrations';
             if ($needsSystemd) $actions[] = 'systemd';
+            if ($needsDocker) $actions[] = 'docker';
 
             $message = sprintf(
                 "phpBorg updated %s → %s (%s)",
@@ -873,5 +887,45 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             }
         }
         return false;
+    }
+
+    /**
+     * Check if Docker image rebuild is needed
+     * Triggers on: any file in docker/ directory
+     */
+    private function needsDockerBuild(array $changedFiles): bool
+    {
+        if (in_array('*', $changedFiles)) return true;
+
+        foreach ($changedFiles as $file) {
+            if (str_starts_with($file, 'docker/')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Rebuild Docker images (Adminer, etc.)
+     */
+    private function rebuildDockerImages(string $phpborgRoot): void
+    {
+        // Rebuild Adminer image
+        $adminerDockerDir = $phpborgRoot . '/docker/adminer';
+        if (is_dir($adminerDockerDir)) {
+            $this->logger->info("Rebuilding Adminer Docker image...", 'PHPBORG_UPDATE');
+
+            $cmd = "docker build -t phpborg/adminer:latest {$adminerDockerDir} 2>&1";
+            exec($cmd, $output, $exitCode);
+
+            if ($exitCode !== 0) {
+                $this->logger->warning("Adminer Docker build failed: " . implode("\n", $output), 'PHPBORG_UPDATE');
+                // Don't throw exception, just warn - Docker is optional
+            } else {
+                $this->logger->info("Adminer Docker image rebuilt successfully", 'PHPBORG_UPDATE');
+            }
+        }
+
+        // Add more Docker images here as needed
     }
 }
