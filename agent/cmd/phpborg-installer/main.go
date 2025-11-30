@@ -17,13 +17,8 @@ import (
 )
 
 const (
-	AppTitle        = "phpBorg Agent Installer"
-	BorgVersion     = "1.2.7"
-	BorgDownloadURL = "https://github.com/borgbackup/borg/releases/download/%s/borg-windows64.exe"
-	InstallDir      = "C:\\Program Files\\phpborg-agent"
-	ConfigDir       = "C:\\ProgramData\\phpborg-agent"
-	BorgDir         = "C:\\Program Files\\Borg"
-	ServiceName     = "phpborg-agent"
+	AppTitle    = "phpBorg Agent Installer"
+	ServiceName = "phpborg-agent"
 )
 
 // PreConfig holds pre-configured installation settings (from install-config.json)
@@ -76,7 +71,8 @@ func main() {
 	zenity.Info(fmt.Sprintf("phpBorg Agent installed successfully!\n\n"+
 		"Agent Name: %s\n"+
 		"Server: %s\n\n"+
-		"The agent is now running as a Windows service.",
+		"The agent is running inside WSL (Ubuntu).\n"+
+		"It can backup Windows files via /mnt/c/, /mnt/d/, etc.",
 		agentName, serverURL),
 		zenity.Title(AppTitle),
 		zenity.InfoIcon)
@@ -159,12 +155,16 @@ func getInstallParams(preConfig *PreConfig) (serverURL, agentName, token string,
 
 func confirmInstall(serverURL, agentName string) bool {
 	return zenity.Question(
-		fmt.Sprintf("Ready to install phpBorg Agent\n\n"+
+		fmt.Sprintf("Ready to install phpBorg Agent via WSL\n\n"+
 			"Server: %s\n"+
-			"Agent Name: %s\n"+
-			"Install Location: %s\n\n"+
+			"Agent Name: %s\n\n"+
+			"This will:\n"+
+			"1. Enable WSL if not already enabled\n"+
+			"2. Install Ubuntu in WSL\n"+
+			"3. Install Borg Backup and phpBorg Agent\n\n"+
+			"Windows files will be accessible via /mnt/c/, /mnt/d/, etc.\n\n"+
 			"Click OK to start installation.",
-			serverURL, agentName, InstallDir),
+			serverURL, agentName),
 		zenity.Title(AppTitle),
 		zenity.OKLabel("Install"),
 		zenity.CancelLabel("Cancel"),
@@ -177,12 +177,12 @@ func runInstallation(serverURL, agentName, token string) error {
 		name string
 		fn   func() error
 	}{
-		{"Creating directories...", createDirectories},
-		{"Downloading Borg Backup...", downloadBorg},
-		{"Downloading phpBorg Agent...", func() error { return downloadAgent(serverURL, token) }},
-		{"Registering with server...", func() error { return registerAgent(serverURL, agentName, token) }},
-		{"Installing Windows Service...", installService},
-		{"Starting service...", startService},
+		{"Checking WSL status...", checkWSL},
+		{"Installing Ubuntu in WSL...", installUbuntu},
+		{"Installing Borg Backup...", installBorgInWSL},
+		{"Downloading phpBorg Agent...", func() error { return downloadAgentInWSL(serverURL) }},
+		{"Registering with server...", func() error { return registerAgentInWSL(serverURL, agentName, token) }},
+		{"Starting agent service...", startAgentInWSL},
 	}
 
 	// Create progress dialog
@@ -219,124 +219,120 @@ func runInstallation(serverURL, agentName, token string) error {
 	return nil
 }
 
-func createDirectories() error {
-	dirs := []string{
-		InstallDir,
-		ConfigDir,
-		filepath.Join(ConfigDir, "logs"),
-		filepath.Join(ConfigDir, "certs"),
-		filepath.Join(ConfigDir, "ssh"),
-		BorgDir,
+// checkWSL checks if WSL is available and enables it if needed
+func checkWSL() error {
+	// Check if wsl command exists
+	cmd := exec.Command("wsl", "--status")
+	if err := cmd.Run(); err != nil {
+		// WSL not installed, try to enable it
+		fmt.Println("WSL not found, enabling...")
+
+		// Enable WSL feature
+		enableCmd := exec.Command("powershell", "-Command",
+			"Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart")
+		if output, err := enableCmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to enable WSL: %s", string(output))
+		}
+
+		// Enable Virtual Machine Platform
+		vmCmd := exec.Command("powershell", "-Command",
+			"Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -NoRestart")
+		vmCmd.Run() // Ignore error, might not be needed
+
+		// Set WSL 2 as default
+		exec.Command("wsl", "--set-default-version", "2").Run()
 	}
-	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("failed to create %s: %w", dir, err)
+	return nil
+}
+
+// installUbuntu installs Ubuntu in WSL if not present
+func installUbuntu() error {
+	// Check if Ubuntu is already installed
+	cmd := exec.Command("wsl", "-l", "-q")
+	output, _ := cmd.Output()
+	if strings.Contains(strings.ToLower(string(output)), "ubuntu") {
+		fmt.Println("Ubuntu already installed in WSL")
+		return nil
+	}
+
+	// Install Ubuntu
+	installCmd := exec.Command("wsl", "--install", "-d", "Ubuntu", "--no-launch")
+	if output, err := installCmd.CombinedOutput(); err != nil {
+		// Try alternative method
+		altCmd := exec.Command("powershell", "-Command",
+			"Invoke-WebRequest -Uri https://aka.ms/wslubuntu2204 -OutFile ubuntu.appx -UseBasicParsing; Add-AppxPackage .\\ubuntu.appx")
+		if altOutput, altErr := altCmd.CombinedOutput(); altErr != nil {
+			return fmt.Errorf("failed to install Ubuntu: %s / %s", string(output), string(altOutput))
 		}
 	}
+
+	// Initialize Ubuntu (creates default user)
+	// We'll use root for the agent
+	time.Sleep(5 * time.Second)
+
 	return nil
 }
 
-func downloadBorg() error {
-	destPath := filepath.Join(BorgDir, "borg.exe")
-
-	// Check if already exists
-	if _, err := os.Stat(destPath); err == nil {
-		return nil // Already installed
-	}
-
-	url := fmt.Sprintf(BorgDownloadURL, BorgVersion)
-
-	resp, err := http.Get(url)
-	if err != nil {
-		return fmt.Errorf("download failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("download failed: HTTP %d", resp.StatusCode)
-	}
-
-	out, err := os.Create(destPath)
-	if err != nil {
-		return fmt.Errorf("failed to create file: %w", err)
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
-	}
-
-	// Add to PATH
-	addToPath(BorgDir)
-	return nil
+// installBorgInWSL installs Borg Backup inside WSL
+func installBorgInWSL() error {
+	script := `
+apt-get update -qq
+apt-get install -y borgbackup curl
+`
+	return runInWSL(script)
 }
 
-func downloadAgent(serverURL, token string) error {
-	url := strings.TrimSuffix(serverURL, "/") + "/api/agent/download/windows"
-	destPath := filepath.Join(InstallDir, "phpborg-agent.exe")
+// downloadAgentInWSL downloads the phpBorg agent inside WSL
+func downloadAgentInWSL(serverURL string) error {
+	serverURL = strings.TrimSuffix(serverURL, "/")
 
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("X-Registration-Token", token)
+	script := fmt.Sprintf(`
+mkdir -p /opt/phpborg-agent /etc/phpborg-agent/certs /etc/phpborg-agent/ssh /var/log/phpborg-agent
 
-	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("download failed: %w", err)
-	}
-	defer resp.Body.Close()
+# Download agent binary
+curl -sSL "%s/api/downloads/phpborg-agent" -o /opt/phpborg-agent/phpborg-agent
+chmod +x /opt/phpborg-agent/phpborg-agent
 
-	if resp.StatusCode == http.StatusUnauthorized {
-		return fmt.Errorf("invalid registration token")
-	}
-	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("agent binary not found on server")
-	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("download failed: HTTP %d", resp.StatusCode)
-	}
+# Create symlink
+ln -sf /opt/phpborg-agent/phpborg-agent /usr/local/bin/phpborg-agent
+`, serverURL)
 
-	out, err := os.Create(destPath)
-	if err != nil {
-		return fmt.Errorf("failed to create file: %w", err)
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, resp.Body)
-	return err
+	return runInWSL(script)
 }
 
-func registerAgent(serverURL, agentName, token string) error {
-	url := strings.TrimSuffix(serverURL, "/") + "/api/agent/register-token"
+// registerAgentInWSL registers the agent with the server
+func registerAgentInWSL(serverURL, agentName, token string) error {
+	serverURL = strings.TrimSuffix(serverURL, "/")
 	hostname, _ := os.Hostname()
 
-	data := map[string]interface{}{
+	// Get Windows version
+	winVer := getWindowsVersion()
+
+	// Create registration payload
+	payload := map[string]interface{}{
 		"name":               agentName,
 		"registration_token": token,
-		"os":                 "Windows",
-		"os_version":         getWindowsVersion(),
+		"os":                 "Windows (WSL)",
+		"os_version":         winVer,
 		"hostname":           hostname,
 		"architecture":       runtime.GOARCH,
-		"agent_version":      "2.3.0",
+		"agent_version":      "2.3.3",
 	}
 
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
+	jsonData, _ := json.Marshal(payload)
 
+	// Register via HTTP
 	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	resp, err := client.Post(serverURL+"/api/agent/register-token", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("registration failed: %w", err)
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
+
 	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.Unmarshal(body, &result); err != nil {
 		return fmt.Errorf("invalid response: %w", err)
 	}
 
@@ -344,24 +340,29 @@ func registerAgent(serverURL, agentName, token string) error {
 		if errData, ok := result["error"].(map[string]interface{}); ok {
 			return fmt.Errorf("%v", errData["message"])
 		}
-		return fmt.Errorf("registration failed")
+		return fmt.Errorf("registration failed: %s", string(body))
 	}
 
-	// Extract and save configuration
+	// Extract configuration data
 	respData, ok := result["data"].(map[string]interface{})
 	if !ok {
 		return fmt.Errorf("invalid response format")
 	}
 
-	return saveConfiguration(serverURL, agentName, respData)
+	// Create configuration file in WSL
+	return createConfigInWSL(serverURL, agentName, respData)
 }
 
-func saveConfiguration(serverURL, agentName string, data map[string]interface{}) error {
-	// Create config file
-	config := fmt.Sprintf(`# phpBorg Agent Configuration
-# Generated by installer on %s
+// createConfigInWSL creates the agent configuration inside WSL
+func createConfigInWSL(serverURL, agentName string, data map[string]interface{}) error {
+	uuid := fmt.Sprintf("%v", data["uuid"])
+	borgHost := fmt.Sprintf("%v", data["borg_host"])
+	borgPort := fmt.Sprintf("%.0f", data["borg_port"])
+	borgUser := fmt.Sprintf("%v", data["borg_user"])
+	backupPath := fmt.Sprintf("%v", data["backup_path"])
 
-server:
+	// Create config YAML
+	config := fmt.Sprintf(`server:
   url: %s/api
   insecure_skip_verify: false
 
@@ -372,9 +373,9 @@ agent:
 
 borg_ssh:
   host: %s
-  port: %.0f
+  port: %s
   user: %s
-  private_key_path: %s
+  private_key_path: /etc/phpborg-agent/ssh/id_rsa
   backup_path: %s
 
 polling:
@@ -383,97 +384,106 @@ polling:
 
 logging:
   level: info
-  file: %s
+  file: /var/log/phpborg-agent/agent.log
 
 tls:
-  cert_file: %s
-  key_file: %s
-  ca_file: %s
-`,
-		time.Now().Format("2006-01-02 15:04:05"),
-		strings.TrimSuffix(serverURL, "/"),
-		data["uuid"],
-		agentName,
-		data["borg_host"],
-		data["borg_port"],
-		data["borg_user"],
-		filepath.Join(ConfigDir, "ssh", "id_rsa"),
-		data["backup_path"],
-		filepath.Join(ConfigDir, "logs", "agent.log"),
-		filepath.Join(ConfigDir, "certs", "agent.crt"),
-		filepath.Join(ConfigDir, "certs", "agent.key"),
-		filepath.Join(ConfigDir, "certs", "ca.crt"),
-	)
+  cert_file: /etc/phpborg-agent/certs/agent.crt
+  key_file: /etc/phpborg-agent/certs/agent.key
+  ca_file: /etc/phpborg-agent/certs/ca.crt
+`, strings.TrimSuffix(serverURL, "/"), uuid, agentName, borgHost, borgPort, borgUser, backupPath)
 
-	configPath := filepath.Join(ConfigDir, "config.yaml")
-	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
+	// Write config
+	configScript := fmt.Sprintf(`cat > /etc/phpborg-agent/config.yaml << 'EOFCONFIG'
+%s
+EOFCONFIG
+`, config)
+	if err := runInWSL(configScript); err != nil {
 		return err
 	}
 
-	// Save SSH key
+	// Write SSH key
 	if sshKey, ok := data["ssh_private_key"].(string); ok && sshKey != "" {
-		sshPath := filepath.Join(ConfigDir, "ssh", "id_rsa")
-		os.WriteFile(sshPath, []byte(sshKey), 0600)
+		sshScript := fmt.Sprintf(`cat > /etc/phpborg-agent/ssh/id_rsa << 'EOFSSH'
+%s
+EOFSSH
+chmod 600 /etc/phpborg-agent/ssh/id_rsa
+`, sshKey)
+		if err := runInWSL(sshScript); err != nil {
+			return err
+		}
 	}
 
-	// Save certificates
-	certsDir := filepath.Join(ConfigDir, "certs")
+	// Write certificates
 	if cert, ok := data["tls_cert"].(string); ok && cert != "" {
-		os.WriteFile(filepath.Join(certsDir, "agent.crt"), []byte(cert), 0644)
+		certScript := fmt.Sprintf(`cat > /etc/phpborg-agent/certs/agent.crt << 'EOFCERT'
+%s
+EOFCERT
+`, cert)
+		runInWSL(certScript)
 	}
+
 	if key, ok := data["tls_key"].(string); ok && key != "" {
-		os.WriteFile(filepath.Join(certsDir, "agent.key"), []byte(key), 0600)
+		keyScript := fmt.Sprintf(`cat > /etc/phpborg-agent/certs/agent.key << 'EOFKEY'
+%s
+EOFKEY
+chmod 600 /etc/phpborg-agent/certs/agent.key
+`, key)
+		runInWSL(keyScript)
 	}
+
 	if ca, ok := data["ca_cert"].(string); ok && ca != "" {
-		os.WriteFile(filepath.Join(certsDir, "ca.crt"), []byte(ca), 0644)
+		caScript := fmt.Sprintf(`cat > /etc/phpborg-agent/certs/ca.crt << 'EOFCA'
+%s
+EOFCA
+`, ca)
+		runInWSL(caScript)
 	}
 
 	return nil
 }
 
-func installService() error {
-	agentPath := filepath.Join(InstallDir, "phpborg-agent.exe")
+// startAgentInWSL starts the agent service inside WSL
+func startAgentInWSL() error {
+	// Create systemd service file
+	serviceScript := `
+cat > /etc/systemd/system/phpborg-agent.service << 'EOF'
+[Unit]
+Description=phpBorg Backup Agent
+After=network.target
 
-	// Stop and delete existing service
-	exec.Command("sc.exe", "stop", ServiceName).Run()
-	time.Sleep(2 * time.Second)
-	exec.Command("sc.exe", "delete", ServiceName).Run()
-	time.Sleep(2 * time.Second)
+[Service]
+Type=simple
+ExecStart=/opt/phpborg-agent/phpborg-agent -config /etc/phpborg-agent/config.yaml
+Restart=always
+RestartSec=10
 
-	// Create service
-	cmd := exec.Command("sc.exe", "create", ServiceName,
-		fmt.Sprintf("binPath=%s", agentPath),
-		"DisplayName=phpBorg Backup Agent",
-		"start=auto")
+[Install]
+WantedBy=multi-user.target
+EOF
 
+systemctl daemon-reload
+systemctl enable phpborg-agent
+systemctl start phpborg-agent
+`
+	if err := runInWSL(serviceScript); err != nil {
+		// Fallback: run directly without systemd (WSL1 doesn't have systemd)
+		fallbackScript := `
+nohup /opt/phpborg-agent/phpborg-agent -config /etc/phpborg-agent/config.yaml > /var/log/phpborg-agent/agent.log 2>&1 &
+echo $! > /var/run/phpborg-agent.pid
+`
+		return runInWSL(fallbackScript)
+	}
+	return nil
+}
+
+// runInWSL executes a bash script inside WSL Ubuntu
+func runInWSL(script string) error {
+	cmd := exec.Command("wsl", "-d", "Ubuntu", "-u", "root", "bash", "-c", script)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("sc create failed: %s", string(output))
-	}
-
-	// Set description
-	exec.Command("sc.exe", "description", ServiceName,
-		"phpBorg backup agent for Windows systems").Run()
-
-	// Configure recovery (restart on failure)
-	exec.Command("sc.exe", "failure", ServiceName,
-		"reset=86400",
-		"actions=restart/60000/restart/60000/restart/60000").Run()
-
-	return nil
-}
-
-func startService() error {
-	cmd := exec.Command("sc.exe", "start", ServiceName)
-	output, err := cmd.CombinedOutput()
-	if err != nil && !strings.Contains(string(output), "RUNNING") {
-		return fmt.Errorf("failed to start: %s", string(output))
+		return fmt.Errorf("%s: %s", err, string(output))
 	}
 	return nil
-}
-
-func addToPath(dir string) {
-	exec.Command("setx", "/M", "PATH", fmt.Sprintf("%%PATH%%;%s", dir)).Run()
 }
 
 func getWindowsVersion() string {
