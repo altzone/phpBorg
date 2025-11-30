@@ -582,7 +582,8 @@ func (e *Executor) detectMysql(ctx context.Context) map[string]interface{} {
 
 		// Method 3: Check running process (MEDIUM confidence)
 		if datadir == "" {
-			if result := e.RunShell(ctx, `ps aux | grep mysqld | grep -oP -- '--datadir=\K[^ ]+' | head -n1`, 10*time.Second); result.ExitCode == 0 {
+			// Use sed instead of grep -P for portability (PCRE not available everywhere)
+			if result := e.RunShell(ctx, `ps aux | grep '[m]ysqld' | sed -n 's/.*--datadir=\([^ ]*\).*/\1/p' | head -n1`, 10*time.Second); result.ExitCode == 0 {
 				procDatadir := strings.TrimSpace(result.Stdout)
 				if procDatadir != "" {
 					datadir = procDatadir
@@ -731,7 +732,8 @@ func (e *Executor) detectPostgresql(ctx context.Context) map[string]interface{} 
 
 		// Method 2: Check process args (MEDIUM confidence)
 		if datadir == "" {
-			if result := e.RunShell(ctx, `ps aux | grep postgres | grep -oP -- '-D\s*\K[^ ]+' | head -n1`, 10*time.Second); result.ExitCode == 0 {
+			// Use sed instead of grep -P for portability (PCRE not available everywhere)
+			if result := e.RunShell(ctx, `ps aux | grep '[p]ostgres' | sed -n 's/.*-D[[:space:]]*\([^ ]*\).*/\1/p' | head -n1`, 10*time.Second); result.ExitCode == 0 {
 				procDatadir := strings.TrimSpace(result.Stdout)
 				if procDatadir != "" {
 					datadir = procDatadir
@@ -869,7 +871,8 @@ func (e *Executor) detectMongodb(ctx context.Context) map[string]interface{} {
 
 		// Method 2: Check process args
 		if datadir == "" {
-			if result := e.RunShell(ctx, `ps aux | grep mongod | grep -oP -- '--dbpath[= ]\K[^ ]+' | head -n1`, 10*time.Second); result.ExitCode == 0 {
+			// Use sed instead of grep -P for portability (PCRE not available everywhere)
+			if result := e.RunShell(ctx, `ps aux | grep '[m]ongod' | sed -n 's/.*--dbpath[= ]*\([^ ]*\).*/\1/p' | head -n1`, 10*time.Second); result.ExitCode == 0 {
 				procDatadir := strings.TrimSpace(result.Stdout)
 				if procDatadir != "" {
 					datadir = procDatadir

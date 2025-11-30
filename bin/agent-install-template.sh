@@ -157,11 +157,28 @@ phpborg-agent ALL=(root) NOPASSWD: /usr/bin/borg create *
 phpborg-agent ALL=(root) NOPASSWD: /usr/bin/borg extract *
 phpborg-agent ALL=(root) NOPASSWD: /usr/bin/borg list *
 
+# LVM Detection (read-only)
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/lvs *
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/vgs *
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/pvs *
+
 # LVM Snapshots (restricted naming pattern)
 phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/lvcreate -L * -s -n phpborg_snap_* *
 phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/lvremove -f /dev/*/phpborg_snap_*
 phpborg-agent ALL=(root) NOPASSWD: /usr/bin/mount -o ro /dev/*/phpborg_snap_* /mnt/phpborg_*
 phpborg-agent ALL=(root) NOPASSWD: /usr/bin/umount /mnt/phpborg_*
+
+# Btrfs Detection and Snapshots
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/btrfs subvolume list *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/btrfs subvolume snapshot *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/btrfs subvolume delete *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/btrfs filesystem show *
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/btrfs filesystem usage *
+
+# ZFS Detection and Snapshots
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/zfs list *
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/zfs snapshot *
+phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/zfs destroy *
 
 # Restore operations (restricted paths)
 phpborg-agent ALL=(root) NOPASSWD: /usr/bin/mkdir -p /var/restore/*
