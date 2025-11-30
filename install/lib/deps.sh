@@ -798,11 +798,10 @@ install_certbot() {
 }
 
 build_phpborg_agent() {
-    print_section "Building phpBorg Agent"
+    print_section "Building phpBorg Agent (all platforms)"
 
     local agent_src="${PHPBORG_ROOT}/agent"
     local releases_dir="${PHPBORG_ROOT}/releases/agent"
-    local binary_path="${releases_dir}/phpborg-agent"
 
     # Check if agent source exists
     if [ ! -d "${agent_src}" ]; then
@@ -819,29 +818,33 @@ build_phpborg_agent() {
     # Create releases directory
     mkdir -p "${releases_dir}"
 
-    # Build the agent
-    log_info "Compiling phpborg-agent..."
+    # Build all agents using Makefile
+    log_info "Compiling phpborg-agent for all platforms (Linux amd64/arm64, Windows, Installer)..."
 
     cd "${agent_src}"
 
-    # Initialize go module if needed
-    if [ ! -f "go.mod" ]; then
-        log_info "Initializing Go module..."
-        go mod init github.com/phpborg/phpborg-agent >> "${INSTALL_LOG}" 2>&1
-        go mod tidy >> "${INSTALL_LOG}" 2>&1
-    fi
+    # Use make all to build everything
+    if make all >> "${INSTALL_LOG}" 2>&1; then
+        # Copy all built binaries to releases directory
+        cp -f build/phpborg-agent-linux-amd64 "${releases_dir}/"
+        cp -f build/phpborg-agent-linux-arm64 "${releases_dir}/"
+        cp -f build/phpborg-agent-windows-amd64.exe "${releases_dir}/"
+        cp -f build/phpborg-installer.exe "${releases_dir}/"
 
-    # Build for linux/amd64 (disable VCS stamping for clean builds)
-    if CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -buildvcs=false -ldflags="-s -w" -o "${binary_path}" ./cmd/phpborg-agent >> "${INSTALL_LOG}" 2>&1; then
-        chmod +x "${binary_path}"
-        chown phpborg:phpborg "${binary_path}"
+        # Set permissions
+        chmod +x "${releases_dir}"/*
+        chown phpborg:phpborg "${releases_dir}"/*
 
-        local binary_size=$(du -h "${binary_path}" | cut -f1)
-        log_success "Agent built successfully: ${binary_path} (${binary_size})"
+        # Generate checksums
+        for binary in "${releases_dir}"/phpborg-agent-*; do
+            sha256sum "${binary}" > "${binary}.sha256"
+            chown phpborg:phpborg "${binary}.sha256"
+        done
 
-        # Generate checksum
-        sha256sum "${binary_path}" > "${binary_path}.sha256"
-        chown phpborg:phpborg "${binary_path}.sha256"
+        log_success "All agents built successfully:"
+        ls -lh "${releases_dir}"/*.exe "${releases_dir}"/phpborg-agent-* 2>/dev/null | while read line; do
+            log_info "  $line"
+        done
 
         save_state "build_agent" "completed"
         return 0
