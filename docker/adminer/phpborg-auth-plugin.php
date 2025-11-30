@@ -8,7 +8,7 @@
 
 class AdminerPhpBorgAuth
 {
-    private $phpborgApiUrl = 'http://host.docker.internal:8080/api/instant-recovery/validate-admin';
+    private $phpborgApiUrl = 'http://host.docker.internal/api/instant-recovery/validate-admin';
     private $tokenValid = null;
 
     public function __construct()
