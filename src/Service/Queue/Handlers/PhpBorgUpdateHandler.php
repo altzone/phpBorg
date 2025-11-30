@@ -425,7 +425,7 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
     }
 
     /**
-     * Rebuild Go agent binary
+     * Rebuild Go agent binaries (all platforms)
      */
     private function rebuildAgent(string $phpborgRoot): void
     {
@@ -451,45 +451,66 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             mkdir($releasesDir, 0755, true);
         }
 
-        // Build the agent using /tmp for Go caches (systemd PrivateTmp provides isolated writable /tmp)
+        // Build ALL agents using Makefile (Linux amd64/arm64, Windows, Installer)
         $output = [];
-        $cmd = "cd {$agentDir} && GOCACHE=/tmp/go-cache GOMODCACHE=/tmp/go-mod go build -o phpborg-agent ./cmd/phpborg-agent 2>&1";
+        $cmd = "cd {$agentDir} && GOCACHE=/tmp/go-cache GOMODCACHE=/tmp/go-mod make all 2>&1";
         exec($cmd, $output, $exitCode);
 
         if ($exitCode !== 0) {
-            $this->logger->warning("Agent rebuild failed", 'PHPBORG_UPDATE', [
+            $this->logger->warning("Agent rebuild with 'make all' failed", 'PHPBORG_UPDATE', [
                 'output' => implode("\n", $output)
             ]);
             // Don't fail update - agent rebuild is optional
             return;
         }
 
-        // Copy binary to releases directory
-        $sourceBinary = "{$agentDir}/phpborg-agent";
-        $destBinary = "{$releasesDir}/phpborg-agent";
+        // Copy all built binaries to releases directory
+        $binaries = [
+            'phpborg-agent-linux-amd64',
+            'phpborg-agent-linux-arm64',
+            'phpborg-agent-windows-amd64.exe',
+            'phpborg-installer.exe',
+        ];
 
-        if (file_exists($sourceBinary)) {
-            copy($sourceBinary, $destBinary);
-            chmod($destBinary, 0755);
+        $copiedCount = 0;
+        foreach ($binaries as $binary) {
+            $sourceBinary = "{$agentDir}/build/{$binary}";
+            $destBinary = "{$releasesDir}/{$binary}";
 
-            // Generate checksum
-            $checksum = hash_file('sha256', $destBinary);
-            file_put_contents("{$releasesDir}/phpborg-agent.sha256", "{$checksum}  phpborg-agent\n");
+            if (file_exists($sourceBinary)) {
+                copy($sourceBinary, $destBinary);
+                chmod($destBinary, 0755);
 
-            // Extract version from binary
-            $versionOutput = [];
-            exec("{$destBinary} -version 2>&1", $versionOutput, $versionExitCode);
-            if ($versionExitCode === 0 && !empty($versionOutput[0])) {
-                // Parse "phpborg-agent version X.X.X" format
-                if (preg_match('/version\s+(\S+)/', $versionOutput[0], $matches)) {
-                    file_put_contents("{$releasesDir}/VERSION", $matches[1]);
-                    $this->logger->info("Agent version: {$matches[1]}", 'PHPBORG_UPDATE');
+                // Generate checksum for agent binaries (not installer)
+                if (str_starts_with($binary, 'phpborg-agent-')) {
+                    $checksum = hash_file('sha256', $destBinary);
+                    file_put_contents("{$destBinary}.sha256", "{$checksum}  {$binary}\n");
+                }
+
+                $copiedCount++;
+                $this->logger->info("Built and copied: {$binary}", 'PHPBORG_UPDATE');
+            }
+        }
+
+        if ($copiedCount > 0) {
+            // Extract version from Linux binary
+            $linuxBinary = "{$releasesDir}/phpborg-agent-linux-amd64";
+            if (file_exists($linuxBinary)) {
+                $versionOutput = [];
+                exec("{$linuxBinary} -version 2>&1", $versionOutput, $versionExitCode);
+                if ($versionExitCode === 0 && !empty($versionOutput[0])) {
+                    if (preg_match('/version\s+(\S+)/', $versionOutput[0], $matches)) {
+                        file_put_contents("{$releasesDir}/VERSION", $matches[1]);
+                        $this->logger->info("Agent version: {$matches[1]}", 'PHPBORG_UPDATE');
+                    }
                 }
             }
 
-            $this->logger->info("Go agent rebuilt and deployed to releases", 'PHPBORG_UPDATE');
+            $this->logger->info("All agents rebuilt successfully", 'PHPBORG_UPDATE', [
+                'binaries_copied' => $copiedCount
+            ]);
         } else {
-            $this->logger->warning("Agent binary not found after build", 'PHPBORG_UPDATE');
+            $this->logger->warning("No agent binaries found after build", 'PHPBORG_UPDATE');
         }
     }
 
