@@ -42,6 +42,10 @@
           <span class="text-gray-500 dark:text-gray-400">{{ $t('settings.maintenance.disk_free') }}:</span>
           <span class="ml-2 text-gray-900 dark:text-gray-100">{{ status.disk_free_gb }} GB</span>
         </div>
+        <div>
+          <span class="text-gray-500 dark:text-gray-400">Workers:</span>
+          <span class="ml-2 text-gray-900 dark:text-gray-100">{{ status.workers_running }}/{{ status.workers_total }}</span>
+        </div>
       </div>
     </div>
 
@@ -50,14 +54,22 @@
       <!-- Restart Workers -->
       <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
         <div class="flex items-start justify-between">
-          <div>
+          <div class="flex-1 mr-4">
             <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.maintenance.restart_workers') }}</h4>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.maintenance.restart_workers_desc') }}</p>
+            <div v-if="jobProgress['restart-workers']" class="mt-2">
+              <div class="flex items-center text-sm text-blue-600 dark:text-blue-400">
+                <span>{{ jobProgress['restart-workers'].message }}</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                <div class="bg-blue-600 h-1.5 rounded-full transition-all" :style="{ width: jobProgress['restart-workers'].progress + '%' }"></div>
+              </div>
+            </div>
           </div>
           <button
             @click="runAction('restart-workers')"
             :disabled="running['restart-workers']"
-            class="btn btn-secondary flex items-center"
+            class="btn btn-secondary flex items-center shrink-0"
           >
             <svg v-if="running['restart-workers']" class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -74,14 +86,22 @@
       <!-- Rebuild Agent -->
       <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
         <div class="flex items-start justify-between">
-          <div>
+          <div class="flex-1 mr-4">
             <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.maintenance.rebuild_agent') }}</h4>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.maintenance.rebuild_agent_desc') }}</p>
+            <div v-if="jobProgress['rebuild-agent']" class="mt-2">
+              <div class="flex items-center text-sm text-blue-600 dark:text-blue-400">
+                <span>{{ jobProgress['rebuild-agent'].message }}</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                <div class="bg-blue-600 h-1.5 rounded-full transition-all" :style="{ width: jobProgress['rebuild-agent'].progress + '%' }"></div>
+              </div>
+            </div>
           </div>
           <button
             @click="runAction('rebuild-agent')"
             :disabled="running['rebuild-agent']"
-            class="btn btn-secondary flex items-center"
+            class="btn btn-secondary flex items-center shrink-0"
           >
             <svg v-if="running['rebuild-agent']" class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -99,14 +119,22 @@
       <!-- Rebuild Frontend -->
       <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
         <div class="flex items-start justify-between">
-          <div>
+          <div class="flex-1 mr-4">
             <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.maintenance.rebuild_frontend') }}</h4>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.maintenance.rebuild_frontend_desc') }}</p>
+            <div v-if="jobProgress['rebuild-frontend']" class="mt-2">
+              <div class="flex items-center text-sm text-blue-600 dark:text-blue-400">
+                <span>{{ jobProgress['rebuild-frontend'].message }}</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                <div class="bg-blue-600 h-1.5 rounded-full transition-all" :style="{ width: jobProgress['rebuild-frontend'].progress + '%' }"></div>
+              </div>
+            </div>
           </div>
           <button
             @click="runAction('rebuild-frontend')"
             :disabled="running['rebuild-frontend']"
-            class="btn btn-secondary flex items-center"
+            class="btn btn-secondary flex items-center shrink-0"
           >
             <svg v-if="running['rebuild-frontend']" class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -123,14 +151,22 @@
       <!-- Composer Install -->
       <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
         <div class="flex items-start justify-between">
-          <div>
+          <div class="flex-1 mr-4">
             <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.maintenance.composer_install') }}</h4>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.maintenance.composer_install_desc') }}</p>
+            <div v-if="jobProgress['composer-install']" class="mt-2">
+              <div class="flex items-center text-sm text-blue-600 dark:text-blue-400">
+                <span>{{ jobProgress['composer-install'].message }}</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                <div class="bg-blue-600 h-1.5 rounded-full transition-all" :style="{ width: jobProgress['composer-install'].progress + '%' }"></div>
+              </div>
+            </div>
           </div>
           <button
             @click="runAction('composer-install')"
             :disabled="running['composer-install']"
-            class="btn btn-secondary flex items-center"
+            class="btn btn-secondary flex items-center shrink-0"
           >
             <svg v-if="running['composer-install']" class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -147,14 +183,22 @@
       <!-- Run Migrations -->
       <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
         <div class="flex items-start justify-between">
-          <div>
+          <div class="flex-1 mr-4">
             <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.maintenance.run_migrations') }}</h4>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.maintenance.run_migrations_desc') }}</p>
+            <div v-if="jobProgress['run-migrations']" class="mt-2">
+              <div class="flex items-center text-sm text-blue-600 dark:text-blue-400">
+                <span>{{ jobProgress['run-migrations'].message }}</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                <div class="bg-blue-600 h-1.5 rounded-full transition-all" :style="{ width: jobProgress['run-migrations'].progress + '%' }"></div>
+              </div>
+            </div>
           </div>
           <button
             @click="runAction('run-migrations')"
             :disabled="running['run-migrations']"
-            class="btn btn-secondary flex items-center"
+            class="btn btn-secondary flex items-center shrink-0"
           >
             <svg v-if="running['run-migrations']" class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -171,14 +215,22 @@
       <!-- Recompute Stats -->
       <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
         <div class="flex items-start justify-between">
-          <div>
+          <div class="flex-1 mr-4">
             <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.maintenance.recompute_stats') }}</h4>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.maintenance.recompute_stats_desc') }}</p>
+            <div v-if="jobProgress['recompute-stats']" class="mt-2">
+              <div class="flex items-center text-sm text-blue-600 dark:text-blue-400">
+                <span>{{ jobProgress['recompute-stats'].message }}</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                <div class="bg-blue-600 h-1.5 rounded-full transition-all" :style="{ width: jobProgress['recompute-stats'].progress + '%' }"></div>
+              </div>
+            </div>
           </div>
           <button
             @click="runAction('recompute-stats')"
             :disabled="running['recompute-stats']"
-            class="btn btn-secondary flex items-center"
+            class="btn btn-secondary flex items-center shrink-0"
           >
             <svg v-if="running['recompute-stats']" class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -195,14 +247,22 @@
       <!-- Clear Cache -->
       <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
         <div class="flex items-start justify-between">
-          <div>
+          <div class="flex-1 mr-4">
             <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.maintenance.clear_cache') }}</h4>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.maintenance.clear_cache_desc') }}</p>
+            <div v-if="jobProgress['clear-cache']" class="mt-2">
+              <div class="flex items-center text-sm text-blue-600 dark:text-blue-400">
+                <span>{{ jobProgress['clear-cache'].message }}</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                <div class="bg-blue-600 h-1.5 rounded-full transition-all" :style="{ width: jobProgress['clear-cache'].progress + '%' }"></div>
+              </div>
+            </div>
           </div>
           <button
             @click="runAction('clear-cache')"
             :disabled="running['clear-cache']"
-            class="btn btn-secondary flex items-center"
+            class="btn btn-secondary flex items-center shrink-0"
           >
             <svg v-if="running['clear-cache']" class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -239,20 +299,28 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '@/services/api'
+import { jobService } from '@/services/jobs'
 
 const { t } = useI18n()
 
 const status = ref(null)
 const loadingStatus = ref(true)
 const running = reactive({})
+const jobProgress = reactive({})
 const toasts = ref([])
 let toastIdCounter = 0
+const pollIntervals = {}
 
 onMounted(async () => {
   await loadStatus()
+})
+
+onUnmounted(() => {
+  // Clear all polling intervals
+  Object.values(pollIntervals).forEach(interval => clearInterval(interval))
 })
 
 async function loadStatus() {
@@ -269,21 +337,80 @@ async function loadStatus() {
 
 async function runAction(action) {
   running[action] = true
+  jobProgress[action] = { progress: 0, message: t('settings.maintenance.starting') }
+
   try {
     const response = await api.post(`/maintenance/${action}`)
     const data = response.data.data
+    const jobId = data.job_id
 
-    showToast('success', t('settings.maintenance.success'), data.message)
-
-    // Refresh status after certain actions
-    if (['rebuild-agent', 'rebuild-frontend'].includes(action)) {
-      await loadStatus()
+    if (jobId) {
+      // Start polling for job status
+      await pollJobStatus(action, jobId)
+    } else {
+      // Direct response (shouldn't happen with new implementation)
+      showToast('success', t('settings.maintenance.success'), data.message)
+      running[action] = false
+      delete jobProgress[action]
     }
   } catch (err) {
     const message = err.response?.data?.error?.message || err.message
     showToast('error', t('settings.maintenance.error'), message)
-  } finally {
     running[action] = false
+    delete jobProgress[action]
+  }
+}
+
+async function pollJobStatus(action, jobId) {
+  const poll = async () => {
+    try {
+      const job = await jobService.get(jobId)
+
+      if (!job) {
+        clearInterval(pollIntervals[action])
+        delete pollIntervals[action]
+        running[action] = false
+        delete jobProgress[action]
+        return
+      }
+
+      // Update progress
+      jobProgress[action] = {
+        progress: job.progress || 0,
+        message: job.progress_message || t('settings.maintenance.processing')
+      }
+
+      if (job.status === 'completed') {
+        clearInterval(pollIntervals[action])
+        delete pollIntervals[action]
+        running[action] = false
+        delete jobProgress[action]
+
+        showToast('success', t('settings.maintenance.success'), job.output || t('settings.maintenance.completed'))
+
+        // Refresh status after certain actions
+        if (['rebuild-agent', 'rebuild-frontend', 'restart-workers'].includes(action)) {
+          await loadStatus()
+        }
+      } else if (job.status === 'failed') {
+        clearInterval(pollIntervals[action])
+        delete pollIntervals[action]
+        running[action] = false
+        delete jobProgress[action]
+
+        showToast('error', t('settings.maintenance.error'), job.error || t('settings.maintenance.failed'))
+      }
+      // Otherwise keep polling (pending, processing)
+    } catch (err) {
+      console.error('Failed to poll job status:', err)
+      // Don't stop polling on temporary errors
+    }
+  }
+
+  // Poll immediately, then every 1 second
+  await poll()
+  if (running[action]) {
+    pollIntervals[action] = setInterval(poll, 1000)
   }
 }
 

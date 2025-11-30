@@ -966,7 +966,11 @@
       "recompute": "Recompute",
       "clear": "Clear",
       "success": "Success",
-      "error": "Error"
+      "error": "Error",
+      "starting": "Starting...",
+      "processing": "Processing...",
+      "completed": "Completed",
+      "failed": "Failed"
     },
     "general": {
       "title": "General Settings",

@@ -965,7 +965,11 @@
       "recompute": "Neu berechnen",
       "clear": "Leeren",
       "success": "Erfolg",
-      "error": "Fehler"
+      "error": "Fehler",
+      "starting": "Starten...",
+      "processing": "Verarbeitung...",
+      "completed": "Abgeschlossen",
+      "failed": "Fehlgeschlagen"
     },
     "general": {
       "title": "Allgemeine Einstellungen",

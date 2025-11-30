@@ -967,7 +967,11 @@
       "recompute": "Recalculer",
       "clear": "Vider",
       "success": "Succès",
-      "error": "Erreur"
+      "error": "Erreur",
+      "starting": "Démarrage...",
+      "processing": "Traitement en cours...",
+      "completed": "Terminé",
+      "failed": "Échec"
     },
     "general": {
       "title": "Paramètres généraux",

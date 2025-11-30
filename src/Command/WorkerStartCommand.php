@@ -14,6 +14,7 @@ use PhpBorg\Service\Queue\Handlers\DockerConflictsDetectionHandler;
 use PhpBorg\Service\Queue\Handlers\DockerRestoreHandler;
 use PhpBorg\Service\Queue\Handlers\InstantRecoveryStartHandler;
 use PhpBorg\Service\Queue\Handlers\InstantRecoveryStopHandler;
+use PhpBorg\Service\Queue\Handlers\MaintenanceHandler;
 use PhpBorg\Service\Queue\Handlers\PhpBorgBackupCleanupHandler;
 use PhpBorg\Service\Queue\Handlers\PhpBorgBackupCreateHandler;
 use PhpBorg\Service\Queue\Handlers\PhpBorgBackupRestoreHandler;
@@ -225,6 +226,12 @@ final class WorkerStartCommand extends Command
         $worker->registerHandler('ssl_certificate', new SslCertificateApplyHandler(
             $this->app->getSettingRepository(),
             $logger
+        ));
+
+        $worker->registerHandler('maintenance', new MaintenanceHandler(
+            $this->app->getConfig(),
+            $logger,
+            $this->app->getServerStatsComputer()
         ));
 
         $output->writeln('<comment>Worker ready. Waiting for jobs...</comment>');

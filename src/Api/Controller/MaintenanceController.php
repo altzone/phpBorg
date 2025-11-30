@@ -5,258 +5,173 @@ declare(strict_types=1);
 namespace PhpBorg\Api\Controller;
 
 use PhpBorg\Application;
-use PhpBorg\Service\Server\ServerStatsComputer;
+use PhpBorg\Service\Queue\JobQueue;
 
 /**
  * Maintenance Controller
- * Provides endpoints for manual maintenance operations
+ * Provides endpoints for manual maintenance operations via job queue
  */
 class MaintenanceController extends BaseController
 {
-    private Application $app;
-    private string $phpborgRoot;
+    private readonly JobQueue $jobQueue;
+    private readonly string $phpborgRoot;
 
     public function __construct(Application $app)
     {
-        $this->app = $app;
+        $this->jobQueue = $app->getJobQueue();
         $this->phpborgRoot = dirname(__DIR__, 3);
     }
 
     /**
      * POST /api/maintenance/restart-workers
-     * Restart all phpBorg workers
+     * Create job to restart all phpBorg workers
      */
     public function restartWorkers(): void
     {
-        $results = [];
-        $services = [
-            'phpborg-scheduler',
-            'phpborg-worker@1',
-            'phpborg-worker@2',
-            'phpborg-worker@3',
-            'phpborg-worker@4',
-            'phpborg-agent-worker'
-        ];
+        try {
+            $jobId = $this->jobQueue->push('maintenance', [
+                'action' => 'restart_workers'
+            ], 'default', 1);
 
-        foreach ($services as $service) {
-            $output = [];
-            $exitCode = 0;
-            exec("sudo systemctl restart {$service} 2>&1", $output, $exitCode);
-            $results[$service] = [
-                'success' => $exitCode === 0,
-                'output' => implode("\n", $output)
-            ];
+            $this->success([
+                'job_id' => $jobId,
+                'message' => 'Restart workers job created'
+            ], 'Job created', 202);
+        } catch (\Exception $e) {
+            $this->error('Failed to create job: ' . $e->getMessage(), 500);
         }
-
-        $allSuccess = !in_array(false, array_column($results, 'success'));
-
-        $this->success([
-            'message' => $allSuccess ? 'All workers restarted successfully' : 'Some workers failed to restart',
-            'results' => $results
-        ]);
     }
 
     /**
      * POST /api/maintenance/rebuild-agent
-     * Rebuild the Go agent binary
+     * Create job to rebuild the Go agent binary
      */
     public function rebuildAgent(): void
     {
-        $agentDir = $this->phpborgRoot . '/agent';
+        try {
+            $jobId = $this->jobQueue->push('maintenance', [
+                'action' => 'rebuild_agent'
+            ], 'default', 1);
 
-        if (!is_dir($agentDir)) {
-            $this->error('Agent directory not found', 404);
-            return;
+            $this->success([
+                'job_id' => $jobId,
+                'message' => 'Rebuild agent job created'
+            ], 'Job created', 202);
+        } catch (\Exception $e) {
+            $this->error('Failed to create job: ' . $e->getMessage(), 500);
         }
-
-        // Check Go installation
-        exec("which go 2>&1", $output, $exitCode);
-        if ($exitCode !== 0) {
-            $this->error('Go is not installed', 500);
-            return;
-        }
-
-        // Build agent using Makefile
-        $output = [];
-        $cmd = "cd {$agentDir} && GOCACHE=/tmp/go-cache GOMODCACHE=/tmp/go-mod make all 2>&1";
-        exec($cmd, $output, $exitCode);
-
-        if ($exitCode !== 0) {
-            $this->error('Agent build failed: ' . implode("\n", $output), 500);
-            return;
-        }
-
-        // Get new version
-        $version = null;
-        $mainGoPath = $agentDir . '/cmd/phpborg-agent/main.go';
-        if (file_exists($mainGoPath)) {
-            $content = file_get_contents($mainGoPath);
-            if (preg_match('/const\s+Version\s*=\s*"([^"]+)"/', $content, $matches)) {
-                $version = $matches[1];
-            }
-        }
-
-        $this->success([
-            'message' => 'Agent rebuilt successfully',
-            'version' => $version,
-            'output' => implode("\n", array_slice($output, -10))
-        ]);
     }
 
     /**
      * POST /api/maintenance/rebuild-frontend
-     * Rebuild the Vue.js frontend
+     * Create job to rebuild the Vue.js frontend
      */
     public function rebuildFrontend(): void
     {
-        $frontendDir = $this->phpborgRoot . '/frontend';
+        try {
+            $jobId = $this->jobQueue->push('maintenance', [
+                'action' => 'rebuild_frontend'
+            ], 'default', 1);
 
-        if (!is_dir($frontendDir)) {
-            $this->error('Frontend directory not found', 404);
-            return;
+            $this->success([
+                'job_id' => $jobId,
+                'message' => 'Rebuild frontend job created'
+            ], 'Job created', 202);
+        } catch (\Exception $e) {
+            $this->error('Failed to create job: ' . $e->getMessage(), 500);
         }
-
-        // Run npm build
-        $output = [];
-        $cmd = "cd {$frontendDir} && npm run build 2>&1";
-        exec($cmd, $output, $exitCode);
-
-        if ($exitCode !== 0) {
-            $this->error('Frontend build failed: ' . implode("\n", $output), 500);
-            return;
-        }
-
-        $this->success([
-            'message' => 'Frontend rebuilt successfully',
-            'output' => implode("\n", array_slice($output, -15))
-        ]);
     }
 
     /**
      * POST /api/maintenance/composer-install
-     * Run composer install
+     * Create job to run composer install
      */
     public function composerInstall(): void
     {
-        $output = [];
-        $cmd = "cd {$this->phpborgRoot} && composer install --no-dev --optimize-autoloader 2>&1";
-        exec($cmd, $output, $exitCode);
+        try {
+            $jobId = $this->jobQueue->push('maintenance', [
+                'action' => 'composer_install'
+            ], 'default', 1);
 
-        if ($exitCode !== 0) {
-            $this->error('Composer install failed: ' . implode("\n", $output), 500);
-            return;
+            $this->success([
+                'job_id' => $jobId,
+                'message' => 'Composer install job created'
+            ], 'Job created', 202);
+        } catch (\Exception $e) {
+            $this->error('Failed to create job: ' . $e->getMessage(), 500);
         }
-
-        $this->success([
-            'message' => 'Composer dependencies installed successfully',
-            'output' => implode("\n", array_slice($output, -10))
-        ]);
     }
 
     /**
      * POST /api/maintenance/run-migrations
-     * Run database migrations
+     * Create job to run database migrations
      */
     public function runMigrations(): void
     {
-        $migrationsDir = $this->phpborgRoot . '/migrations';
+        try {
+            $jobId = $this->jobQueue->push('maintenance', [
+                'action' => 'run_migrations'
+            ], 'default', 1);
 
-        if (!is_dir($migrationsDir)) {
-            $this->error('Migrations directory not found', 404);
-            return;
+            $this->success([
+                'job_id' => $jobId,
+                'message' => 'Run migrations job created'
+            ], 'Job created', 202);
+        } catch (\Exception $e) {
+            $this->error('Failed to create job: ' . $e->getMessage(), 500);
         }
-
-        $connection = $this->app->getConnection();
-        $results = [];
-        $migrationFiles = glob($migrationsDir . '/*.sql');
-        sort($migrationFiles);
-
-        foreach ($migrationFiles as $file) {
-            $filename = basename($file);
-
-            // Skip .gitkeep
-            if ($filename === '.gitkeep') continue;
-
-            try {
-                // Check if migration was already applied (simple check based on table existence or tracking)
-                $sql = file_get_contents($file);
-
-                // Execute migration
-                $connection->executeMultiple($sql);
-                $results[$filename] = ['success' => true, 'message' => 'Applied'];
-            } catch (\Exception $e) {
-                // Check if it's "already exists" error
-                if (strpos($e->getMessage(), 'already exists') !== false ||
-                    strpos($e->getMessage(), 'Duplicate') !== false) {
-                    $results[$filename] = ['success' => true, 'message' => 'Already applied'];
-                } else {
-                    $results[$filename] = ['success' => false, 'message' => $e->getMessage()];
-                }
-            }
-        }
-
-        $this->success([
-            'message' => 'Migrations processed',
-            'results' => $results
-        ]);
     }
 
     /**
      * POST /api/maintenance/recompute-stats
-     * Recompute backup stats for all servers
+     * Create job to recompute backup stats for all servers
      */
     public function recomputeStats(): void
     {
-        $statsComputer = $this->app->getServerStatsComputer();
-        $count = $statsComputer->recomputeAll();
+        try {
+            $jobId = $this->jobQueue->push('maintenance', [
+                'action' => 'recompute_stats'
+            ], 'default', 1);
 
-        $this->success([
-            'message' => "Stats recomputed for {$count} servers",
-            'servers_updated' => $count
-        ]);
+            $this->success([
+                'job_id' => $jobId,
+                'message' => 'Recompute stats job created'
+            ], 'Job created', 202);
+        } catch (\Exception $e) {
+            $this->error('Failed to create job: ' . $e->getMessage(), 500);
+        }
     }
 
     /**
      * POST /api/maintenance/clear-cache
-     * Clear application caches
+     * Create job to clear application caches
      */
     public function clearCache(): void
     {
-        $cleared = [];
+        try {
+            $jobId = $this->jobQueue->push('maintenance', [
+                'action' => 'clear_cache'
+            ], 'default', 1);
 
-        // Clear OPcache if available
-        if (function_exists('opcache_reset')) {
-            opcache_reset();
-            $cleared[] = 'opcache';
+            $this->success([
+                'job_id' => $jobId,
+                'message' => 'Clear cache job created'
+            ], 'Job created', 202);
+        } catch (\Exception $e) {
+            $this->error('Failed to create job: ' . $e->getMessage(), 500);
         }
-
-        // Clear var/cache directory if exists
-        $cacheDir = $this->phpborgRoot . '/var/cache';
-        if (is_dir($cacheDir)) {
-            $files = glob($cacheDir . '/*');
-            foreach ($files as $file) {
-                if (is_file($file)) {
-                    unlink($file);
-                }
-            }
-            $cleared[] = 'var/cache';
-        }
-
-        $this->success([
-            'message' => 'Cache cleared successfully',
-            'cleared' => $cleared
-        ]);
     }
 
     /**
      * GET /api/maintenance/status
      * Get maintenance status (versions, last rebuild times, etc.)
+     * This is synchronous as it just reads info
      */
     public function status(): void
     {
         $status = [];
 
-        // Agent version
+        // Agent version from source
         $mainGoPath = $this->phpborgRoot . '/agent/cmd/phpborg-agent/main.go';
         if (file_exists($mainGoPath)) {
             $content = file_get_contents($mainGoPath);
@@ -265,11 +180,18 @@ class MaintenanceController extends BaseController
             }
         }
 
-        // Agent binary info
-        $agentBinary = $this->phpborgRoot . '/agent/phpborg-agent';
+        // Agent binary info from releases
+        $releasesDir = $this->phpborgRoot . '/releases/agent';
+        $agentBinary = $releasesDir . '/phpborg-agent-linux-amd64';
         if (file_exists($agentBinary)) {
             $status['agent_binary_modified'] = date('Y-m-d H:i:s', filemtime($agentBinary));
             $status['agent_binary_size'] = filesize($agentBinary);
+
+            // Get actual compiled version
+            $versionFile = $releasesDir . '/VERSION';
+            if (file_exists($versionFile)) {
+                $status['agent_compiled_version'] = trim(file_get_contents($versionFile));
+            }
         }
 
         // Frontend build info
@@ -287,14 +209,26 @@ class MaintenanceController extends BaseController
             $status['go_version'] = trim($goOutput[0] ?? 'unknown');
         }
 
-        // Node version
-        exec('node --version 2>&1', $nodeOutput, $nodeExitCode);
+        // Node version (via NVM)
+        $nvmCmd = '/bin/bash -c "export NVM_DIR=/var/lib/phpborg/.nvm && source \$NVM_DIR/nvm.sh && node --version" 2>&1';
+        exec($nvmCmd, $nodeOutput, $nodeExitCode);
         if ($nodeExitCode === 0) {
             $status['node_version'] = trim($nodeOutput[0] ?? 'unknown');
         }
 
         // Disk space
         $status['disk_free_gb'] = round(disk_free_space($this->phpborgRoot) / (1024 * 1024 * 1024), 2);
+
+        // Worker status
+        $workersRunning = 0;
+        for ($i = 1; $i <= 4; $i++) {
+            exec("systemctl is-active phpborg-worker@{$i} 2>&1", $output, $exitCode);
+            if ($exitCode === 0) {
+                $workersRunning++;
+            }
+        }
+        $status['workers_running'] = $workersRunning;
+        $status['workers_total'] = 4;
 
         $this->success($status);
     }
