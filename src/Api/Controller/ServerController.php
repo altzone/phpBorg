@@ -897,4 +897,240 @@ class ServerController extends BaseController
             $this->error($e->getMessage(), 500, 'UPDATE_TRIGGER_ERROR');
         }
     }
+
+    /**
+     * GET /api/servers/:id/stats-history
+     * Get server stats history for graphs
+     */
+    public function statsHistory(): void
+    {
+        try {
+            $serverId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
+            $hours = (int) ($_GET['hours'] ?? 24);
+            $limit = (int) ($_GET['limit'] ?? 100);
+
+            if ($serverId <= 0) {
+                $this->error('Invalid server ID', 400, 'INVALID_SERVER_ID');
+                return;
+            }
+
+            // Validate hours (max 7 days = 168 hours)
+            $hours = min(max($hours, 1), 168);
+            $limit = min(max($limit, 10), 500);
+
+            $history = $this->statsRepository->getStatsHistory($serverId, $hours, $limit);
+
+            // Format for charts (reverse to get chronological order)
+            $history = array_reverse($history);
+
+            $this->success([
+                'server_id' => $serverId,
+                'hours' => $hours,
+                'count' => count($history),
+                'history' => array_map(fn($stat) => [
+                    'timestamp' => $stat['collected_at'],
+                    'cpu_usage' => (float) ($stat['cpu_usage_percent'] ?? 0),
+                    'cpu_load_1' => (float) ($stat['cpu_load_1'] ?? 0),
+                    'cpu_load_5' => (float) ($stat['cpu_load_5'] ?? 0),
+                    'cpu_load_15' => (float) ($stat['cpu_load_15'] ?? 0),
+                    'memory_percent' => (float) ($stat['memory_percent'] ?? 0),
+                    'memory_used_mb' => (int) ($stat['memory_used_mb'] ?? 0),
+                    'memory_total_mb' => (int) ($stat['memory_total_mb'] ?? 0),
+                    'disk_percent' => (float) ($stat['disk_percent'] ?? 0),
+                    'disk_used_gb' => (float) ($stat['disk_used_gb'] ?? 0),
+                    'disk_total_gb' => (float) ($stat['disk_total_gb'] ?? 0),
+                    'swap_percent' => (float) ($stat['swap_percent'] ?? 0),
+                ], $history),
+            ]);
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'STATS_HISTORY_ERROR');
+        }
+    }
+
+    /**
+     * GET /api/servers/:id/full-details
+     * Get comprehensive server details for dashboard
+     */
+    public function fullDetails(): void
+    {
+        try {
+            $serverId = (int) ($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
+
+            if ($serverId <= 0) {
+                $this->error('Invalid server ID', 400, 'INVALID_SERVER_ID');
+                return;
+            }
+
+            $server = $this->serverManager->getServerById($serverId);
+            if (!$server) {
+                $this->error('Server not found', 404, 'SERVER_NOT_FOUND');
+                return;
+            }
+
+            // Get latest stats
+            $latestStats = $this->statsRepository->getLatestStats($serverId);
+
+            // Get repositories
+            $repositories = $this->serverManager->getRepositoriesForServer($serverId);
+
+            // Get backup statistics
+            $totalBackups = $this->archiveRepository->countByServerId($serverId);
+            $storageStats = $this->archiveRepository->getStorageStatsByServerId($serverId);
+
+            // Get recent backups (last 10)
+            $recentBackups = $this->archiveRepository->findRecentByServerId($serverId, 10);
+
+            // Get storage pools used by this server's repositories
+            $storagePoolRepo = $this->app->getStoragePoolRepository();
+            $allPools = $storagePoolRepo->findAll();
+            $serverPools = [];
+
+            foreach ($repositories as $repo) {
+                foreach ($allPools as $pool) {
+                    if (strpos($repo->repoPath, $pool->path) === 0) {
+                        $poolId = $pool->id;
+                        if (!isset($serverPools[$poolId])) {
+                            $serverPools[$poolId] = [
+                                'id' => $pool->id,
+                                'name' => $pool->name,
+                                'path' => $pool->path,
+                                'total_size_gb' => round($pool->totalSize / 1024 / 1024 / 1024, 2),
+                                'used_size_gb' => round($pool->usedSize / 1024 / 1024 / 1024, 2),
+                                'free_size_gb' => round($pool->freeSize / 1024 / 1024 / 1024, 2),
+                                'usage_percent' => $pool->usagePercent,
+                                'repository_count' => 0,
+                            ];
+                        }
+                        $serverPools[$poolId]['repository_count']++;
+                        break;
+                    }
+                }
+            }
+
+            // Get capabilities
+            $serverEntity = $this->serverRepository->findById($serverId);
+            $capabilities = null;
+            if ($serverEntity && $serverEntity->capabilitiesData) {
+                $capabilities = json_decode($serverEntity->capabilitiesData, true);
+            }
+
+            // Calculate backup success rate (last 30 days)
+            $backupStats = $this->backupJobRepository->getStatsByServerId($serverId, 30);
+
+            $this->success([
+                'server' => [
+                    'id' => $server->id,
+                    'name' => $server->name,
+                    'hostname' => $server->host,
+                    'port' => $server->port,
+                    'username' => 'root',
+                    'backupType' => $server->backupType,
+                    'active' => $server->active,
+                    'created_at' => $server->createdAt?->format('Y-m-d H:i:s'),
+                    'updated_at' => $server->updatedAt?->format('Y-m-d H:i:s'),
+                    'agent' => $this->formatAgentInfo($server),
+                ],
+                'system' => $latestStats ? [
+                    'os' => [
+                        'distribution' => $latestStats['os_distribution'],
+                        'version' => $latestStats['os_version'],
+                        'kernel' => $latestStats['kernel_version'],
+                        'architecture' => $latestStats['architecture'],
+                        'hostname' => $latestStats['hostname'],
+                    ],
+                    'cpu' => [
+                        'model' => $latestStats['cpu_model'],
+                        'cores' => (int) $latestStats['cpu_cores'],
+                        'usage_percent' => (float) $latestStats['cpu_usage_percent'],
+                        'load_1' => (float) $latestStats['cpu_load_1'],
+                        'load_5' => (float) $latestStats['cpu_load_5'],
+                        'load_15' => (float) $latestStats['cpu_load_15'],
+                    ],
+                    'memory' => [
+                        'total_mb' => (int) $latestStats['memory_total_mb'],
+                        'used_mb' => (int) $latestStats['memory_used_mb'],
+                        'free_mb' => (int) $latestStats['memory_free_mb'],
+                        'available_mb' => (int) $latestStats['memory_available_mb'],
+                        'percent' => (float) $latestStats['memory_percent'],
+                    ],
+                    'swap' => [
+                        'total_mb' => (int) $latestStats['swap_total_mb'],
+                        'used_mb' => (int) $latestStats['swap_used_mb'],
+                        'percent' => (float) $latestStats['swap_percent'],
+                    ],
+                    'disk' => [
+                        'total_gb' => (float) $latestStats['disk_total_gb'],
+                        'used_gb' => (float) $latestStats['disk_used_gb'],
+                        'free_gb' => (float) $latestStats['disk_free_gb'],
+                        'percent' => (float) $latestStats['disk_percent'],
+                        'mount_point' => $latestStats['disk_mount_point'],
+                    ],
+                    'network' => [
+                        'ip_address' => $latestStats['ip_address'],
+                    ],
+                    'uptime' => [
+                        'seconds' => (int) $latestStats['uptime_seconds'],
+                        'human' => $latestStats['uptime_human'],
+                        'boot_time' => $latestStats['boot_time'],
+                    ],
+                    'collected_at' => $latestStats['collected_at'],
+                ] : null,
+                'backup_statistics' => [
+                    'total_backups' => $totalBackups,
+                    'total_repositories' => count($repositories),
+                    'storage_used' => $storageStats['total_deduplicated_size'],
+                    'original_size' => $storageStats['total_original_size'],
+                    'compressed_size' => $storageStats['total_compressed_size'],
+                    'deduplication_ratio' => $storageStats['total_original_size'] > 0
+                        ? round((1 - ($storageStats['total_deduplicated_size'] / $storageStats['total_original_size'])) * 100, 1)
+                        : 0,
+                    'success_rate' => $backupStats['success_rate'] ?? 100,
+                    'last_30_days' => [
+                        'total' => $backupStats['total'] ?? 0,
+                        'successful' => $backupStats['successful'] ?? 0,
+                        'failed' => $backupStats['failed'] ?? 0,
+                    ],
+                ],
+                'repositories' => array_map(fn($repo) => [
+                    'id' => $repo->id,
+                    'type' => $repo->type,
+                    'repo_path' => $repo->repoPath,
+                    'backup_path' => $repo->backupPath,
+                    'compression' => $repo->compression,
+                    'encryption' => $repo->encryption,
+                    'retention' => [
+                        'keep_daily' => $repo->keepDaily,
+                        'keep_weekly' => $repo->keepWeekly,
+                        'keep_monthly' => $repo->keepMonthly,
+                        'keep_yearly' => $repo->keepYearly,
+                    ],
+                    'stats' => [
+                        'size' => $repo->size,
+                        'compressed_size' => $repo->compressedSize,
+                        'deduplicated_size' => $repo->deduplicatedSize,
+                    ],
+                    'modified' => $repo->modified->format('Y-m-d H:i:s'),
+                ], $repositories),
+                'storage_pools' => array_values($serverPools),
+                'recent_backups' => array_map(fn($archive) => [
+                    'id' => $archive->id,
+                    'name' => $archive->name,
+                    'archive_id' => $archive->archiveId,
+                    'start' => $archive->start->format('Y-m-d H:i:s'),
+                    'end' => $archive->end->format('Y-m-d H:i:s'),
+                    'duration' => $archive->duration,
+                    'duration_formatted' => $archive->getFormattedDuration(),
+                    'original_size' => $archive->originalSize,
+                    'compressed_size' => $archive->compressedSize,
+                    'deduplicated_size' => $archive->deduplicatedSize,
+                    'files_count' => $archive->filesCount,
+                    'compression_ratio' => $archive->getCompressionRatio(),
+                    'deduplication_ratio' => $archive->getDeduplicationRatio(),
+                ], $recentBackups),
+                'capabilities' => $capabilities,
+            ]);
+        } catch (PhpBorgException $e) {
+            $this->error($e->getMessage(), 500, 'FULL_DETAILS_ERROR');
+        }
+    }
 }

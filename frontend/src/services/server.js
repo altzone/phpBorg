@@ -91,4 +91,39 @@ export const serverService = {
     const response = await api.get(`/servers/${id}/delete-stats`)
     return response.data.data
   },
+
+  /**
+   * Get comprehensive server details for dashboard
+   */
+  async getFullDetails(id) {
+    const response = await api.get(`/servers/${id}/full-details`)
+    return response.data
+  },
+
+  /**
+   * Get server stats history for charts
+   * @param {number} id - Server ID
+   * @param {number} hours - Number of hours of history (default 24)
+   */
+  async getStatsHistory(id, hours = 24) {
+    const response = await api.get(`/servers/${id}/stats-history`, {
+      params: { hours }
+    })
+    return response.data
+  },
+
+  /**
+   * Delete server (wrapper for deleteServer)
+   */
+  async delete(id, deleteType = 'archive') {
+    return this.deleteServer(id, deleteType)
+  },
+
+  /**
+   * Trigger agent update for a server
+   */
+  async triggerAgentUpdate(id) {
+    const response = await api.post(`/servers/${id}/agent/update`)
+    return response.data.data
+  },
 }

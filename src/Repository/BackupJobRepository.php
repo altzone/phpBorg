@@ -400,4 +400,60 @@ final class BackupJobRepository
             [$serverId]
         );
     }
+
+    /**
+     * Get backup statistics for a server (last N days)
+     *
+     * @return array{total: int, successful: int, failed: int, success_rate: float}
+     * @throws DatabaseException
+     */
+    public function getStatsByServerId(int $serverId, int $days = 30): array
+    {
+        // Get job IDs for this server
+        $jobIds = $this->connection->fetchAll(
+            'SELECT bj.id FROM backup_jobs bj
+             JOIN repository r ON bj.repository_id = r.id
+             WHERE r.server_id = ?',
+            [$serverId]
+        );
+
+        if (empty($jobIds)) {
+            return [
+                'total' => 0,
+                'successful' => 0,
+                'failed' => 0,
+                'success_rate' => 100.0,
+            ];
+        }
+
+        // Get stats from job_queue for these jobs
+        $placeholders = implode(',', array_fill(0, count($jobIds), '?'));
+        $params = array_merge(
+            array_map(fn($j) => (int)$j['id'], $jobIds),
+            [$days]
+        );
+
+        $stats = $this->connection->fetchOne(
+            "SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as successful,
+                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
+             FROM job_queue
+             WHERE type = 'backup'
+             AND JSON_EXTRACT(payload, '$.job_id') IN ($placeholders)
+             AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)",
+            $params
+        );
+
+        $total = (int) ($stats['total'] ?? 0);
+        $successful = (int) ($stats['successful'] ?? 0);
+        $failed = (int) ($stats['failed'] ?? 0);
+
+        return [
+            'total' => $total,
+            'successful' => $successful,
+            'failed' => $failed,
+            'success_rate' => $total > 0 ? round(($successful / $total) * 100, 1) : 100.0,
+        ];
+    }
 }

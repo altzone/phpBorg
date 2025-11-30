@@ -94,6 +94,8 @@ try {
     $router->get('/servers/:id/capabilities', ServerController::class, 'capabilities', requireAuth: true);
     $router->post('/servers/:id/detect-capabilities', ServerController::class, 'detectCapabilities', requireAuth: true);
     $router->post('/servers/:id/agent/update', ServerController::class, 'triggerAgentUpdate', requireAuth: true);
+    $router->get('/servers/:id/stats-history', ServerController::class, 'statsHistory', requireAuth: true);
+    $router->get('/servers/:id/full-details', ServerController::class, 'fullDetails', requireAuth: true);
 
     // ===========================================
     // Server Add Wizard Routes (Protected/Public)
