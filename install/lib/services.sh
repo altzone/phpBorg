@@ -792,6 +792,7 @@ setup_docker() {
 create_log_directories() {
     print_section "Creating Log Directories"
 
+    # App log directories (phpborg:www-data for PHP-FPM write access)
     local log_dirs=(
         "${PHPBORG_ROOT}/var/log"
         "${PHPBORG_ROOT}/logs"
@@ -802,11 +803,10 @@ create_log_directories() {
         if [ ! -d "${dir}" ]; then
             log_info "Creating directory: ${dir}"
             mkdir -p "${dir}"
-            chown phpborg:phpborg "${dir}"
-            chmod 755 "${dir}"
-        else
-            log_info "Directory already exists: ${dir}"
         fi
+        # Always ensure correct permissions (phpborg:www-data for PHP-FPM access)
+        chown phpborg:www-data "${dir}"
+        chmod 775 "${dir}"
     done
 
     # Create main log file with correct permissions
@@ -814,9 +814,10 @@ create_log_directories() {
     if [ ! -f "${main_log}" ]; then
         log_info "Creating log file: ${main_log}"
         touch "${main_log}"
-        chown phpborg:phpborg "${main_log}"
-        chmod 644 "${main_log}"
     fi
+    # Always ensure correct permissions (www-data needs write access)
+    chown phpborg:www-data "${main_log}"
+    chmod 664 "${main_log}"
 
     log_success "Log directories created"
     save_state "create_log_directories" "completed"

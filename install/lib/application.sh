@@ -468,12 +468,14 @@ optimize_php_fpm() {
     rm -f /run/php/phpborg-*-fpm.sock
 
     # Create log directory and files BEFORE configuring the pool
+    # Use www-data group for PHP-FPM write access
     log_info "Creating PHP-FPM log directory"
     mkdir -p /var/log/phpborg
     touch /var/log/phpborg/php-fpm.log
     touch /var/log/phpborg/php-fpm-slow.log
-    chown -R phpborg:phpborg /var/log/phpborg
-    chmod 755 /var/log/phpborg
+    chown -R phpborg:www-data /var/log/phpborg
+    chmod 775 /var/log/phpborg
+    chmod 664 /var/log/phpborg/*.log
 
     log_info "Creating PHP-FPM pool: ${pool_file}"
 
