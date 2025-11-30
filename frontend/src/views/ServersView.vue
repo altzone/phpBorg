@@ -102,9 +102,7 @@
                       ? 'bg-gradient-to-br from-primary-400 to-primary-600 shadow-md'
                       : 'bg-gradient-to-br from-gray-300 to-gray-500 dark:from-gray-600 dark:to-gray-700'
                   ]">
-                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-                    </svg>
+                    <DistroIcon :distribution="server.stats?.os_distribution" size="sm" class="text-white" />
                   </div>
                   <div class="font-medium text-gray-900 dark:text-gray-100">{{ server.name }}</div>
                 </div>
@@ -135,7 +133,8 @@
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-900 dark:text-gray-300">
+                <div class="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-300">
+                  <DistroIcon :distribution="server.stats?.os_distribution" size="xs" />
                   {{ server.stats?.os_distribution || 'N/A' }}
                 </div>
               </td>
@@ -236,9 +235,7 @@
                   ? 'bg-gradient-to-br from-primary-400 to-primary-600 shadow-md'
                   : 'bg-gradient-to-br from-gray-300 to-gray-500 dark:from-gray-600 dark:to-gray-700'
               ]">
-                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-                </svg>
+                <DistroIcon :distribution="server.stats?.os_distribution" size="sm" class="text-white" />
               </div>
               <div>
                 <h3 class="font-semibold text-gray-900 dark:text-gray-100">{{ server.name }}</h3>
@@ -309,7 +306,10 @@
             </div>
             <div>
               <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ $t('servers.distribution') }}</div>
-              <div class="text-gray-900 dark:text-gray-300">{{ server.stats?.os_distribution || 'N/A' }}</div>
+              <div class="flex items-center gap-2 text-gray-900 dark:text-gray-300">
+                <DistroIcon :distribution="server.stats?.os_distribution" size="xs" />
+                {{ server.stats?.os_distribution || 'N/A' }}
+              </div>
             </div>
             <div class="col-span-2">
               <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ $t('servers.version') }}</div>
@@ -415,6 +415,7 @@ import api from '@/services/api'
 import AddServerWizard from '@/components/AddServerWizard.vue'
 import ServerFormModal from '@/components/ServerFormModal.vue'
 import DeleteConfirmModal from '@/components/DeleteConfirmModal.vue'
+import DistroIcon from '@/components/DistroIcon.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()

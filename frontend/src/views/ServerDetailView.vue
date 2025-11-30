@@ -36,9 +36,7 @@
           <!-- Server Identity -->
           <div class="flex items-center gap-4">
             <div class="w-16 h-16 rounded-xl bg-white/10 flex items-center justify-center">
-              <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-              </svg>
+              <DistroIcon :distribution="system?.os?.distribution" size="xl" class="text-white" />
             </div>
             <div>
               <div class="flex items-center gap-3">
@@ -529,6 +527,7 @@ import VueApexCharts from 'vue3-apexcharts'
 import ServerFormModal from '@/components/ServerFormModal.vue'
 import DeleteConfirmModal from '@/components/DeleteConfirmModal.vue'
 import RetentionModal from '@/components/RetentionModal.vue'
+import DistroIcon from '@/components/DistroIcon.vue'
 
 const { t } = useI18n()
 const apexchart = VueApexCharts
