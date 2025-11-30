@@ -152,6 +152,15 @@ phpborg ALL=(phpborg-borg) NOPASSWD: /bin/rmdir /var/lib/phpborg/mounts/*
 phpborg ALL=(ALL) NOPASSWD: /bin/rm -rf /var/lib/phpborg/mounts/*
 phpborg ALL=(ALL) NOPASSWD: /bin/umount -l /var/lib/phpborg/mounts/*
 
+# Instant Recovery - mount/unmount operations
+phpborg ALL=(ALL) NOPASSWD: /bin/mkdir -p /tmp/phpborg_*
+phpborg ALL=(ALL) NOPASSWD: /bin/rm -rf /tmp/phpborg_*
+phpborg ALL=(ALL) NOPASSWD: /bin/umount /tmp/phpborg_*
+phpborg ALL=(ALL) NOPASSWD: /bin/umount -l /tmp/phpborg_*
+phpborg ALL=(ALL) NOPASSWD: /usr/bin/fusermount -u /tmp/phpborg_*
+phpborg ALL=(ALL) NOPASSWD: /bin/chown -R * /tmp/phpborg_*
+phpborg ALL=(ALL) NOPASSWD: /bin/chmod -R * /tmp/phpborg_*
+
 # Web interface (www-data via PHP-FPM) - read-only status checks
 www-data ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-*
 www-data ALL=(ALL) NOPASSWD: /bin/systemctl is-active phpborg-*
