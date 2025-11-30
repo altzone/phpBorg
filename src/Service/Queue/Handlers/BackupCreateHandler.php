@@ -471,6 +471,46 @@ final class BackupCreateHandler implements JobHandlerInterface
             $backupPaths = ['/'];
         }
 
+        // For database backups, use datadir from capabilities if paths is just "/"
+        $databaseTypes = ['mysql', 'mariadb', 'postgresql', 'postgres', 'mongodb'];
+        if (in_array($type, $databaseTypes) && ($backupPaths === ['/'] || $backupPaths === [''])) {
+            $this->logger->warning("Database backup with root path detected, checking capabilities for datadir", 'JOB');
+
+            // Get server capabilities
+            $serverData = $connection->fetchOne(
+                'SELECT capabilities_data FROM servers WHERE id = ?',
+                [$server->id]
+            );
+
+            if ($serverData && $serverData['capabilities_data']) {
+                $capabilities = json_decode($serverData['capabilities_data'], true);
+                $dbTypeMap = [
+                    'mysql' => 'mysql',
+                    'mariadb' => 'mysql',
+                    'postgresql' => 'postgresql',
+                    'postgres' => 'postgresql',
+                    'mongodb' => 'mongodb',
+                ];
+                $capDbType = $dbTypeMap[$type] ?? $type;
+
+                // Find database in capabilities
+                if (isset($capabilities['databases'])) {
+                    foreach ($capabilities['databases'] as $db) {
+                        if (isset($db['type']) && $db['type'] === $capDbType && !empty($db['datadir'])) {
+                            $backupPaths = [$db['datadir']];
+                            $this->logger->info("Using detected datadir for {$type} backup: {$db['datadir']}", 'JOB');
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Still "/" ? Throw error to prevent backing up entire filesystem
+            if ($backupPaths === ['/'] || $backupPaths === ['']) {
+                throw new \Exception("Cannot backup database '{$type}': datadir not found in capabilities. Please re-run capability detection on the server.");
+            }
+        }
+
         // Get excludes
         $excludes = $repository->exclude ? explode(',', $repository->exclude) : [];
 

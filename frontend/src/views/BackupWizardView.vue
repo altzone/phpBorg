@@ -2061,13 +2061,29 @@ async function createBackup() {
       sourceConfig.port = sourceConfig.port === 3306 ? 27017 : sourceConfig.port
     }
 
+    // Determine paths based on backup type
+    let backupPaths = wizardData.value.sourceConfig.paths
+
+    // For database backups, use the detected datadir instead of generic paths
+    const databaseTypes = ['mysql', 'mariadb', 'postgresql', 'postgres', 'mongodb']
+    if (databaseTypes.includes(wizardData.value.backupType)) {
+      const detectedDb = getDetectedDatabase(wizardData.value.backupType)
+      if (detectedDb?.datadir) {
+        // Use the detected datadir as the backup path
+        backupPaths = [detectedDb.datadir]
+        console.log(`[BackupWizard] Using detected datadir for ${wizardData.value.backupType}:`, detectedDb.datadir)
+      } else {
+        console.warn(`[BackupWizard] No datadir detected for ${wizardData.value.backupType}, using default paths`)
+      }
+    }
+
     // Prepare data for API
     const data = {
       server_id: wizardData.value.serverId,
       backup_type: wizardData.value.backupType,
       source_name: wizardData.value.repositoryName,
       source_config: sourceConfig,
-      paths: wizardData.value.sourceConfig.paths,
+      paths: backupPaths,
       exclude_patterns: wizardData.value.sourceConfig.excludePatterns?.split('\n').filter(p => p.trim()),
       snapshot_method: wizardData.value.snapshotMethod,
       storage_pool_id: wizardData.value.storagePoolId,

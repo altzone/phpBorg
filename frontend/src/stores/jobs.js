@@ -114,7 +114,7 @@ export const useJobStore = defineStore('jobs', () => {
       running.map(async (job) => {
         try {
           const progress = await jobService.getProgress(job.id)
-          if (progress) {
+          if (progress && (progress.files_count > 0 || progress.original_size > 0)) {
             // Get previous progress for rate calculation
             const prev = previousProgress.value.get(job.id)
 
@@ -138,14 +138,11 @@ export const useJobStore = defineStore('jobs', () => {
             }
 
             progressInfo.value.set(job.id, progress)
-          } else {
-            progressInfo.value.delete(job.id)
-            previousProgress.value.delete(job.id)
           }
+          // If no progress or empty progress, keep the last known values (don't delete)
         } catch (err) {
           console.error(`Failed to fetch progress for job ${job.id}:`, err)
-          progressInfo.value.delete(job.id)
-          previousProgress.value.delete(job.id)
+          // On error, keep last known progress (don't delete)
         }
       })
     )
