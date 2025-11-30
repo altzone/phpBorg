@@ -137,7 +137,12 @@ final class RepositoryDeleteHandler implements JobHandlerInterface
             return false;
         }
 
-        $files = array_diff(scandir($dir), ['.', '..']);
+        $scan = scandir($dir);
+        if ($scan === false) {
+            return false;
+        }
+
+        $files = array_diff($scan, ['.', '..']);
 
         foreach ($files as $file) {
             $path = $dir . '/' . $file;
