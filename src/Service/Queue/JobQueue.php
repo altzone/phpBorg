@@ -231,7 +231,38 @@ final class JobQueue
         $this->jobRepository->updateStatus($jobId, 'cancelled');
         $this->logger->info("Job #{$jobId} cancelled", 'QUEUE');
 
+        // Also cancel any associated agent task
+        $this->cancelAgentTaskForJob($jobId);
+
         return true;
+    }
+
+    /**
+     * Cancel agent task associated with a job
+     */
+    private function cancelAgentTaskForJob(int $jobId): void
+    {
+        try {
+            $app = new \PhpBorg\Application();
+            $connection = $app->getConnection();
+
+            // Find agent task linked to this job
+            $task = $connection->fetchOne(
+                "SELECT id, status FROM agent_tasks WHERE job_id = ? AND status IN ('pending', 'assigned', 'running')",
+                [$jobId]
+            );
+
+            if ($task) {
+                // Mark agent task as cancelled
+                $connection->executeUpdate(
+                    "UPDATE agent_tasks SET status = 'cancelled', completed_at = NOW() WHERE id = ?",
+                    [$task['id']]
+                );
+                $this->logger->info("Agent task #{$task['id']} cancelled (linked to job #{$jobId})", 'QUEUE');
+            }
+        } catch (\Exception $e) {
+            $this->logger->warning("Failed to cancel agent task for job #{$jobId}: {$e->getMessage()}", 'QUEUE');
+        }
     }
 
     /**

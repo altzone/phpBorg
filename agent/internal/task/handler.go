@@ -123,6 +123,39 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 	// Update progress
 	h.client.UpdateProgress(ctx, task.ID, 5, "Starting backup...")
 
+	// Create cancellable context for the backup operation
+	backupCtx, cancelBackup := context.WithCancel(ctx)
+	defer cancelBackup()
+
+	// Track if cancelled
+	cancelled := false
+
+	// Start goroutine to check for cancellation every 5 seconds
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-backupCtx.Done():
+				return
+			case <-ticker.C:
+				// Check if task has been cancelled
+				status, err := h.client.GetTaskStatus(ctx, task.ID)
+				if err != nil {
+					log.Printf("[BACKUP] Failed to check task status: %v", err)
+					continue
+				}
+				if status.ShouldCancel {
+					log.Printf("[BACKUP] Task %d cancelled by user, stopping backup...", task.ID)
+					cancelled = true
+					cancelBackup()
+					return
+				}
+			}
+		}
+	}()
+
 	// Track last update time for throttling
 	var lastUpdate time.Time
 
@@ -158,8 +191,13 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 		}
 	}
 
-	// Execute borg create with progress streaming
-	result := h.executor.BorgCreateWithProgress(ctx, repoPath, archiveName, paths, excludes, compression, passphrase, progressCallback)
+	// Execute borg create with progress streaming (uses cancellable context)
+	result := h.executor.BorgCreateWithProgress(backupCtx, repoPath, archiveName, paths, excludes, compression, passphrase, progressCallback)
+
+	// Check if backup was cancelled
+	if cancelled {
+		return nil, 130, fmt.Errorf("backup cancelled by user")
+	}
 
 	// Borg exit codes:
 	// 0 = success

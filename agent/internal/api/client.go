@@ -268,6 +268,27 @@ func (c *Client) FailTask(ctx context.Context, taskID int, errorMsg string, exit
 	return err
 }
 
+// TaskStatusResponse represents the response from GET /agent/tasks/{id}/status
+type TaskStatusResponse struct {
+	Status       string `json:"status"`
+	ShouldCancel bool   `json:"should_cancel"`
+}
+
+// GetTaskStatus checks if a task has been cancelled
+func (c *Client) GetTaskStatus(ctx context.Context, taskID int) (*TaskStatusResponse, error) {
+	resp, err := c.doRequest(ctx, "GET", fmt.Sprintf("/agent/tasks/%d/status", taskID), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var status TaskStatusResponse
+	if err := json.Unmarshal(resp.Data, &status); err != nil {
+		return nil, fmt.Errorf("failed to parse task status response: %w", err)
+	}
+
+	return &status, nil
+}
+
 // UpdateInfo contains information about an available update
 type UpdateInfo struct {
 	Available      bool   `json:"available"`

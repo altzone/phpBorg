@@ -322,6 +322,38 @@ final class AgentGatewayController extends BaseController
     }
 
     /**
+     * Get task status (used by agent to check for cancellation)
+     * GET /api/agent/tasks/{id}/status
+     *
+     * Response:
+     * {
+     *   "status": "running|cancelled|completed|failed",
+     *   "should_cancel": true/false
+     * }
+     */
+    public function getTaskStatus(int $taskId): void
+    {
+        $agent = $this->requireAgentAuth();
+        if (!$agent) {
+            return;
+        }
+
+        $task = $this->taskRepo->findById($taskId);
+        if (!$task || $task['agent_id'] !== $agent['id']) {
+            $this->error('Task not found or not owned by agent', 404);
+            return;
+        }
+
+        $status = $task['status'];
+        $shouldCancel = ($status === 'cancelled');
+
+        $this->success([
+            'status' => $status,
+            'should_cancel' => $shouldCancel
+        ]);
+    }
+
+    /**
      * Store agent task progress in Redis for SSE real-time updates
      */
     private function storeAgentTaskProgress(int $taskId, array $progressInfo): void

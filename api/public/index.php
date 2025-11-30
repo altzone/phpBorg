@@ -345,6 +345,7 @@ try {
     $router->post('/agent/tasks/:taskId/progress', AgentGatewayController::class, 'updateProgress', requireAuth: false); // mTLS auth
     $router->post('/agent/tasks/:taskId/complete', AgentGatewayController::class, 'completeTask', requireAuth: false); // mTLS auth
     $router->post('/agent/tasks/:taskId/fail', AgentGatewayController::class, 'failTask', requireAuth: false); // mTLS auth
+    $router->get('/agent/tasks/:taskId/status', AgentGatewayController::class, 'getTaskStatus', requireAuth: false); // mTLS auth - for cancellation check
     $router->get('/agent/info', AgentGatewayController::class, 'getInfo', requireAuth: false); // mTLS auth
 
     // Agent Update Routes (called by agent via mTLS)
