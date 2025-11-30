@@ -238,62 +238,16 @@
               </select>
             </div>
 
-            <!-- Simple Line Chart using SVG -->
-            <div class="h-64 relative" v-if="statsHistory.length > 0">
-              <svg class="w-full h-full" viewBox="0 0 800 200" preserveAspectRatio="none">
-                <!-- Grid lines -->
-                <line x1="0" y1="50" x2="800" y2="50" stroke="#e5e7eb" stroke-width="1" class="dark:stroke-gray-700"/>
-                <line x1="0" y1="100" x2="800" y2="100" stroke="#e5e7eb" stroke-width="1" class="dark:stroke-gray-700"/>
-                <line x1="0" y1="150" x2="800" y2="150" stroke="#e5e7eb" stroke-width="1" class="dark:stroke-gray-700"/>
-
-                <!-- CPU Line -->
-                <polyline
-                  :points="getChartPoints('cpu_usage')"
-                  fill="none"
-                  stroke="#3b82f6"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-
-                <!-- Memory Line -->
-                <polyline
-                  :points="getChartPoints('memory_percent')"
-                  fill="none"
-                  stroke="#8b5cf6"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-
-                <!-- Disk Line -->
-                <polyline
-                  :points="getChartPoints('disk_percent')"
-                  fill="none"
-                  stroke="#f59e0b"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-
-              <!-- Legend -->
-              <div class="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-6 text-xs">
-                <span class="flex items-center gap-1.5">
-                  <span class="w-3 h-0.5 bg-blue-500 rounded"></span>
-                  CPU
-                </span>
-                <span class="flex items-center gap-1.5">
-                  <span class="w-3 h-0.5 bg-purple-500 rounded"></span>
-                  Mémoire
-                </span>
-                <span class="flex items-center gap-1.5">
-                  <span class="w-3 h-0.5 bg-amber-500 rounded"></span>
-                  Disque
-                </span>
-              </div>
+            <!-- ApexCharts Line Chart -->
+            <div class="h-72" v-if="statsHistory.length > 0">
+              <apexchart
+                type="area"
+                height="280"
+                :options="chartOptions"
+                :series="chartSeries"
+              />
             </div>
-            <div v-else class="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
+            <div v-else class="h-72 flex items-center justify-center text-gray-500 dark:text-gray-400">
               <div class="text-center">
                 <svg class="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -419,6 +373,54 @@
             </div>
           </div>
 
+          <!-- Scheduled Jobs -->
+          <div class="card" v-if="scheduledJobs.length > 0">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Jobs planifiés</h2>
+
+            <div class="space-y-3">
+              <div
+                v-for="job in scheduledJobs"
+                :key="job.id"
+                class="p-3 rounded-lg"
+                :class="job.isNext ? 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800' : 'bg-gray-50 dark:bg-gray-800'"
+              >
+                <div class="flex items-center justify-between mb-1">
+                  <span class="font-medium text-gray-900 dark:text-white text-sm">{{ job.name }}</span>
+                  <span
+                    v-if="job.isNext"
+                    class="px-2 py-0.5 text-xs bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 rounded-full"
+                  >
+                    Prochain
+                  </span>
+                </div>
+                <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>{{ formatSchedule(job) }}</span>
+                </div>
+                <div v-if="job.next_run_at" class="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                  <span class="font-medium">Prochaine exécution:</span>
+                  {{ formatDate(job.next_run_at) }}
+                </div>
+                <div v-if="job.last_run_at" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Dernier: {{ formatDate(job.last_run_at) }}
+                  <span
+                    v-if="job.last_status"
+                    :class="[
+                      'ml-1 px-1.5 py-0.5 rounded',
+                      job.last_status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
+                      job.last_status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+                      'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                    ]"
+                  >
+                    {{ job.last_status }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Capabilities -->
           <div class="card" v-if="capabilities">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Capacités détectées</h2>
@@ -522,9 +524,12 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useSSE } from '@/composables/useSSE'
 import { serverService } from '@/services/server'
+import VueApexCharts from 'vue3-apexcharts'
 import ServerFormModal from '@/components/ServerFormModal.vue'
 import DeleteConfirmModal from '@/components/DeleteConfirmModal.vue'
 import RetentionModal from '@/components/RetentionModal.vue'
+
+const apexchart = VueApexCharts
 
 const route = useRoute()
 const router = useRouter()
@@ -549,6 +554,161 @@ const repositories = computed(() => serverData.value?.repositories || [])
 const storagePools = computed(() => serverData.value?.storage_pools || [])
 const recentBackups = computed(() => serverData.value?.recent_backups || [])
 const capabilities = computed(() => serverData.value?.capabilities || null)
+const scheduledJobs = computed(() => {
+  const jobs = serverData.value?.scheduled_jobs || []
+  if (jobs.length === 0) return []
+
+  // Sort by next_run_at and mark the next one
+  const sorted = [...jobs]
+    .filter(j => j.enabled && j.next_run_at)
+    .sort((a, b) => new Date(a.next_run_at) - new Date(b.next_run_at))
+
+  if (sorted.length > 0) {
+    sorted[0].isNext = true
+  }
+
+  return sorted
+})
+
+// ApexCharts configuration
+const chartOptions = computed(() => {
+  const isDark = document.documentElement.classList.contains('dark')
+
+  return {
+    chart: {
+      type: 'area',
+      height: 280,
+      toolbar: {
+        show: true,
+        tools: {
+          download: false,
+          selection: true,
+          zoom: true,
+          zoomin: true,
+          zoomout: true,
+          pan: true,
+          reset: true
+        }
+      },
+      animations: {
+        enabled: true,
+        easing: 'easeinout',
+        speed: 300
+      },
+      background: 'transparent',
+      fontFamily: 'Inter, system-ui, sans-serif'
+    },
+    colors: ['#3b82f6', '#8b5cf6', '#f59e0b'],
+    dataLabels: {
+      enabled: false
+    },
+    stroke: {
+      curve: 'smooth',
+      width: 2
+    },
+    fill: {
+      type: 'gradient',
+      gradient: {
+        shadeIntensity: 1,
+        opacityFrom: 0.4,
+        opacityTo: 0.1,
+        stops: [0, 90, 100]
+      }
+    },
+    xaxis: {
+      type: 'datetime',
+      labels: {
+        style: {
+          colors: isDark ? '#9ca3af' : '#6b7280',
+          fontSize: '11px'
+        },
+        datetimeFormatter: {
+          year: 'yyyy',
+          month: "MMM 'yy",
+          day: 'dd MMM',
+          hour: 'HH:mm'
+        }
+      },
+      axisBorder: {
+        show: false
+      },
+      axisTicks: {
+        show: false
+      }
+    },
+    yaxis: {
+      min: 0,
+      max: 100,
+      tickAmount: 5,
+      labels: {
+        style: {
+          colors: isDark ? '#9ca3af' : '#6b7280',
+          fontSize: '11px'
+        },
+        formatter: (val) => val.toFixed(0) + '%'
+      }
+    },
+    grid: {
+      borderColor: isDark ? '#374151' : '#e5e7eb',
+      strokeDashArray: 4,
+      xaxis: {
+        lines: {
+          show: true
+        }
+      }
+    },
+    legend: {
+      position: 'top',
+      horizontalAlign: 'center',
+      labels: {
+        colors: isDark ? '#d1d5db' : '#374151'
+      },
+      markers: {
+        radius: 2
+      }
+    },
+    tooltip: {
+      theme: isDark ? 'dark' : 'light',
+      x: {
+        format: 'dd MMM HH:mm'
+      },
+      y: {
+        formatter: (val) => val.toFixed(1) + '%'
+      }
+    }
+  }
+})
+
+const chartSeries = computed(() => {
+  if (statsHistory.value.length === 0) return []
+
+  // Reverse to have chronological order (oldest first)
+  const history = [...statsHistory.value].reverse()
+
+  return [
+    {
+      name: 'CPU',
+      data: history.map(stat => ({
+        x: new Date(stat.collected_at || stat.created_at).getTime(),
+        y: parseFloat(stat.cpu_usage) || parseFloat(stat.cpu_usage_percent) || 0
+      }))
+    },
+    {
+      name: 'Mémoire',
+      data: history.map(stat => ({
+        x: new Date(stat.collected_at || stat.created_at).getTime(),
+        y: parseFloat(stat.memory_percent) || 0
+      }))
+    },
+    {
+      name: 'Disque',
+      data: history.map(stat => ({
+        x: new Date(stat.collected_at || stat.created_at).getTime(),
+        y: parseFloat(stat.disk_percent) || 0
+      }))
+    }
+  ]
+})
 
 // Methods
 async function fetchServerData() {
@@ -578,19 +738,29 @@ async function fetchStatsHistory() {
   }
 }
 
-function getChartPoints(metric) {
-  if (statsHistory.value.length === 0) return ''
+function formatSchedule(job) {
+  if (job.cron_expression) {
+    return `Cron: ${job.cron_expression}`
+  }
 
-  const width = 800
-  const height = 180
-  const padding = 10
+  const scheduleType = job.schedule_type
+  const time = job.schedule_time || '00:00'
 
-  return statsHistory.value.map((stat, index) => {
-    const x = padding + (index / (statsHistory.value.length - 1)) * (width - padding * 2)
-    const value = stat[metric] || 0
-    const y = height - padding - (value / 100) * (height - padding * 2)
-    return `${x},${y}`
-  }).join(' ')
+  switch (scheduleType) {
+    case 'daily':
+      return `Quotidien à ${time}`
+    case 'weekly': {
+      const days = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+      const dayIndex = job.schedule_day_of_week || 1
+      return `Hebdo: ${days[dayIndex % 7]} à ${time}`
+    }
+    case 'monthly':
+      return `Mensuel: jour ${job.schedule_day_of_month || 1} à ${time}`
+    case 'manual':
+      return 'Manuel'
+    default:
+      return scheduleType
+  }
 }
 
 function getCpuColor(percent) {

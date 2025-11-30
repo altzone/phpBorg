@@ -1017,6 +1017,28 @@ class ServerController extends BaseController
             // Calculate backup success rate (last 30 days)
             $backupStats = $this->backupJobRepository->getStatsByServerId($serverId, 30);
 
+            // Get scheduled backup jobs for this server's repositories
+            $scheduledJobs = [];
+            foreach ($repositories as $repo) {
+                $repoJobs = $this->backupJobRepository->findByRepositoryId($repo->id);
+                foreach ($repoJobs as $job) {
+                    $scheduledJobs[] = [
+                        'id' => $job->id,
+                        'name' => $job->name,
+                        'repository_id' => $job->repositoryId,
+                        'schedule_type' => $job->scheduleType,
+                        'schedule_time' => $job->scheduleTime,
+                        'schedule_day_of_week' => $job->scheduleDayOfWeek,
+                        'schedule_day_of_month' => $job->scheduleDayOfMonth,
+                        'cron_expression' => $job->cronExpression,
+                        'enabled' => $job->enabled,
+                        'last_run_at' => $job->lastRunAt?->format('Y-m-d H:i:s'),
+                        'next_run_at' => $job->nextRunAt?->format('Y-m-d H:i:s'),
+                        'last_status' => $job->lastStatus,
+                    ];
+                }
+            }
+
             $this->success([
                 'server' => [
                     'id' => $server->id,
@@ -1128,6 +1150,7 @@ class ServerController extends BaseController
                     'deduplication_ratio' => $archive->getDeduplicationRatio(),
                 ], $recentBackups),
                 'capabilities' => $capabilities,
+                'scheduled_jobs' => $scheduledJobs,
             ]);
         } catch (PhpBorgException $e) {
             $this->error($e->getMessage(), 500, 'FULL_DETAILS_ERROR');
