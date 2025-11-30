@@ -874,12 +874,17 @@ final class AgentGatewayController extends BaseController
             return;
         }
 
-        // Get server URL
-        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $serverUrl = $protocol . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+        // Get server URL from settings first, fallback to HTTP_HOST
+        $settingsRepo = new \PhpBorg\Repository\SettingRepository($this->connection);
+        $urlSetting = $settingsRepo->findByKey('server_url');
+        if ($urlSetting && $urlSetting->value) {
+            $serverUrl = $urlSetting->value;
+        } else {
+            $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $serverUrl = $protocol . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+        }
 
         // Get registration token
-        $settingsRepo = new \PhpBorg\Repository\SettingRepository($this->connection);
         $setting = $settingsRepo->findByKey('agent.registration_token');
         $registrationToken = $setting?->value;
         if (!$registrationToken) {
