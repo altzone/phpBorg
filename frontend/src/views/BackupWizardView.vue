@@ -1966,12 +1966,16 @@ async function detectMySQLCredentials() {
   // Get MySQL capabilities auth data
   const mysqlDb = getDetectedDatabase('mysql')
 
+  console.log('[MySQL Auto-detect] mysqlDb:', mysqlDb)
+  console.log('[MySQL Auto-detect] serverCapabilities:', serverCapabilities.value)
+
   if (!mysqlDb || !mysqlDb.auth) {
     toast.warning(t('backup_wizard.mysql_no_auth'))
     return
   }
 
   const auth = mysqlDb.auth
+  console.log('[MySQL Auto-detect] auth:', auth)
 
   if (!auth.working) {
     toast.warning(t('backup_wizard.mysql_no_working_credentials'))
@@ -1979,10 +1983,19 @@ async function detectMySQLCredentials() {
   }
 
   // Auto-fill credentials from detected auth
-  wizardData.value.sourceConfig.username = auth.user || 'root'
-  wizardData.value.sourceConfig.password = auth.password || ''
-  wizardData.value.sourceConfig.host = auth.host || 'localhost'
-  wizardData.value.sourceConfig.port = auth.port || 3306
+  const newUsername = auth.user || 'root'
+  const newPassword = auth.password || ''
+  const newHost = auth.host || 'localhost'
+  const newPort = auth.port || 3306
+
+  console.log('[MySQL Auto-detect] Setting:', { newUsername, newPassword, newHost, newPort })
+
+  wizardData.value.sourceConfig.username = newUsername
+  wizardData.value.sourceConfig.password = newPassword
+  wizardData.value.sourceConfig.host = newHost
+  wizardData.value.sourceConfig.port = newPort
+
+  console.log('[MySQL Auto-detect] After setting:', wizardData.value.sourceConfig)
 
   // Show success message with method used
   const methodText = auth.method === 'root_no_password'
