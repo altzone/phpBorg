@@ -61,4 +61,5 @@ id_rsa*
 # Database dumps
 *.sql
 !schema.sql
+!migrations/*.sql
 CLAUDE.md
