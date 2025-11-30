@@ -581,13 +581,20 @@ func (h *Handler) handleAgentUpdate(ctx context.Context, task api.Task) (map[str
 	// We use a background process so we can return the result first
 	go func() {
 		time.Sleep(2 * time.Second) // Give time to send result
+
+		// Try direct systemctl first (if running as root)
 		restartCmd := exec.Command("systemctl", "restart", "phpborg-agent")
 		if err := restartCmd.Run(); err != nil {
-			log.Printf("[UPDATE] Failed to restart via systemd: %v", err)
-			// Try SIGHUP as fallback
-			if pid := os.Getpid(); pid > 0 {
-				proc, _ := os.FindProcess(pid)
-				proc.Signal(os.Interrupt)
+			log.Printf("[UPDATE] Direct systemctl failed: %v, trying with sudo...", err)
+
+			// Try with sudo (if agent has sudo rights for systemctl)
+			sudoCmd := exec.Command("sudo", "systemctl", "restart", "phpborg-agent")
+			if err := sudoCmd.Run(); err != nil {
+				log.Printf("[UPDATE] Sudo systemctl also failed: %v", err)
+
+				// Final fallback: just exit and let systemd restart us
+				log.Printf("[UPDATE] Exiting to let systemd restart with new binary...")
+				os.Exit(0)
 			}
 		}
 	}()

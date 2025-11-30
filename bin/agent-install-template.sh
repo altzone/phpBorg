@@ -180,6 +180,11 @@ phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/zfs list *
 phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/zfs snapshot *
 phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/zfs destroy *
 
+# Agent self-update (restart service)
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/systemctl restart phpborg-agent
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/systemctl stop phpborg-agent
+phpborg-agent ALL=(root) NOPASSWD: /usr/bin/systemctl start phpborg-agent
+
 # Restore operations (restricted paths)
 phpborg-agent ALL=(root) NOPASSWD: /usr/bin/mkdir -p /var/restore/*
 phpborg-agent ALL=(root) NOPASSWD: /usr/bin/rm -rf /var/restore/*
