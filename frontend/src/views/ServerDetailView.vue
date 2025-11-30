@@ -8,14 +8,14 @@
       <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
       </svg>
-      Retour aux serveurs
+      {{ $t('serverDetail.back_to_servers') }}
     </button>
 
     <!-- Loading State -->
     <div v-if="loading && !serverData" class="flex items-center justify-center h-96">
       <div class="text-center">
         <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 dark:border-gray-700 border-t-primary-600"></div>
-        <p class="mt-4 text-gray-500 dark:text-gray-400">Chargement du dashboard...</p>
+        <p class="mt-4 text-gray-500 dark:text-gray-400">{{ $t('serverDetail.loading_dashboard') }}</p>
       </div>
     </div>
 
@@ -24,8 +24,8 @@
       <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
-      <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Serveur introuvable</h3>
-      <p class="text-sm text-gray-500 dark:text-gray-400">Ce serveur n'existe pas ou a été supprimé.</p>
+      <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">{{ $t('serverDetail.server_not_found') }}</h3>
+      <p class="text-sm text-gray-500 dark:text-gray-400">{{ $t('serverDetail.server_not_found_desc') }}</p>
     </div>
 
     <!-- Dashboard Content -->
@@ -49,7 +49,7 @@
                     server.active ? 'bg-green-500/20 text-green-300' : 'bg-gray-500/20 text-gray-300'
                   ]"
                 >
-                  {{ server.active ? 'En ligne' : 'Hors ligne' }}
+                  {{ server.active ? $t('serverDetail.online') : $t('serverDetail.offline') }}
                 </span>
                 <span v-if="server.agent?.is_online" class="flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full bg-blue-500/20 text-blue-300">
                   <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
@@ -62,10 +62,10 @@
                     'flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full',
                     connectionType === 'sse' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-yellow-500/20 text-yellow-300'
                   ]"
-                  :title="connectionType === 'sse' ? 'Connexion temps réel active' : 'Mode polling (rafraîchissement toutes les 5s)'"
+                  :title="connectionType === 'sse' ? $t('serverDetail.live_tooltip') : $t('serverDetail.polling_tooltip')"
                 >
                   <span :class="['w-1.5 h-1.5 rounded-full', connectionType === 'sse' ? 'bg-emerald-400 animate-pulse' : 'bg-yellow-400']"></span>
-                  {{ connectionType === 'sse' ? 'Live' : 'Polling' }}
+                  {{ connectionType === 'sse' ? $t('serverDetail.live') : $t('serverDetail.polling') }}
                 </span>
               </div>
               <div class="flex items-center gap-4 mt-1 text-sm text-gray-300">
@@ -88,15 +88,15 @@
           <!-- OS Info -->
           <div v-if="system?.os" class="flex items-center gap-6 text-sm">
             <div class="text-right">
-              <div class="text-gray-400 text-xs uppercase tracking-wide">Système</div>
+              <div class="text-gray-400 text-xs uppercase tracking-wide">{{ $t('serverDetail.system') }}</div>
               <div class="font-medium">{{ system.os.distribution }} {{ system.os.version }}</div>
             </div>
             <div class="text-right">
-              <div class="text-gray-400 text-xs uppercase tracking-wide">Kernel</div>
+              <div class="text-gray-400 text-xs uppercase tracking-wide">{{ $t('serverDetail.kernel') }}</div>
               <div class="font-medium font-mono text-xs">{{ system.os.kernel }}</div>
             </div>
             <div class="text-right">
-              <div class="text-gray-400 text-xs uppercase tracking-wide">Uptime</div>
+              <div class="text-gray-400 text-xs uppercase tracking-wide">{{ $t('serverDetail.uptime') }}</div>
               <div class="font-medium">{{ system.uptime?.human || 'N/A' }}</div>
             </div>
           </div>
@@ -104,10 +104,10 @@
           <!-- Action Buttons -->
           <div v-if="authStore.isAdmin" class="flex gap-2">
             <button @click="showEditModal = true" class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors">
-              Modifier
+              {{ $t('serverDetail.edit') }}
             </button>
             <button @click="showDeleteModal = true" class="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg text-sm font-medium transition-colors">
-              Supprimer
+              {{ $t('serverDetail.delete') }}
             </button>
           </div>
         </div>
@@ -118,7 +118,7 @@
         <!-- CPU -->
         <div class="card p-4">
           <div class="flex items-center justify-between mb-3">
-            <span class="text-sm font-medium text-gray-500 dark:text-gray-400">CPU</span>
+            <span class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ $t('serverDetail.cpu') }}</span>
             <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
               <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
@@ -137,14 +137,14 @@
             ></div>
           </div>
           <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            {{ system?.cpu?.cores || 0 }} cores &bull; Load: {{ system?.cpu?.load_1?.toFixed(2) || '0.00' }}
+            {{ system?.cpu?.cores || 0 }} {{ $t('serverDetail.cores') }} &bull; {{ $t('serverDetail.load') }}: {{ system?.cpu?.load_1?.toFixed(2) || '0.00' }}
           </div>
         </div>
 
         <!-- Memory -->
         <div class="card p-4">
           <div class="flex items-center justify-between mb-3">
-            <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Mémoire</span>
+            <span class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ $t('serverDetail.memory') }}</span>
             <div class="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
               <svg class="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -170,7 +170,7 @@
         <!-- Disk -->
         <div class="card p-4">
           <div class="flex items-center justify-between mb-3">
-            <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Disque</span>
+            <span class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ $t('serverDetail.disk') }}</span>
             <div class="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
               <svg class="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
@@ -196,7 +196,7 @@
         <!-- Backups -->
         <div class="card p-4">
           <div class="flex items-center justify-between mb-3">
-            <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Backups</span>
+            <span class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ $t('serverDetail.backups') }}</span>
             <div class="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
               <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
@@ -208,11 +208,11 @@
           </div>
           <div class="mt-2 flex items-center gap-2">
             <span class="text-xs px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
-              {{ backupStats?.success_rate?.toFixed(0) || 100 }}% succès
+              {{ $t('serverDetail.success_rate', { rate: backupStats?.success_rate?.toFixed(0) || 100 }) }}
             </span>
           </div>
           <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            {{ formatBytes(backupStats?.storage_used || 0) }} utilisés
+            {{ formatBytes(backupStats?.storage_used || 0) }} {{ $t('serverDetail.used') }}
           </div>
         </div>
       </div>
@@ -224,17 +224,17 @@
           <!-- Resource History Chart -->
           <div class="card">
             <div class="flex items-center justify-between mb-4">
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Historique des ressources</h2>
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ $t('serverDetail.resource_history') }}</h2>
               <select
                 v-model="chartHours"
                 @change="fetchStatsHistory"
                 class="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
-                <option :value="1">1 heure</option>
-                <option :value="6">6 heures</option>
-                <option :value="24">24 heures</option>
-                <option :value="72">3 jours</option>
-                <option :value="168">7 jours</option>
+                <option :value="1">{{ $t('serverDetail.hour_1') }}</option>
+                <option :value="6">{{ $t('serverDetail.hours_6') }}</option>
+                <option :value="24">{{ $t('serverDetail.hours_24') }}</option>
+                <option :value="72">{{ $t('serverDetail.days_3') }}</option>
+                <option :value="168">{{ $t('serverDetail.days_7') }}</option>
               </select>
             </div>
 
@@ -252,32 +252,32 @@
                 <svg class="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
-                <p>Aucun historique disponible</p>
+                <p>{{ $t('serverDetail.no_history') }}</p>
               </div>
             </div>
           </div>
 
           <!-- Recent Backups -->
           <div class="card">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Derniers backups</h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ $t('serverDetail.recent_backups') }}</h2>
 
             <div v-if="recentBackups.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">
               <svg class="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
               </svg>
-              <p>Aucun backup enregistré</p>
+              <p>{{ $t('serverDetail.no_backups') }}</p>
             </div>
 
             <div v-else class="overflow-x-auto">
               <table class="w-full">
                 <thead>
                   <tr class="text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    <th class="pb-3">Archive</th>
-                    <th class="pb-3">Date</th>
-                    <th class="pb-3">Durée</th>
-                    <th class="pb-3">Taille</th>
-                    <th class="pb-3">Fichiers</th>
-                    <th class="pb-3">Dédup</th>
+                    <th class="pb-3">{{ $t('serverDetail.archive') }}</th>
+                    <th class="pb-3">{{ $t('serverDetail.date') }}</th>
+                    <th class="pb-3">{{ $t('serverDetail.duration') }}</th>
+                    <th class="pb-3">{{ $t('serverDetail.size') }}</th>
+                    <th class="pb-3">{{ $t('serverDetail.files') }}</th>
+                    <th class="pb-3">{{ $t('serverDetail.dedup') }}</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -309,17 +309,17 @@
         <div class="space-y-6">
           <!-- Storage Pools -->
           <div class="card">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Storage Pools</h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ $t('serverDetail.storage_pools') }}</h2>
 
             <div v-if="storagePools.length === 0" class="text-center py-6 text-gray-500 dark:text-gray-400 text-sm">
-              Aucun pool configuré
+              {{ $t('serverDetail.no_pools') }}
             </div>
 
             <div v-else class="space-y-4">
               <div v-for="pool in storagePools" :key="pool.id" class="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                 <div class="flex items-center justify-between mb-2">
                   <span class="font-medium text-gray-900 dark:text-white">{{ pool.name }}</span>
-                  <span class="text-sm text-gray-500 dark:text-gray-400">{{ pool.repository_count }} repo(s)</span>
+                  <span class="text-sm text-gray-500 dark:text-gray-400">{{ $t('serverDetail.repo_count', { count: pool.repository_count }) }}</span>
                 </div>
                 <div class="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                   <div
@@ -338,10 +338,10 @@
 
           <!-- Repositories -->
           <div class="card">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Repositories</h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ $t('serverDetail.repositories') }}</h2>
 
             <div v-if="repositories.length === 0" class="text-center py-6 text-gray-500 dark:text-gray-400 text-sm">
-              Aucun repository
+              {{ $t('serverDetail.no_repositories') }}
             </div>
 
             <div v-else class="space-y-3">
@@ -375,7 +375,7 @@
 
           <!-- Scheduled Jobs -->
           <div class="card" v-if="scheduledJobs.length > 0">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Jobs planifiés</h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ $t('serverDetail.scheduled_jobs') }}</h2>
 
             <div class="space-y-3">
               <div
@@ -390,7 +390,7 @@
                     v-if="job.isNext"
                     class="px-2 py-0.5 text-xs bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 rounded-full"
                   >
-                    Prochain
+                    {{ $t('serverDetail.next') }}
                   </span>
                 </div>
                 <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -400,11 +400,11 @@
                   <span>{{ formatSchedule(job) }}</span>
                 </div>
                 <div v-if="job.next_run_at" class="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                  <span class="font-medium">Prochaine exécution:</span>
+                  <span class="font-medium">{{ $t('serverDetail.next_execution') }}</span>
                   {{ formatDate(job.next_run_at) }}
                 </div>
                 <div v-if="job.last_run_at" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Dernier: {{ formatDate(job.last_run_at) }}
+                  {{ $t('serverDetail.last') }} {{ formatDate(job.last_run_at) }}
                   <span
                     v-if="job.last_status"
                     :class="[
@@ -423,7 +423,7 @@
 
           <!-- Capabilities -->
           <div class="card" v-if="capabilities">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Capacités détectées</h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ $t('serverDetail.capabilities') }}</h2>
 
             <div class="space-y-2">
               <div v-if="capabilities.databases?.mysql" class="flex items-center gap-2 text-sm">
@@ -444,7 +444,7 @@
               </div>
               <div v-if="capabilities.lvm?.available" class="flex items-center gap-2 text-sm">
                 <span class="w-2 h-2 rounded-full bg-purple-500"></span>
-                <span class="text-gray-700 dark:text-gray-300">LVM Snapshots</span>
+                <span class="text-gray-700 dark:text-gray-300">{{ $t('serverDetail.lvm_snapshots') }}</span>
               </div>
               <div v-if="capabilities.borg?.installed" class="flex items-center gap-2 text-sm">
                 <span class="w-2 h-2 rounded-full bg-amber-500"></span>
@@ -455,33 +455,33 @@
 
           <!-- System Info -->
           <div class="card">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Informations système</h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ $t('serverDetail.system_info') }}</h2>
 
             <dl class="space-y-3 text-sm">
               <div class="flex justify-between">
-                <dt class="text-gray-500 dark:text-gray-400">Hostname</dt>
+                <dt class="text-gray-500 dark:text-gray-400">{{ $t('serverDetail.hostname') }}</dt>
                 <dd class="text-gray-900 dark:text-white font-mono">{{ system?.os?.hostname || server.hostname }}</dd>
               </div>
               <div class="flex justify-between">
-                <dt class="text-gray-500 dark:text-gray-400">Architecture</dt>
+                <dt class="text-gray-500 dark:text-gray-400">{{ $t('serverDetail.architecture') }}</dt>
                 <dd class="text-gray-900 dark:text-white">{{ system?.os?.architecture || 'N/A' }}</dd>
               </div>
               <div class="flex justify-between">
-                <dt class="text-gray-500 dark:text-gray-400">CPU</dt>
+                <dt class="text-gray-500 dark:text-gray-400">{{ $t('serverDetail.cpu') }}</dt>
                 <dd class="text-gray-900 dark:text-white text-right text-xs">{{ system?.cpu?.model || 'N/A' }}</dd>
               </div>
               <div class="flex justify-between">
-                <dt class="text-gray-500 dark:text-gray-400">Swap</dt>
+                <dt class="text-gray-500 dark:text-gray-400">{{ $t('serverDetail.swap') }}</dt>
                 <dd class="text-gray-900 dark:text-white">
                   {{ formatMB(system?.swap?.used_mb) }} / {{ formatMB(system?.swap?.total_mb) }}
                 </dd>
               </div>
               <div class="flex justify-between">
-                <dt class="text-gray-500 dark:text-gray-400">Point de montage</dt>
+                <dt class="text-gray-500 dark:text-gray-400">{{ $t('serverDetail.mount_point') }}</dt>
                 <dd class="text-gray-900 dark:text-white font-mono">{{ system?.disk?.mount_point || '/' }}</dd>
               </div>
               <div class="flex justify-between">
-                <dt class="text-gray-500 dark:text-gray-400">Créé le</dt>
+                <dt class="text-gray-500 dark:text-gray-400">{{ $t('serverDetail.created_at') }}</dt>
                 <dd class="text-gray-900 dark:text-white">{{ formatDate(server.created_at) }}</dd>
               </div>
             </dl>
@@ -521,6 +521,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useSSE } from '@/composables/useSSE'
 import { serverService } from '@/services/server'
@@ -529,6 +530,7 @@ import ServerFormModal from '@/components/ServerFormModal.vue'
 import DeleteConfirmModal from '@/components/DeleteConfirmModal.vue'
 import RetentionModal from '@/components/RetentionModal.vue'
 
+const { t } = useI18n()
 const apexchart = VueApexCharts
 
 const route = useRoute()
@@ -748,7 +750,7 @@ async function fetchStatsHistory() {
 
 function formatSchedule(job) {
   if (job.cron_expression) {
-    return `Cron: ${job.cron_expression}`
+    return t('serverDetail.schedule_cron', { expr: job.cron_expression })
   }
 
   const scheduleType = job.schedule_type
@@ -756,16 +758,18 @@ function formatSchedule(job) {
 
   switch (scheduleType) {
     case 'daily':
-      return `Quotidien à ${time}`
+      return t('serverDetail.schedule_daily', { time })
     case 'weekly': {
-      const days = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+      const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
       const dayIndex = job.schedule_day_of_week || 1
-      return `Hebdo: ${days[dayIndex % 7]} à ${time}`
+      const dayKey = dayKeys[dayIndex % 7]
+      const day = t(`serverDetail.days.${dayKey}`)
+      return t('serverDetail.schedule_weekly', { day, time })
     }
     case 'monthly':
-      return `Mensuel: jour ${job.schedule_day_of_month || 1} à ${time}`
+      return t('serverDetail.schedule_monthly', { day: job.schedule_day_of_month || 1, time })
     case 'manual':
-      return 'Manuel'
+      return t('serverDetail.schedule_manual')
     default:
       return scheduleType
   }
