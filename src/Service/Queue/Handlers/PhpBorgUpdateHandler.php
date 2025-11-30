@@ -478,7 +478,15 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             $destBinary = "{$releasesDir}/{$binary}";
 
             if (file_exists($sourceBinary)) {
-                copy($sourceBinary, $destBinary);
+                if (!copy($sourceBinary, $destBinary)) {
+                    $this->logger->error("Failed to copy {$binary} to releases directory", 'PHPBORG_UPDATE', [
+                        'source' => $sourceBinary,
+                        'dest' => $destBinary,
+                        'releases_dir_writable' => is_writable($releasesDir),
+                        'releases_dir_owner' => posix_getpwuid(fileowner($releasesDir))['name'] ?? 'unknown',
+                    ]);
+                    continue;
+                }
                 chmod($destBinary, 0755);
 
                 // Generate checksum for agent binaries (not installer)
