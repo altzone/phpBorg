@@ -880,10 +880,11 @@ final class AgentGatewayController extends BaseController
 
         // Get registration token
         $settingsRepo = new \PhpBorg\Repository\SettingRepository($this->connection);
-        $registrationToken = $settingsRepo->get('agent.registration_token');
+        $setting = $settingsRepo->findByKey('agent.registration_token');
+        $registrationToken = $setting?->value;
         if (!$registrationToken) {
             $registrationToken = bin2hex(random_bytes(32));
-            $settingsRepo->set('agent.registration_token', $registrationToken);
+            $settingsRepo->create('agent.registration_token', $registrationToken, 'agent', 'string', 'Registration token for agents');
         }
 
         // Get optional agent name from query params
@@ -945,12 +946,13 @@ final class AgentGatewayController extends BaseController
     {
         // Get registration token from settings
         $settingsRepo = new \PhpBorg\Repository\SettingRepository($this->connection);
-        $validToken = $settingsRepo->get('agent.registration_token');
+        $setting = $settingsRepo->findByKey('agent.registration_token');
+        $validToken = $setting?->value;
 
         if (!$validToken) {
             // Generate a default token if not set
             $validToken = bin2hex(random_bytes(32));
-            $settingsRepo->set('agent.registration_token', $validToken);
+            $settingsRepo->create('agent.registration_token', $validToken, 'agent', 'string', 'Registration token for agents');
         }
 
         return hash_equals($validToken, $token);
