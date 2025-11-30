@@ -277,6 +277,38 @@
           </button>
         </div>
       </div>
+
+      <!-- Rebuild Docker (Adminer) -->
+      <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+        <div class="flex items-start justify-between">
+          <div class="flex-1 mr-4">
+            <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.maintenance.rebuild_docker') }}</h4>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.maintenance.rebuild_docker_desc') }}</p>
+            <div v-if="jobProgress['rebuild-docker']" class="mt-2">
+              <div class="flex items-center text-sm text-blue-600 dark:text-blue-400">
+                <span>{{ jobProgress['rebuild-docker'].message }}</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                <div class="bg-blue-600 h-1.5 rounded-full transition-all" :style="{ width: jobProgress['rebuild-docker'].progress + '%' }"></div>
+              </div>
+            </div>
+          </div>
+          <button
+            @click="runAction('rebuild-docker')"
+            :disabled="running['rebuild-docker']"
+            class="btn btn-secondary flex items-center shrink-0"
+          >
+            <svg v-if="running['rebuild-docker']" class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <svg v-else class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            </svg>
+            {{ $t('settings.maintenance.rebuild') }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Toast Notifications -->

@@ -333,6 +333,7 @@ try {
     $router->post('/maintenance/run-migrations', MaintenanceController::class, 'runMigrations', requireAuth: true);
     $router->post('/maintenance/recompute-stats', MaintenanceController::class, 'recomputeStats', requireAuth: true);
     $router->post('/maintenance/clear-cache', MaintenanceController::class, 'clearCache', requireAuth: true);
+    $router->post('/maintenance/rebuild-docker', MaintenanceController::class, 'rebuildDocker', requireAuth: true);
 
     // ===========================================
     // Agent Gateway API Routes (mTLS authenticated)

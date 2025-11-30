@@ -21,6 +21,7 @@ use PhpBorg\Service\Server\ServerStatsComputer;
  * - run_migrations: Run database migrations
  * - recompute_stats: Recompute backup stats for all servers
  * - clear_cache: Clear OPcache and app cache
+ * - rebuild_docker: Rebuild Docker images (Adminer)
  */
 final class MaintenanceHandler implements JobHandlerInterface
 {
@@ -52,6 +53,7 @@ final class MaintenanceHandler implements JobHandlerInterface
             'run_migrations' => $this->runMigrations($phpborgRoot, $queue, $job),
             'recompute_stats' => $this->recomputeStats($queue, $job),
             'clear_cache' => $this->clearCache($phpborgRoot, $queue, $job),
+            'rebuild_docker' => $this->rebuildDocker($phpborgRoot, $queue, $job),
             default => throw new \Exception("Unknown maintenance action: {$action}")
         };
     }
@@ -378,6 +380,55 @@ final class MaintenanceHandler implements JobHandlerInterface
         $this->logger->info($result, 'MAINTENANCE');
 
         return $result;
+    }
+
+    /**
+     * Rebuild Docker images (Adminer for Instant Recovery)
+     */
+    private function rebuildDocker(string $phpborgRoot, JobQueue $queue, Job $job): string
+    {
+        $dockerDir = "{$phpborgRoot}/docker";
+
+        if (!is_dir($dockerDir)) {
+            throw new \Exception("Docker directory not found: {$dockerDir}");
+        }
+
+        // Check if Docker is available
+        $output = [];
+        exec("which docker 2>&1", $output, $exitCode);
+        if ($exitCode !== 0) {
+            throw new \Exception("Docker is not installed");
+        }
+
+        $queue->updateProgress($job->id, 10, "Reconstruction de l'image Adminer...");
+        $this->logger->info("Building Adminer Docker image...", 'MAINTENANCE');
+
+        // Build Adminer image
+        $adminerDir = "{$dockerDir}/adminer";
+        if (!is_dir($adminerDir)) {
+            throw new \Exception("Adminer Docker directory not found: {$adminerDir}");
+        }
+
+        $output = [];
+        $cmd = "cd {$adminerDir} && sudo docker build --no-cache -t phpborg-adminer:latest . 2>&1";
+        exec($cmd, $output, $exitCode);
+
+        if ($exitCode !== 0) {
+            $this->logger->error("Adminer Docker build failed", 'MAINTENANCE', [
+                'output' => implode("\n", $output)
+            ]);
+            throw new \Exception("Docker build failed: " . implode("\n", array_slice($output, -5)));
+        }
+
+        $queue->updateProgress($job->id, 80, "Nettoyage des images inutilisées...");
+
+        // Prune dangling images
+        exec("sudo docker image prune -f 2>&1", $pruneOutput, $pruneExitCode);
+
+        $queue->updateProgress($job->id, 100, "Terminé");
+        $this->logger->info("Docker images rebuilt successfully", 'MAINTENANCE');
+
+        return "Image Docker Adminer reconstruite";
     }
 
     /**

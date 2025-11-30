@@ -961,6 +961,8 @@
       "recompute_stats_desc": "Recalculate backup statistics for all servers",
       "clear_cache": "Clear Cache",
       "clear_cache_desc": "Clear OPcache and application cache",
+      "rebuild_docker": "Rebuild Docker Adminer",
+      "rebuild_docker_desc": "Rebuild the Docker Adminer image for Instant Recovery",
       "restart": "Restart",
       "rebuild": "Rebuild",
       "install": "Install",

@@ -960,6 +960,8 @@
       "recompute_stats_desc": "Backup-Statistiken für alle Server neu berechnen",
       "clear_cache": "Cache leeren",
       "clear_cache_desc": "OPcache und Anwendungscache leeren",
+      "rebuild_docker": "Docker Adminer neu erstellen",
+      "rebuild_docker_desc": "Docker Adminer-Image für Instant Recovery neu erstellen",
       "restart": "Neustarten",
       "rebuild": "Neu erstellen",
       "install": "Installieren",

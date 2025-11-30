@@ -163,6 +163,26 @@ class MaintenanceController extends BaseController
     }
 
     /**
+     * POST /api/maintenance/rebuild-docker
+     * Create job to rebuild Docker images (Adminer)
+     */
+    public function rebuildDocker(): void
+    {
+        try {
+            $jobId = $this->jobQueue->push('maintenance', [
+                'action' => 'rebuild_docker'
+            ], 'default', 1);
+
+            $this->success([
+                'job_id' => $jobId,
+                'message' => 'Rebuild Docker job created'
+            ], 'Job created', 202);
+        } catch (\Exception $e) {
+            $this->error('Failed to create job: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
      * GET /api/maintenance/status
      * Get maintenance status (versions, last rebuild times, etc.)
      * This is synchronous as it just reads info
