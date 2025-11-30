@@ -178,7 +178,48 @@ final class JobQueue
                 'message' => $message,
                 'updated_at' => time()
             ]);
+
+            // Add to step history for UI to display all steps
+            $this->addProgressStep($jobId, $progress, $message);
         }
+    }
+
+    /**
+     * Add a step to the progress history
+     */
+    public function addProgressStep(int $jobId, int $progress, string $message): void
+    {
+        $key = "phpborg:job:{$jobId}:steps";
+        $step = json_encode([
+            'progress' => $progress,
+            'message' => $message,
+            'time' => round(microtime(true) * 1000) // milliseconds for frontend
+        ]);
+
+        // Add to list (max 50 steps)
+        $this->redis->rpush($key, $step);
+        $this->redis->ltrim($key, -50, -1);
+        $this->redis->expire($key, 3600);
+    }
+
+    /**
+     * Get all progress steps for a job
+     */
+    public function getProgressSteps(int $jobId): array
+    {
+        $key = "phpborg:job:{$jobId}:steps";
+        $steps = $this->redis->lrange($key, 0, -1);
+
+        return array_map(fn($step) => json_decode($step, true), $steps);
+    }
+
+    /**
+     * Clear progress steps for a job
+     */
+    public function clearProgressSteps(int $jobId): void
+    {
+        $key = "phpborg:job:{$jobId}:steps";
+        $this->redis->del($key);
     }
 
     /**

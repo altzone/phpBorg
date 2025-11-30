@@ -322,7 +322,11 @@ async function pollJobStatus() {
       // Get progress message from Redis (via progress_info)
       if (result.data.progress_info?.message && result.data.progress_info.message !== currentMessage.value) {
         currentMessage.value = result.data.progress_info.message
-        addStep(job.progress || 0, result.data.progress_info.message)
+      }
+
+      // Use server-provided steps (includes all steps even if quickly executed)
+      if (result.data.progress_steps && result.data.progress_steps.length > 0) {
+        steps.value = result.data.progress_steps
       }
 
       // Update status
@@ -359,13 +363,12 @@ function startPolling() {
   // Poll every 2 seconds
   pollingInterval = setInterval(pollJobStatus, 2000)
 
-  // Also subscribe to SSE for faster updates
+  // Also subscribe to SSE for faster message updates (steps come from server via polling)
   sseUnsubscribe = sseStore.subscribe('jobs', (data) => {
     if (data.job_id === props.jobId && data.progress_info) {
       progress.value = data.progress_info.progress || progress.value
       if (data.progress_info.message) {
         currentMessage.value = data.progress_info.message
-        addStep(data.progress_info.progress || 0, data.progress_info.message)
       }
     }
   })

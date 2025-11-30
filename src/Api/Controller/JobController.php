@@ -62,13 +62,16 @@ class JobController extends BaseController
 
             // Include real-time progress info from Redis for running jobs
             $progressInfo = null;
-            if ($job->status === 'running') {
+            $progressSteps = [];
+            if ($job->status === 'running' || $job->status === 'completed') {
                 $progressInfo = $this->jobQueue->getProgressInfo($jobId);
+                $progressSteps = $this->jobQueue->getProgressSteps($jobId);
             }
 
             $this->success([
                 'job' => $job->toArray(),
-                'progress_info' => $progressInfo
+                'progress_info' => $progressInfo,
+                'progress_steps' => $progressSteps
             ]);
         } catch (PhpBorgException $e) {
             $this->error($e->getMessage(), 500, 'JOB_DETAIL_ERROR');
