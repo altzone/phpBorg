@@ -209,11 +209,17 @@ class MaintenanceController extends BaseController
             $status['go_version'] = trim($goOutput[0] ?? 'unknown');
         }
 
-        // Node version (via NVM)
-        $nvmCmd = '/bin/bash -c "export NVM_DIR=/var/lib/phpborg/.nvm && source \$NVM_DIR/nvm.sh && node --version" 2>&1';
+        // Node version (via NVM with proper PATH)
+        $nvmCmd = '/bin/bash -c "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin && export NVM_DIR=/var/lib/phpborg/.nvm && source \$NVM_DIR/nvm.sh 2>/dev/null && node --version" 2>&1';
         exec($nvmCmd, $nodeOutput, $nodeExitCode);
-        if ($nodeExitCode === 0) {
-            $status['node_version'] = trim($nodeOutput[0] ?? 'unknown');
+        if ($nodeExitCode === 0 && !empty($nodeOutput)) {
+            // Filter out any warning lines, get just the version
+            foreach ($nodeOutput as $line) {
+                if (preg_match('/^v[\d.]+/', $line)) {
+                    $status['node_version'] = trim($line);
+                    break;
+                }
+            }
         }
 
         // Disk space

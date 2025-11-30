@@ -3,49 +3,51 @@
     <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ $t('settings.maintenance.title') }}</h3>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">{{ $t('settings.maintenance.description') }}</p>
 
-    <!-- Status Card -->
-    <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-6">
-      <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{{ $t('settings.maintenance.system_status') }}</h4>
-      <div v-if="loadingStatus" class="flex items-center text-gray-500">
+    <!-- Status Bar - Compact -->
+    <div class="mb-6">
+      <div v-if="loadingStatus" class="flex items-center text-gray-500 text-sm">
         <svg class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
         </svg>
         {{ $t('settings.maintenance.loading') }}
       </div>
-      <div v-else-if="status" class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-        <div>
-          <span class="text-gray-500 dark:text-gray-400">{{ $t('settings.maintenance.agent_version') }}:</span>
-          <span class="ml-2 font-mono text-gray-900 dark:text-gray-100">{{ status.agent_source_version || 'N/A' }}</span>
-        </div>
-        <div>
-          <span class="text-gray-500 dark:text-gray-400">{{ $t('settings.maintenance.agent_built') }}:</span>
-          <span class="ml-2 text-gray-900 dark:text-gray-100">{{ status.agent_binary_modified || 'N/A' }}</span>
-        </div>
-        <div>
-          <span class="text-gray-500 dark:text-gray-400">{{ $t('settings.maintenance.frontend_built') }}:</span>
-          <span class="ml-2 text-gray-900 dark:text-gray-100">{{ status.frontend_built || 'N/A' }}</span>
-        </div>
-        <div>
-          <span class="text-gray-500 dark:text-gray-400">PHP:</span>
-          <span class="ml-2 font-mono text-gray-900 dark:text-gray-100">{{ status.php_version || 'N/A' }}</span>
-        </div>
-        <div>
-          <span class="text-gray-500 dark:text-gray-400">Go:</span>
-          <span class="ml-2 font-mono text-gray-900 dark:text-gray-100">{{ formatGoVersion(status.go_version) }}</span>
-        </div>
-        <div>
-          <span class="text-gray-500 dark:text-gray-400">Node:</span>
-          <span class="ml-2 font-mono text-gray-900 dark:text-gray-100">{{ status.node_version || 'N/A' }}</span>
-        </div>
-        <div>
-          <span class="text-gray-500 dark:text-gray-400">{{ $t('settings.maintenance.disk_free') }}:</span>
-          <span class="ml-2 text-gray-900 dark:text-gray-100">{{ status.disk_free_gb }} GB</span>
-        </div>
-        <div>
-          <span class="text-gray-500 dark:text-gray-400">Workers:</span>
-          <span class="ml-2 text-gray-900 dark:text-gray-100">{{ status.workers_running }}/{{ status.workers_total }}</span>
-        </div>
+      <div v-else-if="status" class="flex flex-wrap gap-2">
+        <!-- Workers Status -->
+        <span :class="[
+          'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium',
+          status.workers_running === status.workers_total
+            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+            : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+        ]">
+          <span class="w-1.5 h-1.5 rounded-full mr-1.5" :class="status.workers_running === status.workers_total ? 'bg-green-500' : 'bg-yellow-500'"></span>
+          Workers {{ status.workers_running }}/{{ status.workers_total }}
+        </span>
+        <!-- Agent Version -->
+        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+          Agent v{{ status.agent_source_version || '?' }}
+        </span>
+        <!-- PHP -->
+        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+          PHP {{ status.php_version || '?' }}
+        </span>
+        <!-- Go -->
+        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400">
+          Go {{ formatGoVersion(status.go_version) }}
+        </span>
+        <!-- Node -->
+        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          Node {{ status.node_version || '?' }}
+        </span>
+        <!-- Disk -->
+        <span :class="[
+          'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium',
+          status.disk_free_gb > 10
+            ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+            : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+        ]">
+          {{ status.disk_free_gb }} GB free
+        </span>
       </div>
     </div>
 
