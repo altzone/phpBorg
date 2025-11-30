@@ -6,6 +6,7 @@ use PhpBorg\Application;
 use PhpBorg\Repository\SettingRepository;
 use PhpBorg\Exception\PhpBorgException;
 use PhpBorg\Logger\LoggerInterface;
+use PhpBorg\Service\Repository\EncryptionService;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -13,11 +14,13 @@ class EmailController extends BaseController
 {
     private readonly SettingRepository $settingRepository;
     private readonly LoggerInterface $logger;
+    private readonly EncryptionService $encryptionService;
 
     public function __construct(Application $app)
     {
         $this->settingRepository = new SettingRepository($app->getConnection());
         $this->logger = $app->getLogger();
+        $this->encryptionService = new EncryptionService($app->getConfig());
     }
 
     /**
@@ -103,7 +106,9 @@ class EmailController extends BaseController
                 if (!empty($smtpSettings['smtp.username']) && !empty($smtpSettings['smtp.password'])) {
                     $mail->SMTPAuth = true;
                     $mail->Username = $smtpSettings['smtp.username'];
-                    $mail->Password = $smtpSettings['smtp.password'];
+                    // Decrypt password if encrypted
+                    $password = $this->encryptionService->decrypt($smtpSettings['smtp.password']);
+                    $mail->Password = $password;
                     $this->logger->info("SMTP Auth enabled", 'EMAIL', ['username' => $smtpSettings['smtp.username']]);
                 } else {
                     $mail->SMTPAuth = false;

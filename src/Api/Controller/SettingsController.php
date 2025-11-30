@@ -7,6 +7,7 @@ namespace PhpBorg\Api\Controller;
 use PhpBorg\Application;
 use PhpBorg\Repository\SettingRepository;
 use PhpBorg\Exception\PhpBorgException;
+use PhpBorg\Service\Repository\EncryptionService;
 
 /**
  * Settings management API controller
@@ -14,10 +15,12 @@ use PhpBorg\Exception\PhpBorgException;
 class SettingsController extends BaseController
 {
     private readonly SettingRepository $settingRepository;
+    private readonly EncryptionService $encryptionService;
 
     public function __construct(Application $app)
     {
         $this->settingRepository = new SettingRepository($app->getConnection());
+        $this->encryptionService = new EncryptionService($app->getConfig());
     }
 
     /**
@@ -35,6 +38,16 @@ class SettingsController extends BaseController
 
             // Get all settings grouped by category
             $settings = $this->settingRepository->getAllGroupedByCategory();
+
+            // Map smtp -> email for frontend compatibility
+            if (isset($settings['smtp'])) {
+                $settings['email'] = $settings['smtp'];
+                unset($settings['smtp']);
+                // Decrypt password for display (masked)
+                if (isset($settings['email']['smtp.password'])) {
+                    $settings['email']['smtp.password'] = $this->encryptionService->decrypt($settings['email']['smtp.password']);
+                }
+            }
 
             $this->success(['settings' => $settings]);
         } catch (PhpBorgException $e) {
@@ -69,7 +82,12 @@ class SettingsController extends BaseController
             // Convert to key-value array
             $result = [];
             foreach ($settings as $setting) {
-                $result[$setting->key] = $setting->getTypedValue();
+                $value = $setting->getTypedValue();
+                // Decrypt password
+                if ($setting->key === 'smtp.password' && !empty($value)) {
+                    $value = $this->encryptionService->decrypt($value);
+                }
+                $result[$setting->key] = $value;
             }
 
             $this->success([
@@ -181,16 +199,22 @@ class SettingsController extends BaseController
                 // Determine the actual storage category (email -> smtp)
                 $storageCategory = ($category === 'email') ? 'smtp' : $category;
 
+                // Encrypt password before storage
+                $valueToStore = $value;
+                if ($key === 'smtp.password' && !empty($value)) {
+                    $valueToStore = $this->encryptionService->encrypt($value);
+                }
+
                 // Check if setting exists
                 $setting = $this->settingRepository->findByKey($key);
                 if ($setting) {
                     // Update existing
-                    $this->settingRepository->updateValue($key, $value);
+                    $this->settingRepository->updateValue($key, $valueToStore);
                 } else {
                     // Create new setting (create() handles value formatting)
                     $this->settingRepository->create(
                         $key,
-                        $value,
+                        $valueToStore,
                         $storageCategory,
                         $type,
                         $settingDef['description'] ?? ''
@@ -203,7 +227,12 @@ class SettingsController extends BaseController
             $settings = $this->settingRepository->findByCategory($fetchCategory);
             $result = [];
             foreach ($settings as $setting) {
-                $result[$setting->key] = $setting->getTypedValue();
+                $value = $setting->getTypedValue();
+                // Decrypt password for response
+                if ($setting->key === 'smtp.password' && !empty($value)) {
+                    $value = $this->encryptionService->decrypt($value);
+                }
+                $result[$setting->key] = $value;
             }
 
             $this->success(

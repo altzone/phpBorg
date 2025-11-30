@@ -34,18 +34,15 @@ final class EncryptionService
     }
 
     /**
-     * Encrypt passphrase for storage
+     * Encrypt passphrase for storage (legacy - base64 only)
      */
     public function encryptPassphrase(string $passphrase): string
     {
-        // For database storage, we use TO_BASE64() in SQL
-        // This is a simple encoding, not encryption
-        // For true encryption, consider using sodium_crypto_secretbox
         return base64_encode($passphrase);
     }
 
     /**
-     * Decrypt passphrase from storage
+     * Decrypt passphrase from storage (legacy - base64 only)
      */
     public function decryptPassphrase(string $encrypted): string
     {
@@ -54,6 +51,53 @@ final class EncryptionService
             throw new RuntimeException('Failed to decode passphrase');
         }
         return $decoded;
+    }
+
+    /**
+     * Encrypt sensitive data using AES-256-CBC with APP_SECRET
+     */
+    public function encrypt(string $plaintext): string
+    {
+        $key = $this->getEncryptionKey();
+        $iv = random_bytes(16);
+        $encrypted = openssl_encrypt($plaintext, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
+        if ($encrypted === false) {
+            throw new RuntimeException('Encryption failed');
+        }
+        return base64_encode($iv . $encrypted);
+    }
+
+    /**
+     * Decrypt sensitive data using AES-256-CBC with APP_SECRET
+     */
+    public function decrypt(string $ciphertext): string
+    {
+        // Check if it looks like encrypted data (base64, min length)
+        if (strlen($ciphertext) < 24 || !preg_match('/^[a-zA-Z0-9+\/=]+$/', $ciphertext)) {
+            return $ciphertext; // Not encrypted, return as-is
+        }
+
+        try {
+            $key = $this->getEncryptionKey();
+            $data = base64_decode($ciphertext, true);
+            if ($data === false || strlen($data) < 17) {
+                return $ciphertext; // Not valid encrypted data
+            }
+            $iv = substr($data, 0, 16);
+            $encrypted = substr($data, 16);
+            $decrypted = openssl_decrypt($encrypted, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
+            return $decrypted !== false ? $decrypted : $ciphertext;
+        } catch (\Exception $e) {
+            return $ciphertext; // Return as-is on error
+        }
+    }
+
+    /**
+     * Get encryption key derived from APP_SECRET
+     */
+    private function getEncryptionKey(): string
+    {
+        return hash('sha256', $this->config->appSecret, true);
     }
 
     /**
