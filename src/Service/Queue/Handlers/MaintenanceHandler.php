@@ -8,7 +8,7 @@ use PhpBorg\Config\Configuration;
 use PhpBorg\Entity\Job;
 use PhpBorg\Logger\LoggerInterface;
 use PhpBorg\Service\Queue\JobQueue;
-use PhpBorg\Service\ServerStatsComputer;
+use PhpBorg\Service\Server\ServerStatsComputer;
 
 /**
  * Handler for maintenance tasks
