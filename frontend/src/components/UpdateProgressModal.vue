@@ -134,10 +134,10 @@
                   <span class="text-gray-700 dark:text-gray-300 flex-1">{{ step.message }}</span>
                   <span
                     class="font-mono whitespace-nowrap"
-                    :class="index === 0 ? 'text-gray-400' : 'text-emerald-600 dark:text-emerald-400'"
+                    :class="getStepDuration(index) ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'"
                     :title="formatTime(step.time)"
                   >
-                    {{ index === 0 ? '—' : getStepDuration(index) }}
+                    {{ getStepDuration(index) || '—' }}
                   </span>
                 </div>
                 <!-- Total duration -->
@@ -256,18 +256,19 @@ function formatDuration(ms) {
 }
 
 function getStepDuration(index) {
-  if (index === 0) {
-    return null // First step has no previous to compare
-  }
-
   const currentStep = steps.value[index]
-  const previousStep = steps.value[index - 1]
+  const nextStep = steps.value[index + 1]
 
-  if (!currentStep || !previousStep) {
+  if (!currentStep) {
     return null
   }
 
-  const duration = currentStep.time - previousStep.time
+  // Last step has no next step to compare - show dash
+  if (!nextStep) {
+    return null
+  }
+
+  const duration = nextStep.time - currentStep.time
   return formatDuration(duration)
 }
 
