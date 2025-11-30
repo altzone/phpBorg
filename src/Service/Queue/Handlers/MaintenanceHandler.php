@@ -57,41 +57,34 @@ final class MaintenanceHandler implements JobHandlerInterface
     }
 
     /**
-     * Restart all workers via systemd
+     * Restart all workers via systemd path unit
+     * Uses flag file mechanism to avoid killing the worker processing this job
      */
     private function restartWorkers(JobQueue $queue, Job $job): string
     {
-        $queue->updateProgress($job->id, 10, "Arrêt des workers...");
-        $this->logger->info("Stopping workers...", 'MAINTENANCE');
+        $phpborgRoot = $this->getPhpBorgRoot();
 
-        // Stop workers 1-4
-        for ($i = 1; $i <= 4; $i++) {
-            exec("sudo systemctl stop phpborg-worker@{$i} 2>&1", $output, $exitCode);
+        $queue->updateProgress($job->id, 50, "Demande de redémarrage...");
+        $this->logger->info("Requesting workers restart via flag file...", 'MAINTENANCE');
+
+        // Use phpborg var directory - systemd path unit monitors this file
+        $flagFile = $phpborgRoot . '/var/restart-needed';
+
+        // Create restart flag with metadata
+        $metadata = [
+            'requested_at' => date('Y-m-d H:i:s'),
+            'requested_by' => 'maintenance',
+        ];
+
+        if (file_put_contents($flagFile, json_encode($metadata, JSON_PRETTY_PRINT)) === false) {
+            $this->logger->error("Failed to create restart flag file", 'MAINTENANCE');
+            throw new \Exception("Failed to request services restart");
         }
 
-        $queue->updateProgress($job->id, 50, "Démarrage des workers...");
-        $this->logger->info("Starting workers...", 'MAINTENANCE');
+        $queue->updateProgress($job->id, 100, "Redémarrage planifié");
+        $this->logger->info("Workers restart requested via systemd path unit", 'MAINTENANCE');
 
-        // Start workers 1-4
-        for ($i = 1; $i <= 4; $i++) {
-            exec("sudo systemctl start phpborg-worker@{$i} 2>&1", $output, $exitCode);
-        }
-
-        $queue->updateProgress($job->id, 90, "Vérification des workers...");
-
-        // Check status
-        $running = 0;
-        for ($i = 1; $i <= 4; $i++) {
-            exec("systemctl is-active phpborg-worker@{$i} 2>&1", $output, $exitCode);
-            if ($exitCode === 0) {
-                $running++;
-            }
-        }
-
-        $queue->updateProgress($job->id, 100, "Terminé");
-        $this->logger->info("Workers restarted", 'MAINTENANCE', ['running' => $running]);
-
-        return "Workers redémarrés: {$running}/4 actifs";
+        return "Redémarrage des workers planifié (via systemd)";
     }
 
     /**
@@ -335,7 +328,7 @@ final class MaintenanceHandler implements JobHandlerInterface
         $queue->updateProgress($job->id, 10, "Recalcul des statistiques...");
         $this->logger->info("Recomputing all server stats...", 'MAINTENANCE');
 
-        $count = $this->statsComputer->recomputeAllStats();
+        $count = $this->statsComputer->recomputeAll();
 
         $queue->updateProgress($job->id, 100, "Terminé");
         $this->logger->info("Stats recomputed", 'MAINTENANCE', ['servers' => $count]);
