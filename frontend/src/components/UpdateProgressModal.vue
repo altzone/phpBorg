@@ -133,13 +133,12 @@
                   <span class="text-gray-400 font-mono w-8">{{ step.progress }}%</span>
                   <span class="text-gray-700 dark:text-gray-300 flex-1">{{ step.message }}</span>
                   <span
-                    v-if="getStepDuration(index)"
-                    class="text-emerald-600 dark:text-emerald-400 font-mono whitespace-nowrap"
+                    class="font-mono whitespace-nowrap"
+                    :class="index === 0 ? 'text-gray-400' : 'text-emerald-600 dark:text-emerald-400'"
                     :title="formatTime(step.time)"
                   >
-                    {{ getStepDuration(index) }}
+                    {{ index === 0 ? '—' : getStepDuration(index) }}
                   </span>
-                  <span v-else class="text-gray-400 font-mono whitespace-nowrap">{{ formatTime(step.time) }}</span>
                 </div>
                 <!-- Total duration -->
                 <div v-if="steps.length > 1" class="flex items-center justify-end gap-2 pt-2 mt-2 border-t border-gray-300 dark:border-gray-600">
