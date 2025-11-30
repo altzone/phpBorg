@@ -682,28 +682,36 @@ const chartOptions = computed(() => {
 const chartSeries = computed(() => {
   if (statsHistory.value.length === 0) return []
 
-  // Reverse to have chronological order (oldest first)
-  const history = [...statsHistory.value].reverse()
+  // Data is already in chronological order from backend
+  const history = statsHistory.value
+
+  // Helper to parse MySQL datetime format "YYYY-MM-DD HH:MM:SS" to timestamp
+  const parseTimestamp = (ts) => {
+    if (!ts) return Date.now()
+    // Replace space with T for ISO format compatibility
+    const isoDate = ts.replace(' ', 'T')
+    return new Date(isoDate).getTime()
+  }
 
   return [
     {
       name: 'CPU',
       data: history.map(stat => ({
-        x: new Date(stat.collected_at || stat.created_at).getTime(),
-        y: parseFloat(stat.cpu_usage) || parseFloat(stat.cpu_usage_percent) || 0
+        x: parseTimestamp(stat.timestamp),
+        y: parseFloat(stat.cpu_usage) || 0
       }))
     },
     {
       name: 'Mémoire',
       data: history.map(stat => ({
-        x: new Date(stat.collected_at || stat.created_at).getTime(),
+        x: parseTimestamp(stat.timestamp),
         y: parseFloat(stat.memory_percent) || 0
       }))
     },
     {
       name: 'Disque',
       data: history.map(stat => ({
-        x: new Date(stat.collected_at || stat.created_at).getTime(),
+        x: parseTimestamp(stat.timestamp),
         y: parseFloat(stat.disk_percent) || 0
       }))
     }
