@@ -151,6 +151,14 @@ phpborg ALL=(phpborg-borg) NOPASSWD: /bin/mkdir -p /var/lib/phpborg/mounts/*
 phpborg ALL=(phpborg-borg) NOPASSWD: /bin/rmdir /var/lib/phpborg/mounts/*
 phpborg ALL=(ALL) NOPASSWD: /bin/rm -rf /var/lib/phpborg/mounts/*
 phpborg ALL=(ALL) NOPASSWD: /bin/umount -l /var/lib/phpborg/mounts/*
+
+# Web interface (www-data via PHP-FPM) - read-only status checks
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl status phpborg-*
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl is-active phpborg-*
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl is-enabled phpborg-*
+www-data ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-* -n * --since * --output *
+www-data ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-* -n *
+www-data ALL=(ALL) NOPASSWD: /bin/journalctl -u phpborg-*
 EOF
 
     chmod 440 "${sudoers_file}"
