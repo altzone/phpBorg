@@ -643,13 +643,14 @@ async function updateAgent(server) {
 
   const oldVersion = server.agent.version
   const targetVersion = server.agent.latest_version
+  const serverId = server.id
 
-  updatingAgent.value[server.id] = true
-  pendingAgentUpdates.value[server.id] = { oldVersion, targetVersion }
+  updatingAgent.value[serverId] = true
+  pendingAgentUpdates.value[serverId] = { oldVersion, targetVersion }
 
   try {
     // Trigger agent update task
-    await api.post(`/servers/${server.id}/agent/update`)
+    await api.post(`/servers/${serverId}/agent/update`)
 
     showToast(
       '✓ Mise à jour lancée',
@@ -657,23 +658,63 @@ async function updateAgent(server) {
       'success'
     )
 
-    // Timeout after 60 seconds if update doesn't complete
-    setTimeout(() => {
-      if (updatingAgent.value[server.id]) {
-        updatingAgent.value[server.id] = false
-        delete pendingAgentUpdates.value[server.id]
-        showToast(
-          'Timeout',
-          `La mise à jour de l'agent semble prendre du temps. Vérifiez les logs.`,
-          'warning',
-          8000
-        )
+    // Poll for version change every 5 seconds (more reliable than SSE alone)
+    let pollCount = 0
+    const maxPolls = 24 // 24 * 5s = 120 seconds max
+    const pollInterval = setInterval(async () => {
+      pollCount++
+
+      // Check if already completed (by SSE)
+      if (!updatingAgent.value[serverId]) {
+        clearInterval(pollInterval)
+        return
       }
-    }, 60000)
+
+      // Timeout after max polls
+      if (pollCount >= maxPolls) {
+        clearInterval(pollInterval)
+        if (updatingAgent.value[serverId]) {
+          updatingAgent.value[serverId] = false
+          delete pendingAgentUpdates.value[serverId]
+          showToast(
+            'Timeout',
+            `La mise à jour de l'agent semble prendre du temps. Vérifiez les logs.`,
+            'warning',
+            8000
+          )
+        }
+        return
+      }
+
+      // Fetch current server state
+      try {
+        const response = await api.get(`/servers/${serverId}`)
+        const serverData = response.data?.data?.server || response.data?.server
+        if (serverData?.agent?.version && serverData.agent.version !== oldVersion) {
+          clearInterval(pollInterval)
+          updatingAgent.value[serverId] = false
+          delete pendingAgentUpdates.value[serverId]
+
+          // Update store
+          const storeServer = serverStore.servers.find(s => s.id === serverId)
+          if (storeServer) {
+            storeServer.agent = serverData.agent
+          }
+
+          showToast(
+            '✓ Agent mis à jour',
+            `${server.name} mis à jour vers v${serverData.agent.version}`,
+            'success'
+          )
+        }
+      } catch (e) {
+        // Ignore polling errors, will retry
+      }
+    }, 5000)
 
   } catch (err) {
-    updatingAgent.value[server.id] = false
-    delete pendingAgentUpdates.value[server.id]
+    updatingAgent.value[serverId] = false
+    delete pendingAgentUpdates.value[serverId]
     showToast(
       'Erreur',
       err.response?.data?.error?.message || 'Échec de la mise à jour de l\'agent',
@@ -681,7 +722,6 @@ async function updateAgent(server) {
       8000
     )
   }
-  // Note: spinner stays until SSE shows version changed (see checkPendingUpdates)
 }
 
 // Check if pending updates completed (called when SSE updates servers)
