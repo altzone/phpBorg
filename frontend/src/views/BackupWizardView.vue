@@ -212,11 +212,11 @@
                       </div>
                       <div>
                         <span class="font-medium">{{ $t('backup_wizard.source_config.db_snapshot_size') }}</span>
-                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mysql').snapshot_size?.recommended_size || 'N/A' }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mysql').volume?.vg_free_human || 'N/A' }}</span>
                       </div>
                       <div>
                         <span class="font-medium">{{ $t('backup_wizard.source_config.db_datadir_size') }}</span>
-                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mysql').snapshot_size?.datadir_size || 'N/A' }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mysql').datadir_size_human || 'N/A' }}</span>
                       </div>
                     </div>
                     <p class="text-green-700 dark:text-green-400 mt-2 text-xs">
@@ -340,11 +340,11 @@
                       </div>
                       <div>
                         <span class="font-medium">{{ $t('backup_wizard.source_config.db_snapshot_size') }}</span>
-                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('postgresql').snapshot_size?.recommended_size || 'N/A' }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('postgresql').volume?.vg_free_human || 'N/A' }}</span>
                       </div>
                       <div>
                         <span class="font-medium">{{ $t('backup_wizard.source_config.db_datadir_size') }}</span>
-                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('postgresql').snapshot_size?.datadir_size || 'N/A' }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('postgresql').datadir_size_human || 'N/A' }}</span>
                       </div>
                     </div>
                     <p class="text-green-700 dark:text-green-400 mt-2 text-xs">
@@ -432,11 +432,11 @@
                       </div>
                       <div>
                         <span class="font-medium">{{ $t('backup_wizard.source_config.db_snapshot_size') }}</span>
-                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mongodb').snapshot_size?.recommended_size || 'N/A' }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mongodb').volume?.vg_free_human || 'N/A' }}</span>
                       </div>
                       <div>
                         <span class="font-medium">{{ $t('backup_wizard.source_config.db_datadir_size') }}</span>
-                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mongodb').snapshot_size?.datadir_size || 'N/A' }}</span>
+                        <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mongodb').datadir_size_human || 'N/A' }}</span>
                       </div>
                     </div>
                     <p class="text-green-700 dark:text-green-400 mt-2 text-xs">
