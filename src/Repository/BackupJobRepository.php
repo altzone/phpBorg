@@ -426,7 +426,7 @@ final class BackupJobRepository
             ];
         }
 
-        // Get stats from job_queue for these jobs
+        // Get stats from jobs table for these backup jobs
         $placeholders = implode(',', array_fill(0, count($jobIds), '?'));
         $params = array_merge(
             array_map(fn($j) => (int)$j['id'], $jobIds),
@@ -438,7 +438,7 @@ final class BackupJobRepository
                 COUNT(*) as total,
                 SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as successful,
                 SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
-             FROM job_queue
+             FROM jobs
              WHERE type = 'backup'
              AND JSON_EXTRACT(payload, '$.job_id') IN ($placeholders)
              AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)",
