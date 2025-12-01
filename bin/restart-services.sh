@@ -65,6 +65,19 @@ update_sudoers_from_template "backup-server"
 update_sudoers_from_template "agent-worker"
 update_sudoers_from_template "www-data"
 
+# Fix logrotate config if needed (www-data needs write access to logs)
+LOGROTATE_FILE="/etc/logrotate.d/phpborg"
+if [ -f "$LOGROTATE_FILE" ]; then
+    if grep -q "create 0644 phpborg phpborg" "$LOGROTATE_FILE" 2>/dev/null; then
+        log "Fixing logrotate config for www-data write access..."
+        sed -i 's/create 0644 phpborg phpborg/create 0664 phpborg www-data/' "$LOGROTATE_FILE"
+        # Also fix current log file permissions
+        chown phpborg:www-data /var/log/phpborg/*.log 2>/dev/null || true
+        chmod 664 /var/log/phpborg/*.log 2>/dev/null || true
+        log "Logrotate config fixed"
+    fi
+fi
+
 # Update systemd service files from repository (may have changed)
 log "Syncing systemd service files from repository..."
 SYSTEMD_DIR="$PHPBORG_ROOT/systemd"

@@ -388,7 +388,7 @@ setup_log_rotation() {
     delaycompress
     notifempty
     missingok
-    create 0644 phpborg phpborg
+    create 0664 phpborg www-data
     sharedscripts
     postrotate
         systemctl reload phpborg-scheduler phpborg-worker@* 2>/dev/null || true
