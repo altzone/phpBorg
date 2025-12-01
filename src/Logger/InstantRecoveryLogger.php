@@ -20,13 +20,14 @@ final class InstantRecoveryLogger
         $this->settingRepo = $settingRepo;
 
         // Use provided path, or get from settings, or use default
+        // Default is now in /var/log/phpborg/ which has proper permissions and logrotate
         if ($logFile !== null) {
             $this->logFile = $logFile;
         } elseif ($settingRepo !== null) {
             $setting = $settingRepo->findByKey('logs.instant_recovery_path');
-            $this->logFile = $setting ? $setting->value : '/var/log/phpborg_instant_recovery.log';
+            $this->logFile = $setting ? $setting->value : '/var/log/phpborg/instant_recovery.log';
         } else {
-            $this->logFile = '/var/log/phpborg_instant_recovery.log';
+            $this->logFile = '/var/log/phpborg/instant_recovery.log';
         }
     }
 

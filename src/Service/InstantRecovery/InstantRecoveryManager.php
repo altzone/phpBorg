@@ -656,20 +656,53 @@ final class InstantRecoveryManager
      */
     private function startMySQL(Server $server, string $dataDir, int $port, string $deploymentLocation, string $borgMount): array
     {
-        // Detect MySQL/MariaDB version from datadir
-        $version = $this->detectMySQLVersion($server, $dataDir, $deploymentLocation);
+        // PRIORITY 1: Use server capabilities if available (highest confidence)
+        $capabilitiesDetection = $this->detectMySQLFromCapabilities($server);
+
+        if ($capabilitiesDetection !== null) {
+            $version = $capabilitiesDetection['version'];
+            $isMariaDB = $capabilitiesDetection['is_mariadb'];
+            $confidence = 'very_high';
+            $this->logger->info(sprintf(
+                "Using server capabilities for MySQL/MariaDB detection: %s %s",
+                $isMariaDB ? 'MariaDB' : 'MySQL',
+                $version
+            ), $server->name);
+        } else {
+            // PRIORITY 2: Detect from backup datadir (fallback)
+            $this->logger->info("No server capabilities available, detecting from backup datadir", $server->name);
+            $detection = $this->detectMySQLVersionAndType($server, $dataDir, $deploymentLocation);
+            $version = $detection['version'];
+            $isMariaDB = $detection['is_mariadb'];
+            $confidence = $detection['confidence'];
+        }
+
         if (!$version) {
             throw new BackupException("Could not detect MySQL/MariaDB version from datadir: {$dataDir}");
         }
 
-        // Determine if it's MySQL or MariaDB
-        $isMariaDB = $this->isMySQLMariaDB($server, $dataDir, $deploymentLocation);
+        // Log warning if detection confidence is low
+        if ($confidence === 'low') {
+            $this->logger->warning(sprintf(
+                "Low confidence MySQL/MariaDB detection! Detected as %s %s. " .
+                "If instant recovery fails, the backup might be from a different database engine.",
+                $isMariaDB ? 'MariaDB' : 'MySQL',
+                $version
+            ), $server->name);
+        }
+
         $image = $isMariaDB ? "mariadb:{$version}" : "mysql:{$version}";
 
         // Container name with unique ID
         $containerName = "phpborg_instant_mysql_" . uniqid();
 
-        $this->logger->info("Starting {$image} container '{$containerName}' on port {$port}", $server->name);
+        $this->logger->info(sprintf(
+            "Starting %s container '%s' on port %d (detection confidence: %s)",
+            $image,
+            $containerName,
+            $port,
+            $confidence
+        ), $server->name);
 
         // Create fuse-overlayfs for RW layer (same as PostgreSQL)
         // Architecture: Borg FUSE (read-only) → fuse-overlayfs (RW layer) → Docker
@@ -1399,6 +1432,85 @@ final class InstantRecoveryManager
     }
 
     /**
+     * Detect MySQL/MariaDB version and type from server capabilities
+     * This is the most reliable source as it comes from the actual running server
+     *
+     * @return array{version: string, is_mariadb: bool}|null
+     */
+    private function detectMySQLFromCapabilities(Server $server): ?array
+    {
+        if (!$server->capabilitiesData) {
+            $this->logger->info("No capabilities data available for server", $server->name);
+            return null;
+        }
+
+        $capabilities = json_decode($server->capabilitiesData, true);
+        if (!$capabilities || !isset($capabilities['databases'])) {
+            $this->logger->info("No databases in capabilities data", $server->name);
+            return null;
+        }
+
+        // Find MySQL/MariaDB in databases array
+        foreach ($capabilities['databases'] as $db) {
+            if (!isset($db['type']) || $db['type'] !== 'mysql') {
+                continue;
+            }
+
+            if (!isset($db['version']) || empty($db['version'])) {
+                $this->logger->warning("MySQL found in capabilities but no version info", $server->name);
+                continue;
+            }
+
+            $versionString = $db['version'];
+            $this->logger->info("Raw version from capabilities: {$versionString}", $server->name);
+
+            // Parse version string
+            // MySQL format: "mysql  Ver 8.0.32-0ubuntu0.22.04.2 for Linux on x86_64 ((Ubuntu))"
+            // MariaDB format: "mysql  Ver 15.1 Distrib 10.6.12-MariaDB, for debian-linux-gnu (x86_64)"
+
+            $isMariaDB = stripos($versionString, 'mariadb') !== false;
+
+            // Extract version number
+            $version = null;
+
+            if ($isMariaDB) {
+                // MariaDB: look for "Distrib X.Y.Z-MariaDB"
+                if (preg_match('/Distrib\s+(\d+\.\d+)/', $versionString, $matches)) {
+                    $version = $matches[1];
+                }
+            } else {
+                // MySQL: look for "Ver X.Y.Z" (but not "Ver 15.1" which is MariaDB client version)
+                if (preg_match('/Ver\s+(\d+\.\d+)/', $versionString, $matches)) {
+                    $potentialVersion = $matches[1];
+                    // MariaDB client reports "Ver 15.1" - real MySQL is 5.x or 8.x
+                    if ($potentialVersion !== '15.1' && (str_starts_with($potentialVersion, '5.') || str_starts_with($potentialVersion, '8.'))) {
+                        $version = $potentialVersion;
+                    }
+                }
+            }
+
+            if (!$version) {
+                $this->logger->warning("Could not parse version from capabilities: {$versionString}", $server->name);
+                return null;
+            }
+
+            $this->logger->info(sprintf(
+                "Detected from capabilities: %s %s",
+                $isMariaDB ? 'MariaDB' : 'MySQL',
+                $version
+            ), $server->name);
+
+            return [
+                'version' => $version,
+                'is_mariadb' => $isMariaDB
+            ];
+        }
+
+        $this->logger->info("No MySQL database found in capabilities", $server->name);
+        return null;
+    }
+
+    /**
      * Detect PostgreSQL version from datadir path
      * Example: /var/lib/postgresql/12/main -> 12
      */
@@ -1412,58 +1524,221 @@ final class InstantRecoveryManager
 
     /**
      * Detect MySQL/MariaDB version from datadir
+     *
+     * @return array{version: string, is_mariadb: bool, confidence: string}
      */
-    private function detectMySQLVersion(Server $server, string $dataDir, string $deploymentLocation): ?string
+    private function detectMySQLVersionAndType(Server $server, string $dataDir, string $deploymentLocation): array
     {
-        // Check for mysql_upgrade_info file which contains version
+        // First, detect if it's MariaDB or MySQL
+        $typeInfo = $this->detectMySQLType($server, $dataDir, $deploymentLocation);
+        $isMariaDB = $typeInfo['is_mariadb'];
+        $confidence = $typeInfo['confidence'];
+
+        // Now extract version from mysql_upgrade_info
         $versionFile = $dataDir . '/mysql_upgrade_info';
-        $checkCmd = "test -f {$versionFile} && cat {$versionFile}";
+        $checkCmd = "test -f " . escapeshellarg($versionFile) . " && cat " . escapeshellarg($versionFile);
         $result = $this->execute($server, $checkCmd, 10, $deploymentLocation, true);
 
-        if ($result['exitCode'] === 0 && !empty($result['stdout'])) {
-            $version = trim($result['stdout']);
-            $this->logger->info("Detected MySQL version from mysql_upgrade_info: {$version}", $server->name);
+        if ($result['exitCode'] === 0 && !empty(trim($result['stdout']))) {
+            $versionContent = trim($result['stdout']);
+            $this->logger->info("Raw version from mysql_upgrade_info: {$versionContent}", $server->name);
 
-            // Extract major.minor version (e.g., "8.0.32-0ubuntu0.20.04.2" -> "8.0")
-            if (preg_match('/^(\d+\.\d+)/', $version, $matches)) {
-                return $matches[1];
+            if ($isMariaDB) {
+                // MariaDB format examples:
+                // "10.6.12-MariaDB"
+                // "10.11.2-MariaDB-1:10.11.2+maria~ubu2204"
+                if (preg_match('/^(\d+\.\d+)/', $versionContent, $matches)) {
+                    $version = $matches[1];
+                    $this->logger->info("Detected MariaDB version: {$version}", $server->name);
+                    return ['version' => $version, 'is_mariadb' => true, 'confidence' => $confidence];
+                }
+            } else {
+                // MySQL format examples:
+                // "8.0.32-0ubuntu0.20.04.2"
+                // "5.7.42"
+                if (preg_match('/^(\d+\.\d+)/', $versionContent, $matches)) {
+                    $version = $matches[1];
+                    $this->logger->info("Detected MySQL version: {$version}", $server->name);
+                    return ['version' => $version, 'is_mariadb' => false, 'confidence' => $confidence];
+                }
             }
         }
 
-        // Fallback: Look for ib_logfile0 and check its header for version hints
-        // MySQL 5.7 has different redo log format than 8.0
-        $this->logger->warning("mysql_upgrade_info not found, checking redo log format", $server->name);
+        // Fallback: Check redo log directory for MySQL 8.0+ indicator
+        $innodbRedoDir = $dataDir . '/#innodb_redo';
+        $checkCmd = "test -d " . escapeshellarg($innodbRedoDir) . " && echo 'EXISTS'";
+        $result = $this->execute($server, $checkCmd, 10, $deploymentLocation, true);
 
-        $ibLogfile = $dataDir . '/ib_logfile0';
-        $checkLog = "test -f {$ibLogfile} && od -An -N 100 -c {$ibLogfile} 2>/dev/null | head -5";
-        $logResult = $this->execute($server, $checkLog, 10, $deploymentLocation, true);
-
-        if ($logResult['exitCode'] === 0 && !empty($logResult['stdout'])) {
-            // Check for version markers in redo log
-            $logContent = $logResult['stdout'];
-            $this->logger->info("Redo log header sample: " . substr($logContent, 0, 200), $server->name);
+        if (trim($result['stdout']) === 'EXISTS') {
+            // MySQL 8.0+ detected
+            $this->logger->info("Detected MySQL 8.0+ from #innodb_redo directory", $server->name);
+            return ['version' => '8.0', 'is_mariadb' => false, 'confidence' => 'medium'];
         }
 
-        // Default to MySQL 5.7 (safer for old backups than 8.0)
-        $this->logger->warning("Could not detect MySQL version, defaulting to 5.7", $server->name);
-        return '5.7';
+        // Default versions based on type
+        if ($isMariaDB) {
+            $this->logger->warning("Could not detect MariaDB version, defaulting to 10.6", $server->name);
+            return ['version' => '10.6', 'is_mariadb' => true, 'confidence' => 'low'];
+        } else {
+            $this->logger->warning("Could not detect MySQL version, defaulting to 5.7", $server->name);
+            return ['version' => '5.7', 'is_mariadb' => false, 'confidence' => 'low'];
+        }
     }
 
     /**
-     * Determine if it's MariaDB or MySQL
+     * Legacy wrapper for backward compatibility
+     * @deprecated Use detectMySQLVersionAndType() instead
+     */
+    private function detectMySQLVersion(Server $server, string $dataDir, string $deploymentLocation): ?string
+    {
+        $result = $this->detectMySQLVersionAndType($server, $dataDir, $deploymentLocation);
+        return $result['version'];
+    }
+
+    /**
+     * Determine if it's MariaDB or MySQL using multiple detection strategies
+     *
+     * Detection is CRITICAL because:
+     * - MySQL and MariaDB data files are NOT binary-compatible
+     * - Starting MariaDB backup in MySQL engine = crash
+     * - Starting MySQL backup in MariaDB engine = crash
+     *
+     * @return array{is_mariadb: bool, confidence: string, indicators: array}
+     */
+    private function detectMySQLType(Server $server, string $dataDir, string $deploymentLocation): array
+    {
+        $indicators = [];
+        $mariadbScore = 0;
+        $mysqlScore = 0;
+
+        // Strategy 1: Check mysql_upgrade_info file (most reliable if present)
+        $versionFile = $dataDir . '/mysql_upgrade_info';
+        $checkCmd = "test -f " . escapeshellarg($versionFile) . " && cat " . escapeshellarg($versionFile);
+        $result = $this->execute($server, $checkCmd, 10, $deploymentLocation, true);
+
+        if ($result['exitCode'] === 0 && !empty(trim($result['stdout']))) {
+            $versionContent = trim($result['stdout']);
+            $indicators['mysql_upgrade_info'] = $versionContent;
+
+            if (stripos($versionContent, 'mariadb') !== false) {
+                $mariadbScore += 10;
+                $this->logger->info("mysql_upgrade_info indicates MariaDB: {$versionContent}", $server->name);
+            } else {
+                $mysqlScore += 10;
+                $this->logger->info("mysql_upgrade_info indicates MySQL: {$versionContent}", $server->name);
+            }
+        }
+
+        // Strategy 2: Check for Aria storage engine files (MariaDB only)
+        // Aria is MariaDB's crash-safe alternative to MyISAM
+        $ariaFiles = ['aria_log_control', 'aria_log.00000001'];
+        foreach ($ariaFiles as $ariaFile) {
+            $checkCmd = "test -f " . escapeshellarg($dataDir . '/' . $ariaFile) . " && echo 'EXISTS'";
+            $result = $this->execute($server, $checkCmd, 10, $deploymentLocation, true);
+
+            if (trim($result['stdout']) === 'EXISTS') {
+                $mariadbScore += 5;
+                $indicators['aria_files'] = true;
+                $this->logger->info("Found Aria log files (MariaDB indicator): {$ariaFile}", $server->name);
+                break; // One Aria file is enough
+            }
+        }
+
+        // Strategy 3: Check for MariaDB system tables in mysql database
+        // MariaDB has additional tables like: column_stats, index_stats, table_stats
+        $mariadbTables = ['column_stats.frm', 'index_stats.frm', 'table_stats.frm', 'innodb_table_stats.frm'];
+        $mysqlDbDir = $dataDir . '/mysql';
+        foreach ($mariadbTables as $table) {
+            $checkCmd = "test -f " . escapeshellarg($mysqlDbDir . '/' . $table) . " && echo 'EXISTS'";
+            $result = $this->execute($server, $checkCmd, 10, $deploymentLocation, true);
+
+            if (trim($result['stdout']) === 'EXISTS') {
+                // Check file header for MariaDB signature
+                if ($table === 'column_stats.frm' || $table === 'index_stats.frm') {
+                    $mariadbScore += 3;
+                    $indicators['mariadb_system_tables'] = true;
+                    $this->logger->info("Found MariaDB-specific system table: {$table}", $server->name);
+                }
+            }
+        }
+
+        // Strategy 4: Check binary log prefix (mysql-bin vs mariadb-bin)
+        $checkBinLog = "ls " . escapeshellarg($dataDir) . " 2>/dev/null | grep -E '^(mysql|mariadb)-bin\\.' | head -1";
+        $result = $this->execute($server, $checkBinLog, 10, $deploymentLocation, true);
+        $binLogFile = trim($result['stdout']);
+
+        if (!empty($binLogFile)) {
+            if (strpos($binLogFile, 'mariadb-bin') === 0) {
+                $mariadbScore += 5;
+                $indicators['binlog_prefix'] = 'mariadb-bin';
+                $this->logger->info("Binary log prefix indicates MariaDB: {$binLogFile}", $server->name);
+            } elseif (strpos($binLogFile, 'mysql-bin') === 0) {
+                $mysqlScore += 5;
+                $indicators['binlog_prefix'] = 'mysql-bin';
+                $this->logger->info("Binary log prefix indicates MySQL: {$binLogFile}", $server->name);
+            }
+        }
+
+        // Strategy 5: Check for MariaDB-specific InnoDB files
+        // MariaDB 10.3+ uses different redo log format (ib_logfile0 header)
+        $ibLogFile = $dataDir . '/ib_logfile0';
+        $checkIbLog = "test -f " . escapeshellarg($ibLogFile) . " && xxd -l 32 " . escapeshellarg($ibLogFile) . " 2>/dev/null | head -2";
+        $result = $this->execute($server, $checkIbLog, 10, $deploymentLocation, true);
+
+        if ($result['exitCode'] === 0 && !empty($result['stdout'])) {
+            $hexDump = $result['stdout'];
+            $indicators['ib_logfile_header'] = substr(trim($hexDump), 0, 100);
+            // MariaDB 10.3+ has different redo log format
+            // Note: This is a weak indicator, but adds confidence
+        }
+
+        // Strategy 6: Check redo log directory structure (MySQL 8.0+ uses #innodb_redo/)
+        $innodbRedoDir = $dataDir . '/#innodb_redo';
+        $checkCmd = "test -d " . escapeshellarg($innodbRedoDir) . " && echo 'EXISTS'";
+        $result = $this->execute($server, $checkCmd, 10, $deploymentLocation, true);
+
+        if (trim($result['stdout']) === 'EXISTS') {
+            $mysqlScore += 8; // Strong MySQL 8.0+ indicator
+            $indicators['innodb_redo_dir'] = true;
+            $this->logger->info("Found #innodb_redo directory (MySQL 8.0+ indicator)", $server->name);
+        }
+
+        // Calculate result
+        $isMariaDB = $mariadbScore > $mysqlScore;
+        $scoreDiff = abs($mariadbScore - $mysqlScore);
+
+        $confidence = 'low';
+        if ($scoreDiff >= 10) {
+            $confidence = 'high';
+        } elseif ($scoreDiff >= 5) {
+            $confidence = 'medium';
+        }
+
+        $this->logger->info(sprintf(
+            "MySQL/MariaDB detection complete: %s (confidence: %s, MariaDB score: %d, MySQL score: %d)",
+            $isMariaDB ? 'MariaDB' : 'MySQL',
+            $confidence,
+            $mariadbScore,
+            $mysqlScore
+        ), $server->name);
+
+        return [
+            'is_mariadb' => $isMariaDB,
+            'confidence' => $confidence,
+            'mariadb_score' => $mariadbScore,
+            'mysql_score' => $mysqlScore,
+            'indicators' => $indicators
+        ];
+    }
+
+    /**
+     * Legacy wrapper for backward compatibility
+     * @deprecated Use detectMySQLType() instead
      */
     private function isMySQLMariaDB(Server $server, string $dataDir, string $deploymentLocation): bool
     {
-        $versionFile = $dataDir . '/mysql_upgrade_info';
-        $checkCmd = "test -f {$versionFile} && cat {$versionFile}";
-        $result = $this->execute($server, $checkCmd, 10, $deploymentLocation, true);
-
-        if ($result['exitCode'] === 0 && !empty($result['stdout'])) {
-            $version = trim($result['stdout']);
-            return stripos($version, 'mariadb') !== false;
-        }
-
-        return false; // Default to MySQL if unsure
+        $result = $this->detectMySQLType($server, $dataDir, $deploymentLocation);
+        return $result['is_mariadb'];
     }
 
     /**

@@ -71,11 +71,33 @@ if [ -f "$LOGROTATE_FILE" ]; then
     if grep -q "create 0644 phpborg phpborg" "$LOGROTATE_FILE" 2>/dev/null; then
         log "Fixing logrotate config for www-data write access..."
         sed -i 's/create 0644 phpborg phpborg/create 0664 phpborg www-data/' "$LOGROTATE_FILE"
-        # Also fix current log file permissions
-        chown phpborg:www-data /var/log/phpborg/*.log 2>/dev/null || true
-        chmod 664 /var/log/phpborg/*.log 2>/dev/null || true
         log "Logrotate config fixed"
     fi
+fi
+
+# Ensure log directory and files have correct permissions
+log "Ensuring log file permissions..."
+if [ -d "/var/log/phpborg" ]; then
+    chown phpborg:www-data /var/log/phpborg
+    chmod 775 /var/log/phpborg
+    # Fix existing log files
+    chown phpborg:www-data /var/log/phpborg/*.log 2>/dev/null || true
+    chmod 664 /var/log/phpborg/*.log 2>/dev/null || true
+    # Create instant recovery log if it doesn't exist (migrating from old path)
+    if [ ! -f "/var/log/phpborg/instant_recovery.log" ]; then
+        touch /var/log/phpborg/instant_recovery.log
+        chown phpborg:www-data /var/log/phpborg/instant_recovery.log
+        chmod 664 /var/log/phpborg/instant_recovery.log
+        log "Created instant_recovery.log"
+    fi
+fi
+
+# Clean up old instant recovery log location
+if [ -f "/var/log/phpborg_instant_recovery.log" ]; then
+    log "Migrating old instant recovery log to new location..."
+    cat /var/log/phpborg_instant_recovery.log >> /var/log/phpborg/instant_recovery.log 2>/dev/null || true
+    rm -f /var/log/phpborg_instant_recovery.log
+    log "Old instant recovery log migrated and removed"
 fi
 
 # Update systemd service files from repository (may have changed)
