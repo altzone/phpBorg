@@ -76,7 +76,7 @@ select_ssl_type() {
 # Configure self-signed certificate
 #
 setup_ssl_self_signed() {
-    log_step "Setting up self-signed certificate"
+    print_section "Setting up self-signed certificate"
 
     local domain
     read -p "Enter domain name (e.g., backup.example.com or IP): " domain < /dev/tty
@@ -95,7 +95,7 @@ setup_ssl_self_signed() {
 
     if "${PHPBORG_ROOT}/bin/setup-ssl.sh" self-signed "$domain" "$days"; then
         log_success "Self-signed certificate created"
-        mark_step_completed "ssl_setup"
+        save_state "ssl_setup" "completed"
         return 0
     else
         log_error "Failed to create self-signed certificate"
@@ -107,7 +107,7 @@ setup_ssl_self_signed() {
 # Configure Let's Encrypt via HTTP-01
 #
 setup_ssl_letsencrypt_http() {
-    log_step "Setting up Let's Encrypt (HTTP-01)"
+    print_section "Setting up Let's Encrypt (HTTP-01)"
 
     log_warn "Make sure port 80 is accessible from the internet!"
     echo ""
@@ -132,7 +132,7 @@ setup_ssl_letsencrypt_http() {
 
     if "${PHPBORG_ROOT}/bin/setup-ssl.sh" letsencrypt-http "$domain" "$email"; then
         log_success "Let's Encrypt certificate obtained"
-        mark_step_completed "ssl_setup"
+        save_state "ssl_setup" "completed"
         return 0
     else
         log_error "Failed to obtain Let's Encrypt certificate"
@@ -145,7 +145,7 @@ setup_ssl_letsencrypt_http() {
 # Configure Let's Encrypt via Cloudflare DNS
 #
 setup_ssl_letsencrypt_cloudflare() {
-    log_step "Setting up Let's Encrypt (DNS-01 via Cloudflare)"
+    print_section "Setting up Let's Encrypt (DNS-01 via Cloudflare)"
 
     echo ""
     log_info "You need a Cloudflare API token with Zone:DNS:Edit permission"
@@ -180,7 +180,7 @@ setup_ssl_letsencrypt_cloudflare() {
 
     if "${PHPBORG_ROOT}/bin/setup-ssl.sh" letsencrypt-cf "$domain" "$email" "$cf_token"; then
         log_success "Let's Encrypt certificate obtained"
-        mark_step_completed "ssl_setup"
+        save_state "ssl_setup" "completed"
         return 0
     else
         log_error "Failed to obtain Let's Encrypt certificate"
