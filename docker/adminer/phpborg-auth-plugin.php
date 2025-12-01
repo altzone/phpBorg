@@ -8,7 +8,8 @@
 
 class AdminerPhpBorgAuth
 {
-    private $phpborgApiUrl = 'http://host.docker.internal/api/instant-recovery/validate-admin';
+    // Use HTTPS to avoid nginx 301 redirect which loses POST body
+    private $phpborgApiUrl = 'https://host.docker.internal/api/instant-recovery/validate-admin';
     private $tokenValid = null;
 
     public function __construct()
@@ -227,6 +228,7 @@ class AdminerPhpBorgAuth
             return $this->tokenValid;
         }
 
+        // Use stream context with SSL verification disabled (self-signed cert)
         $context = stream_context_create([
             'http' => [
                 'method' => 'POST',
@@ -234,6 +236,11 @@ class AdminerPhpBorgAuth
                 'content' => json_encode(['token' => $token]),
                 'timeout' => 5,
                 'ignore_errors' => true
+            ],
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true
             ]
         ]);
 
