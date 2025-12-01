@@ -305,12 +305,14 @@ final class BackupService
                 }
             }
 
-            // Parse backup info
+            // Parse backup info (run as phpborg-borg for local repositories)
             $archiveSavedToDb = false;
+            $runAsUser = str_starts_with($repository->repoPath, '/') ? 'phpborg-borg' : null;
             try {
                 $archiveInfo = $this->borgExecutor->getArchiveInfo(
                     $repository->repoPath . "::{$archiveName}",
-                    $repository->passphrase
+                    $repository->passphrase,
+                    $runAsUser
                 );
 
                 // Save archive to database
@@ -665,7 +667,9 @@ final class BackupService
      */
     private function updateRepositoryStats(BorgRepository $repository): void
     {
-        $info = $this->borgExecutor->getRepositoryInfo($repository->repoPath, $repository->passphrase);
+        // For local repositories (owned by phpborg-borg), run as phpborg-borg
+        $runAsUser = str_starts_with($repository->repoPath, '/') ? 'phpborg-borg' : null;
+        $info = $this->borgExecutor->getRepositoryInfo($repository->repoPath, $repository->passphrase, $runAsUser);
 
         $cacheStats = $info['cache']['stats'] ?? [];
 
@@ -710,12 +714,10 @@ final class BackupService
             $this->logger->info("Syncing repository: {$repository->repoId}", 'SYNC');
 
             try {
-                // Check if server uses agent mode - if so, run borg as phpborg-borg
-                $runAsUser = null;
-                $server = $this->serverRepo->findById($repository->serverId);
-                if ($server && $server->connectionMode === 'agent') {
-                    $runAsUser = 'phpborg-borg';
-                    $this->logger->debug("Using sudo -u phpborg-borg for agent repository", 'SYNC');
+                // Run as phpborg-borg for local repositories (owned by phpborg-borg)
+                $runAsUser = str_starts_with($repository->repoPath, '/') ? 'phpborg-borg' : null;
+                if ($runAsUser) {
+                    $this->logger->debug("Using sudo -u phpborg-borg for local repository", 'SYNC');
                 }
 
                 // Get all archives from Borg using borg list --json

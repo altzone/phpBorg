@@ -313,12 +313,13 @@ final class BorgExecutor
      * @return array<string, mixed>
      * @throws BackupException
      */
-    public function getRepositoryInfo(string $repository, string $passphrase): array
+    public function getRepositoryInfo(string $repository, string $passphrase, ?string $runAsUser = null): array
     {
         $result = $this->execute(
             ['info', '--json', $repository],
             $passphrase,
-            60
+            60,
+            $runAsUser
         );
 
         if ($result['exitCode'] !== 0) {
@@ -429,7 +430,7 @@ final class BorgExecutor
      *
      * @throws BackupException
      */
-    public function deleteArchive(string $archive, string $passphrase): array
+    public function deleteArchive(string $archive, string $passphrase, ?string $runAsUser = null): array
     {
         $arguments = [
             'delete',
@@ -438,7 +439,7 @@ final class BorgExecutor
             $archive
         ];
 
-        $result = $this->execute($arguments, $passphrase, 300);
+        $result = $this->execute($arguments, $passphrase, 300, $runAsUser);
 
         if ($result['exitCode'] !== 0) {
             throw new BackupException("Failed to delete archive: {$result['stderr']}");

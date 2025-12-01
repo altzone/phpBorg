@@ -62,9 +62,10 @@ final class InfoCommand extends Command
                 return Command::FAILURE;
             }
 
-            // Get live info from Borg
+            // Get live info from Borg (run as phpborg-borg for local repositories)
             $this->app->getLogger()->info("Fetching repository info", $serverName);
-            $borgInfo = $borgExecutor->getRepositoryInfo($repository->repoPath, $repository->passphrase);
+            $runAsUser = str_starts_with($repository->repoPath, '/') ? 'phpborg-borg' : null;
+            $borgInfo = $borgExecutor->getRepositoryInfo($repository->repoPath, $repository->passphrase, $runAsUser);
 
             // Get archives count
             $archivesCount = $archiveRepo->countByRepositoryId($repository->repoId);

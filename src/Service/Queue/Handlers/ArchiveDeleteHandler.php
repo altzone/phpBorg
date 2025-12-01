@@ -91,12 +91,12 @@ final class ArchiveDeleteHandler implements JobHandlerInterface
                 'job_id' => $job->id
             ]);
 
-            // Step 3: Delete from Borg
+            // Step 3: Delete from Borg (run as phpborg-borg who owns the repository)
             $queue->updateProgress($job->id, 50, "Deleting archive from Borg repository...");
             $archiveIdentifier = $repository->repoPath . '::' . $archive->name;
-            
-            $result = $this->borgExecutor->deleteArchive($archiveIdentifier, $repository->passphrase);
-            
+
+            $result = $this->borgExecutor->deleteArchive($archiveIdentifier, $repository->passphrase, 'phpborg-borg');
+
             $this->logger->info("Archive deleted from Borg successfully", 'JOB');
             
             // Log Borg output
@@ -116,8 +116,8 @@ final class ArchiveDeleteHandler implements JobHandlerInterface
             // Step 5: Update repository stats (optional - could be done later)
             $queue->updateProgress($job->id, 95, "Updating repository statistics...");
             try {
-                // Get updated repository info after deletion
-                $repoInfo = $this->borgExecutor->getRepositoryInfo($repository->repoPath, $repository->passphrase);
+                // Get updated repository info after deletion (run as phpborg-borg who owns the repository)
+                $repoInfo = $this->borgExecutor->getRepositoryInfo($repository->repoPath, $repository->passphrase, 'phpborg-borg');
                 $cacheStats = $repoInfo['cache']['stats'] ?? [];
 
                 $this->repositoryRepo->updateStatistics(
