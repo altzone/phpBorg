@@ -55,13 +55,15 @@ class EmailController extends BaseController
 
             // Check if inline SMTP config is provided (for setup wizard testing before save)
             $smtpSettings = [];
+            $isInlineConfig = false;
             if (!empty($data['smtp_config'])) {
+                $isInlineConfig = true;
                 $config = $data['smtp_config'];
                 $smtpSettings = [
                     'smtp.host' => $config['host'] ?? '',
                     'smtp.port' => $config['port'] ?? 587,
                     'smtp.username' => $config['username'] ?? '',
-                    'smtp.password' => $config['password'] ?? '',
+                    'smtp.password' => $config['password'] ?? '', // Already plain text
                     'smtp.encryption' => $config['encryption'] ?? 'tls',
                     'smtp.from_email' => $config['from_email'] ?? '',
                     'smtp.from_name' => $config['from_name'] ?? 'phpBorg',
@@ -106,8 +108,13 @@ class EmailController extends BaseController
                 if (!empty($smtpSettings['smtp.username']) && !empty($smtpSettings['smtp.password'])) {
                     $mail->SMTPAuth = true;
                     $mail->Username = $smtpSettings['smtp.username'];
-                    // Decrypt password if encrypted
-                    $password = $this->encryptionService->decrypt($smtpSettings['smtp.password']);
+                    // Only decrypt password if it comes from database (encrypted)
+                    // Inline config from setup wizard is already plain text
+                    if ($isInlineConfig) {
+                        $password = $smtpSettings['smtp.password'];
+                    } else {
+                        $password = $this->encryptionService->decrypt($smtpSettings['smtp.password']);
+                    }
                     $mail->Password = $password;
                     $this->logger->info("SMTP Auth enabled", 'EMAIL', ['username' => $smtpSettings['smtp.username']]);
                 } else {
