@@ -922,6 +922,15 @@ setup_services() {
     # Setup dedicated Borg SSH server for remote agents
     if ! is_step_completed "setup_borg_sshd"; then
         setup_borg_sshd || errors=$((errors + 1))
+
+        # Fix storage pool permissions now that phpborg-borg user exists
+        local storage_path="${STORAGE_POOL_PATH:-/opt/backups}"
+        if [ -d "${storage_path}" ] && id "phpborg-borg" &>/dev/null; then
+            log_info "Fixing storage pool ownership for phpborg-borg..."
+            chown phpborg-borg:phpborg "${storage_path}"
+            chmod 770 "${storage_path}"
+            log_success "Storage pool permissions fixed"
+        fi
     else
         log_info "Borg SSH server already configured (skipped)"
     fi

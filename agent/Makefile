@@ -58,25 +58,25 @@ deps:
 # Build for Linux amd64
 linux:
 	@echo "Building for Linux amd64..."
-	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_LINUX) ./cmd/phpborg-agent
+	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -buildvcs=false $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_LINUX) ./cmd/phpborg-agent
 	@echo "Built: $(BUILD_DIR)/$(BINARY_LINUX)"
 
 # Build for Linux arm64
 linux-arm64:
 	@echo "Building for Linux arm64..."
-	@GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_LINUX_ARM64) ./cmd/phpborg-agent
+	@GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -buildvcs=false $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_LINUX_ARM64) ./cmd/phpborg-agent
 	@echo "Built: $(BUILD_DIR)/$(BINARY_LINUX_ARM64)"
 
 # Build for Windows amd64
 windows:
 	@echo "Building for Windows amd64..."
-	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_WINDOWS) ./cmd/phpborg-agent
+	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -buildvcs=false $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_WINDOWS) ./cmd/phpborg-agent
 	@echo "Built: $(BUILD_DIR)/$(BINARY_WINDOWS)"
 
 # Build Windows GUI installer
 installer:
 	@echo "Building Windows GUI installer..."
-	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build $(LDFLAGS_GUI) -o $(BUILD_DIR)/$(BINARY_INSTALLER) ./cmd/phpborg-installer
+	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -buildvcs=false $(LDFLAGS_GUI) -o $(BUILD_DIR)/$(BINARY_INSTALLER) ./cmd/phpborg-installer
 	@echo "Built: $(BUILD_DIR)/$(BINARY_INSTALLER)"
 
 # Run tests

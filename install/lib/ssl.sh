@@ -61,7 +61,8 @@ select_ssl_type() {
     echo ""
 
     local choice
-    read -p "Enter choice [1-4]: " choice
+    # Use /dev/tty for interactive input (works when script is piped via curl)
+    read -p "Enter choice [1-4]: " choice < /dev/tty
 
     case $choice in
         1) SSL_TYPE="self-signed" ;;
@@ -78,7 +79,7 @@ setup_ssl_self_signed() {
     log_step "Setting up self-signed certificate"
 
     local domain
-    read -p "Enter domain name (e.g., backup.example.com or IP): " domain
+    read -p "Enter domain name (e.g., backup.example.com or IP): " domain < /dev/tty
 
     if [ -z "$domain" ]; then
         domain=$(hostname -f 2>/dev/null || hostname)
@@ -86,7 +87,7 @@ setup_ssl_self_signed() {
 
     local days=365
     if [ "${INSTALL_MODE}" = "interactive" ]; then
-        read -p "Certificate validity in days [365]: " input_days
+        read -p "Certificate validity in days [365]: " input_days < /dev/tty
         [ -n "$input_days" ] && days=$input_days
     fi
 
@@ -112,7 +113,7 @@ setup_ssl_letsencrypt_http() {
     echo ""
 
     local domain
-    read -p "Enter domain name (e.g., backup.example.com): " domain
+    read -p "Enter domain name (e.g., backup.example.com): " domain < /dev/tty
 
     if [ -z "$domain" ]; then
         log_error "Domain is required for Let's Encrypt"
@@ -120,7 +121,7 @@ setup_ssl_letsencrypt_http() {
     fi
 
     local email
-    read -p "Enter email address for Let's Encrypt: " email
+    read -p "Enter email address for Let's Encrypt: " email < /dev/tty
 
     if [ -z "$email" ]; then
         log_error "Email is required for Let's Encrypt"
@@ -152,7 +153,7 @@ setup_ssl_letsencrypt_cloudflare() {
     echo ""
 
     local domain
-    read -p "Enter domain name (e.g., backup.example.com): " domain
+    read -p "Enter domain name (e.g., backup.example.com): " domain < /dev/tty
 
     if [ -z "$domain" ]; then
         log_error "Domain is required"
@@ -160,7 +161,7 @@ setup_ssl_letsencrypt_cloudflare() {
     fi
 
     local email
-    read -p "Enter email address for Let's Encrypt: " email
+    read -p "Enter email address for Let's Encrypt: " email < /dev/tty
 
     if [ -z "$email" ]; then
         log_error "Email is required"
@@ -168,7 +169,7 @@ setup_ssl_letsencrypt_cloudflare() {
     fi
 
     local cf_token
-    read -p "Enter Cloudflare API token: " cf_token
+    read -p "Enter Cloudflare API token: " cf_token < /dev/tty
 
     if [ -z "$cf_token" ]; then
         log_error "Cloudflare API token is required"

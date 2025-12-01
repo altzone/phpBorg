@@ -607,7 +607,14 @@ create_default_storage_pool() {
     # phpborg-borg owns the directory (borg server writes here)
     # phpborg group has access (workers need to manage repos)
     log_info "Setting permissions on storage pool: ${storage_path}"
-    chown phpborg-borg:phpborg "${storage_path}"
+    # phpborg-borg user may not exist yet (created later in services setup)
+    # Use phpborg:phpborg for now, services.sh will fix permissions later
+    if id "phpborg-borg" &>/dev/null; then
+        chown phpborg-borg:phpborg "${storage_path}"
+    else
+        log_info "phpborg-borg user doesn't exist yet, using phpborg:phpborg (will be fixed later)"
+        chown phpborg:phpborg "${storage_path}"
+    fi
     chmod 770 "${storage_path}"
 
     # Check if default pool already exists
