@@ -249,14 +249,112 @@
                 </div>
 
                 <template v-if="form.email_enabled">
+                  <!-- Provider Selector -->
+                  <div>
+                    <label class="block text-sm font-medium text-white mb-2">{{ $t('setup.step3.provider') }}</label>
+                    <div class="grid grid-cols-4 gap-2">
+                      <button
+                        type="button"
+                        @click="selectEmailProvider('gmail')"
+                        :class="[
+                          'flex flex-col items-center justify-center gap-1 px-3 py-3 rounded-xl border-2 transition-all',
+                          emailProvider === 'gmail'
+                            ? 'bg-white text-red-600 border-white'
+                            : 'bg-white/10 text-white border-white/20 hover:border-white/40'
+                        ]"
+                      >
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
+                        </svg>
+                        <span class="text-xs font-medium">Gmail</span>
+                      </button>
+                      <button
+                        type="button"
+                        @click="selectEmailProvider('microsoft365')"
+                        :class="[
+                          'flex flex-col items-center justify-center gap-1 px-3 py-3 rounded-xl border-2 transition-all',
+                          emailProvider === 'microsoft365'
+                            ? 'bg-white text-blue-600 border-white'
+                            : 'bg-white/10 text-white border-white/20 hover:border-white/40'
+                        ]"
+                      >
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M0 0h11.377v11.372H0zm12.623 0H24v11.372H12.623zM0 12.623h11.377V24H0zm12.623 0H24V24H12.623z"/>
+                        </svg>
+                        <span class="text-xs font-medium">M365</span>
+                      </button>
+                      <button
+                        type="button"
+                        @click="selectEmailProvider('outlook')"
+                        :class="[
+                          'flex flex-col items-center justify-center gap-1 px-3 py-3 rounded-xl border-2 transition-all',
+                          emailProvider === 'outlook'
+                            ? 'bg-white text-blue-600 border-white'
+                            : 'bg-white/10 text-white border-white/20 hover:border-white/40'
+                        ]"
+                      >
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M24 7.387v10.478c0 .23-.08.424-.238.576-.158.154-.352.23-.58.23h-8.547v-6.959l1.6 1.229c.102.086.227.129.377.129.152 0 .287-.047.402-.14l6.828-5.252c.102-.078.18-.18.23-.305.052-.124.078-.255.078-.391v-.033c0-.137-.033-.27-.1-.4-.065-.13-.158-.234-.277-.311-.192-.137-.403-.205-.633-.205H9.143c-.23 0-.441.068-.633.205-.12.077-.212.18-.277.31-.067.13-.1.264-.1.4v.034c0 .137.026.268.078.392.05.125.128.227.23.304l6.828 5.252c.115.093.25.14.402.14.15 0 .275-.043.377-.129l1.6-1.229v6.959H.818c-.23 0-.424-.076-.58-.23C.078 18.29 0 18.096 0 17.865V7.387c0-.23.078-.424.238-.58.156-.152.35-.23.58-.23h22.364c.228 0 .422.078.58.23.158.156.238.35.238.58z"/>
+                        </svg>
+                        <span class="text-xs font-medium">Outlook</span>
+                      </button>
+                      <button
+                        type="button"
+                        @click="selectEmailProvider('custom')"
+                        :class="[
+                          'flex flex-col items-center justify-center gap-1 px-3 py-3 rounded-xl border-2 transition-all',
+                          emailProvider === 'custom'
+                            ? 'bg-white text-gray-700 border-white'
+                            : 'bg-white/10 text-white border-white/20 hover:border-white/40'
+                        ]"
+                      >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                        <span class="text-xs font-medium">{{ $t('setup.step3.custom') }}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Provider Help Box -->
+                  <div v-if="emailProvider && emailProvider !== 'custom'" class="p-4 rounded-xl bg-white/10 border border-white/20">
+                    <div class="flex items-start space-x-3">
+                      <svg class="w-5 h-5 mt-0.5 flex-shrink-0 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                      </svg>
+                      <div class="flex-1">
+                        <p class="text-sm font-medium text-white mb-1">{{ providerHelpInfo[emailProvider]?.title }}</p>
+                        <p class="text-sm text-blue-200 mb-2">{{ providerHelpInfo[emailProvider]?.text }}</p>
+                        <a
+                          :href="providerHelpInfo[emailProvider]?.link"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="inline-flex items-center gap-1 text-sm font-medium text-yellow-300 underline hover:no-underline"
+                        >
+                          {{ $t('setup.step3.create_app_password') }}
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                          </svg>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
                   <div class="grid grid-cols-2 gap-4">
                     <div>
                       <label class="block text-sm font-medium text-white mb-2">{{ $t('setup.step3.smtp_host') }}</label>
                       <input
                         v-model="form.smtp_host"
                         type="text"
-                        class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-white/40 focus:ring-0"
-                        placeholder="smtp.gmail.com"
+                        :disabled="emailProvider !== 'custom'"
+                        :class="[
+                          'w-full px-4 py-3 border rounded-xl focus:ring-0',
+                          emailProvider !== 'custom'
+                            ? 'bg-white/5 border-white/10 text-white/70 cursor-not-allowed'
+                            : 'bg-white/10 border-white/20 text-white placeholder-white/50 focus:border-white/40'
+                        ]"
+                        placeholder="smtp.example.com"
                       />
                     </div>
                     <div>
@@ -264,7 +362,13 @@
                       <input
                         v-model="form.smtp_port"
                         type="number"
-                        class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-white/40 focus:ring-0"
+                        :disabled="emailProvider !== 'custom'"
+                        :class="[
+                          'w-full px-4 py-3 border rounded-xl focus:ring-0',
+                          emailProvider !== 'custom'
+                            ? 'bg-white/5 border-white/10 text-white/70 cursor-not-allowed'
+                            : 'bg-white/10 border-white/20 text-white placeholder-white/50 focus:border-white/40'
+                        ]"
                         placeholder="587"
                       />
                     </div>
@@ -277,6 +381,7 @@
                         v-model="form.smtp_username"
                         type="text"
                         class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-white/40 focus:ring-0"
+                        :placeholder="$t('setup.step3.smtp_username_placeholder')"
                       />
                     </div>
                     <div>
@@ -285,6 +390,7 @@
                         v-model="form.smtp_password"
                         type="password"
                         class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-white/40 focus:ring-0"
+                        :placeholder="$t('setup.step3.smtp_password_placeholder')"
                       />
                     </div>
                   </div>
@@ -295,12 +401,15 @@
                       <button
                         v-for="enc in ['tls', 'ssl', 'none']"
                         :key="enc"
-                        @click="form.smtp_encryption = enc"
+                        @click="emailProvider === 'custom' && (form.smtp_encryption = enc)"
+                        :disabled="emailProvider !== 'custom'"
                         :class="[
                           'px-4 py-2 rounded-xl border-2 transition-all',
                           form.smtp_encryption === enc
                             ? 'bg-white text-blue-900 border-white'
-                            : 'bg-white/10 text-white border-white/20 hover:border-white/40'
+                            : emailProvider !== 'custom'
+                              ? 'bg-white/5 text-white/50 border-white/10 cursor-not-allowed'
+                              : 'bg-white/10 text-white border-white/20 hover:border-white/40'
                         ]"
                       >
                         {{ enc.toUpperCase() }}
@@ -639,6 +748,62 @@ const testEmailAddress = ref('')
 const testEmailResult = ref(null)
 
 const steps = ['identity', 'network', 'email', 'backup']
+
+// Email provider selection
+const emailProvider = ref('custom')
+
+// Provider presets (same as SettingsView)
+const emailProviderPresets = {
+  gmail: {
+    host: 'smtp.gmail.com',
+    port: 587,
+    encryption: 'tls',
+  },
+  microsoft365: {
+    host: 'smtp.office365.com',
+    port: 587,
+    encryption: 'tls',
+  },
+  outlook: {
+    host: 'smtp-mail.outlook.com',
+    port: 587,
+    encryption: 'tls',
+  },
+  custom: {
+    host: '',
+    port: 587,
+    encryption: 'tls',
+  },
+}
+
+// Provider help information
+const providerHelpInfo = {
+  gmail: {
+    title: 'Configuration Gmail',
+    text: 'Gmail requiert un "Mot de passe d\'application" (2FA doit être activé sur votre compte Google).',
+    link: 'https://myaccount.google.com/apppasswords',
+  },
+  microsoft365: {
+    title: 'Configuration Microsoft 365',
+    text: 'Microsoft 365 nécessite l\'authentification moderne. Créez un mot de passe d\'application dans les paramètres de sécurité.',
+    link: 'https://account.live.com/proofs/AppPassword',
+  },
+  outlook: {
+    title: 'Configuration Outlook.com',
+    text: 'Pour les comptes Outlook.com personnels, activez la vérification en deux étapes puis créez un mot de passe d\'application.',
+    link: 'https://account.live.com/proofs/AppPassword',
+  },
+}
+
+function selectEmailProvider(provider) {
+  emailProvider.value = provider
+  const preset = emailProviderPresets[provider]
+  if (preset) {
+    form.value.smtp_host = preset.host
+    form.value.smtp_port = preset.port
+    form.value.smtp_encryption = preset.encryption
+  }
+}
 
 const networkInfo = ref({
   private_ips: [],
