@@ -62,6 +62,7 @@ final class RepositoryController extends BaseController
                 $this->app->getServerRepository(),
                 $this->app->getStoragePoolRepository(),
                 $this->app->getBackupService(),
+                $this->app->getBorgExecutor(),
                 $this->app->getLogger()
             );
 

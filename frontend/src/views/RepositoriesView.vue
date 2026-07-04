@@ -6,12 +6,20 @@
         <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ $t('repositories.title') }}</h1>
         <p class="mt-2 text-gray-600 dark:text-gray-400">{{ $t('repositories.subtitle') }}</p>
       </div>
-      <RouterLink to="/backup-wizard" class="btn btn-primary">
-        <svg class="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        {{ $t('repositories.new') }}
-      </RouterLink>
+      <div class="flex gap-3">
+        <button @click="openImport" class="btn btn-secondary">
+          <svg class="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          {{ $t('repositories.import') }}
+        </button>
+        <RouterLink to="/backup-wizard" class="btn btn-primary">
+          <svg class="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          {{ $t('repositories.new') }}
+        </RouterLink>
+      </div>
     </div>
 
     <!-- Filters -->
@@ -257,6 +265,90 @@
       </div>
     </div>
 
+    <!-- Import Existing Repository Modal -->
+    <div v-if="showImportModal" class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-start justify-center p-4" @click.self="!importing && (showImportModal = false)">
+      <div class="relative top-10 mx-auto p-6 border w-full max-w-lg shadow-lg rounded-md bg-white dark:bg-gray-800">
+        <div class="flex justify-between items-start mb-1">
+          <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ $t('repositories.import_title') }}</h3>
+          <button @click="showImportModal = false" :disabled="importing" class="text-gray-400 hover:text-gray-500 disabled:opacity-40">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ $t('repositories.import_subtitle') }}</p>
+
+        <form @submit.prevent="submitImport">
+          <div class="space-y-4 mb-4">
+            <!-- Path -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {{ $t('repositories.import_path') }} <span class="text-red-500">*</span>
+              </label>
+              <input v-model.trim="importForm.path" type="text" required placeholder="/mnt/backups/myrepo" class="input w-full font-mono text-sm">
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $t('repositories.import_path_help') }}</p>
+            </div>
+
+            <!-- Encryption -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('repositories.import_encryption') }}</label>
+                <select v-model="importForm.encryption" class="input w-full">
+                  <option value="none">none</option>
+                  <option value="repokey">repokey</option>
+                  <option value="keyfile">keyfile</option>
+                  <option value="repokey-blake2">repokey-blake2</option>
+                  <option value="keyfile-blake2">keyfile-blake2</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('repositories.import_type') }}</label>
+                <input v-model.trim="importForm.type" type="text" placeholder="backup" class="input w-full">
+              </div>
+            </div>
+
+            <!-- Passphrase (only when encrypted) -->
+            <div v-if="importForm.encryption !== 'none'">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {{ $t('repositories.import_passphrase') }} <span class="text-red-500">*</span>
+              </label>
+              <input v-model="importForm.passphrase" type="password" autocomplete="off" class="input w-full">
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $t('repositories.import_passphrase_help') }}</p>
+            </div>
+
+            <!-- Server -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('repositories.import_server') }}</label>
+              <input v-model.trim="importForm.server" type="text" list="import-server-list" class="input w-full">
+              <datalist id="import-server-list">
+                <option v-for="s in servers" :key="s.id" :value="s.name" />
+              </datalist>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $t('repositories.import_server_help') }}</p>
+            </div>
+
+            <!-- Fix ownership -->
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input v-model="importForm.fix_ownership" type="checkbox" class="mt-0.5">
+              <span>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('repositories.import_fix_ownership') }}</span>
+                <span class="block text-xs text-gray-500 dark:text-gray-400">{{ $t('repositories.import_fix_ownership_help') }}</span>
+              </span>
+            </label>
+          </div>
+
+          <div class="flex gap-3">
+            <button type="button" @click="showImportModal = false" :disabled="importing" class="btn btn-secondary flex-1 disabled:opacity-40">
+              {{ $t('common.cancel') }}
+            </button>
+            <button type="submit" :disabled="importing || !importForm.path" class="btn btn-primary flex-1 disabled:opacity-50">
+              <span v-if="importing" class="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2 align-middle"></span>
+              {{ importing ? $t('repositories.importing') : $t('repositories.import_submit') }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Delete Confirmation Modal -->
     <div v-if="showDeleteModal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-md overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4" @click.self="showDeleteModal = false">
       <div class="relative mx-auto border-4 max-w-2xl shadow-2xl rounded-lg pulse-border">
@@ -411,6 +503,18 @@ const retentionForm = ref({
   keep_yearly: 0
 })
 
+// Import existing repository state
+const showImportModal = ref(false)
+const importing = ref(false)
+const importForm = ref({
+  path: '',
+  encryption: 'none',
+  passphrase: '',
+  server: '',
+  type: 'backup',
+  fix_ownership: false
+})
+
 // Delete modal state
 const showDeleteModal = ref(false)
 const repositoryToDelete = ref(null)
@@ -530,6 +634,61 @@ async function saveRetention() {
   } catch (err) {
     console.error('Failed to update retention:', err)
     showToast(t('repositories.update_failed'), err.response?.data?.error?.message || t('repositories.update_failed_msg'), 'error')
+  }
+}
+
+function openImport() {
+  importForm.value = {
+    path: '',
+    encryption: 'none',
+    passphrase: '',
+    server: '',
+    type: 'backup',
+    fix_ownership: false
+  }
+  showImportModal.value = true
+}
+
+async function submitImport() {
+  if (!importForm.value.path) return
+  importing.value = true
+  try {
+    const payload = {
+      path: importForm.value.path,
+      encryption: importForm.value.encryption,
+      type: importForm.value.type || 'backup',
+      fix_ownership: importForm.value.fix_ownership,
+      sync: true
+    }
+    if (importForm.value.encryption !== 'none') {
+      payload.passphrase = importForm.value.passphrase
+    }
+    if (importForm.value.server) {
+      payload.server = importForm.value.server
+    }
+
+    const result = await repositoryService.import(payload)
+
+    showImportModal.value = false
+    if (result?.already) {
+      showToast(t('repositories.import_already'), t('repositories.import_already_msg'), 'success')
+    } else {
+      showToast(
+        t('repositories.import_success'),
+        t('repositories.import_success_msg', { count: result?.synced ?? 0 }),
+        'success'
+      )
+    }
+    await loadRepositories()
+  } catch (err) {
+    console.error('Failed to import repository:', err)
+    showToast(
+      t('repositories.import_failed'),
+      err.response?.data?.error?.message || err.message,
+      'error'
+    )
+  } finally {
+    importing.value = false
   }
 }
 

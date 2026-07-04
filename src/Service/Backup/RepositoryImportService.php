@@ -25,6 +25,7 @@ final class RepositoryImportService
         private readonly ServerRepository $serverRepo,
         private readonly StoragePoolRepository $poolRepo,
         private readonly BackupService $backupService,
+        private readonly BorgExecutor $borgExecutor,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -55,18 +56,40 @@ final class RepositoryImportService
         if (!is_dir($path)) {
             throw new BackupException("Path does not exist or is not a directory: {$path}");
         }
-        if (!is_file($path . '/config') || !is_dir($path . '/data')) {
-            throw new BackupException("Not a Borg repository (missing config or data/): {$path}");
-        }
         if ($encryption !== 'none' && $passphrase === '') {
             throw new BackupException("Encrypted repository ({$encryption}) requires a passphrase");
         }
 
+        // Local repos are accessed as phpborg-borg (owned by it, 0700). The web user
+        // usually cannot read inside them, so we read the id via the borg account.
+        $runAsUser = 'phpborg-borg';
+        $allowUnencrypted = ($encryption === 'none');
+
+        // --- Optionally fix ownership FIRST ----------------------------------
+        // Must happen before reading the repo id: if the repo is owned by someone
+        // else, phpborg-borg cannot read it until ownership is fixed.
+        if (!empty($opts['fixOwnership'])) {
+            exec(sprintf('sudo /usr/bin/chown -R phpborg-borg:phpborg-borg %s 2>&1', escapeshellarg($path)), $o, $rc);
+            if ($rc !== 0) {
+                $this->logger->warning("Could not chown {$path} to phpborg-borg", 'IMPORT');
+            }
+        }
+
         // --- Read Borg repository id ------------------------------------------
+        // Fast path: read the (plaintext) config directly if the web user can.
+        // Fallback: ask borg as the borg account (works for 0700 phpborg-borg repos
+        // and validates that it really is a Borg repository).
         $repoConfig = @parse_ini_file($path . '/config');
         $repoId = is_array($repoConfig) ? (string)($repoConfig['id'] ?? '') : '';
         if ($repoId === '') {
-            throw new BackupException("Could not read repository id from {$path}/config");
+            try {
+                $repoId = $this->borgExecutor->getRepoId($path, $passphrase, $runAsUser, $allowUnencrypted);
+            } catch (\Exception $e) {
+                throw new BackupException("Not a readable Borg repository at {$path}: " . $e->getMessage());
+            }
+        }
+        if ($repoId === '') {
+            throw new BackupException("Could not determine the Borg repository id for {$path}");
         }
 
         if ($this->repoRepo->findByRepoId($repoId) !== null) {
@@ -79,14 +102,6 @@ final class RepositoryImportService
                 'synced' => 0,
                 'errors' => 0,
             ];
-        }
-
-        // --- Optionally fix ownership ----------------------------------------
-        if (!empty($opts['fixOwnership'])) {
-            exec(sprintf('sudo /usr/bin/chown -R phpborg-borg:phpborg-borg %s 2>&1', escapeshellarg($path)), $o, $rc);
-            if ($rc !== 0) {
-                $this->logger->warning("Could not chown {$path} to phpborg-borg", 'IMPORT');
-            }
         }
 
         // --- Server (create if missing) --------------------------------------

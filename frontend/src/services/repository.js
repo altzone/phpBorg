@@ -26,6 +26,17 @@ export const repositoryService = {
   },
 
   /**
+   * Import an existing Borg repository (register it and sync its archives).
+   *
+   * @param {Object} payload { path, encryption, passphrase, server, type,
+   *   compression, keep_daily, keep_weekly, keep_monthly, keep_yearly, fix_ownership, sync }
+   */
+  async import(payload) {
+    const response = await api.post('/repositories/import', payload)
+    return response.data.data
+  },
+
+  /**
    * Update repository retention policy
    */
   async updateRetention(id, retention) {

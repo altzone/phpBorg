@@ -77,23 +77,10 @@ final class RepositoryImportCommand extends Command
             $io->error("Path does not exist or is not a directory: {$path}");
             return Command::FAILURE;
         }
-        if (!is_file($path . '/config') || !is_dir($path . '/data')) {
-            $io->error("Not a Borg repository (missing config or data/): {$path}");
-            return Command::FAILURE;
-        }
         if ($encryption !== 'none' && $passphrase === '') {
             $io->error("Encrypted repository ({$encryption}) requires --passphrase");
             return Command::FAILURE;
         }
-
-        // --- Read the Borg repository id from its config --------------------------
-        $repoConfig = @parse_ini_file($path . '/config');
-        $repoId = is_array($repoConfig) ? ($repoConfig['id'] ?? '') : '';
-        if (!is_string($repoId) || $repoId === '') {
-            $io->error("Could not read repository id from {$path}/config");
-            return Command::FAILURE;
-        }
-        $io->writeln("✓ Detected Borg repository id: <info>{$repoId}</info>");
 
         try {
             $importService = new RepositoryImportService(
@@ -101,6 +88,7 @@ final class RepositoryImportCommand extends Command
                 $this->app->getServerRepository(),
                 $this->app->getStoragePoolRepository(),
                 $this->app->getBackupService(),
+                $this->app->getBorgExecutor(),
                 $this->app->getLogger()
             );
 

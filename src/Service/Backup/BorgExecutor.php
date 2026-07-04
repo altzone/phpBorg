@@ -369,6 +369,32 @@ final class BorgExecutor
     }
 
     /**
+     * Read a repository's id via `borg config <repo> id`.
+     *
+     * Works even when the phpBorg web user cannot read the repo directly (repos are
+     * owned by phpborg-borg with 0700), because it runs as the borg account. Also
+     * doubles as a validity check: it only succeeds on a real Borg repository.
+     *
+     * @throws BackupException
+     */
+    public function getRepoId(string $repository, string $passphrase = '', ?string $runAsUser = null, bool $allowUnencrypted = false, int $timeout = 120): string
+    {
+        $result = $this->execute(
+            ['config', $repository, 'id'],
+            $passphrase,
+            $timeout,
+            $runAsUser,
+            $allowUnencrypted
+        );
+
+        if ($result['exitCode'] !== 0) {
+            throw new BackupException("Failed to read repository id: {$result['stderr']}");
+        }
+
+        return trim($result['stdout']);
+    }
+
+    /**
      * List archives in a repository
      *
      * @return array<int, array{name: string, id: string, start: string, time: string}>
