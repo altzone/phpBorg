@@ -2256,6 +2256,7 @@
       "ssh_manual_desc": "Manually copy the public key to the server",
       "ssh_password_title": "SSH Password",
       "ssh_password_desc": "Automatic installation via SSH password",
+      "coming_soon": "Coming soon",
       "agent_windows_title": "Windows Agent",
       "agent_windows_desc": "Install the agent on Windows Server",
       "windows_feature1": "Simple GUI installer",

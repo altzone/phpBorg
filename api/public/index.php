@@ -358,10 +358,8 @@ try {
     $router->post('/agent/certificate/renew', AgentGatewayController::class, 'renewCertificate', requireAuth: false); // mTLS auth
 
     // Agent Download Routes (Public - requires registration token)
-    $router->get('/agent/download/windows', AgentGatewayController::class, 'downloadWindows', requireAuth: false);
+    // NOTE: Windows agent/installer removed - no clean native Borg on Windows yet.
     $router->get('/agent/download/linux', AgentGatewayController::class, 'downloadLinux', requireAuth: false);
-    $router->get('/agent/installer/windows', AgentGatewayController::class, 'getWindowsInstaller', requireAuth: false);
-    $router->get('/agent/installer/package', AgentGatewayController::class, 'getInstallerPackage', requireAuth: true);
 
     // Agent Registration with Token (for installer scripts)
     $router->post('/agent/register-token', AgentGatewayController::class, 'registerWithToken', requireAuth: false);

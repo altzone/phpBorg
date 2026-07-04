@@ -135,8 +135,6 @@ final class MaintenanceHandler implements JobHandlerInterface
         $binaries = [
             'phpborg-agent-linux-amd64',
             'phpborg-agent-linux-arm64',
-            'phpborg-agent-windows-amd64.exe',
-            'phpborg-installer.exe',
         ];
 
         $copiedCount = 0;

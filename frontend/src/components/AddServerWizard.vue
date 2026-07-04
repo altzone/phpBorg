@@ -84,18 +84,15 @@
               </ul>
             </div>
 
-            <!-- Method: Agent Windows -->
+            <!-- Method: Agent Windows (temporarily disabled - coming soon) -->
             <div
-              @click="form.method = 'agent_windows'"
-              class="border-2 rounded-xl p-6 cursor-pointer transition hover:shadow-lg relative"
-              :class="form.method === 'agent_windows' ? 'border-cyan-500 bg-cyan-500/10' : 'border-gray-300 dark:border-slate-600 hover:border-slate-500'"
+              class="border-2 rounded-xl p-6 transition relative border-gray-300 dark:border-slate-600 opacity-60 cursor-not-allowed select-none"
+              :title="$t('server_wizard.step1_method.coming_soon')"
             >
-              <span class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-cyan-500 text-white text-xs rounded-full font-semibold">
-                Windows
+              <span class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-gray-500 text-white text-xs rounded-full font-semibold">
+                {{ $t('server_wizard.step1_method.coming_soon') }}
               </span>
-              <div class="flex items-center justify-center w-12 h-12 rounded-full mb-4 mx-auto mt-2"
-                :class="form.method === 'agent_windows' ? 'bg-cyan-500' : 'bg-gray-400 dark:bg-slate-700'"
-              >
+              <div class="flex items-center justify-center w-12 h-12 rounded-full mb-4 mx-auto mt-2 bg-gray-400 dark:bg-slate-700">
                 <!-- Windows icon -->
                 <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>

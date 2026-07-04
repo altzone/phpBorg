@@ -846,7 +846,7 @@ install_certbot() {
 }
 
 build_phpborg_agent() {
-    print_section "Building phpBorg Agent (all platforms)"
+    print_section "Building phpBorg Agent (Linux amd64/arm64)"
 
     local agent_src="${PHPBORG_ROOT}/agent"
     local releases_dir="${PHPBORG_ROOT}/releases/agent"
@@ -875,7 +875,7 @@ build_phpborg_agent() {
     mkdir -p "${releases_dir}"
 
     # Build all agents using Makefile
-    log_info "Compiling phpborg-agent for all platforms (Linux amd64/arm64, Windows, Installer)..."
+    log_info "Compiling phpborg-agent for Linux (amd64/arm64)..."
 
     cd "${agent_src}"
 
@@ -884,8 +884,6 @@ build_phpborg_agent() {
         # Copy all built binaries to releases directory
         cp -f build/phpborg-agent-linux-amd64 "${releases_dir}/"
         cp -f build/phpborg-agent-linux-arm64 "${releases_dir}/"
-        cp -f build/phpborg-agent-windows-amd64.exe "${releases_dir}/"
-        cp -f build/phpborg-installer.exe "${releases_dir}/"
 
         # Set permissions
         chmod +x "${releases_dir}"/*
@@ -897,8 +895,8 @@ build_phpborg_agent() {
             chown phpborg:phpborg "${binary}.sha256"
         done
 
-        log_success "All agents built successfully:"
-        ls -lh "${releases_dir}"/*.exe "${releases_dir}"/phpborg-agent-* 2>/dev/null | while read line; do
+        log_success "Linux agents built successfully:"
+        ls -lh "${releases_dir}"/phpborg-agent-* 2>/dev/null | while read line; do
             log_info "  $line"
         done
 

@@ -2306,6 +2306,7 @@
       "ssh_manual_desc": "Copiez manuellement la cle publique sur le serveur",
       "ssh_password_title": "Mot de passe SSH",
       "ssh_password_desc": "Installation automatique via mot de passe SSH",
+      "coming_soon": "Bientôt disponible",
       "agent_windows_title": "Agent Windows",
       "agent_windows_desc": "Installez l'agent sur Windows Server",
       "windows_feature1": "Installateur graphique simple",

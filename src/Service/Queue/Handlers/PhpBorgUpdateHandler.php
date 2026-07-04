@@ -454,22 +454,44 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
             return;
         }
 
-        // Check if Go is installed
-        $output = [];
-        exec("which go 2>&1", $output, $exitCode);
-        if ($exitCode !== 0) {
+        // Resolve a Go toolchain. Prefer the pinned install at /usr/local/go (where
+        // install.sh puts a current Go) over whatever is first in PATH, which on older
+        // servers may still be an outdated distro Go (e.g. 1.19) that cannot build the
+        // agent nor understand the `toolchain` directive.
+        $goBin = is_executable('/usr/local/go/bin/go')
+            ? '/usr/local/go/bin/go'
+            : trim((string)shell_exec('command -v go 2>/dev/null'));
+        if ($goBin === '' || !is_executable($goBin)) {
             $this->logger->warning("Go not installed, skipping agent rebuild", 'PHPBORG_UPDATE');
             return;
         }
+        $goDir = dirname($goBin);
+
+        // Report the Go version vs what agent/go.mod requires. The project manages its
+        // own dependency versions, so an update must honor a bumped Go requirement.
+        $requiredGo = '?';
+        if (preg_match('/^go\s+(\d+\.\d+(?:\.\d+)?)/m', (string)@file_get_contents("{$agentDir}/go.mod"), $gm)) {
+            $requiredGo = $gm[1];
+        }
+        $installedGo = '?';
+        if (preg_match('/go(\d+\.\d+(?:\.\d+)?)/', (string)shell_exec(escapeshellarg($goBin) . ' version 2>/dev/null'), $gv)) {
+            $installedGo = $gv[1];
+        }
+        $this->logger->info("Agent build: Go {$installedGo} present, go.mod requires {$requiredGo}", 'PHPBORG_UPDATE');
 
         // Ensure releases directory exists
         if (!is_dir($releasesDir)) {
             mkdir($releasesDir, 0755, true);
         }
 
-        // Build ALL agents using Makefile (Linux amd64/arm64, Windows, Installer)
+        // Build ALL agents using Makefile (Linux amd64/arm64, Windows, Installer).
+        // GOTOOLCHAIN=auto lets the Go command auto-download the toolchain pinned in
+        // go.mod when the installed Go is older than required — so a Go version bump is
+        // applied by the update itself (no root needed; the toolchain lands in
+        // GOMODCACHE). Requires network to go.dev and a base Go >= 1.21.
         $output = [];
-        $cmd = "cd {$agentDir} && GOCACHE=/tmp/go-cache GOMODCACHE=/tmp/go-mod make all 2>&1";
+        $cmd = "cd {$agentDir} && PATH=" . escapeshellarg($goDir) . ':$PATH '
+            . "GOTOOLCHAIN=auto GOCACHE=/tmp/go-cache GOMODCACHE=/tmp/go-mod make all 2>&1";
         exec($cmd, $output, $exitCode);
 
         if ($exitCode !== 0) {
@@ -484,8 +506,6 @@ final class PhpBorgUpdateHandler implements JobHandlerInterface
         $binaries = [
             'phpborg-agent-linux-amd64',
             'phpborg-agent-linux-arm64',
-            'phpborg-agent-windows-amd64.exe',
-            'phpborg-installer.exe',
         ];
 
         $copiedCount = 0;

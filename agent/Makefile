@@ -1,12 +1,13 @@
 # phpBorg Agent Makefile
-# Supports building for Linux and Windows
+# Builds the Linux agent (amd64/arm64).
+# NOTE: Windows agent support was removed - there is no clean native Borg build for
+# Windows. Windows clients will be revisited separately.
 
 VERSION := $(shell grep 'const Version' cmd/phpborg-agent/main.go | cut -d'"' -f2)
 BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
 LDFLAGS := -ldflags "-s -w -X main.BuildDate=$(BUILD_DATE) -X main.GitCommit=$(GIT_COMMIT)"
-LDFLAGS_GUI := -ldflags "-s -w -H windowsgui"
 
 # Output directory
 BUILD_DIR := build
@@ -15,13 +16,11 @@ BUILD_DIR := build
 BINARY_NAME := phpborg-agent
 BINARY_LINUX := $(BINARY_NAME)-linux-amd64
 BINARY_LINUX_ARM64 := $(BINARY_NAME)-linux-arm64
-BINARY_WINDOWS := $(BINARY_NAME)-windows-amd64.exe
-BINARY_INSTALLER := phpborg-installer.exe
 
-.PHONY: all clean linux linux-arm64 windows installer deps test help
+.PHONY: all clean linux linux-arm64 deps test help
 
-# Default target: build for all platforms
-all: clean deps linux linux-arm64 windows installer
+# Default target: build the Linux agents
+all: clean deps linux linux-arm64
 	@echo "Build complete. Binaries in $(BUILD_DIR)/"
 	@ls -la $(BUILD_DIR)/
 
@@ -31,11 +30,9 @@ help:
 	@echo "=========================="
 	@echo ""
 	@echo "Targets:"
-	@echo "  all           - Build for all platforms (default)"
+	@echo "  all           - Build the Linux agents (default)"
 	@echo "  linux         - Build for Linux amd64"
 	@echo "  linux-arm64   - Build for Linux arm64"
-	@echo "  windows       - Build for Windows amd64"
-	@echo "  installer     - Build Windows GUI installer"
 	@echo "  deps          - Download dependencies"
 	@echo "  test          - Run tests"
 	@echo "  clean         - Remove build artifacts"
@@ -67,18 +64,6 @@ linux-arm64:
 	@GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -buildvcs=false $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_LINUX_ARM64) ./cmd/phpborg-agent
 	@echo "Built: $(BUILD_DIR)/$(BINARY_LINUX_ARM64)"
 
-# Build for Windows amd64
-windows:
-	@echo "Building for Windows amd64..."
-	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -buildvcs=false $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_WINDOWS) ./cmd/phpborg-agent
-	@echo "Built: $(BUILD_DIR)/$(BINARY_WINDOWS)"
-
-# Build Windows GUI installer
-installer:
-	@echo "Building Windows GUI installer..."
-	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -buildvcs=false $(LDFLAGS_GUI) -o $(BUILD_DIR)/$(BINARY_INSTALLER) ./cmd/phpborg-installer
-	@echo "Built: $(BUILD_DIR)/$(BINARY_INSTALLER)"
-
 # Run tests
 test:
 	@echo "Running tests..."
@@ -96,9 +81,8 @@ release: all
 	@echo "Creating release archives..."
 	@cd $(BUILD_DIR) && tar -czf $(BINARY_NAME)-$(VERSION)-linux-amd64.tar.gz $(BINARY_LINUX)
 	@cd $(BUILD_DIR) && tar -czf $(BINARY_NAME)-$(VERSION)-linux-arm64.tar.gz $(BINARY_LINUX_ARM64)
-	@cd $(BUILD_DIR) && zip $(BINARY_NAME)-$(VERSION)-windows-amd64.zip $(BINARY_WINDOWS)
 	@echo "Release archives created in $(BUILD_DIR)/"
-	@ls -la $(BUILD_DIR)/*.tar.gz $(BUILD_DIR)/*.zip
+	@ls -la $(BUILD_DIR)/*.tar.gz
 
 # Display version info
 version:

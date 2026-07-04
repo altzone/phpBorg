@@ -2301,6 +2301,7 @@
       "ssh_manual_desc": "Öffentlichen Schlüssel manuell auf den Server kopieren",
       "ssh_password_title": "SSH-Passwort",
       "ssh_password_desc": "Automatische Installation über SSH-Passwort",
+      "coming_soon": "Demnächst verfügbar",
       "agent_windows_title": "Windows-Agent",
       "agent_windows_desc": "Agent auf Windows Server installieren",
       "windows_feature1": "Einfaches GUI-Installationsprogramm",
