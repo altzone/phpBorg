@@ -181,6 +181,7 @@ try {
     // Repository Routes (Protected)
     // ===========================================
     $router->get('/repositories', RepositoryController::class, 'list', requireAuth: true);
+    $router->post('/repositories/import', RepositoryController::class, 'import', requireAuth: true);
     $router->get('/repositories/:id', RepositoryController::class, 'show', requireAuth: true);
     $router->get('/repositories/:id/backup-jobs', BackupJobController::class, 'listByRepository', requireAuth: true);
     $router->put('/repositories/:id/retention', RepositoryController::class, 'updateRetention', requireAuth: true);

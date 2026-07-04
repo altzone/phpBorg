@@ -22,33 +22,67 @@ final class BorgExecutor
     }
 
     /**
+     * Build the common Borg environment.
+     *
+     * - BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK is only set to 'yes' when the caller
+     *   knows the repository is unencrypted (Bug #9). Otherwise it stays 'no' so an
+     *   unexpected unencrypted repo is still refused (safe default).
+     * - BORG_BASE_DIR / BORG_CACHE_DIR are set when configured so the (potentially huge)
+     *   chunk cache can live on fast/dedicated storage instead of the OS disk (F1).
+     *
+     * @return array<string, string>
+     */
+    private function buildBorgEnv(bool $allowUnencrypted): array
+    {
+        $env = [
+            'BORG_RELOCATED_REPO_ACCESS_IS_OK' => 'yes',
+            'BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK' => $allowUnencrypted ? 'yes' : 'no',
+        ];
+
+        if ($this->config->borgBaseDir !== '') {
+            $env['BORG_BASE_DIR'] = $this->config->borgBaseDir;
+        }
+        if ($this->config->borgCacheDir !== '') {
+            $env['BORG_CACHE_DIR'] = $this->config->borgCacheDir;
+        }
+
+        return $env;
+    }
+
+    /**
      * Execute borg command with passphrase
      *
      * @param array<int, string> $arguments
      * @param string|null $runAsUser Optional user to run as (uses sudo -u)
+     * @param bool $allowUnencrypted Allow access to an unknown *unencrypted* repository
      * @return array{stdout: string, stderr: string, exitCode: int}
      * @throws BackupException
      */
-    public function execute(array $arguments, string $passphrase, int $timeout = 3600, ?string $runAsUser = null): array
+    public function execute(array $arguments, string $passphrase, int $timeout = 3600, ?string $runAsUser = null, bool $allowUnencrypted = false): array
     {
+        $borgEnv = $this->buildBorgEnv($allowUnencrypted);
+
         if ($runAsUser !== null) {
-            // Use sudo -u with SETENV to pass BORG_PASSPHRASE
-            // The sudoers rule has SETENV: which allows passing env vars
+            // sudo resets the environment (env_reset), so BORG_* variables passed via the
+            // process environment are DROPPED before borg runs. Every variable must be
+            // passed as an inline `KEY=VALUE` argument instead — the sudoers rule grants
+            // `SETENV:` which permits exactly this. (Previously only BORG_PASSPHRASE was
+            // inlined, so the unencrypted-access flag and cache dir never reached borg.)
+            $sudoEnvArgs = ["BORG_PASSPHRASE={$passphrase}"];
+            foreach ($borgEnv as $key => $value) {
+                $sudoEnvArgs[] = "{$key}={$value}";
+            }
             $command = array_merge(
-                ['sudo', '-u', $runAsUser, "BORG_PASSPHRASE={$passphrase}", $this->config->borgBinaryPath],
+                ['sudo', '-u', $runAsUser],
+                $sudoEnvArgs,
+                [$this->config->borgBinaryPath],
                 $arguments
             );
-            $env = [
-                'BORG_RELOCATED_REPO_ACCESS_IS_OK' => 'yes',
-                'BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK' => 'no',
-            ];
+            // Nothing from $env survives sudo; let the sudo process inherit the parent env.
+            $env = null;
         } else {
             $command = array_merge([$this->config->borgBinaryPath], $arguments);
-            $env = [
-                'BORG_PASSPHRASE' => $passphrase,
-                'BORG_RELOCATED_REPO_ACCESS_IS_OK' => 'yes',
-                'BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK' => 'no',
-            ];
+            $env = array_merge(['BORG_PASSPHRASE' => $passphrase], $borgEnv);
         }
 
         $process = new Process($command, null, $env, null, $timeout);
@@ -189,11 +223,10 @@ final class BorgExecutor
     {
         $command = array_merge([$this->config->borgBinaryPath], $arguments);
 
-        $env = [
-            'BORG_PASSPHRASE' => $passphrase,
-            'BORG_RELOCATED_REPO_ACCESS_IS_OK' => 'yes',
-            'BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK' => 'no',
-        ];
+        $env = array_merge(
+            ['BORG_PASSPHRASE' => $passphrase],
+            $this->buildBorgEnv(false)
+        );
 
         $process = new Process($command, null, $env, null, $timeout);
 
@@ -313,13 +346,14 @@ final class BorgExecutor
      * @return array<string, mixed>
      * @throws BackupException
      */
-    public function getRepositoryInfo(string $repository, string $passphrase, ?string $runAsUser = null): array
+    public function getRepositoryInfo(string $repository, string $passphrase, ?string $runAsUser = null, bool $allowUnencrypted = false, int $timeout = 120): array
     {
         $result = $this->execute(
             ['info', '--json', $repository],
             $passphrase,
-            60,
-            $runAsUser
+            $timeout,
+            $runAsUser,
+            $allowUnencrypted
         );
 
         if ($result['exitCode'] !== 0) {
@@ -340,13 +374,14 @@ final class BorgExecutor
      * @return array<int, array{name: string, id: string, start: string, time: string}>
      * @throws BackupException
      */
-    public function listArchives(string $repository, string $passphrase, ?string $runAsUser = null): array
+    public function listArchives(string $repository, string $passphrase, ?string $runAsUser = null, bool $allowUnencrypted = false, int $timeout = 300): array
     {
         $result = $this->execute(
             ['list', '--json', $repository],
             $passphrase,
-            60,
-            $runAsUser
+            $timeout,
+            $runAsUser,
+            $allowUnencrypted
         );
 
         if ($result['exitCode'] !== 0) {
@@ -368,13 +403,17 @@ final class BorgExecutor
      * @return array<string, mixed>
      * @throws BackupException
      */
-    public function getArchiveInfo(string $archive, string $passphrase, ?string $runAsUser = null): array
+    public function getArchiveInfo(string $archive, string $passphrase, ?string $runAsUser = null, bool $allowUnencrypted = false, int $timeout = 600): array
     {
+        // NOTE: `borg info repo::archive` reloads the whole chunk cache, which can take
+        // several minutes on large repositories. The default timeout was 60s (Bug #10);
+        // it is now 600s and configurable by the caller.
         $result = $this->execute(
             ['info', '--json', $archive],
             $passphrase,
-            60,
-            $runAsUser
+            $timeout,
+            $runAsUser,
+            $allowUnencrypted
         );
 
         if ($result['exitCode'] !== 0) {

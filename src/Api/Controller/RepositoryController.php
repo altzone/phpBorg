@@ -9,6 +9,7 @@ use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\ArchiveRepository;
 use PhpBorg\Repository\BackupJobRepository;
 use PhpBorg\Repository\ArchiveMountRepository;
+use PhpBorg\Service\Backup\RepositoryImportService;
 use PhpBorg\Service\Queue\JobQueue;
 
 /**
@@ -16,6 +17,7 @@ use PhpBorg\Service\Queue\JobQueue;
  */
 final class RepositoryController extends BaseController
 {
+    private readonly Application $app;
     private readonly BorgRepositoryRepository $repositoryRepo;
     private readonly ArchiveRepository $archiveRepo;
     private readonly BackupJobRepository $jobRepo;
@@ -24,11 +26,73 @@ final class RepositoryController extends BaseController
 
     public function __construct(Application $app)
     {
+        $this->app = $app;
         $this->repositoryRepo = $app->getBorgRepositoryRepository();
         $this->archiveRepo = $app->getArchiveRepository();
         $this->jobRepo = $app->getBackupJobRepository();
         $this->mountRepo = $app->getArchiveMountRepository();
         $this->jobQueue = $app->getJobQueue();
+    }
+
+    /**
+     * Import an existing Borg repository (Bug #7 / F2).
+     * POST /api/repositories/import
+     *
+     * Body: { path, encryption?, passphrase?, server?, pool?, type?, compression?,
+     *         keep_daily?, keep_weekly?, keep_monthly?, keep_yearly?, fix_ownership?, sync? }
+     */
+    public function import(): void
+    {
+        try {
+            $currentUser = $_SERVER['USER'] ?? null;
+            if (!$currentUser || !in_array('ROLE_ADMIN', $currentUser->roles)) {
+                $this->error('Admin role required', 403, 'FORBIDDEN');
+                return;
+            }
+
+            $data = json_decode(file_get_contents('php://input'), true) ?? [];
+
+            if (empty($data['path'])) {
+                $this->error('Repository path is required', 400, 'MISSING_PATH');
+                return;
+            }
+
+            $service = new RepositoryImportService(
+                $this->app->getBorgRepositoryRepository(),
+                $this->app->getServerRepository(),
+                $this->app->getStoragePoolRepository(),
+                $this->app->getBackupService(),
+                $this->app->getLogger()
+            );
+
+            $result = $service->import([
+                'path' => (string)$data['path'],
+                'encryption' => (string)($data['encryption'] ?? 'none'),
+                'passphrase' => (string)($data['passphrase'] ?? ''),
+                'server' => $data['server'] ?? null,
+                'pool' => $data['pool'] ?? null,
+                'type' => (string)($data['type'] ?? 'backup'),
+                'compression' => (string)($data['compression'] ?? 'lz4'),
+                'keepDaily' => (int)($data['keep_daily'] ?? 7),
+                'keepWeekly' => (int)($data['keep_weekly'] ?? 4),
+                'keepMonthly' => (int)($data['keep_monthly'] ?? 6),
+                'keepYearly' => (int)($data['keep_yearly'] ?? 0),
+                'fixOwnership' => (bool)($data['fix_ownership'] ?? false),
+                'sync' => (bool)($data['sync'] ?? true),
+            ]);
+
+            $this->success(
+                $result,
+                $result['already']
+                    ? 'Repository was already registered'
+                    : "Repository imported ({$result['synced']} archive(s) synced)",
+                $result['already'] ? 200 : 201
+            );
+        } catch (\PhpBorg\Exception\BackupException $e) {
+            $this->error($e->getMessage(), 400, 'IMPORT_FAILED');
+        } catch (\Exception $e) {
+            $this->error('Failed to import repository: ' . $e->getMessage(), 500, 'IMPORT_ERROR');
+        }
     }
 
     /**

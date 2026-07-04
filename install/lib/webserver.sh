@@ -283,19 +283,33 @@ test_webserver() {
 
     log_info "Testing web server accessibility: ${test_url}"
 
-    # Wait for web server to be ready
-    sleep 2
+    # Retry a few times: PHP-FPM / the web server may need a moment to come up.
+    local http_code=""
+    local attempt
+    for attempt in 1 2 3 4 5; do
+        http_code=$(curl -s -o /dev/null -w "%{http_code}" "${test_url}" 2>/dev/null)
+        case "${http_code}" in
+            200|301|302|401)
+                log_success "Web server is accessible (HTTP ${http_code})"
+                save_state "test_webserver" "completed"
+                return 0
+                ;;
+        esac
+        sleep 2
+    done
 
-    # Test with curl
-    if curl -s -o /dev/null -w "%{http_code}" "${test_url}" | grep -q "200\|301\|302"; then
-        log_success "Web server is accessible"
-        save_state "test_webserver" "completed"
-        return 0
+    # Not reachable. This is only a real problem if the frontend build is present;
+    # the test used to run before the frontend phase and warned falsely (Bug #6).
+    if [ -f "${PHPBORG_ROOT}/frontend/dist/index.html" ]; then
+        log_warn "Web server returned HTTP ${http_code:-000} but frontend build exists at frontend/dist/."
+        log_warn "This is usually transient (PHP-FPM/web server still starting) - verify manually: curl -I ${test_url}"
     else
-        log_warn "Web server test failed (may require frontend build)"
-        save_state "test_webserver" "completed"
-        return 0
+        log_info "Frontend not built yet (frontend/dist/index.html missing) - skipping web reachability check."
+        log_info "The frontend is built in a later phase; re-test after installation with: curl -I ${test_url}"
     fi
+
+    save_state "test_webserver" "completed"
+    return 0
 }
 
 #

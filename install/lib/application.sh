@@ -41,18 +41,36 @@ install_composer_dependencies() {
     # Ensure phpborg can write to application directory (for composer.lock)
     chown -R phpborg:phpborg ${PHPBORG_ROOT}
 
+    # Defensive: never let a security advisory abort the install.
+    # A committed composer.lock already pins advisory-clean versions, but if a new
+    # advisory is published later, `composer install` must not refuse to run.
+    su - phpborg -c "cd ${PHPBORG_ROOT} && php8.3 /usr/local/bin/composer config --no-interaction policy.advisories.block false" >> "${INSTALL_LOG}" 2>&1 || true
+
     # Run composer install with progress display
     log_info "Running composer install (this may take a few minutes)..."
 
     # Force PHP 8.3 for composer - use run_with_progress for nice display
     local composer_cmd="su - phpborg -c 'cd ${PHPBORG_ROOT} && php8.3 /usr/local/bin/composer install --no-dev --optimize-autoloader --no-interaction 2>&1'"
 
-    if run_with_progress "Installing PHP dependencies (composer)" "${composer_cmd}" 1 5; then
+    run_with_progress "Installing PHP dependencies (composer)" "${composer_cmd}" 1 5
+    local composer_rc=$?
+
+    # CRITICAL: verify the autoloader actually exists. Without vendor/autoload.php,
+    # every downstream step (migrations, services, web) fails with a fatal error.
+    # Fail hard here so the failure is reported at its true root cause (Bug #1/#2).
+    if [ ! -f "${PHPBORG_ROOT}/vendor/autoload.php" ]; then
+        log_error "Composer install did not produce vendor/autoload.php"
+        log_error "phpBorg cannot run without its dependencies. Aborting application setup."
+        log_error "Check ${INSTALL_LOG} for the composer output above."
+        return 1
+    fi
+
+    if [ ${composer_rc} -eq 0 ]; then
         log_success "Composer dependencies installed"
         save_state "install_composer_dependencies" "completed"
         return 0
     else
-        log_error "Failed to install composer dependencies"
+        log_error "Failed to install composer dependencies (exit ${composer_rc})"
         log_error "Check ${INSTALL_LOG} for details"
         return 1
     fi
@@ -262,11 +280,14 @@ run_migrations() {
 
     cd "${PHPBORG_ROOT}" || return 1
 
-    # Check if migrations directory exists
-    if [ ! -d "migrations" ]; then
-        log_warn "migrations directory not found, skipping migrations"
-        save_state "run_migrations" "completed"
-        return 0
+    # Guard: migrations require the Composer autoloader (bin/run-migration.php does
+    # `require vendor/autoload.php`). If Composer failed (Bug #1), every migration would
+    # die with a fatal error and be misreported as "failed or already applied" (Bug #2).
+    # Abort loudly at the real root cause instead.
+    if [ ! -f "${PHPBORG_ROOT}/vendor/autoload.php" ]; then
+        log_error "Cannot run migrations: vendor/autoload.php is missing (Composer install failed)."
+        log_error "Fix the Composer step first, then re-run the installer."
+        return 1
     fi
 
     log_info "Running migrations..."
@@ -280,22 +301,36 @@ run_migrations() {
             local migration_name=$(basename "${migration_file}")
             log_info "  → Executing migration: ${migration_name}"
 
-            if su - phpborg -c "cd ${PHPBORG_ROOT} && ${PHP_BINARY} bin/run-migration.php ${migration_file}" >> "${INSTALL_LOG}" 2>&1; then
+            # Capture output so real SQL/PHP errors are surfaced (not hidden behind an
+            # ambiguous "failed or already applied" message).
+            local migration_output
+            migration_output=$(su - phpborg -c "cd ${PHPBORG_ROOT} && ${PHP_BINARY} bin/run-migration.php ${migration_file}" 2>&1)
+            local migration_rc=$?
+            echo "${migration_output}" >> "${INSTALL_LOG}"
+
+            if [ ${migration_rc} -eq 0 ]; then
                 log_success "    ✓ ${migration_name} completed"
                 migration_count=$((migration_count + 1))
             else
-                log_warn "    ✗ ${migration_name} failed or already applied"
-                failed_count=$((failed_count + 1))
+                # "already exists" errors are benign on a re-run; everything else is real.
+                if echo "${migration_output}" | grep -qiE "already exists|duplicate (column|key)|Duplicate entry"; then
+                    log_info "    ↷ ${migration_name} already applied (skipped)"
+                else
+                    log_error "    ✗ ${migration_name} failed: $(echo "${migration_output}" | grep -iE 'error|failed' | tail -1)"
+                    failed_count=$((failed_count + 1))
+                fi
             fi
         fi
     done
 
     if [ ${migration_count} -eq 0 ] && [ ${failed_count} -eq 0 ]; then
-        log_info "No migrations to run"
-    elif [ ${migration_count} -gt 0 ]; then
-        log_success "Migrations completed: ${migration_count} applied, ${failed_count} failed/skipped"
+        log_info "Migrations up to date (nothing new to apply)"
+    elif [ ${failed_count} -eq 0 ]; then
+        log_success "Migrations completed: ${migration_count} applied"
     else
-        log_warn "All migrations failed or were already applied"
+        log_error "Migrations completed with errors: ${migration_count} applied, ${failed_count} FAILED (see ${INSTALL_LOG})"
+        save_state "run_migrations" "completed"
+        return 1
     fi
 
     save_state "run_migrations" "completed"

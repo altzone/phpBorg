@@ -61,6 +61,7 @@ use PhpBorg\Command\ListCommand;
 use PhpBorg\Command\ListServersCommand;
 use PhpBorg\Command\MountCommand;
 use PhpBorg\Command\PruneCommand;
+use PhpBorg\Command\RepositoryImportCommand;
 use PhpBorg\Command\SchedulerStartCommand;
 use PhpBorg\Command\SetupCommand;
 use PhpBorg\Command\SyncArchivesCommand;
@@ -118,6 +119,7 @@ try {
         $console->add(new MountCommand($app));
         $console->add(new InfoCommand($app));
         $console->add(new SyncArchivesCommand($app));
+        $console->add(new RepositoryImportCommand($app));
 
         // Database commands
         $console->add(new DatabaseAddCommand($app));

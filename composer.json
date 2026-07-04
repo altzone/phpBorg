@@ -20,7 +20,7 @@
         "symfony/dotenv": "^7.0",
         "monolog/monolog": "^3.5",
         "symfony/process": "^7.0",
-        "firebase/php-jwt": "^6.0",
+        "firebase/php-jwt": "^7.0",
         "predis/predis": "^2.0",
         "ramsey/uuid": "^4.7",
         "phpmailer/phpmailer": "^6.9"

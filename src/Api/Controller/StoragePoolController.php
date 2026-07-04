@@ -430,34 +430,61 @@ class StoragePoolController extends BaseController
     }
 
     /**
+     * Owner used for Borg repositories and storage pools. Borg runs as this account
+     * for local repositories (see BackupService::runAsUser), so pools MUST be owned by
+     * it — not by `phpborg` — otherwise Borg gets "Permission denied" (Bug #8).
+     */
+    private const BORG_OWNER = 'phpborg-borg:phpborg-borg';
+
+    /**
      * Ensure storage pool directory has proper permissions
      * - Creates directory if it doesn't exist
-     * - Sets ownership to phpborg:phpborg
+     * - Sets ownership to phpborg-borg:phpborg-borg (the Borg service account)
      * - Sets permissions to 770 (owner and group can read/write/execute)
+     *
+     * Directory creation is required (fatal on failure). Ownership/permission changes
+     * are best-effort: on a path where sudo is not permitted (e.g. a pool outside the
+     * pre-authorized roots) we surface a clear, actionable message instead of aborting,
+     * so the pool can still be registered and fixed manually (Bug #5).
+     *
+     * Fully-qualified binary paths are used so they match the sudoers rules exactly
+     * (`sudo chown` would otherwise resolve to /usr/bin/chown and fail the /bin/chown
+     * rule).
      */
     private function ensurePoolPermissions(string $path): void
     {
+        $arg = escapeshellarg($path);
+
         // Create directory if it doesn't exist (via sudo for protected paths)
         if (!is_dir($path)) {
-            $cmd = sprintf('sudo mkdir -p %s', escapeshellarg($path));
-            exec($cmd, $output, $returnCode);
-            if ($returnCode !== 0) {
-                throw new \PhpBorg\Exception\PhpBorgException("Failed to create directory: {$path}");
+            exec(sprintf('sudo /usr/bin/mkdir -p %s 2>&1', $arg), $output, $returnCode);
+            if ($returnCode !== 0 && !is_dir($path)) {
+                throw new \PhpBorg\Exception\PhpBorgException(
+                    "Failed to create directory: {$path}. " .
+                    "Create it manually and grant access to phpborg-borg: " .
+                    "sudo mkdir -p {$path} && sudo chown " . self::BORG_OWNER . " {$path} && sudo chmod 770 {$path}"
+                );
             }
         }
 
-        // Set ownership to phpborg:phpborg (via sudo)
-        $cmd = sprintf('sudo chown phpborg:phpborg %s', escapeshellarg($path));
-        exec($cmd, $output, $returnCode);
-        if ($returnCode !== 0) {
-            throw new \PhpBorg\Exception\PhpBorgException("Failed to set ownership on: {$path}");
-        }
+        // Set ownership to the Borg service account (best-effort)
+        exec(sprintf('sudo /usr/bin/chown %s %s 2>&1', self::BORG_OWNER, $arg), $chownOut, $chownRc);
 
-        // Set permissions to 770 (owner and group can read/write/execute)
-        $cmd = sprintf('sudo chmod 770 %s', escapeshellarg($path));
-        exec($cmd, $output, $returnCode);
-        if ($returnCode !== 0) {
-            throw new \PhpBorg\Exception\PhpBorgException("Failed to set permissions on: {$path}");
+        // Set permissions to 770 (owner and group can read/write/execute) (best-effort)
+        exec(sprintf('sudo /usr/bin/chmod 770 %s 2>&1', $arg), $chmodOut, $chmodRc);
+
+        if ($chownRc !== 0 || $chmodRc !== 0) {
+            // Not fatal: the directory exists and can be registered. Tell the admin
+            // exactly how to finish setup for this path.
+            error_log(sprintf(
+                'Storage pool %s: could not set ownership/permissions automatically (%s). ' .
+                'Run: sudo chown %s %s && sudo chmod 770 %s',
+                $path,
+                trim(implode(' ', array_merge((array)$chownOut, (array)$chmodOut))),
+                self::BORG_OWNER,
+                $path,
+                $path
+            ));
         }
     }
 }

@@ -118,19 +118,23 @@ get_webserver_packages() {
 }
 
 # Docker packages
+# NOTE: setup_docker_repo() configures the official docker-ce repository, so we
+# install the docker-ce package set (not the distro `docker.io`). On Debian 12 the
+# `docker-buildx` distro package does not exist and made the whole apt transaction
+# fail, leaving Docker uninstalled while services.sh still tried to start it (Bug #4).
 get_docker_packages() {
     case "${OS_DISTRO}" in
         debian|ubuntu|linuxmint|pop)
-            echo "docker.io docker-compose docker-buildx"
+            echo "docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
             ;;
         rhel|centos|rocky|almalinux|fedora)
-            echo "docker docker-compose docker-buildx-plugin"
+            echo "docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
             ;;
         arch|manjaro)
             echo "docker docker-compose docker-buildx"
             ;;
         alpine)
-            echo "docker docker-compose docker-buildx-plugin"
+            echo "docker docker-cli docker-compose"
             ;;
     esac
 }
@@ -739,6 +743,13 @@ install_fuse_overlayfs() {
     fi
 }
 
+# Minimum Go version required to build the agent (must match agent/go.mod).
+# Distro packages (e.g. Debian 12 ships Go 1.19) are too old and do not understand
+# the `toolchain` directive nor the `1.24.0` version format, so we install an
+# official toolchain from go.dev/dl instead of the distro package (Bug #3).
+GO_REQUIRED_VERSION="1.24.0"
+GO_PINNED_VERSION="1.24.10"
+
 install_golang() {
     print_section "Installing Go (for agent build)"
 
@@ -748,28 +759,59 @@ install_golang() {
         apt-get install -y make >> "${INSTALL_LOG}" 2>&1 || yum install -y make >> "${INSTALL_LOG}" 2>&1 || true
     fi
 
-    # Check if Go is already installed
+    # Check if a suitable Go is already installed (PATH or /usr/local/go)
+    local go_bin=""
     if command -v go &>/dev/null; then
-        local go_version=$(go version 2>/dev/null | awk '{print $3}' | sed 's/go//')
-        log_info "Go already installed: ${go_version}"
-        save_state "install_golang" "completed"
-        return 0
+        go_bin="$(command -v go)"
+    elif [ -x /usr/local/go/bin/go ]; then
+        go_bin="/usr/local/go/bin/go"
     fi
 
-    local packages=$(get_golang_packages)
-
-    if install_packages_with_progress "Installing Go" "${packages}"; then
-        if command -v go &>/dev/null; then
-            local go_version=$(go version 2>/dev/null | awk '{print $3}' | sed 's/go//')
-            log_success "Go installed: ${go_version}"
+    if [ -n "${go_bin}" ]; then
+        local go_version=$("${go_bin}" version 2>/dev/null | awk '{print $3}' | sed 's/go//')
+        if version_ge "${go_version}" "${GO_REQUIRED_VERSION}"; then
+            log_success "Go ${go_version} already installed (>= ${GO_REQUIRED_VERSION})"
+            # Make sure /usr/local/go is on PATH for later steps (agent build)
+            [ -x /usr/local/go/bin/go ] && export PATH="/usr/local/go/bin:${PATH}"
             save_state "install_golang" "completed"
             return 0
-        else
-            log_error "Go installed but not found in PATH"
-            return 1
         fi
+        log_warn "Go ${go_version} found but too old (>= ${GO_REQUIRED_VERSION} required) - installing official toolchain"
+    fi
+
+    # Install official Go toolchain from go.dev/dl (never the distro package)
+    local arch
+    case "$(uname -m)" in
+        x86_64|amd64)  arch="amd64" ;;
+        aarch64|arm64) arch="arm64" ;;
+        armv6l|armv7l) arch="armv6l" ;;
+        *) log_error "Unsupported architecture for Go: $(uname -m)"; return 1 ;;
+    esac
+
+    local go_tarball="go${GO_PINNED_VERSION}.linux-${arch}.tar.gz"
+    local go_url="https://go.dev/dl/${go_tarball}"
+
+    log_info "Downloading official Go ${GO_PINNED_VERSION} from go.dev (${arch})"
+    if ! run_with_progress "Installing Go ${GO_PINNED_VERSION}" \
+        "curl -fsSL '${go_url}' -o /tmp/${go_tarball} && rm -rf /usr/local/go && tar -C /usr/local -xzf /tmp/${go_tarball} && rm -f /tmp/${go_tarball}"; then
+        log_error "Failed to download/install Go from ${go_url}"
+        return 1
+    fi
+
+    # Put Go on PATH for this session and persist system-wide
+    export PATH="/usr/local/go/bin:${PATH}"
+    if [ ! -f /etc/profile.d/go.sh ]; then
+        echo 'export PATH=/usr/local/go/bin:$PATH' > /etc/profile.d/go.sh
+        chmod 644 /etc/profile.d/go.sh
+    fi
+
+    if /usr/local/go/bin/go version &>/dev/null; then
+        local installed_version=$(/usr/local/go/bin/go version 2>/dev/null | awk '{print $3}' | sed 's/go//')
+        log_success "Go ${installed_version} installed to /usr/local/go"
+        save_state "install_golang" "completed"
+        return 0
     else
-        log_error "Failed to install Go"
+        log_error "Go installed but not runnable at /usr/local/go/bin/go"
         return 1
     fi
 }
@@ -815,11 +857,19 @@ build_phpborg_agent() {
         return 1
     fi
 
+    # Ensure the official Go toolchain is on PATH (installed under /usr/local/go)
+    [ -x /usr/local/go/bin/go ] && export PATH="/usr/local/go/bin:${PATH}"
+
     # Check if Go is available
     if ! command -v go &>/dev/null; then
         log_error "Go is not installed, cannot build agent"
         return 1
     fi
+
+    # Use the locally installed toolchain only. agent/go.mod pins `toolchain go1.24.10`;
+    # GOTOOLCHAIN=local prevents the go command from trying to fetch a different
+    # toolchain over the network (which fails on offline/locked-down installs). (Bug #3)
+    export GOTOOLCHAIN=local
 
     # Create releases directory
     mkdir -p "${releases_dir}"
@@ -829,8 +879,8 @@ build_phpborg_agent() {
 
     cd "${agent_src}"
 
-    # Use make all to build everything
-    if make all >> "${INSTALL_LOG}" 2>&1; then
+    # Use make all to build everything (pass PATH/GOTOOLCHAIN through to make)
+    if env PATH="${PATH}" GOTOOLCHAIN=local make all >> "${INSTALL_LOG}" 2>&1; then
         # Copy all built binaries to releases directory
         cp -f build/phpborg-agent-linux-amd64 "${releases_dir}/"
         cp -f build/phpborg-agent-linux-arm64 "${releases_dir}/"

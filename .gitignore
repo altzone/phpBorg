@@ -5,7 +5,9 @@
 
 # Composer
 /vendor/
-composer.lock
+# NOTE: composer.lock is intentionally committed so that `composer install` on a
+# fresh clone uses pinned, advisory-clean versions (deterministic installs).
+# Do NOT re-add composer.lock here.
 
 # Logs
 /var/log/*.log

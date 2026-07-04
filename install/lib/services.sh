@@ -672,6 +672,26 @@ setup_borg_sshd() {
 setup_docker() {
     print_section "Configuring Docker"
 
+    # Guard: never try to start a service that was never installed (Bug #4).
+    # If the docker.service unit is missing (e.g. the package install failed), attempt
+    # a fallback install from the official convenience script before giving up.
+    if ! systemctl list-unit-files 2>/dev/null | grep -q '^docker\.service'; then
+        log_warn "Docker service unit not found - Docker was not installed correctly"
+        log_info "Attempting fallback install via get.docker.com"
+        if run_cmd "curl -fsSL https://get.docker.com -o /tmp/get-docker.sh && sh /tmp/get-docker.sh"; then
+            rm -f /tmp/get-docker.sh
+            log_success "Docker installed via fallback script"
+        else
+            rm -f /tmp/get-docker.sh
+            log_error "Docker is not installed and fallback install failed."
+            log_warn "Docker-dependent features (Instant Recovery, Adminer) will be unavailable."
+            log_warn "Install Docker manually and re-run the installer to enable them."
+            # Non-fatal: the rest of phpBorg works without Docker.
+            save_state "setup_docker" "skipped"
+            return 0
+        fi
+    fi
+
     # Start Docker
     log_info "Starting Docker service"
     if run_cmd "systemctl start docker"; then
@@ -927,7 +947,10 @@ setup_services() {
         local storage_path="${STORAGE_POOL_PATH:-/opt/backups}"
         if [ -d "${storage_path}" ] && id "phpborg-borg" &>/dev/null; then
             log_info "Fixing storage pool ownership for phpborg-borg..."
-            chown phpborg-borg:phpborg "${storage_path}"
+            # Owner AND group are phpborg-borg so the Borg service account has full
+            # access (Bug #8). The previous `phpborg-borg:phpborg` group mismatch left
+            # borg unable to lock the repository.
+            chown phpborg-borg:phpborg-borg "${storage_path}"
             chmod 770 "${storage_path}"
             log_success "Storage pool permissions fixed"
         fi

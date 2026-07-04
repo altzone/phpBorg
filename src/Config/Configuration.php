@@ -23,6 +23,11 @@ final readonly class Configuration
         public string $borgBackupPath,
         public string $borgArchiveDir,
         public string $borgLvmSnapName,
+        // Optional Borg cache/base relocation (F1). The chunk cache can grow very
+        // large (~15 GB for a 14 TB repo) and should live on fast/dedicated storage
+        // rather than the OS disk. Empty string = use Borg's defaults ($HOME based).
+        public string $borgBaseDir,
+        public string $borgCacheDir,
         public string $borgServerIpPublic,
         public string $borgServerIpPrivate,
         public string $logPath,
@@ -68,6 +73,8 @@ final readonly class Configuration
             borgBackupPath: $_ENV['BORG_BACKUP_PATH'],
             borgArchiveDir: $_ENV['BORG_ARCHIVE_DIR'] ?? 'backup',
             borgLvmSnapName: $_ENV['BORG_LVM_SNAP_NAME'] ?? 'phpborg',
+            borgBaseDir: $_ENV['BORG_BASE_DIR'] ?? '',
+            borgCacheDir: $_ENV['BORG_CACHE_DIR'] ?? '',
             borgServerIpPublic: $_ENV['BORG_SERVER_IP_PUBLIC'] ?? '',
             borgServerIpPrivate: $_ENV['BORG_SERVER_IP_PRIVATE'] ?? '',
             logPath: $_ENV['LOG_PATH'] ?? '/var/log/phpborg/phpborg.log',

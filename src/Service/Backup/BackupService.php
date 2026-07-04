@@ -43,6 +43,25 @@ final class BackupService
     }
 
     /**
+     * Whether a repository is unencrypted (encryption == 'none').
+     * Used to allow Borg to access unknown unencrypted repositories (Bug #9).
+     */
+    private function isUnencrypted(BorgRepository $repository): bool
+    {
+        return strtolower(trim($repository->encryption)) === 'none';
+    }
+
+    /**
+     * Timeout (seconds) for `borg info` calls, configurable via the `borg_info_timeout`
+     * setting. Large repositories reload their chunk cache on every info call (Bug #10).
+     */
+    private function borgInfoTimeout(): int
+    {
+        $setting = $this->settingsRepo->findByKey('borg_info_timeout');
+        return $setting ? max(60, (int)$setting->value) : 600;
+    }
+
+    /**
      * Register database backup strategy
      */
     public function registerDatabaseStrategy(DatabaseBackupInterface $strategy, ?string $alias = null): void
@@ -312,7 +331,9 @@ final class BackupService
                 $archiveInfo = $this->borgExecutor->getArchiveInfo(
                     $repository->repoPath . "::{$archiveName}",
                     $repository->passphrase,
-                    $runAsUser
+                    $runAsUser,
+                    $this->isUnencrypted($repository),
+                    $this->borgInfoTimeout()
                 );
 
                 // Save archive to database
@@ -514,24 +535,27 @@ final class BackupService
             return;
         }
 
-        // Modern architecture: repository owned by phpborg user with proper SSH key auth
-        $phpborgUser = 'phpborg';
-        
-        // Ensure repository is accessible by phpborg user
+        // Local Borg repositories are accessed by the phpborg-borg service account
+        // (see runAsUser below). Ownership MUST match that account, not `phpborg`,
+        // otherwise Borg fails with "Permission denied" on the lock file (Bug #8).
+        $borgUser = 'phpborg-borg';
+
+        // Ensure repository is accessible by the borg user
         if (posix_geteuid() === 0) {
             // If running as root, set proper ownership
-            $this->logger->info("Setting repository ownership to {$phpborgUser}", $server->name);
-            if (!chown($repoPath, $phpborgUser) || !chgrp($repoPath, $phpborgUser)) {
-                $this->logger->warning("Failed to set repository ownership", $server->name);
+            $this->logger->info("Setting repository ownership to {$borgUser}", $server->name);
+            if (!@chown($repoPath, $borgUser) || !@chgrp($repoPath, $borgUser)) {
+                $this->logger->warning("Failed to set repository ownership to {$borgUser}", $server->name);
             }
         } else {
             // If not running as root, just ensure basic permissions
             $this->logger->debug("Ensuring basic repository permissions (non-root execution)", $server->name);
         }
-        
-        // Set basic directory permissions (owner read/write/execute)
+
+        // Set directory permissions: owner + group rwx (0770). The borg user needs
+        // group access; 0700 would lock out group members sharing the repo.
         try {
-            if (!chmod($repoPath, 0700)) {
+            if (!@chmod($repoPath, 0770)) {
                 $this->logger->warning("Failed to set repository permissions", $server->name);
             } else {
                 $this->logger->debug("Repository permissions set successfully", $server->name);
@@ -650,6 +674,55 @@ final class BackupService
     }
 
     /**
+     * Save an archive from a `borg list --json` entry (lightweight, no `borg info`).
+     *
+     * borg list entries contain: archive/name, id, start, time — but NOT sizes.
+     * Sizes/nfiles are stored as 0 and can be backfilled later (Bug #10). This keeps
+     * import fast (one `borg list` for the whole repo) instead of one `borg info` per
+     * archive, which reloads the chunk cache every time.
+     *
+     * @param array<string, mixed> $entry
+     */
+    private function saveArchiveFromListing(BorgRepository $repository, array $entry): void
+    {
+        $archiveId = (string)($entry['id'] ?? '');
+        $archiveName = (string)($entry['name'] ?? ($entry['archive'] ?? ''));
+
+        if ($archiveId === '') {
+            throw new BackupException('borg list entry has no archive id');
+        }
+        if ($archiveName === '') {
+            throw new BackupException('borg list entry has no archive name');
+        }
+
+        // Skip if it somehow already exists (idempotent)
+        if ($this->findArchiveByArchiveId($archiveId) !== null) {
+            return;
+        }
+
+        $start = new DateTimeImmutable($entry['start'] ?? 'now');
+        // borg uses `time` as the archive's completion time
+        $end = new DateTimeImmutable($entry['time'] ?? ($entry['start'] ?? 'now'));
+        $duration = (float)max(0, $end->getTimestamp() - $start->getTimestamp());
+
+        $this->archiveRepo->create(
+            repoId: $repository->repoId,
+            serverId: $repository->serverId,
+            name: $archiveName,
+            archiveId: $archiveId,
+            duration: $duration,
+            start: $start,
+            end: $end,
+            compressedSize: 0,
+            deduplicatedSize: 0,
+            originalSize: 0,
+            filesCount: 0,
+            backupConfig: null,
+            avgTransferRate: null
+        );
+    }
+
+    /**
      * Find archive by archive ID
      */
     private function findArchiveByArchiveId(string $archiveId): ?int
@@ -669,7 +742,13 @@ final class BackupService
     {
         // For local repositories (owned by phpborg-borg), run as phpborg-borg
         $runAsUser = str_starts_with($repository->repoPath, '/') ? 'phpborg-borg' : null;
-        $info = $this->borgExecutor->getRepositoryInfo($repository->repoPath, $repository->passphrase, $runAsUser);
+        $info = $this->borgExecutor->getRepositoryInfo(
+            $repository->repoPath,
+            $repository->passphrase,
+            $runAsUser,
+            $this->isUnencrypted($repository),
+            $this->borgInfoTimeout()
+        );
 
         $cacheStats = $info['cache']['stats'] ?? [];
 
@@ -720,8 +799,25 @@ final class BackupService
                     $this->logger->debug("Using sudo -u phpborg-borg for local repository", 'SYNC');
                 }
 
-                // Get all archives from Borg using borg list --json
-                $borgArchives = $this->borgExecutor->listArchives($repository->repoPath, $repository->passphrase, $runAsUser);
+                $allowUnencrypted = $this->isUnencrypted($repository);
+
+                // When true, fetch full per-archive stats (sizes/nfiles) via `borg info`.
+                // This is SLOW on large repositories because each call reloads the chunk
+                // cache (Bug #10), so it defaults to OFF: archives are imported with names
+                // and dates from a single `borg list`, and sizes are backfilled later
+                // (on next backup, or when `sync_fetch_archive_stats` is enabled).
+                $statsSetting = $this->settingsRepo->findByKey('sync_fetch_archive_stats');
+                $fetchStats = $statsSetting ? filter_var($statsSetting->value, FILTER_VALIDATE_BOOLEAN) : false;
+
+                // Get all archives from Borg in a SINGLE pass (borg list --json). This is
+                // fast: names/ids/dates only, one cache load for the whole repository.
+                $borgArchives = $this->borgExecutor->listArchives(
+                    $repository->repoPath,
+                    $repository->passphrase,
+                    $runAsUser,
+                    $allowUnencrypted,
+                    $this->borgInfoTimeout()
+                );
 
                 $this->logger->info(
                     "Found " . count($borgArchives) . " archives in Borg repository {$repository->repoId}",
@@ -735,7 +831,7 @@ final class BackupService
                 // Import missing archives
                 foreach ($borgArchives as $borgArchive) {
                     $archiveId = $borgArchive['id'] ?? '';
-                    $archiveName = $borgArchive['name'] ?? '';
+                    $archiveName = $borgArchive['name'] ?? ($borgArchive['archive'] ?? '');
 
                     if (empty($archiveId)) {
                         $this->logger->warning("Skipping archive with empty ID in repository {$repository->repoId}", 'SYNC');
@@ -749,17 +845,23 @@ final class BackupService
                         continue;
                     }
 
-                    // Archive is missing from database - fetch detailed info and import
                     $this->logger->info("Importing missing archive: {$archiveName}", 'SYNC');
 
                     try {
-                        $archiveInfo = $this->borgExecutor->getArchiveInfo(
-                            $repository->repoPath . "::{$archiveName}",
-                            $repository->passphrase,
-                            $runAsUser
-                        );
-
-                        $this->saveArchive($repository, $archiveInfo);
+                        if ($fetchStats) {
+                            // Detailed (slow) import: one `borg info` per archive.
+                            $archiveInfo = $this->borgExecutor->getArchiveInfo(
+                                $repository->repoPath . "::{$archiveName}",
+                                $repository->passphrase,
+                                $runAsUser,
+                                $allowUnencrypted,
+                                $this->borgInfoTimeout()
+                            );
+                            $this->saveArchive($repository, $archiveInfo);
+                        } else {
+                            // Fast import: name/id/dates from the `borg list` entry, sizes = 0.
+                            $this->saveArchiveFromListing($repository, $borgArchive);
+                        }
                         $synced++;
 
                         $details[] = [
@@ -783,8 +885,16 @@ final class BackupService
                     }
                 }
 
-                // Update repository statistics
-                $this->updateRepositoryStats($repository);
+                // Update repository statistics (best-effort: one `borg info` for the whole
+                // repo). Do not fail the whole sync if this times out on a huge repository.
+                try {
+                    $this->updateRepositoryStats($repository);
+                } catch (\Exception $e) {
+                    $this->logger->warning(
+                        "Could not refresh repository statistics for {$repository->repoId}: {$e->getMessage()}",
+                        'SYNC'
+                    );
+                }
 
             } catch (\Exception $e) {
                 $this->logger->error(
