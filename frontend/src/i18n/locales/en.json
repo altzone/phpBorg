@@ -347,6 +347,11 @@
   },
   "jobs": {
     "title": "Background Jobs",
+    "phase": {
+      "init": "Initializing",
+      "transfer": "Transferring",
+      "finalize": "Finalizing"
+    },
     "subtitle": "Monitor and manage background tasks",
     "show_system_jobs": "Show system jobs",
     "view_details": "View details",

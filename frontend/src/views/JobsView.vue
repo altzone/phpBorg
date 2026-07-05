@@ -288,6 +288,30 @@
                 </div>
               </div>
 
+              <!-- Backup phase stepper (running): init -> transfer -> finalize -->
+              <div v-if="getBackupPhase(job)" class="mt-3 flex items-center gap-1.5 text-xs flex-wrap">
+                <template v-for="(ph, i) in BACKUP_PHASES" :key="ph">
+                  <span
+                    :class="[
+                      'flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-medium transition-colors',
+                      phaseIndex(getBackupPhase(job)) > i
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                        : phaseIndex(getBackupPhase(job)) === i
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 ring-1 ring-amber-400'
+                          : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500'
+                    ]"
+                  >
+                    <svg v-if="phaseIndex(getBackupPhase(job)) > i" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span v-else-if="phaseIndex(getBackupPhase(job)) === i" class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span v-else class="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></span>
+                    {{ $t('jobs.phase.' + ph) }}
+                  </span>
+                  <span v-if="i < BACKUP_PHASES.length - 1" class="text-gray-300 dark:text-gray-600">→</span>
+                </template>
+              </div>
+
               <!-- Real-time stats for running jobs -->
               <div v-if="job.status === 'running' && jobStore.getProgressInfo(job.id)" class="mt-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl">
                 <div class="flex items-center justify-between gap-4 text-sm">
@@ -512,6 +536,29 @@ onMounted(async () => {
     }
   })
 })
+
+// Backup phase derivation (init -> transfer -> finalize), inferred from the live
+// progress so the UI shows WHAT the backup is doing, not just a percentage.
+const BACKUP_PHASES = ['init', 'transfer', 'finalize']
+
+function getBackupPhase(job) {
+  if (!job || job.status !== 'running') return null
+  // Only meaningful for borg backups.
+  if (!String(job.type || '').includes('backup')) return null
+
+  const p = jobStore.getProgressInfo(job.id) || {}
+  const hasTransferData = (p.files_count || 0) > 0 || (p.original_size || 0) > 0
+  const pct = job.progress || 0
+
+  if (pct >= 90) return 'finalize'      // server marks ~95% while saving archive/stats
+  if (hasTransferData) return 'transfer' // borg is reading/chunking files
+  return 'init'                          // connecting, lock, cache sync — no bytes yet
+}
+
+function phaseIndex(phase) {
+  const i = BACKUP_PHASES.indexOf(phase)
+  return i < 0 ? -1 : i
+}
 
 // Filtered jobs
 const filteredJobs = computed(() => {

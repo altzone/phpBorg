@@ -347,6 +347,11 @@
   },
   "jobs": {
     "title": "Tâches en arrière-plan",
+    "phase": {
+      "init": "Initialisation",
+      "transfer": "Transfert",
+      "finalize": "Finalisation"
+    },
     "subtitle": "Surveiller et gérer les tâches en arrière-plan",
     "show_system_jobs": "Afficher les tâches système",
     "view_details": "Voir les détails",

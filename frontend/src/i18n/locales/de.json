@@ -345,6 +345,11 @@
   },
   "jobs": {
     "title": "Hintergrundaufgaben",
+    "phase": {
+      "init": "Initialisierung",
+      "transfer": "Übertragung",
+      "finalize": "Abschluss"
+    },
     "subtitle": "Hintergrundaufgaben überwachen und verwalten",
     "show_system_jobs": "Systemaufgaben anzeigen",
     "view_details": "Details anzeigen",
