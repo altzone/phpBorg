@@ -122,7 +122,8 @@ final class BorgRepositoryRepository
         ?int $keepDaily = null,
         ?int $keepWeekly = null,
         ?int $keepMonthly = null,
-        ?int $keepYearly = null
+        ?int $keepYearly = null,
+        bool $oneFileSystem = false
     ): int {
         // Use provided values or defaults
         $keepDaily = $keepDaily ?? $retention;
@@ -133,15 +134,58 @@ final class BorgRepositoryRepository
         $this->connection->executeUpdate(
             'INSERT INTO repository
              (server_id, repo_id, type, retention, keep_daily, keep_weekly, keep_monthly, keep_yearly,
-              encryption, passphrase, repo_path, compression, ratelimit, backup_path, exclude, modified)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TO_BASE64(?), ?, ?, ?, ?, ?, NOW())',
+              encryption, passphrase, repo_path, compression, ratelimit, backup_path, exclude, one_file_system, modified)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TO_BASE64(?), ?, ?, ?, ?, ?, ?, NOW())',
             [
                 $serverId, $repoId, $type, $retention, $keepDaily, $keepWeekly, $keepMonthly, $keepYearly,
-                $encryption, $passphrase, $repoPath, $compression, $rateLimit, $backupPath, $exclude
+                $encryption, $passphrase, $repoPath, $compression, $rateLimit, $backupPath, $exclude,
+                $oneFileSystem ? 1 : 0
             ]
         );
 
         return $this->connection->getLastInsertId();
+    }
+
+    /**
+     * Update a repository's backup source configuration (Bug 16 + Bug 17):
+     * the source paths (backup_path, CSV), exclude patterns (CSV) and the
+     * one-file-system flag. Any argument left null is left unchanged.
+     *
+     * @throws DatabaseException
+     */
+    public function updateBackupConfig(
+        int $id,
+        ?string $backupPath = null,
+        ?string $exclude = null,
+        ?bool $oneFileSystem = null
+    ): void {
+        $sets = [];
+        $params = [];
+
+        if ($backupPath !== null) {
+            $sets[] = 'backup_path = ?';
+            $params[] = $backupPath;
+        }
+        if ($exclude !== null) {
+            $sets[] = 'exclude = ?';
+            $params[] = $exclude;
+        }
+        if ($oneFileSystem !== null) {
+            $sets[] = 'one_file_system = ?';
+            $params[] = $oneFileSystem ? 1 : 0;
+        }
+
+        if (empty($sets)) {
+            return;
+        }
+
+        $sets[] = 'modified = NOW()';
+        $params[] = $id;
+
+        $this->connection->executeUpdate(
+            'UPDATE repository SET ' . implode(', ', $sets) . ' WHERE id = ?',
+            $params
+        );
     }
 
     /**

@@ -44,6 +44,10 @@ final class RepositoryImportCommand extends Command
             ->addOption('pool', null, InputOption::VALUE_REQUIRED, 'Storage pool name (created from the repo parent dir if missing)')
             ->addOption('type', 't', InputOption::VALUE_REQUIRED, 'Backup type', 'backup')
             ->addOption('compression', 'c', InputOption::VALUE_REQUIRED, 'Compression', 'lz4')
+            ->addOption('backup-path', null, InputOption::VALUE_REQUIRED, 'Source paths to back up (CSV). If omitted, prefilled from the last archive')
+            ->addOption('exclude', null, InputOption::VALUE_REQUIRED, 'Exclude patterns (CSV)')
+            ->addOption('one-file-system', null, InputOption::VALUE_NONE, 'Enable borg --one-file-system for this repo')
+            ->addOption('no-prefill', null, InputOption::VALUE_NONE, 'Do not prefill backup_path/exclude from the last archive')
             ->addOption('keep-daily', null, InputOption::VALUE_REQUIRED, 'Retention: daily', '7')
             ->addOption('keep-weekly', null, InputOption::VALUE_REQUIRED, 'Retention: weekly', '4')
             ->addOption('keep-monthly', null, InputOption::VALUE_REQUIRED, 'Retention: monthly', '6')
@@ -111,6 +115,10 @@ final class RepositoryImportCommand extends Command
                 'keepYearly' => (int)$input->getOption('keep-yearly'),
                 'fixOwnership' => (bool)$input->getOption('fix-ownership'),
                 'sync' => !$input->getOption('no-sync'),
+                'backupPath' => $input->getOption('backup-path'),
+                'exclude' => $input->getOption('exclude'),
+                'oneFileSystem' => (bool)$input->getOption('one-file-system'),
+                'prefill' => !$input->getOption('no-prefill'),
             ]);
 
             if ($result['already']) {

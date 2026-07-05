@@ -480,6 +480,9 @@ final class BackupService
             $excludeArgs .= " --exclude " . escapeshellarg($pattern);
         }
 
+        // Bug 17: do not cross mount points when enabled for this repository.
+        $oneFileSystemArg = $repository->oneFileSystem ? ' --one-file-system' : '';
+
         $pathsString = implode(' ', array_map('escapeshellarg', $paths));
 
         // Properly escape passphrase for shell command
@@ -498,11 +501,12 @@ final class BackupService
         // --progress: Human-readable progress on stderr (kept for compatibility)
         // --json: Final stats as JSON on stdout
         return sprintf(
-            "export BORG_PASSPHRASE=%s && export BORG_RSH='ssh -i %s -o StrictHostKeyChecking=no' && %s create --compression %s --stats --json --log-json --progress%s ssh://%s@%s%s::%s %s",
+            "export BORG_PASSPHRASE=%s && export BORG_RSH='ssh -i %s -o StrictHostKeyChecking=no' && %s create --compression %s --stats --json --log-json --progress%s%s ssh://%s@%s%s::%s %s",
             $escapedPassphrase,
             escapeshellarg($sshKeyPath),
             $this->config->borgBinaryPath,
             $repository->compression,
+            $oneFileSystemArg,
             $excludeArgs,
             $backupServerUser,
             $backupServerIp,

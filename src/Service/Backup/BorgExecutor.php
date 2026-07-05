@@ -142,7 +142,8 @@ final class BorgExecutor
         string $passphrase,
         string $compression = 'lz4',
         array $excludePatterns = [],
-        int $rateLimit = 0
+        int $rateLimit = 0,
+        bool $oneFileSystem = false
     ): array {
         $arguments = [
             'create',
@@ -150,6 +151,12 @@ final class BorgExecutor
             '--json',
             '--compression', $compression,
         ];
+
+        // Do not cross mount points (Bug 17). Each source path stays a separate
+        // starting point, but borg won't descend into nested filesystems.
+        if ($oneFileSystem) {
+            $arguments[] = '--one-file-system';
+        }
 
         if ($rateLimit > 0) {
             $arguments[] = '--remote-ratelimit';
@@ -184,7 +191,8 @@ final class BorgExecutor
         string $compression = 'lz4',
         array $excludePatterns = [],
         int $rateLimit = 0,
-        ?callable $progressCallback = null
+        ?callable $progressCallback = null,
+        bool $oneFileSystem = false
     ): array {
         $arguments = [
             'create',
@@ -193,6 +201,11 @@ final class BorgExecutor
             '--progress',  // Enable real-time progress
             '--compression', $compression,
         ];
+
+        // Do not cross mount points (Bug 17).
+        if ($oneFileSystem) {
+            $arguments[] = '--one-file-system';
+        }
 
         if ($rateLimit > 0) {
             $arguments[] = '--remote-ratelimit';

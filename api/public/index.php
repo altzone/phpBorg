@@ -185,6 +185,7 @@ try {
     $router->get('/repositories/:id', RepositoryController::class, 'show', requireAuth: true);
     $router->get('/repositories/:id/backup-jobs', BackupJobController::class, 'listByRepository', requireAuth: true);
     $router->put('/repositories/:id/retention', RepositoryController::class, 'updateRetention', requireAuth: true);
+    $router->put('/repositories/:id/backup-config', RepositoryController::class, 'updateBackupConfig', requireAuth: true);
     $router->delete('/repositories/:id', RepositoryController::class, 'delete', requireAuth: true);
 
     // ===========================================

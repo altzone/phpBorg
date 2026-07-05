@@ -34,6 +34,7 @@ final readonly class BorgRepository
         public int $totalUniqueChunks,
         public int $totalChunks,
         public DateTimeImmutable $modified,
+        public bool $oneFileSystem = false,
     ) {
     }
 
@@ -67,6 +68,7 @@ final readonly class BorgRepository
             totalUniqueChunks: (int)($row['ttuchunks'] ?? 0),
             totalChunks: (int)($row['ttchunks'] ?? 0),
             modified: new DateTimeImmutable($row['modified']),
+            oneFileSystem: (bool)($row['one_file_system'] ?? false),
         );
     }
 
@@ -116,6 +118,7 @@ final readonly class BorgRepository
             'backup_paths' => $this->getBackupPaths(),
             'exclude' => $this->exclude,
             'exclusion_patterns' => $this->getExclusionPatterns(),
+            'one_file_system' => $this->oneFileSystem,
             'size' => $this->size,
             'compressed_size' => $this->compressedSize,
             'deduplicated_size' => $this->deduplicatedSize,

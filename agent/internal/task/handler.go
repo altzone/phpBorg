@@ -116,6 +116,9 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 
 	compression, _ := task.Payload["compression"].(string)
 
+	// Bug 17: optional --one-file-system (JSON booleans decode to bool)
+	oneFileSystem, _ := task.Payload["one_file_system"].(bool)
+
 	if repoPath == "" || archiveName == "" || len(paths) == 0 {
 		return nil, 1, fmt.Errorf("missing required parameters: repo_path, archive_name, paths")
 	}
@@ -192,7 +195,7 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 	}
 
 	// Execute borg create with progress streaming (uses cancellable context)
-	result := h.executor.BorgCreateWithProgress(backupCtx, repoPath, archiveName, paths, excludes, compression, passphrase, progressCallback)
+	result := h.executor.BorgCreateWithProgress(backupCtx, repoPath, archiveName, paths, excludes, compression, passphrase, oneFileSystem, progressCallback)
 
 	// Check if backup was cancelled
 	if cancelled {

@@ -116,6 +116,7 @@ final class RepositoryController extends BaseController
                     'rate_limit' => $repo->rateLimit,
                     'backup_path' => $repo->backupPath,
                     'exclude' => $repo->exclude,
+                    'one_file_system' => $repo->oneFileSystem,
                     'repo_path' => $repo->repoPath,
                     // Retention policy
                     'retention' => [
@@ -167,6 +168,7 @@ final class RepositoryController extends BaseController
                 'rate_limit' => $repository->rateLimit,
                 'backup_path' => $repository->backupPath,
                 'exclude' => $repository->exclude,
+                'one_file_system' => $repository->oneFileSystem,
                 'repo_path' => $repository->repoPath,
                 // Retention policy
                 'retention' => [
@@ -261,6 +263,66 @@ final class RepositoryController extends BaseController
             ]);
         } catch (\Exception $e) {
             $this->error($e->getMessage(), 500, 'UPDATE_RETENTION_FAILED');
+        }
+    }
+
+    /**
+     * Update a repository's backup source configuration (Bug 16 + Bug 17):
+     * source paths (backup_path, CSV), exclude patterns (CSV), one-file-system flag.
+     * PUT /api/repositories/{id}/backup-config
+     *
+     * Body: { backup_path?, exclude?, one_file_system? } — omitted fields unchanged.
+     */
+    public function updateBackupConfig(): void
+    {
+        try {
+            $currentUser = $_SERVER['USER'] ?? null;
+            if (!$currentUser || !in_array('ROLE_ADMIN', $currentUser->roles)) {
+                $this->error('Admin role required', 403, 'FORBIDDEN');
+                return;
+            }
+
+            $id = (int)($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
+            $repository = $this->repositoryRepo->findById($id);
+            if ($repository === null) {
+                $this->error('Repository not found', 404, 'REPOSITORY_NOT_FOUND');
+                return;
+            }
+
+            $data = json_decode(file_get_contents('php://input'), true) ?? [];
+
+            // Normalise CSV inputs (trim each item, drop empties)
+            $normaliseCsv = static function ($value): ?string {
+                if ($value === null) {
+                    return null;
+                }
+                $items = array_filter(array_map('trim', explode(',', (string)$value)), fn($v) => $v !== '');
+                return implode(',', $items);
+            };
+
+            $backupPath = array_key_exists('backup_path', $data) ? $normaliseCsv($data['backup_path']) : null;
+            $exclude = array_key_exists('exclude', $data) ? ($normaliseCsv($data['exclude']) ?? '') : null;
+            $oneFileSystem = array_key_exists('one_file_system', $data)
+                ? filter_var($data['one_file_system'], FILTER_VALIDATE_BOOLEAN)
+                : null;
+
+            if ($backupPath !== null && $backupPath === '') {
+                $this->error('backup_path cannot be empty', 400, 'INVALID_BACKUP_PATH');
+                return;
+            }
+
+            $this->repositoryRepo->updateBackupConfig($id, $backupPath, $exclude, $oneFileSystem);
+
+            $updated = $this->repositoryRepo->findById($id);
+            $this->success([
+                'backup_path' => $updated->backupPath,
+                'backup_paths' => $updated->getBackupPaths(),
+                'exclude' => $updated->exclude,
+                'exclusion_patterns' => $updated->getExclusionPatterns(),
+                'one_file_system' => $updated->oneFileSystem,
+            ], 'Backup configuration updated');
+        } catch (\Exception $e) {
+            $this->error($e->getMessage(), 500, 'UPDATE_BACKUP_CONFIG_FAILED');
         }
     }
 

@@ -521,6 +521,7 @@ final class BackupCreateHandler implements JobHandlerInterface
             'paths' => $backupPaths,
             'excludes' => $excludes,
             'compression' => $repository->compression ?? 'lz4',
+            'one_file_system' => $repository->oneFileSystem, // Bug 17
             'passphrase' => $repository->passphrase,
             'server_id' => $server->id,
             'repository_id' => $repository->id,

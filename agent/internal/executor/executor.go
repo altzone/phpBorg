@@ -162,18 +162,23 @@ type BorgProgress struct {
 type ProgressCallback func(progress BorgProgress)
 
 // BorgCreate executes a borg create command (simple version without streaming)
-func (e *Executor) BorgCreate(ctx context.Context, repoPath string, archiveName string, paths []string, excludes []string, compression string, passphrase string) *CommandResult {
-	return e.BorgCreateWithProgress(ctx, repoPath, archiveName, paths, excludes, compression, passphrase, nil)
+func (e *Executor) BorgCreate(ctx context.Context, repoPath string, archiveName string, paths []string, excludes []string, compression string, passphrase string, oneFileSystem bool) *CommandResult {
+	return e.BorgCreateWithProgress(ctx, repoPath, archiveName, paths, excludes, compression, passphrase, oneFileSystem, nil)
 }
 
 // BorgCreateWithProgress executes a borg create command with real-time progress streaming
-func (e *Executor) BorgCreateWithProgress(ctx context.Context, repoPath string, archiveName string, paths []string, excludes []string, compression string, passphrase string, progressCallback ProgressCallback) *CommandResult {
+func (e *Executor) BorgCreateWithProgress(ctx context.Context, repoPath string, archiveName string, paths []string, excludes []string, compression string, passphrase string, oneFileSystem bool, progressCallback ProgressCallback) *CommandResult {
 	args := []string{
 		"create",
 		"--verbose",
 		"--stats",
 		"--progress",
 		"--log-json",  // JSON output for machine parsing
+	}
+
+	// Bug 17: do not cross mount points (multi-filesystem hosts)
+	if oneFileSystem {
+		args = append(args, "--one-file-system")
 	}
 
 	// Add compression

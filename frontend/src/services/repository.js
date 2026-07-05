@@ -45,6 +45,15 @@ export const repositoryService = {
   },
 
   /**
+   * Update repository backup source config (backup_path, exclude, one_file_system).
+   * @param {Object} config { backup_path?, exclude?, one_file_system? }
+   */
+  async updateBackupConfig(id, config) {
+    const response = await api.put(`/repositories/${id}/backup-config`, config)
+    return response.data.data
+  },
+
+  /**
    * Delete repository (with all safety checks on backend)
    * ⚠️ CRITICAL: This permanently deletes the repository and ALL backups
    *

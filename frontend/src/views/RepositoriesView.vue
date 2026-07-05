@@ -140,6 +140,16 @@
             <!-- Actions -->
             <div class="flex gap-1 ml-2">
               <button
+                @click="editBackupConfig(repo)"
+                class="p-1.5 text-gray-600 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                :title="$t('repositories.backup_options')"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+              <button
                 @click="editRetention(repo)"
                 class="p-1.5 text-gray-600 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
                 title="Edit retention policy"
@@ -255,6 +265,57 @@
 
           <div class="flex gap-3">
             <button type="button" @click="showRetentionModal = false" class="btn btn-secondary flex-1">
+              {{ $t('common.cancel') }}
+            </button>
+            <button type="submit" class="btn btn-primary flex-1">
+              {{ $t('common.save') }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Backup Options Modal (Bug 16 + 17) -->
+    <div v-if="showBackupConfigModal" class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-start justify-center p-4" @click.self="showBackupConfigModal = false">
+      <div class="relative top-10 mx-auto p-6 border w-full max-w-lg shadow-lg rounded-md bg-white dark:bg-gray-800">
+        <div class="flex justify-between items-center mb-1">
+          <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ $t('repositories.backup_options') }}</h3>
+          <button @click="showBackupConfigModal = false" class="text-gray-400 hover:text-gray-500">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ backupConfigForm.repo_name }}</p>
+
+        <form @submit.prevent="saveBackupConfig">
+          <div class="space-y-4 mb-4">
+            <!-- Source paths -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('repositories.source_paths') }}</label>
+              <textarea v-model="backupConfigForm.backup_path" rows="2" placeholder="/,/data0,/boot/efi" class="input w-full font-mono text-sm"></textarea>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $t('repositories.source_paths_help') }}</p>
+            </div>
+
+            <!-- Excludes -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $t('repositories.excludes') }}</label>
+              <textarea v-model="backupConfigForm.exclude" rows="3" placeholder="/proc,/sys,/tmp,/var/cache" class="input w-full font-mono text-sm"></textarea>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $t('repositories.excludes_help') }}</p>
+            </div>
+
+            <!-- One file system -->
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input v-model="backupConfigForm.one_file_system" type="checkbox" class="mt-0.5">
+              <span>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $t('repositories.one_file_system') }}</span>
+                <span class="block text-xs text-gray-500 dark:text-gray-400">{{ $t('repositories.one_file_system_help') }}</span>
+              </span>
+            </label>
+          </div>
+
+          <div class="flex gap-3">
+            <button type="button" @click="showBackupConfigModal = false" class="btn btn-secondary flex-1">
               {{ $t('common.cancel') }}
             </button>
             <button type="submit" class="btn btn-primary flex-1">
@@ -503,6 +564,16 @@ const retentionForm = ref({
   keep_yearly: 0
 })
 
+// Backup options state (Bug 16 + 17)
+const showBackupConfigModal = ref(false)
+const backupConfigForm = ref({
+  repository_id: null,
+  repo_name: '',
+  backup_path: '',
+  exclude: '',
+  one_file_system: false
+})
+
 // Import existing repository state
 const showImportModal = ref(false)
 const importing = ref(false)
@@ -633,6 +704,40 @@ async function saveRetention() {
     showToast(t('repositories.retention_updated'), t('repositories.retention_updated_msg'), 'success')
   } catch (err) {
     console.error('Failed to update retention:', err)
+    showToast(t('repositories.update_failed'), err.response?.data?.error?.message || t('repositories.update_failed_msg'), 'error')
+  }
+}
+
+async function editBackupConfig(repo) {
+  // Fetch full repo to get current backup_path / exclude / one_file_system
+  let full = repo
+  try {
+    full = await repositoryService.getRepository(repo.id)
+  } catch (e) {
+    console.warn('Could not fetch repository details, using cached values', e)
+  }
+  backupConfigForm.value = {
+    repository_id: repo.id,
+    repo_name: repo.name,
+    backup_path: full.backup_path || repo.backup_path || '',
+    exclude: full.exclude || repo.exclude || '',
+    one_file_system: !!(full.one_file_system ?? repo.one_file_system)
+  }
+  showBackupConfigModal.value = true
+}
+
+async function saveBackupConfig() {
+  try {
+    await repositoryService.updateBackupConfig(backupConfigForm.value.repository_id, {
+      backup_path: backupConfigForm.value.backup_path,
+      exclude: backupConfigForm.value.exclude,
+      one_file_system: backupConfigForm.value.one_file_system
+    })
+    showBackupConfigModal.value = false
+    await loadRepositories()
+    showToast(t('repositories.backup_options_saved'), '', 'success')
+  } catch (err) {
+    console.error('Failed to update backup config:', err)
     showToast(t('repositories.update_failed'), err.response?.data?.error?.message || t('repositories.update_failed_msg'), 'error')
   }
 }
