@@ -89,8 +89,8 @@
               required
               class="input"
             >
-              <option value="internal">Internal (Private Network - 10.10.70.70)</option>
-              <option value="external">External (Public Internet - 91.200.205.105)</option>
+              <option value="internal">{{ internalLabel }}</option>
+              <option value="external">{{ externalLabel }}</option>
             </select>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">
               Internal: Server on same LAN. External: Server on internet.
@@ -148,6 +148,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useServerStore } from '@/stores/server'
+import { settingsService } from '@/services/settings'
 
 const props = defineProps({
   server: {
@@ -159,6 +160,33 @@ const props = defineProps({
 const emit = defineEmits(['close', 'saved'])
 
 const serverStore = useServerStore()
+
+// Bug 19: show the REAL configured IPs (network.internal_ip / external_ip) instead
+// of hardcoded values. backupType actually selects which of these the agent uses
+// for the borg connection, so the labels must reflect the real configuration.
+const internalIp = ref('')
+const externalIp = ref('')
+
+const internalLabel = computed(() =>
+  internalIp.value ? `Internal (Private Network - ${internalIp.value})` : 'Internal (Private Network)'
+)
+const externalLabel = computed(() =>
+  externalIp.value ? `External (Public Internet - ${externalIp.value})` : 'External (Public Internet)'
+)
+
+async function loadNetworkSettings() {
+  try {
+    const data = await settingsService.getSettingsByCategory('network')
+    const settings = data?.settings || data || {}
+    for (const [key, value] of Object.entries(settings)) {
+      if (key.endsWith('internal_ip')) internalIp.value = value || ''
+      else if (key.endsWith('external_ip')) externalIp.value = value || ''
+    }
+  } catch (e) {
+    // Non-fatal: fall back to plain labels without IPs
+    console.warn('Could not load network settings for backup type labels', e)
+  }
+}
 
 const isEdit = computed(() => !!props.server)
 const loading = ref(false)
@@ -175,6 +203,7 @@ const form = ref({
 })
 
 onMounted(() => {
+  loadNetworkSettings()
   if (props.server) {
     form.value = {
       name: props.server.name,

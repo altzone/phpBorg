@@ -69,6 +69,7 @@ final class AgentWorkerStartCommand extends Command
         // Handler pour rafraîchir les authorized_keys (appelé par BackupCreateHandler)
         $worker->registerHandler('refresh_agent_authorized_keys', new RefreshAgentAuthorizedKeysHandler(
             $this->app->getAgentRepository(),
+            $this->app->getStoragePoolRepository(),
             $logger
         ));
 

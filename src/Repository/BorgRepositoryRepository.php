@@ -123,7 +123,8 @@ final class BorgRepositoryRepository
         ?int $keepWeekly = null,
         ?int $keepMonthly = null,
         ?int $keepYearly = null,
-        bool $oneFileSystem = false
+        bool $oneFileSystem = false,
+        ?int $storagePoolId = null
     ): int {
         // Use provided values or defaults
         $keepDaily = $keepDaily ?? $retention;
@@ -131,17 +132,34 @@ final class BorgRepositoryRepository
         $keepMonthly = $keepMonthly ?? 6;
         $keepYearly = $keepYearly ?? 0;
 
-        $this->connection->executeUpdate(
-            'INSERT INTO repository
-             (server_id, repo_id, type, retention, keep_daily, keep_weekly, keep_monthly, keep_yearly,
-              encryption, passphrase, repo_path, compression, ratelimit, backup_path, exclude, one_file_system, modified)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TO_BASE64(?), ?, ?, ?, ?, ?, ?, NOW())',
-            [
-                $serverId, $repoId, $type, $retention, $keepDaily, $keepWeekly, $keepMonthly, $keepYearly,
-                $encryption, $passphrase, $repoPath, $compression, $rateLimit, $backupPath, $exclude,
-                $oneFileSystem ? 1 : 0
-            ]
-        );
+        // Bug 20: when a storage pool is known, store it; otherwise fall back to the
+        // schema default (1) so existing callers keep working.
+        if ($storagePoolId !== null) {
+            $this->connection->executeUpdate(
+                'INSERT INTO repository
+                 (server_id, repo_id, type, retention, keep_daily, keep_weekly, keep_monthly, keep_yearly,
+                  encryption, passphrase, repo_path, compression, ratelimit, backup_path, exclude,
+                  one_file_system, storage_pool_id, modified)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TO_BASE64(?), ?, ?, ?, ?, ?, ?, ?, NOW())',
+                [
+                    $serverId, $repoId, $type, $retention, $keepDaily, $keepWeekly, $keepMonthly, $keepYearly,
+                    $encryption, $passphrase, $repoPath, $compression, $rateLimit, $backupPath, $exclude,
+                    $oneFileSystem ? 1 : 0, $storagePoolId
+                ]
+            );
+        } else {
+            $this->connection->executeUpdate(
+                'INSERT INTO repository
+                 (server_id, repo_id, type, retention, keep_daily, keep_weekly, keep_monthly, keep_yearly,
+                  encryption, passphrase, repo_path, compression, ratelimit, backup_path, exclude, one_file_system, modified)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TO_BASE64(?), ?, ?, ?, ?, ?, ?, NOW())',
+                [
+                    $serverId, $repoId, $type, $retention, $keepDaily, $keepWeekly, $keepMonthly, $keepYearly,
+                    $encryption, $passphrase, $repoPath, $compression, $rateLimit, $backupPath, $exclude,
+                    $oneFileSystem ? 1 : 0
+                ]
+            );
+        }
 
         return $this->connection->getLastInsertId();
     }

@@ -24,36 +24,24 @@ if [[ "$REPO_PATH" =~ \.\. ]]; then
     exit 1
 fi
 
-# Get valid storage pool paths from database
-PHPBORG_ROOT="${PHPBORG_ROOT:-/opt/newphpborg/phpBorg}"
-source "${PHPBORG_ROOT}/.env" 2>/dev/null || true
+# NOTE (Bug 18): storage-pool membership is validated in PHP by
+# RefreshAgentAuthorizedKeysHandler (where the DB connection already works),
+# BEFORE this script is invoked. This script no longer queries the database:
+# the previous query used the wrong column ('status' instead of 'active') and
+# the wrong credentials (localhost socket instead of DB_HOST=127.0.0.1), which
+# made every repository outside /opt/backups fail. We keep only the absolute-path
+# and path-traversal checks above as defence-in-depth.
 
-# Query storage pools from database
-VALID_PATHS=$(mysql -u"${DB_USER:-phpborg}" -p"${DB_PASS}" -h"${DB_HOST:-localhost}" "${DB_NAME:-phpborg}" -N -e "SELECT path FROM storage_pools WHERE status = 'active'" 2>/dev/null || echo "/opt/backups")
-
-# Check if repo path starts with a valid storage pool path
-VALID=false
-for POOL_PATH in $VALID_PATHS; do
-    if [[ "$REPO_PATH" == "$POOL_PATH"* ]]; then
-        VALID=true
-        break
-    fi
-done
-
-if [ "$VALID" != "true" ]; then
-    echo "Error: Path is not under a valid storage pool" >&2
-    exit 1
-fi
-
-# Create directory structure with correct ownership
+# Create directory structure with correct ownership (owner AND group phpborg-borg,
+# consistent with how borg accesses local repositories).
 REPO_DIR=$(dirname "$REPO_PATH")
 
 mkdir -p "$REPO_DIR"
-chown phpborg-borg:phpborg "$REPO_DIR"
+chown phpborg-borg:phpborg-borg "$REPO_DIR"
 chmod 770 "$REPO_DIR"
 
 mkdir -p "$REPO_PATH"
-chown -R phpborg-borg:phpborg "$REPO_PATH"
+chown -R phpborg-borg:phpborg-borg "$REPO_PATH"
 chmod 770 "$REPO_PATH"
 
 echo "Directory prepared: $REPO_PATH"

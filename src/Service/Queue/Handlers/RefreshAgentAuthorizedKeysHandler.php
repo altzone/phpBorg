@@ -23,6 +23,7 @@ final class RefreshAgentAuthorizedKeysHandler implements JobHandlerInterface
 
     public function __construct(
         private readonly AgentRepository $agentRepo,
+        private readonly \PhpBorg\Repository\StoragePoolRepository $storagePoolRepo,
         private readonly LoggerInterface $logger
     ) {
     }
@@ -91,6 +92,18 @@ final class RefreshAgentAuthorizedKeysHandler implements JobHandlerInterface
     {
         $this->logger->info("Preparing repository directory: {$repoPath}", 'AGENT');
 
+        // Bug 18: validate the path against active storage pools HERE (PHP, where the DB
+        // connection already works via DB_HOST=127.0.0.1). The bash helper used to
+        // re-query the DB with the wrong column ('status' vs 'active') and wrong
+        // credentials (localhost socket), which rejected every repo outside /opt/backups.
+        if (!$this->isPathUnderActiveStoragePool($repoPath)) {
+            throw new \RuntimeException(
+                "Le chemin '{$repoPath}' n'est sous aucun storage pool actif. " .
+                "Ajoutez un storage pool couvrant ce chemin avant de préparer le dépôt."
+            );
+        }
+
+        // The helper now only creates the directory (path already validated).
         $script = '/opt/newphpborg/phpBorg/bin/prepare-backup-directory.sh';
         $cmd = sprintf('sudo %s %s 2>&1', escapeshellarg($script), escapeshellarg($repoPath));
 
@@ -102,6 +115,25 @@ final class RefreshAgentAuthorizedKeysHandler implements JobHandlerInterface
         }
 
         $this->logger->info("Repository directory prepared: {$repoPath}", 'AGENT');
+    }
+
+    /**
+     * Whether $repoPath is under (a prefix of) an active storage pool's path.
+     * Boundary-aware so "/mnt/repo-20t2" is not accepted for pool "/mnt/repo-20t".
+     */
+    private function isPathUnderActiveStoragePool(string $repoPath): bool
+    {
+        $repoPath = rtrim($repoPath, '/');
+        foreach ($this->storagePoolRepo->findActive() as $pool) {
+            $poolPath = rtrim($pool->path, '/');
+            if ($poolPath === '') {
+                continue;
+            }
+            if ($repoPath === $poolPath || str_starts_with($repoPath . '/', $poolPath . '/')) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

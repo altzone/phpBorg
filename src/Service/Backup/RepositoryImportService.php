@@ -121,25 +121,39 @@ final class RepositoryImportService
             $serverId = $server->id;
         }
 
-        // --- Storage pool (create if missing) --------------------------------
-        $poolPath = dirname($path);
-        $existingPool = null;
+        // --- Storage pool (resolve or create) --------------------------------
+        // Bug 20: resolve the storage pool that actually CONTAINS repo_path (longest
+        // path-prefix match) and record its id on the repository, instead of leaving
+        // storage_pool_id at the default 1 (a pool that may not exist).
+        $storagePoolId = null;
+        $bestLen = -1;
         foreach ($this->poolRepo->findAll() as $pool) {
-            if (rtrim($pool->path, '/') === $poolPath) {
-                $existingPool = $pool;
-                break;
+            $pp = rtrim($pool->path, '/');
+            if ($pp === '') {
+                continue;
+            }
+            if ($path === $pp || str_starts_with($path . '/', $pp . '/')) {
+                $len = strlen($pp);
+                if ($len > $bestLen) {
+                    $bestLen = $len;
+                    $storagePoolId = $pool->id;
+                }
             }
         }
-        if ($existingPool === null) {
+
+        if ($storagePoolId === null) {
+            $poolPath = dirname($path);
             $poolName = (string)($opts['pool'] ?? '') ?: ('imported-' . basename($poolPath));
             $total = @disk_total_space($poolPath) ?: null;
-            $this->poolRepo->create(
+            $storagePoolId = $this->poolRepo->create(
                 name: $poolName,
                 path: $poolPath,
                 description: 'Auto-created during repository import',
                 capacityTotal: $total ? (int)$total : null
             );
-            $this->logger->info("Created storage pool '{$poolName}' at {$poolPath}", 'IMPORT');
+            $this->logger->info("Created storage pool '{$poolName}' at {$poolPath} (id {$storagePoolId})", 'IMPORT');
+        } else {
+            $this->logger->info("Repository attached to storage pool #{$storagePoolId}", 'IMPORT');
         }
 
         // --- Repository row --------------------------------------------------
@@ -165,7 +179,8 @@ final class RepositoryImportService
             keepWeekly: (int)($opts['keepWeekly'] ?? 4),
             keepMonthly: (int)($opts['keepMonthly'] ?? 6),
             keepYearly: (int)($opts['keepYearly'] ?? 0),
-            oneFileSystem: $oneFileSystem
+            oneFileSystem: $oneFileSystem,
+            storagePoolId: $storagePoolId
         );
         $this->logger->info("Registered repository {$repoId} at {$path} (encryption: {$encryption})", 'IMPORT');
 
