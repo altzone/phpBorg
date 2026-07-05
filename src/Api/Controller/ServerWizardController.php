@@ -189,10 +189,8 @@ class ServerWizardController extends BaseController
             // Generate token using AgentInstallService
             $tokenData = $this->agentInstallService->generateInstallToken($user->id, $serverName);
 
-            // Get server URL from config or headers
-            $serverUrl = $_SERVER['HTTP_HOST'] ?? 'backup.local';
-            $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $baseUrl = "{$protocol}://{$serverUrl}";
+            // Public base URL (config > reverse-proxy headers > request) — Bug 13
+            $baseUrl = $this->getServerUrl();
 
             $installUrl = "{$baseUrl}/api/server-wizard/install-script/{$tokenData['token']}";
             $oneLiner = "curl -sSL '{$installUrl}' | sudo bash";
@@ -385,19 +383,42 @@ class ServerWizardController extends BaseController
     }
 
     /**
-     * Get the phpBorg server URL
+     * Get the public phpBorg server URL (Bug 13).
+     *
+     * Priority:
+     *  1. Explicit configured base URL (`public_base_url`, then legacy `server_url`).
+     *  2. Reverse-proxy forwarded headers (X-Forwarded-Proto / X-Forwarded-Host) —
+     *     required when SSL is terminated by a proxy that forwards plain HTTP:80,
+     *     which otherwise leaves $_SERVER['HTTPS'] empty and forced the URL to http://.
+     *  3. The direct request ($_SERVER['HTTPS'] / HTTP_HOST).
      */
     private function getServerUrl(): string
     {
-        // Try from settings first
-        $urlSetting = $this->settingRepo->findByKey('server_url');
-        if ($urlSetting && $urlSetting->value) {
-            return $urlSetting->value;
+        // 1. Configured base URL wins (strip any trailing slash)
+        foreach (['public_base_url', 'server_url'] as $key) {
+            $setting = $this->settingRepo->findByKey($key);
+            if ($setting && !empty($setting->value)) {
+                return rtrim($setting->value, '/');
+            }
         }
 
-        // Build from current request
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        // 2. Reverse-proxy forwarded headers
+        $fwdProto = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? null;
+        $fwdHost = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? null;
+
+        $protocol = null;
+        if (!empty($fwdProto)) {
+            // May be a comma-separated list ("https, http") — take the first hop
+            $protocol = trim(explode(',', $fwdProto)[0]);
+        } elseif (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+            $protocol = 'https';
+        } else {
+            $protocol = 'http';
+        }
+
+        $host = !empty($fwdHost)
+            ? trim(explode(',', $fwdHost)[0])
+            : ($_SERVER['HTTP_HOST'] ?? 'localhost');
 
         return "{$protocol}://{$host}";
     }

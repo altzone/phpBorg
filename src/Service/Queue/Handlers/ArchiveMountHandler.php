@@ -98,6 +98,12 @@ final class ArchiveMountHandler implements JobHandlerInterface
                 // Now remove the directory
                 exec('sudo rm -rf ' . escapeshellarg($mountPath));
             }
+            // Bug 11: borg mount runs as phpborg-borg, so the mount base must be owned
+            // by phpborg-borg — otherwise the per-archive subdir can't be created and
+            // borg reports "Mountpoint must be a writable directory". Ensure the base
+            // exists and is owned by phpborg-borg before creating the subdir.
+            exec('sudo /usr/bin/mkdir -p ' . escapeshellarg(self::MOUNT_BASE_PATH));
+            exec('sudo /usr/bin/chown phpborg-borg:phpborg-borg ' . escapeshellarg(self::MOUNT_BASE_PATH));
             exec('sudo -u phpborg-borg mkdir -p ' . escapeshellarg($mountPath));
 
             // Step 5: Create mount record

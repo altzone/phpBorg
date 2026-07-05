@@ -885,6 +885,9 @@ build_phpborg_agent() {
         cp -f build/phpborg-agent-linux-amd64 "${releases_dir}/"
         cp -f build/phpborg-agent-linux-arm64 "${releases_dir}/"
 
+        # Bug 14: default unsuffixed binary served at /downloads/phpborg-agent
+        cp -f build/phpborg-agent-linux-amd64 "${releases_dir}/phpborg-agent"
+
         # Set permissions
         chmod +x "${releases_dir}"/*
         chown phpborg:phpborg "${releases_dir}"/*

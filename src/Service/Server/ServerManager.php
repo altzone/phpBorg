@@ -65,8 +65,8 @@ final class ServerManager
             throw new PhpBorgException("Server {$name} already exists");
         }
 
-        // Validate backupType
-        if (!in_array($backupType, ['internal', 'external'])) {
+        // Validate backupType against the central list (Bug 12)
+        if (!in_array($backupType, \PhpBorg\Entity\Server::BACKUP_TYPES, true)) {
             throw new PhpBorgException("Invalid backup type: {$backupType}");
         }
 

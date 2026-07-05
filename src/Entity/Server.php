@@ -9,6 +9,13 @@ namespace PhpBorg\Entity;
  */
 final readonly class Server
 {
+    /**
+     * Valid SSH backup direction types (Bug 12): single source of truth used by
+     * backend validation (ServerController, ServerManager, AddServerCommand) and the
+     * agent connection mode. Add new types here rather than hardcoding lists.
+     */
+    public const BACKUP_TYPES = ['internal', 'external', 'agent'];
+
     public function __construct(
         public int $id,
         public string $name,

@@ -22,14 +22,42 @@ final class DownloadController extends BaseController
     }
 
     /**
+     * Resolve the agent binary path (Bug 14). The build publishes arch-suffixed
+     * binaries (phpborg-agent-linux-amd64/arm64); older code served a plain
+     * `phpborg-agent` that was never produced -> 404. Resolve the arch from ?arch=
+     * or the User-Agent (default amd64), then fall back to the legacy plain name.
+     */
+    private function resolveAgentBinaryPath(): ?string
+    {
+        $arch = $_GET['arch'] ?? null;
+        if ($arch === null) {
+            $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+            $arch = (stripos($ua, 'aarch64') !== false || stripos($ua, 'arm64') !== false) ? 'arm64' : 'amd64';
+        }
+        $arch = $arch === 'arm64' ? 'arm64' : 'amd64';
+
+        $candidates = [
+            $this->releasesDir . "/agent/phpborg-agent-linux-{$arch}",
+            $this->releasesDir . '/agent/phpborg-agent',              // legacy default (if published)
+            $this->releasesDir . '/agent/phpborg-agent-linux-amd64',  // last-resort
+        ];
+        foreach ($candidates as $candidate) {
+            if (file_exists($candidate)) {
+                return $candidate;
+            }
+        }
+        return null;
+    }
+
+    /**
      * GET /downloads/phpborg-agent
      * Download the phpborg-agent binary
      */
     public function agentBinary(): void
     {
-        $binaryPath = $this->releasesDir . '/agent/phpborg-agent';
+        $binaryPath = $this->resolveAgentBinaryPath();
 
-        if (!file_exists($binaryPath)) {
+        if ($binaryPath === null) {
             $this->error('Agent binary not found. Please run the build process.', 404, 'BINARY_NOT_FOUND');
             return;
         }
@@ -57,15 +85,15 @@ final class DownloadController extends BaseController
      */
     public function agentChecksum(): void
     {
-        $checksumPath = $this->releasesDir . '/agent/phpborg-agent.sha256';
+        $binaryPath = $this->resolveAgentBinaryPath();
+        $checksumPath = $binaryPath ? $binaryPath . '.sha256' : null;
 
-        if (!file_exists($checksumPath)) {
-            // Generate on the fly if binary exists
-            $binaryPath = $this->releasesDir . '/agent/phpborg-agent';
-            if (file_exists($binaryPath)) {
+        if ($checksumPath === null || !file_exists($checksumPath)) {
+            // Generate on the fly if the binary exists
+            if ($binaryPath !== null && file_exists($binaryPath)) {
                 $checksum = hash_file('sha256', $binaryPath);
                 header('Content-Type: text/plain');
-                echo $checksum . "  phpborg-agent\n";
+                echo $checksum . '  ' . basename($binaryPath) . "\n";
                 exit;
             }
 
@@ -85,12 +113,12 @@ final class DownloadController extends BaseController
      */
     public function agentInfo(): void
     {
-        $binaryPath = $this->releasesDir . '/agent/phpborg-agent';
+        $binaryPath = $this->resolveAgentBinaryPath();
 
         // Get version from source code (always available)
         $version = self::getLatestAgentVersion();
 
-        if (!file_exists($binaryPath)) {
+        if ($binaryPath === null || !file_exists($binaryPath)) {
             $this->success([
                 'available' => false,
                 'version' => $version,

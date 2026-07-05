@@ -223,10 +223,14 @@ class ServerController extends BaseController
                 return;
             }
 
-            // Validate backupType
+            // Validate backupType against the central list (Bug 12)
             $backupType = $data['backupType'] ?? 'internal';
-            if (!in_array($backupType, ['internal', 'external'])) {
-                $this->error('Invalid backup type. Must be internal or external', 'INVALID_BACKUP_TYPE', 400);
+            if (!in_array($backupType, \PhpBorg\Entity\Server::BACKUP_TYPES, true)) {
+                $this->error(
+                    'Invalid backup type. Must be one of: ' . implode(', ', \PhpBorg\Entity\Server::BACKUP_TYPES),
+                    'INVALID_BACKUP_TYPE',
+                    400
+                );
                 return;
             }
 

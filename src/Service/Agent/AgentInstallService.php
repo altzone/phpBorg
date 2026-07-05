@@ -121,24 +121,40 @@ class AgentInstallService
         $hostname = $tokenData['hostname'] ?? $tokenData['ip_address'] ?? 'unknown';
         $backupPath = '/opt/backups/' . $agentUuid;
 
-        // Create server in database using the agent-specific method
-        $serverId = $this->serverRepo->createWithAgent([
-            'name' => $agentName,
-            'host' => $hostname,
-            'port' => 22, // Not used with agent, but required field
-            'backuptype' => 'agent',
-            'active' => 1,
-            'ssh_pub_key' => '', // Not used with agent
+        $capabilitiesData = json_encode([
+            'os_info' => $tokenData['os_info'] ?? null,
+            'borg_version' => $tokenData['borg_version'] ?? null,
+        ]);
+        $agentFields = [
             'agent_uuid' => $agentUuid,
             'agent_status' => 'active',
             'agent_last_heartbeat' => date('Y-m-d H:i:s'),
             'agent_version' => $tokenData['agent_version'] ?? '1.0.0',
             'connection_mode' => 'agent',
-            'capabilities_data' => json_encode([
-                'os_info' => $tokenData['os_info'] ?? null,
-                'borg_version' => $tokenData['borg_version'] ?? null,
-            ]),
-        ]);
+            'capabilities_data' => $capabilitiesData,
+        ];
+
+        // Bug 15: if a server with the same name (or host) already exists — e.g. it
+        // was added earlier over SSH and already owns the repository/archives — LINK
+        // the agent to it instead of creating a duplicate server row.
+        $existing = $this->serverRepo->findByName($agentName)
+            ?? $this->serverRepo->findByHost($hostname);
+
+        if ($existing !== null) {
+            $serverId = $existing->id;
+            $this->serverRepo->linkAgent($serverId, $agentFields);
+            error_log("[AGENT] Linked agent {$agentUuid} to existing server '{$agentName}' (#{$serverId}) instead of creating a duplicate");
+        } else {
+            // Create server in database using the agent-specific method
+            $serverId = $this->serverRepo->createWithAgent(array_merge([
+                'name' => $agentName,
+                'host' => $hostname,
+                'port' => 22, // Not used with agent, but required field
+                'backuptype' => 'agent',
+                'active' => 1,
+                'ssh_pub_key' => '', // Not used with agent
+            ], $agentFields));
+        }
 
         // Also create agent record for capabilities detection and task management
         $this->agentRepo->create(
@@ -710,19 +726,38 @@ BASH;
     }
 
     /**
-     * Get the phpBorg server URL
+     * Get the public phpBorg server URL for the generated install script (Bug 13).
+     *
+     * The one-liner and the script's SERVER_URL / AGENT_BINARY_URL must be HTTPS when
+     * SSL is terminated by a reverse proxy that forwards plain HTTP:80 (otherwise the
+     * agent install curl fails). Priority: configured base URL > reverse-proxy
+     * forwarded headers > direct request.
      */
     private function getServerUrl(): string
     {
-        // Try from settings first
-        $urlSetting = $this->settingRepo->findByKey('server_url');
-        if ($urlSetting && $urlSetting->value) {
-            return $urlSetting->value;
+        // 1. Configured base URL wins
+        foreach (['public_base_url', 'server_url'] as $key) {
+            $setting = $this->settingRepo->findByKey($key);
+            if ($setting && !empty($setting->value)) {
+                return rtrim($setting->value, '/');
+            }
         }
 
-        // Build from current request
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        // 2. Reverse-proxy forwarded headers (may be comma-separated lists)
+        $fwdProto = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? null;
+        $fwdHost = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? null;
+
+        if (!empty($fwdProto)) {
+            $protocol = trim(explode(',', $fwdProto)[0]);
+        } elseif (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+            $protocol = 'https';
+        } else {
+            $protocol = 'http';
+        }
+
+        $host = !empty($fwdHost)
+            ? trim(explode(',', $fwdHost)[0])
+            : ($_SERVER['HTTP_HOST'] ?? 'localhost');
 
         return "{$protocol}://{$host}";
     }

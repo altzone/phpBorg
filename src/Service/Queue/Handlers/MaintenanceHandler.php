@@ -157,6 +157,17 @@ final class MaintenanceHandler implements JobHandlerInterface
             }
         }
 
+        // Bug 14: publish the default unsuffixed binary that the download endpoint
+        // and the one-liner installer request (/downloads/phpborg-agent).
+        $defaultSrc = "{$releasesDir}/phpborg-agent-linux-amd64";
+        $defaultDst = "{$releasesDir}/phpborg-agent";
+        if (file_exists($defaultSrc)) {
+            copy($defaultSrc, $defaultDst);
+            chmod($defaultDst, 0755);
+            $checksum = hash_file('sha256', $defaultDst);
+            file_put_contents("{$defaultDst}.sha256", "{$checksum}  phpborg-agent\n");
+        }
+
         $queue->updateProgress($job->id, 90, "Extraction de la version...");
 
         // Extract version from Linux binary

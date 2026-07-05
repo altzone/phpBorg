@@ -49,6 +49,48 @@ final class ServerRepository
     }
 
     /**
+     * Find a server by host (used to avoid duplicating a server when installing
+     * an agent on a host that already exists — Bug 15).
+     *
+     * @throws DatabaseException
+     */
+    public function findByHost(string $host): ?Server
+    {
+        $row = $this->connection->fetchOne(
+            'SELECT * FROM servers WHERE host = ? ORDER BY id LIMIT 1',
+            [$host]
+        );
+
+        return $row ? Server::fromDatabase($row) : null;
+    }
+
+    /**
+     * Link an agent to an EXISTING server row (Bug 15): set the agent fields on a
+     * server that was created earlier (e.g. via SSH) instead of creating a duplicate.
+     *
+     * @param array{agent_uuid:string, agent_status?:string, agent_last_heartbeat?:string, agent_version?:?string, connection_mode?:string, capabilities_data?:?string} $data
+     * @throws DatabaseException
+     */
+    public function linkAgent(int $id, array $data): void
+    {
+        $this->connection->executeUpdate(
+            'UPDATE servers
+             SET agent_uuid = ?, agent_status = ?, agent_last_heartbeat = ?, agent_version = ?,
+                 connection_mode = ?, capabilities_data = ?, active = 1
+             WHERE id = ?',
+            [
+                $data['agent_uuid'],
+                $data['agent_status'] ?? 'active',
+                $data['agent_last_heartbeat'] ?? date('Y-m-d H:i:s'),
+                $data['agent_version'] ?? null,
+                $data['connection_mode'] ?? 'agent',
+                $data['capabilities_data'] ?? null,
+                $id,
+            ]
+        );
+    }
+
+    /**
      * Find all active servers
      *
      * @return array<int, Server>
