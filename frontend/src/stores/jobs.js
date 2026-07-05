@@ -106,6 +106,29 @@ export const useJobStore = defineStore('jobs', () => {
    * Fetch real-time progress for running jobs
    * This should be called on an interval for jobs with status 'running'
    */
+  /**
+   * Merge an incoming (possibly partial or transiently-empty) live progress payload
+   * into the last known one. A live SSE update must NEVER blank fields or reset the
+   * counters to 0 — that made the UI flash and reflow. Cumulative counters
+   * (files/sizes) are monotonic within a running job, so we keep the previous value
+   * when the incoming one is missing, zero, or smaller.
+   */
+  function mergeProgress(existing, incoming) {
+    const merged = { ...(existing || {}), ...(incoming || {}) }
+    const cumulative = ['files_count', 'original_size', 'compressed_size', 'deduplicated_size']
+    for (const key of cumulative) {
+      const inc = Number(incoming?.[key])
+      const prev = Number(existing?.[key])
+      const prevOk = Number.isFinite(prev) && prev > 0
+      if (!Number.isFinite(inc) || inc <= 0) {
+        if (prevOk) merged[key] = existing[key]   // don't blank / reset to 0
+      } else if (prevOk && prev > inc) {
+        merged[key] = existing[key]               // never go backwards
+      }
+    }
+    return merged
+  }
+
   async function fetchProgressForRunningJobs() {
     const running = jobs.value.filter(j => j.status === 'running')
 
@@ -137,7 +160,7 @@ export const useJobStore = defineStore('jobs', () => {
               })
             }
 
-            progressInfo.value.set(job.id, progress)
+            progressInfo.value.set(job.id, mergeProgress(progressInfo.value.get(job.id), progress))
           }
           // If no progress or empty progress, keep the last known values (don't delete)
         } catch (err) {
@@ -163,29 +186,33 @@ export const useJobStore = defineStore('jobs', () => {
    * @param {Object} progress - Progress data
    */
   function setProgressInfo(jobId, progress) {
+    // Merge into the last known progress so a partial/empty live SSE event never blanks
+    // fields or resets counters to 0 (prevents the flash + layout reflow).
+    const merged = mergeProgress(progressInfo.value.get(jobId), progress)
+
     // Get previous progress for rate calculation
     const prev = previousProgress.value.get(jobId)
 
-    if (prev && progress.timestamp && progress.original_size) {
+    if (prev && merged.timestamp && merged.original_size) {
       // Calculate rate (bytes per second)
-      const deltaBytes = progress.original_size - prev.bytes
-      const deltaTime = progress.timestamp - prev.timestamp
+      const deltaBytes = merged.original_size - prev.bytes
+      const deltaTime = merged.timestamp - prev.timestamp
 
       if (deltaTime > 0 && deltaBytes > 0) {
         // Add transfer rate to progress data (bytes/sec)
-        progress.transfer_rate = deltaBytes / deltaTime
+        merged.transfer_rate = deltaBytes / deltaTime
       }
     }
 
     // Store current as previous for next iteration
-    if (progress.timestamp && progress.original_size) {
+    if (merged.timestamp && merged.original_size) {
       previousProgress.value.set(jobId, {
-        bytes: progress.original_size,
-        timestamp: progress.timestamp
+        bytes: merged.original_size,
+        timestamp: merged.timestamp
       })
     }
 
-    progressInfo.value.set(jobId, progress)
+    progressInfo.value.set(jobId, merged)
   }
 
   return {
