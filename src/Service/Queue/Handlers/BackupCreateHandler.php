@@ -529,16 +529,24 @@ final class BackupCreateHandler implements JobHandlerInterface
             'backup_job_id' => $backupJobId,
         ];
 
+        // Bug 23: a backup of a multi-TB repo — especially the FIRST pass over hundreds
+        // of millions of small files — can legitimately run for DAYS. Do NOT let it
+        // inherit the generic 1h default (which killed borg mid-archive and produced a
+        // phantom success). Be generous: 30 days by default, configurable; 0 = no cap.
+        $timeoutSetting = $this->settingRepo->findByKey('agent_backup_timeout_seconds');
+        $backupTimeout = $timeoutSetting !== null ? max(0, (int)$timeoutSetting->value) : 2592000; // 30 days
+
         // Insert task into agent_tasks table
         $connection->executeUpdate(
-            'INSERT INTO agent_tasks (agent_id, job_id, type, payload, status, created_at)
-             VALUES (?, ?, ?, ?, ?, NOW())',
+            'INSERT INTO agent_tasks (agent_id, job_id, type, payload, status, timeout_seconds, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, NOW())',
             [
                 $agentId,
                 $job->id,
                 'backup_create',
                 json_encode($taskPayload),
-                'pending'
+                'pending',
+                $backupTimeout
             ]
         );
 
@@ -547,8 +555,11 @@ final class BackupCreateHandler implements JobHandlerInterface
 
         $queue->updateProgress($job->id, 30, "Waiting for agent to execute backup...");
 
-        // Poll for task completion (max 12 hours for large backups)
-        $maxWait = 43200;
+        // Poll for task completion. Bug 23: the previous hard 12h cap made the worker
+        // give up on legitimately long backups (first pass over hundreds of millions of
+        // files can take days). Wait at least as long as the agent's own timeout, plus a
+        // margin; if the backup timeout is uncapped (0), allow up to 30 days.
+        $maxWait = $backupTimeout > 0 ? ($backupTimeout + 600) : 2592000;
         $waited = 0;
         $pollInterval = 5;
 

@@ -46,12 +46,25 @@ func (h *Handler) ProcessTask(ctx context.Context, task api.Task) error {
 		return fmt.Errorf("failed to start task: %w", err)
 	}
 
-	// Create task context with timeout
+	// Create task context with timeout.
+	// Bug 23: backups of multi-TB / millions-of-small-files repos legitimately run for
+	// many hours. They must NOT inherit the generic 1h fallback (which killed borg mid
+	// archive). When no explicit timeout is set for a backup task, run without a cap
+	// (bounded only by the parent context / the borg process itself).
 	timeout := time.Duration(task.TimeoutSeconds) * time.Second
-	if timeout == 0 {
+	isBackup := task.Type == "backup_create" || task.Type == "backup_restore"
+	if timeout <= 0 && !isBackup {
 		timeout = 1 * time.Hour
 	}
-	taskCtx, cancel := context.WithTimeout(ctx, timeout)
+
+	var taskCtx context.Context
+	var cancel context.CancelFunc
+	if timeout > 0 {
+		taskCtx, cancel = context.WithTimeout(ctx, timeout)
+	} else {
+		// No timeout cap (backup task without an explicit timeout).
+		taskCtx, cancel = context.WithCancel(ctx)
+	}
 	defer cancel()
 
 	// Execute task based on type
@@ -201,17 +214,40 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 	// Execute borg create with progress streaming (uses cancellable context)
 	result := h.executor.BorgCreateWithProgress(backupCtx, repoPath, archiveName, paths, excludes, compression, passphrase, oneFileSystem, allowUnencrypted, progressCallback)
 
-	// Check if backup was cancelled
+	// === Bug 23: derive the status from the REAL outcome ===================
+	// A "success" MUST NEVER be reported unless borg exited cleanly and therefore
+	// committed the archive. A killed/timed-out/signalled process returns a negative
+	// exit code and MUST fail — otherwise phpBorg reports a backup that does not exist.
+
+	// 1) The task context ended (deadline or cancellation) => borg was killed before
+	//    completion, so NO archive was committed. This must fail, whatever the exit code.
+	if ctxErr := backupCtx.Err(); ctxErr != nil {
+		if ctxErr == context.DeadlineExceeded {
+			return nil, 124, fmt.Errorf(
+				"backup TIMED OUT after %s and was killed before completion — no archive committed (borg exit %d): %s",
+				result.Duration, result.ExitCode, result.Stderr,
+			)
+		}
+		return nil, 130, fmt.Errorf(
+			"backup was cancelled before completion — no archive committed (borg exit %d): %s",
+			result.ExitCode, result.Stderr,
+		)
+	}
+
+	// 2) Explicit user-cancel flag (belt and suspenders).
 	if cancelled {
 		return nil, 130, fmt.Errorf("backup cancelled by user")
 	}
 
-	// Borg exit codes:
-	// 0 = success
-	// 1 = warnings (e.g., permission denied on some files) - backup still succeeded
-	// 2 = fatal error
-	if result.ExitCode > 1 {
-		return nil, result.ExitCode, fmt.Errorf("borg create failed: %s", result.Stderr)
+	// 3) Borg exit codes: 0 = success, 1 = warnings (archive STILL committed).
+	//    Anything else — >=2 (error) OR <0 (killed/signalled, e.g. -1) — is a FAILURE.
+	//    The previous check `ExitCode > 1` wrongly let a killed borg (exit -1) through
+	//    and reported a phantom success.
+	if result.ExitCode != 0 && result.ExitCode != 1 {
+		return nil, result.ExitCode, fmt.Errorf(
+			"borg create failed (exit %d) — no archive committed: %s",
+			result.ExitCode, result.Stderr,
+		)
 	}
 
 	// Check if there were warnings (exit code 1)

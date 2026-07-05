@@ -254,10 +254,12 @@ final class AgentTaskRepository
      */
     public function findTimedOutTasks(): array
     {
+        // timeout_seconds = 0 means "no cap" (long backups) — never reap those (Bug 23).
         return $this->connection->fetchAll(
             "SELECT * FROM agent_tasks
              WHERE status = 'running'
              AND started_at IS NOT NULL
+             AND timeout_seconds > 0
              AND TIMESTAMPDIFF(SECOND, started_at, NOW()) > timeout_seconds"
         );
     }
