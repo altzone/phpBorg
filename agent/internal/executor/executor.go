@@ -173,7 +173,12 @@ func (e *Executor) BorgCreateWithProgress(ctx context.Context, repoPath string, 
 		"--verbose",
 		"--stats",
 		"--progress",
-		"--log-json",  // JSON output for machine parsing
+		"--log-json", // JSON output for machine parsing
+		// P0: commit a checkpoint every 15 min so a killed/interrupted backup does not
+		// start from zero. borg dedups against the committed chunks (incl. the
+		// .checkpoint archive), so a retry re-reads the source but does not re-transfer
+		// already-stored data — essential for a 14 TB / multi-day first pass.
+		"--checkpoint-interval", "900",
 	}
 
 	// Bug 17: do not cross mount points (multi-filesystem hosts)
@@ -218,20 +223,26 @@ func (e *Executor) BorgCreateWithProgress(ctx context.Context, repoPath string, 
 		)
 	}
 
-	// If no callback, use simple execution
+	// P0: do NOT impose a 4h cap on borg create — that child timeout overrode the
+	// task's 30-day/no-cap context and killed borg at exactly 4h on the 14 TB backup.
+	// Pass 0 = inherit the task context (runWithEnv* treat 0 as "no timeout").
 	if progressCallback == nil {
-		return e.runWithEnv(ctx, "borg", args, env, 4*time.Hour)
+		return e.runWithEnv(ctx, "borg", args, env, 0)
 	}
-
-	// Use streaming execution with progress callback
-	return e.runWithEnvAndProgress(ctx, "borg", args, env, 4*time.Hour, progressCallback)
+	return e.runWithEnvAndProgress(ctx, "borg", args, env, 0, progressCallback)
 }
 
 // runWithEnvAndProgress executes a command with streaming progress updates
 func (e *Executor) runWithEnvAndProgress(ctx context.Context, command string, args []string, env []string, timeout time.Duration, progressCallback ProgressCallback) *CommandResult {
 	start := time.Now()
 
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	// timeout <= 0 means "no cap" — inherit the caller's context (P0).
+	var cancel context.CancelFunc
+	if timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
+	}
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, command, args...)
@@ -346,8 +357,12 @@ func (e *Executor) BorgExtract(ctx context.Context, repoPath string, archiveName
 func (e *Executor) getBorgEnv() []string {
 	env := os.Environ()
 
-	// SSH command with custom port and key
-	sshCmd := fmt.Sprintf("ssh -p %d -i %s -o StrictHostKeyChecking=no",
+	// SSH command with custom port and key. P1: keepalives so a stalled/flaky link
+	// (failing HBA, NAT idle timeout) does not silently drop the borg transfer —
+	// ServerAliveInterval=30 with CountMax=6 tolerates ~3 min of no response before
+	// giving up, and TCPKeepAlive keeps NAT mappings alive.
+	sshCmd := fmt.Sprintf(
+		"ssh -p %d -i %s -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o TCPKeepAlive=yes",
 		e.config.BorgSSH.Port,
 		e.config.BorgSSH.PrivateKeyPath,
 	)
@@ -373,7 +388,13 @@ func (e *Executor) runWithEnv(ctx context.Context, command string, args []string
 func (e *Executor) runWithEnvAndDir(ctx context.Context, command string, args []string, env []string, dir string, timeout time.Duration) *CommandResult {
 	start := time.Now()
 
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	// timeout <= 0 means "no cap" — inherit the caller's context (P0).
+	var cancel context.CancelFunc
+	if timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
+	}
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, command, args...)

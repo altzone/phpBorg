@@ -108,6 +108,40 @@ func (h *Handler) ProcessTask(ctx context.Context, task api.Task) error {
 	return nil
 }
 
+// tailString returns at most the last n bytes of s, marking truncation. Bug 24: borg's
+// --progress/--log-json stream over 800k+ files is multiple MB and overflowed the
+// persisted job output. We keep the final --json stats (stdout, small) and only a tail
+// of the stderr stream.
+func tailString(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return "...[truncated " + strconv.Itoa(len(s)-n) + " bytes]...\n" + s[len(s)-n:]
+}
+
+// isTransientConnError reports whether borg's stderr indicates a transient SSH/network
+// drop worth retrying (source server here has a failing HBA + flaky link). A genuine
+// borg/repo error (config, auth, disk full) is NOT matched, so it is not retried.
+func isTransientConnError(stderr string) bool {
+	s := strings.ToLower(stderr)
+	for _, needle := range []string{
+		"connection closed by remote host",
+		"connection reset by peer",
+		"broken pipe",
+		"connection timed out",
+		"connection refused",
+		"ssh: connect to host",
+		"kex_exchange_identification",
+		"connection to ", // "Connection to <host> closed"
+		"client_loop: send disconnect",
+	} {
+		if strings.Contains(s, needle) {
+			return true
+		}
+	}
+	return false
+}
+
 // handleBackupCreate handles a backup creation task
 func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[string]interface{}, int, error) {
 	// Extract parameters from payload
@@ -211,8 +245,35 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 		}
 	}
 
-	// Execute borg create with progress streaming (uses cancellable context)
-	result := h.executor.BorgCreateWithProgress(backupCtx, repoPath, archiveName, paths, excludes, compression, passphrase, oneFileSystem, allowUnencrypted, progressCallback)
+	// Execute borg create with progress streaming (uses cancellable context).
+	// P1: auto-retry with backoff on a transient SSH/connection drop. Thanks to
+	// --checkpoint-interval, borg resumes from the last checkpoint and dedups against
+	// the already-committed chunks, so a retry catches up quickly instead of restarting.
+	const maxBorgAttempts = 6
+	var result *executor.CommandResult
+	for attempt := 1; attempt <= maxBorgAttempts; attempt++ {
+		result = h.executor.BorgCreateWithProgress(backupCtx, repoPath, archiveName, paths, excludes, compression, passphrase, oneFileSystem, allowUnencrypted, progressCallback)
+
+		// Stop immediately on cancel/timeout or a committed result (exit 0/1).
+		if backupCtx.Err() != nil || cancelled {
+			break
+		}
+		if result.ExitCode == 0 || result.ExitCode == 1 {
+			break
+		}
+		// Retry only on a transient connection failure, with capped backoff.
+		if attempt < maxBorgAttempts && isTransientConnError(result.Stderr) {
+			backoff := time.Duration(attempt*30) * time.Second // 30s,60s,90s,...
+			log.Printf("[BACKUP] transient connection failure (attempt %d/%d), resuming in %v", attempt, maxBorgAttempts, backoff)
+			h.client.UpdateProgress(ctx, task.ID, 10, fmt.Sprintf("Connection lost — resuming from last checkpoint in %ds (attempt %d/%d)...", int(backoff.Seconds()), attempt+1, maxBorgAttempts))
+			select {
+			case <-time.After(backoff):
+			case <-backupCtx.Done():
+			}
+			continue
+		}
+		break // non-transient error: fall through to the status logic below
+	}
 
 	// === Bug 23: derive the status from the REAL outcome ===================
 	// A "success" MUST NEVER be reported unless borg exited cleanly and therefore
@@ -260,8 +321,8 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 	}
 
 	return map[string]interface{}{
-		"stdout":       result.Stdout,
-		"stderr":       result.Stderr,
+		"stdout":       result.Stdout,                  // final borg --json stats (kept in full)
+		"stderr":       tailString(result.Stderr, 16384), // Bug 24: only a tail of the progress stream
 		"duration":     result.Duration.String(),
 		"has_warnings": hasWarnings,
 		"exit_code":    result.ExitCode,
@@ -318,7 +379,7 @@ func (h *Handler) handleBackupRestore(ctx context.Context, task api.Task) (map[s
 
 	return map[string]interface{}{
 		"stdout":    result.Stdout,
-		"stderr":    result.Stderr,
+		"stderr":    tailString(result.Stderr, 16384), // Bug 24
 		"duration":  result.Duration.String(),
 		"dest_path": destPath,
 	}, 0, nil
