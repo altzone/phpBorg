@@ -18,7 +18,7 @@ import (
 	"github.com/phpborg/phpborg-agent/internal/task"
 )
 
-const Version = "2.3.9"
+const Version = "2.4.0"
 
 func main() {
 	// Parse command line flags
