@@ -671,21 +671,18 @@ func (h *Handler) handleAgentUpdate(ctx context.Context, task api.Task) (map[str
 	go func() {
 		time.Sleep(2 * time.Second) // Give time to send result
 
-		// Try direct systemctl first (if running as root)
-		restartCmd := exec.Command("systemctl", "restart", "phpborg-agent")
-		if err := restartCmd.Run(); err != nil {
-			log.Printf("[UPDATE] Direct systemctl failed: %v, trying with sudo...", err)
-
-			// Try with sudo (if agent has sudo rights for systemctl)
-			sudoCmd := exec.Command("sudo", "systemctl", "restart", "phpborg-agent")
-			if err := sudoCmd.Run(); err != nil {
-				log.Printf("[UPDATE] Sudo systemctl also failed: %v", err)
-
-				// Final fallback: just exit and let systemd restart us
-				log.Printf("[UPDATE] Exiting to let systemd restart with new binary...")
-				os.Exit(0)
-			}
+		// Best effort: try an explicit restart, else exit so systemd (Restart=always)
+		// brings us back on the new binary. Under a hardened unit (NoNewPrivileges) sudo
+		// is expected to be unavailable, so the exit fallback is the NORMAL path here —
+		// not an error worth alarming about on every update.
+		if err := exec.Command("systemctl", "restart", "phpborg-agent").Run(); err == nil {
+			return
 		}
+		if err := exec.Command("sudo", "systemctl", "restart", "phpborg-agent").Run(); err == nil {
+			return
+		}
+		log.Printf("[UPDATE] restarting via systemd (Restart=always) to load the new binary...")
+		os.Exit(0)
 	}()
 
 	// Clean up backup after successful binary update
@@ -697,13 +694,28 @@ func (h *Handler) handleAgentUpdate(ctx context.Context, task api.Task) (map[str
 		"binary_path":      currentBinary,
 	}
 
-	// Bug 22: the binary updated fine, but if a REQUIRED unit/sudoers change could not
-	// be written, do NOT report plain success — surface it explicitly so it is visible
-	// (the agent still restarts on the new binary via systemd Restart=always).
+	// Bug 22: the binary updated fine. Handle a unit/sudoers refresh that could not be
+	// applied.
 	if svcErr != nil || sudoErr != nil {
+		// Case A — read-only /etc only (agent deployed before ReadWritePaths was added
+		// to its unit; ProtectSystem=strict). The binary IS updated and the agent works;
+		// the config refresh can only be applied by a one-time redeploy. Do NOT fail the
+		// task and do NOT alarm on every single update — complete with a clear note.
+		if (svcErr == nil || isReadOnlyErr(svcErr)) && (sudoErr == nil || isReadOnlyErr(sudoErr)) {
+			result["status"] = "updated"
+			result["config_update"] = "deferred: /etc is read-only in the agent sandbox (ProtectSystem=strict) — redeploy the agent once to refresh its unit/sudoers"
+			result["message"] = fmt.Sprintf(
+				"Agent updated to %s. Unit/sudoers refresh deferred (read-only /etc) — redeploy once to apply.",
+				newVersion,
+			)
+			log.Printf("[UPDATE] unit/sudoers refresh deferred: read-only /etc (redeploy the agent once to apply)")
+			return result, 0, nil
+		}
+
+		// Case B — an UNEXPECTED write failure (permissions, disk full, ...). Surface it.
 		result["status"] = "updated_with_warnings"
 		result["message"] = fmt.Sprintf(
-			"Binary updated to %s but system config could not be updated (likely read-only /etc under systemd hardening) — redeploy the agent to apply. systemd=%v sudoers=%v",
+			"Binary updated to %s but system config could not be updated: systemd=%v sudoers=%v",
 			newVersion, svcErr, sudoErr,
 		)
 		return result, 1, fmt.Errorf(
@@ -791,6 +803,14 @@ ReadWritePaths=/etc/sudoers.d/phpborg-agent
 WantedBy=multi-user.target
 `
 
+// isReadOnlyErr reports whether a write failed because the filesystem is read-only —
+// the expected case for an agent deployed before ReadWritePaths was added to its unit
+// (ProtectSystem=strict makes /etc read-only). This is a redeploy-to-fix condition, not
+// a per-update error to alarm on.
+func isReadOnlyErr(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "read-only file system")
+}
+
 // updateSystemdService rewrites the unit ONLY if it differs from the canonical content
 // (Bug 22 fix #3), and returns whether it changed and any error writing a needed change
 // (fix #2). It never rewrites (nor fails) when the unit is already up to date.
@@ -804,7 +824,11 @@ func (h *Handler) updateSystemdService() (bool, error) {
 	}
 
 	if err := os.WriteFile(servicePath, []byte(desiredSystemdUnit), 0644); err != nil {
-		log.Printf("[UPDATE] failed to update systemd unit: %v", err)
+		// Read-only /etc is expected on older-deployed agents; handled calmly by the
+		// caller (deferred, not a per-update alarm). Only log unexpected failures here.
+		if !isReadOnlyErr(err) {
+			log.Printf("[UPDATE] failed to update systemd unit: %v", err)
+		}
 		return true, fmt.Errorf("systemd unit not writable: %w", err)
 	}
 
@@ -895,7 +919,9 @@ func (h *Handler) updateSudoersFile() (bool, error) {
 	}
 
 	if err := os.WriteFile(sudoersPath, []byte(desiredSudoers), 0440); err != nil {
-		log.Printf("[UPDATE] failed to update sudoers: %v", err)
+		if !isReadOnlyErr(err) {
+			log.Printf("[UPDATE] failed to update sudoers: %v", err)
+		}
 		return true, fmt.Errorf("sudoers not writable: %w", err)
 	}
 	log.Println("[UPDATE] sudoers updated")
