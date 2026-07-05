@@ -665,6 +665,9 @@ ProtectHome=read-only
 PrivateTmp=yes
 ReadWritePaths=\$LOG_DIR
 ReadWritePaths=\$AGENT_HOME
+# Bug 22: allow the agent self-update to rewrite its own unit and sudoers file
+ReadWritePaths=/etc/systemd/system/phpborg-agent.service
+ReadWritePaths=/etc/sudoers.d/phpborg-agent
 
 [Install]
 WantedBy=multi-user.target

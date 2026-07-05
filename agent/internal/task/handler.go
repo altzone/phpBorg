@@ -622,11 +622,11 @@ func (h *Handler) handleAgentUpdate(ctx context.Context, task api.Task) (map[str
 
 	h.client.UpdateProgress(ctx, task.ID, 85, "Updating system configuration...")
 
-	// Update systemd service file to ensure correct configuration
-	h.updateSystemdService()
-
-	// Update sudoers file to ensure all required permissions
-	h.updateSudoersFile()
+	// Bug 22: update the systemd unit / sudoers ONLY if they changed, and capture any
+	// failure to write a needed change (e.g. read-only /etc under ProtectSystem=strict)
+	// so the task does not silently report success.
+	_, svcErr := h.updateSystemdService()
+	_, sudoErr := h.updateSudoersFile()
 
 	h.client.UpdateProgress(ctx, task.ID, 90, "Restarting agent via systemd...")
 
@@ -652,16 +652,33 @@ func (h *Handler) handleAgentUpdate(ctx context.Context, task api.Task) (map[str
 		}
 	}()
 
-	// Clean up backup after successful update
+	// Clean up backup after successful binary update
 	os.Remove(backupFile)
 
-	return map[string]interface{}{
+	result := map[string]interface{}{
 		"previous_version": h.config.Agent.Version,
 		"new_version":      newVersion,
 		"binary_path":      currentBinary,
-		"status":           "updated",
-		"message":          "Agent updated successfully, restarting...",
-	}, 0, nil
+	}
+
+	// Bug 22: the binary updated fine, but if a REQUIRED unit/sudoers change could not
+	// be written, do NOT report plain success — surface it explicitly so it is visible
+	// (the agent still restarts on the new binary via systemd Restart=always).
+	if svcErr != nil || sudoErr != nil {
+		result["status"] = "updated_with_warnings"
+		result["message"] = fmt.Sprintf(
+			"Binary updated to %s but system config could not be updated (likely read-only /etc under systemd hardening) — redeploy the agent to apply. systemd=%v sudoers=%v",
+			newVersion, svcErr, sudoErr,
+		)
+		return result, 1, fmt.Errorf(
+			"agent binary updated to %s but unit/sudoers could not be updated: systemd=%v sudoers=%v",
+			newVersion, svcErr, sudoErr,
+		)
+	}
+
+	result["status"] = "updated"
+	result["message"] = "Agent updated successfully, restarting..."
+	return result, 0, nil
 }
 
 // fileChecksum calculates SHA256 checksum of a file
@@ -707,53 +724,64 @@ func copyFile(src, dst string) error {
 	return os.Chmod(dst, sourceInfo.Mode())
 }
 
-// updateSystemdService updates the systemd service file to the latest configuration
-func (h *Handler) updateSystemdService() {
-	log.Println("[UPDATE] Updating systemd service file...")
-
-	serviceContent := `[Unit]
+// desiredSystemdUnit is the canonical agent unit. It MUST stay in sync with the
+// installer (AgentInstallService::generateInstallScript). It includes ReadWritePaths
+// for the agent's own unit file and sudoers file so that self-update can rewrite them
+// even under ProtectSystem=strict (Bug 22).
+const desiredSystemdUnit = `[Unit]
 Description=phpBorg Agent
 Documentation=https://github.com/altzone/phpBorg
 After=network.target
 
 [Service]
 Type=simple
-# Agent runs as root to access all files for full system backups
-User=root
-Group=root
+User=phpborg-agent
+Group=phpborg-agent
 ExecStart=/var/lib/phpborg-agent/bin/phpborg-agent -config /etc/phpborg-agent/config.yaml
 Restart=always
 RestartSec=10
 
-# Minimal security hardening (agent needs full access for backups)
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
 PrivateTmp=yes
+ReadWritePaths=/var/log/phpborg-agent
+ReadWritePaths=/var/lib/phpborg-agent
+ReadWritePaths=/etc/systemd/system/phpborg-agent.service
+ReadWritePaths=/etc/sudoers.d/phpborg-agent
 
 [Install]
 WantedBy=multi-user.target
 `
 
+// updateSystemdService rewrites the unit ONLY if it differs from the canonical content
+// (Bug 22 fix #3), and returns whether it changed and any error writing a needed change
+// (fix #2). It never rewrites (nor fails) when the unit is already up to date.
+func (h *Handler) updateSystemdService() (bool, error) {
 	servicePath := "/etc/systemd/system/phpborg-agent.service"
 
-	// Write the service file
-	if err := os.WriteFile(servicePath, []byte(serviceContent), 0644); err != nil {
-		log.Printf("[UPDATE] Warning: failed to update systemd service: %v", err)
-		return
+	current, _ := os.ReadFile(servicePath)
+	if string(current) == desiredSystemdUnit {
+		log.Println("[UPDATE] systemd unit already up to date, skipping")
+		return false, nil
 	}
 
-	// Reload systemd daemon
-	reloadCmd := exec.Command("systemctl", "daemon-reload")
-	if err := reloadCmd.Run(); err != nil {
-		log.Printf("[UPDATE] Warning: failed to reload systemd daemon: %v", err)
-	} else {
-		log.Println("[UPDATE] Systemd service file updated successfully")
+	if err := os.WriteFile(servicePath, []byte(desiredSystemdUnit), 0644); err != nil {
+		log.Printf("[UPDATE] failed to update systemd unit: %v", err)
+		return true, fmt.Errorf("systemd unit not writable: %w", err)
 	}
+
+	if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
+		// Non-fatal: the unit file was written; a reload will happen on the next boot.
+		log.Printf("[UPDATE] warning: daemon-reload failed: %v", err)
+	}
+	log.Println("[UPDATE] systemd unit updated")
+	return true, nil
 }
 
-// updateSudoersFile updates the sudoers file with the latest required permissions
-func (h *Handler) updateSudoersFile() {
-	log.Println("[UPDATE] Updating sudoers file...")
-
-	sudoersContent := `# phpBorg Agent sudoers rules
+// desiredSudoers is the canonical agent sudoers content applied by self-update.
+const desiredSudoers = `# phpBorg Agent sudoers rules
 # Minimal privileges for backup operations
 # Auto-updated by agent self-update
 
@@ -818,13 +846,22 @@ phpborg-agent ALL=(root) NOPASSWD: /usr/bin/mkdir -p /var/restore/*
 phpborg-agent ALL=(root) NOPASSWD: /usr/bin/rm -rf /var/restore/*
 `
 
+// updateSudoersFile rewrites the sudoers file ONLY if it differs from the canonical
+// content (Bug 22 fix #3) and returns whether it changed plus any error writing a
+// needed change (fix #2) — e.g. read-only /etc under ProtectSystem=strict.
+func (h *Handler) updateSudoersFile() (bool, error) {
 	sudoersPath := "/etc/sudoers.d/phpborg-agent"
 
-	// Write the sudoers file
-	if err := os.WriteFile(sudoersPath, []byte(sudoersContent), 0440); err != nil {
-		log.Printf("[UPDATE] Warning: failed to update sudoers file: %v", err)
-		return
+	current, _ := os.ReadFile(sudoersPath)
+	if string(current) == desiredSudoers {
+		log.Println("[UPDATE] sudoers already up to date, skipping")
+		return false, nil
 	}
 
-	log.Println("[UPDATE] Sudoers file updated successfully")
+	if err := os.WriteFile(sudoersPath, []byte(desiredSudoers), 0440); err != nil {
+		log.Printf("[UPDATE] failed to update sudoers: %v", err)
+		return true, fmt.Errorf("sudoers not writable: %w", err)
+	}
+	log.Println("[UPDATE] sudoers updated")
+	return true, nil
 }
