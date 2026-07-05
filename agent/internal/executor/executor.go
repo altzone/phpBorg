@@ -162,12 +162,12 @@ type BorgProgress struct {
 type ProgressCallback func(progress BorgProgress)
 
 // BorgCreate executes a borg create command (simple version without streaming)
-func (e *Executor) BorgCreate(ctx context.Context, repoPath string, archiveName string, paths []string, excludes []string, compression string, passphrase string, oneFileSystem bool) *CommandResult {
-	return e.BorgCreateWithProgress(ctx, repoPath, archiveName, paths, excludes, compression, passphrase, oneFileSystem, nil)
+func (e *Executor) BorgCreate(ctx context.Context, repoPath string, archiveName string, paths []string, excludes []string, compression string, passphrase string, oneFileSystem bool, allowUnencrypted bool) *CommandResult {
+	return e.BorgCreateWithProgress(ctx, repoPath, archiveName, paths, excludes, compression, passphrase, oneFileSystem, allowUnencrypted, nil)
 }
 
 // BorgCreateWithProgress executes a borg create command with real-time progress streaming
-func (e *Executor) BorgCreateWithProgress(ctx context.Context, repoPath string, archiveName string, paths []string, excludes []string, compression string, passphrase string, oneFileSystem bool, progressCallback ProgressCallback) *CommandResult {
+func (e *Executor) BorgCreateWithProgress(ctx context.Context, repoPath string, archiveName string, paths []string, excludes []string, compression string, passphrase string, oneFileSystem bool, allowUnencrypted bool, progressCallback ProgressCallback) *CommandResult {
 	args := []string{
 		"create",
 		"--verbose",
@@ -205,6 +205,17 @@ func (e *Executor) BorgCreateWithProgress(ctx context.Context, repoPath string, 
 	// Add passphrase if provided
 	if passphrase != "" {
 		env = append(env, "BORG_PASSPHRASE="+passphrase)
+	}
+
+	// Bug 21: agent-side counterpart of Bug 9. For an UNENCRYPTED repository, borg
+	// otherwise blocks on the interactive "Attempting to access a previously unknown
+	// unencrypted repository! [yN]" prompt and aborts. Allow it when the caller says
+	// so (allow_unencrypted from the task payload) or when no passphrase is set.
+	if allowUnencrypted || passphrase == "" {
+		env = append(env,
+			"BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK=yes",
+			"BORG_RELOCATED_REPO_ACCESS_IS_OK=yes",
+		)
 	}
 
 	// If no callback, use simple execution
