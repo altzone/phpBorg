@@ -588,34 +588,14 @@ final class AgentGatewayController extends BaseController
     /**
      * Get the latest agent version from releases directory
      */
-    private function getLatestAgentVersion(string $releasesDir): string
+    private function getLatestAgentVersion(string $releasesDir = ''): string
     {
-        if (!is_dir($releasesDir)) {
-            return '0.0.0';
-        }
-
-        $versions = [];
-        $dirs = scandir($releasesDir);
-        foreach ($dirs as $dir) {
-            if ($dir === '.' || $dir === '..') {
-                continue;
-            }
-            // Match version directory like "1.0.0" or "v1.0.0"
-            if (preg_match('/^v?(\d+\.\d+\.\d+)$/', $dir, $matches)) {
-                $versions[] = $matches[1];
-            }
-        }
-
-        if (empty($versions)) {
-            // Check for latest binary directly in releases dir
-            if (file_exists($releasesDir . '/phpborg-agent')) {
-                return '1.0.0'; // Default version for non-versioned releases
-            }
-            return '0.0.0';
-        }
-
-        usort($versions, 'version_compare');
-        return end($versions);
+        // Single source of truth: the agent source (const Version in main.go), same as
+        // DownloadController. The releases dir holds FLAT, unversioned binaries, so the
+        // previous version-subdir scan always fell back to a bogus "1.0.0" and broke the
+        // update check (version_compare said no update was available). $releasesDir is
+        // kept for signature compatibility but is no longer used.
+        return DownloadController::getLatestAgentVersion() ?? '0.0.0';
     }
 
     /**
