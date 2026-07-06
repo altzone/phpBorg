@@ -18,7 +18,7 @@ import (
 	"github.com/phpborg/phpborg-agent/internal/task"
 )
 
-const Version = "2.4.4"
+const Version = "2.4.5"
 
 func main() {
 	// Parse command line flags
@@ -145,6 +145,11 @@ func (a *Agent) Run(ctx context.Context) error {
 	} else {
 		log.Println("[AGENT] Successfully connected to server!")
 	}
+
+	// Bug 27c: report any task left "running" by a previous restart/crash as failed,
+	// so it does not stay orphaned server-side (the backup resumes from its checkpoint
+	// on the next dispatch).
+	a.handler.ReconcileOrphanedTasks(ctx)
 
 	// Start task workers
 	taskChan := make(chan api.Task, 10)

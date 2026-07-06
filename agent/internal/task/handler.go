@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/phpborg/phpborg-agent/internal/api"
@@ -26,6 +27,56 @@ type Handler struct {
 	config   *config.Config
 	client   *api.Client
 	executor *executor.Executor
+	// activeBackups counts backup_create tasks currently running (atomic). An
+	// agent_update is DEFERRED while any backup runs, so a self-update never kills a
+	// backup mid-flight (Bug 27a).
+	activeBackups int32
+}
+
+// stateDir holds one marker file per running task so orphans left by a brutal restart
+// can be reconciled (reported failed) at the next startup (Bug 27c).
+func (h *Handler) stateDir() string {
+	return "/var/lib/phpborg-agent/state/running"
+}
+
+func (h *Handler) markTaskRunning(taskID int) {
+	dir := h.stateDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		log.Printf("[STATE] could not create state dir: %v", err)
+		return
+	}
+	_ = os.WriteFile(filepath.Join(dir, strconv.Itoa(taskID)), []byte(time.Now().UTC().Format(time.RFC3339)), 0644)
+}
+
+func (h *Handler) clearTaskRunning(taskID int) {
+	_ = os.Remove(filepath.Join(h.stateDir(), strconv.Itoa(taskID)))
+}
+
+// ReconcileOrphanedTasks reports as failed any task still marked running at startup —
+// i.e. a task that was interrupted by a restart/crash and could never report itself
+// (Bug 27c). Prevents orphan tasks stuck "running" server-side.
+func (h *Handler) ReconcileOrphanedTasks(ctx context.Context) {
+	dir := h.stateDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return // no state dir => nothing to reconcile
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		taskID, err := strconv.Atoi(e.Name())
+		if err != nil {
+			_ = os.Remove(filepath.Join(dir, e.Name()))
+			continue
+		}
+		log.Printf("[STATE] reconciling orphaned task #%d (agent restarted while it was running)", taskID)
+		if err := h.client.FailTask(ctx, taskID, "agent restarted while task was running; backup interrupted (resumes from last borg checkpoint on retry)", 137); err != nil {
+			log.Printf("[STATE] could not report orphan #%d failed: %v (will retry next start)", taskID, err)
+			continue // keep the marker so we try again next start
+		}
+		_ = os.Remove(filepath.Join(dir, e.Name()))
+	}
 }
 
 // NewHandler creates a new task handler
@@ -173,6 +224,33 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 	if repoPath == "" || archiveName == "" || len(paths) == 0 {
 		return nil, 1, fmt.Errorf("missing required parameters: repo_path, archive_name, paths")
 	}
+
+	// Bug 27a: this backup is active — an agent_update will be deferred while it runs.
+	atomic.AddInt32(&h.activeBackups, 1)
+	defer atomic.AddInt32(&h.activeBackups, -1)
+	// Bug 27c: persist a marker so an orphan left by a brutal restart is reconciled.
+	h.markTaskRunning(task.ID)
+	defer h.clearTaskRunning(task.ID)
+
+	// Bug 26: keepalive. borg's cache sync (~20 min) emits no progress events, so ping
+	// progress every 60s while the backup runs — the server's progress_updated_at stays
+	// fresh as long as the agent is alive, and the watchdog only fires on a dead agent.
+	keepaliveStop := make(chan struct{})
+	defer close(keepaliveStop)
+	go func() {
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-keepaliveStop:
+				return
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_ = h.client.UpdateProgress(ctx, task.ID, 10, "Backup in progress...")
+			}
+		}
+	}()
 
 	// Update progress
 	h.client.UpdateProgress(ctx, task.ID, 5, "Starting backup...")
@@ -618,6 +696,17 @@ func (h *Handler) handleTest(ctx context.Context, task api.Task) (map[string]int
 // This downloads the new binary, verifies it, replaces the current binary,
 // and restarts the agent via systemd
 func (h *Handler) handleAgentUpdate(ctx context.Context, task api.Task) (map[string]interface{}, int, error) {
+	// Bug 27a: NEVER self-update while a backup is running — the restart would kill borg
+	// mid-archive (this is exactly what killed backup #89 at ~457 GB). Defer: report the
+	// update as deferred; the server re-offers it and it applies once the backup is done.
+	if atomic.LoadInt32(&h.activeBackups) > 0 {
+		log.Printf("[UPDATE] deferred: a backup is running (won't restart the agent mid-backup)")
+		return map[string]interface{}{
+			"status":  "deferred",
+			"message": "Agent update deferred: a backup is currently running. It will apply after the backup completes.",
+		}, 0, nil
+	}
+
 	// Extract parameters
 	expectedChecksum, _ := task.Payload["checksum"].(string)
 	newVersion, _ := task.Payload["version"].(string)

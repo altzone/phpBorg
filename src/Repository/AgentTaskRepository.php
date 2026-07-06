@@ -150,7 +150,9 @@ final class AgentTaskRepository
      */
     public function updateProgress(int $taskId, int $progress, ?string $message = null): void
     {
-        $sql = 'UPDATE agent_tasks SET progress = ?';
+        // Bug 26: always refresh the freshness timestamp so the watchdog can tell a live
+        // task (progress/keepalive flowing) from a dead one.
+        $sql = 'UPDATE agent_tasks SET progress = ?, progress_updated_at = NOW()';
         $params = [$progress];
 
         if ($message !== null) {
@@ -162,6 +164,23 @@ final class AgentTaskRepository
         $params[] = $taskId;
 
         $this->connection->executeUpdate($sql, $params);
+    }
+
+    /**
+     * Bug 26 watchdog: running tasks whose agent has gone silent — no progress update for
+     * `staleSeconds` — i.e. the agent was killed and cannot report the failure itself.
+     * Uses started_at as the baseline until the first progress arrives.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function findStuckRunningTasks(int $staleSeconds = 900): array
+    {
+        return $this->connection->fetchAll(
+            "SELECT * FROM agent_tasks
+             WHERE status = 'running'
+             AND TIMESTAMPDIFF(SECOND, COALESCE(progress_updated_at, started_at, assigned_at), NOW()) > ?",
+            [$staleSeconds]
+        );
     }
 
     /**

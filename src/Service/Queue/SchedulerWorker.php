@@ -10,6 +10,7 @@ use PhpBorg\Repository\BorgRepositoryRepository;
 use PhpBorg\Repository\ServerRepository;
 use PhpBorg\Repository\SettingRepository;
 use PhpBorg\Repository\StoragePoolRepository;
+use PhpBorg\Repository\AgentTaskRepository;
 use DateTimeImmutable;
 use Throwable;
 
@@ -28,6 +29,9 @@ final class SchedulerWorker
     // Check schedules every 60 seconds
     private const SCHEDULE_CHECK_INTERVAL = 60;
 
+    // Dead-task watchdog: run every 60s (Bug 26)
+    private const WATCHDOG_INTERVAL = 60;
+
     // Default stats collection interval (15 minutes = 900 seconds)
     private const DEFAULT_STATS_COLLECTION_INTERVAL = 900;
 
@@ -38,6 +42,7 @@ final class SchedulerWorker
         private readonly ServerRepository $serverRepository,
         private readonly StoragePoolRepository $storagePoolRepository,
         private readonly SettingRepository $settingRepository,
+        private readonly AgentTaskRepository $agentTaskRepository,
         private readonly LoggerInterface $logger
     ) {
         // Load stats collection interval from settings
@@ -57,6 +62,7 @@ final class SchedulerWorker
         $this->logger->info('Scheduler worker started', 'SCHEDULER');
 
         $lastScheduleCheck = 0;
+        $lastWatchdogCheck = 0;
 
         while (!$this->shouldStop) {
             try {
@@ -79,6 +85,12 @@ final class SchedulerWorker
                     $this->lastStatsCollection = $now;
                 }
 
+                // Bug 26: dead-task watchdog
+                if ($now - $lastWatchdogCheck >= self::WATCHDOG_INTERVAL) {
+                    $this->reapStuckTasks();
+                    $lastWatchdogCheck = $now;
+                }
+
                 // Check for restart request flag
                 $this->checkRestartFlag();
 
@@ -92,6 +104,38 @@ final class SchedulerWorker
         }
 
         $this->logger->info('Scheduler worker stopped', 'SCHEDULER');
+    }
+
+    /**
+     * Bug 26 watchdog: fail agent tasks whose agent has gone silent (killed mid-task,
+     * so it can never report the failure itself). Without this, a dead backup task stays
+     * "running" until its 30-day timeout and the worker polling it blocks that whole time.
+     * The failed task unsticks the worker; the schedule re-runs the backup, which resumes
+     * from the last borg checkpoint (not from zero).
+     */
+    private function reapStuckTasks(): void
+    {
+        try {
+            $staleSetting = $this->settingRepository->findByKey('agent_task_stale_seconds');
+            $staleSeconds = $staleSetting !== null ? max(120, (int)$staleSetting->value) : 900; // 15 min
+
+            $stuck = $this->agentTaskRepository->findStuckRunningTasks($staleSeconds);
+            foreach ($stuck as $task) {
+                $taskId = (int)$task['id'];
+                $type = $task['type'] ?? 'task';
+                $this->logger->warning(
+                    "Watchdog: agent {$type} task #{$taskId} has not reported progress for >{$staleSeconds}s — marking failed (agent presumed dead)",
+                    'SCHEDULER'
+                );
+                $this->agentTaskRepository->markFailed(
+                    $taskId,
+                    "No progress from the agent for over {$staleSeconds}s — agent presumed dead/killed. The backup resumes from its last checkpoint on the next run.",
+                    137
+                );
+            }
+        } catch (Throwable $e) {
+            $this->logger->error("Watchdog error: {$e->getMessage()}", 'SCHEDULER');
+        }
     }
 
     /**

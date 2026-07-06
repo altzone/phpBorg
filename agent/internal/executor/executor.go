@@ -248,6 +248,10 @@ func (e *Executor) runWithEnvAndProgress(ctx context.Context, command string, ar
 	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Env = env
 	SetProcessGroup(cmd)
+	// Bug 27b: graceful stop — SIGTERM the borg process group on ctx cancellation so it
+	// commits a final checkpoint, then SIGKILL after WaitDelay if still alive.
+	cmd.Cancel = func() error { return TermProcessGroup(cmd) }
+	cmd.WaitDelay = 45 * time.Second
 
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
@@ -407,6 +411,10 @@ func (e *Executor) runWithEnvAndDir(ctx context.Context, command string, args []
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	SetProcessGroup(cmd)
+	// Bug 27b: graceful stop — SIGTERM the process group (let borg commit a checkpoint)
+	// on ctx cancellation, then the runtime SIGKILLs after WaitDelay if still alive.
+	cmd.Cancel = func() error { return TermProcessGroup(cmd) }
+	cmd.WaitDelay = 45 * time.Second
 
 	err := cmd.Run()
 	duration := time.Since(start)
