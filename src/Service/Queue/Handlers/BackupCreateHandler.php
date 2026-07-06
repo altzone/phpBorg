@@ -536,6 +536,24 @@ final class BackupCreateHandler implements JobHandlerInterface
         $timeoutSetting = $this->settingRepo->findByKey('agent_backup_timeout_seconds');
         $backupTimeout = $timeoutSetting !== null ? max(0, (int)$timeoutSetting->value) : 2592000; // 30 days
 
+        // Bug 28: refuse a concurrent backup on the SAME repository — two `borg create`
+        // on one repo fight over the borg repository lock. If one is already active,
+        // fail this run cleanly instead of piling up a second borg.
+        $dup = $connection->fetchOne(
+            "SELECT id FROM agent_tasks
+             WHERE type = 'backup_create'
+             AND status IN ('pending', 'assigned', 'running')
+             AND CAST(JSON_EXTRACT(payload, '$.repository_id') AS UNSIGNED) = ?
+             LIMIT 1",
+            [$repository->id]
+        );
+        if ($dup) {
+            throw new \Exception(
+                "A backup is already active for repository #{$repository->id} (agent task #{$dup['id']}); " .
+                "skipping to avoid two concurrent borg processes on the same repository."
+            );
+        }
+
         // Insert task into agent_tasks table
         $connection->executeUpdate(
             'INSERT INTO agent_tasks (agent_id, job_id, type, payload, status, timeout_seconds, created_at)

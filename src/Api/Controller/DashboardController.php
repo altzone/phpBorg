@@ -60,10 +60,16 @@ class DashboardController extends BaseController
                 $deduplicationRatio = round((1 - ($totalDeduplicatedSize / $totalOriginalSize)) * 100, 2);
             }
 
-            // Get active jobs (pending or running)
+            // Bug 28: count job statuses from the DB (GROUP BY status), not from the
+            // recent findAll(100) window — a long-running backup was pushed out of that
+            // window by frequent stats_collect/storage_pool_analyze jobs and stopped
+            // being counted as active.
+            $jobStats = $this->jobRepository->getStats();
+            $activeJobsCount = ($jobStats['running'] ?? 0) + ($jobStats['pending'] ?? 0);
+            $failedJobsCount = $jobStats['failed'] ?? 0;
+
+            // Recent jobs list (window is fine here — it is meant to be "recent")
             $allJobs = $this->jobRepository->findAll();
-            $activeJobs = array_filter($allJobs, fn($job) => in_array($job->status, ['pending', 'running']));
-            $failedJobs = array_filter($allJobs, fn($job) => $job->status === 'failed');
 
             // Get recent backups (last 10)
             $recentBackups = array_slice($allArchives, 0, 10);
@@ -73,8 +79,8 @@ class DashboardController extends BaseController
                     'total_servers' => count($servers),
                     'active_servers' => count($activeServers),
                     'total_backups' => count($allArchives),
-                    'active_jobs' => count($activeJobs),
-                    'failed_jobs' => count($failedJobs),
+                    'active_jobs' => $activeJobsCount,
+                    'failed_jobs' => $failedJobsCount,
                     'storage_used' => $totalDeduplicatedSize,
                     'original_size' => $totalOriginalSize,
                     'compressed_size' => $totalCompressedSize,

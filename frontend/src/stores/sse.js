@@ -20,7 +20,7 @@ export const useSSEStore = defineStore('sse', () => {
   const connected = ref(false)
   const connectionType = ref('disconnected') // 'sse', 'polling', 'disconnected', 'error'
   const reconnectAttempts = ref(0)
-  const maxReconnectAttempts = 3
+  const maxReconnectAttempts = 10 // Bug 28: tolerate transient outages (deploys/restarts) before falling back to polling
   const lastUsedToken = ref(null)
   const reconnectTimeout = ref(null)
   const pollingInterval = ref(null)
@@ -141,6 +141,20 @@ export const useSSEStore = defineStore('sse', () => {
         connected.value = true
         connectionType.value = 'sse'
         reconnectAttempts.value = 0
+      })
+
+      // Bug 28: the server ends each stream cleanly (before php-fpm's 300s terminate)
+      // with a `close` event. Reconnect immediately and treat it as expected (do not
+      // count it as a failed attempt), so the channel is continuous.
+      eventSource.value.addEventListener('close', () => {
+        console.log('[SSE] Server requested reconnect (clean session rollover)')
+        reconnectAttempts.value = 0
+        if (eventSource.value) {
+          eventSource.value.close()
+          eventSource.value = null
+        }
+        if (reconnectTimeout.value) clearTimeout(reconnectTimeout.value)
+        reconnectTimeout.value = setTimeout(() => connect(), 500)
       })
 
       // Stats updates

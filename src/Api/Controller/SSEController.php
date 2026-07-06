@@ -99,7 +99,13 @@ class SSEController extends BaseController
         $lastServersCheck = 0;
         $lastStatsCheck = 0;
         $tokenExpiringWarned = false;
-        $maxDuration = min(900, $tokenExpiration - time() - 30); // Stop 30s before token expires
+        // Bug 28: the phpborg php-fpm pool has request_terminate_timeout=300s, which was
+        // SIGKILLing this stream mid-flight ("recv() failed (104: Connection reset by
+        // peer)") — so the SSE channel never survived and no task was pushed to the UI.
+        // Cap the stream WELL under that limit so it ends cleanly (close event + break)
+        // and the client reconnects without the reset. Do NOT raise the fpm timeout — it
+        // is the runaway guard; the SSE stays under it.
+        $maxDuration = min(240, $tokenExpiration - time() - 30); // < request_terminate_timeout (300s)
 
         while (true) {
             $now = time();
@@ -136,7 +142,20 @@ class SSEController extends BaseController
 
             // JOBS: Get all jobs and send if changed
             try {
-                $jobs = $this->jobRepo->findAll();
+                // Bug 28: a long-running backup is pushed out of the recent findAll(100)
+                // window by frequent stats_collect/storage_pool_analyze jobs, so it never
+                // reached the UI. Always include ACTIVE (running/pending) jobs — merged
+                // active-first and deduped — so an in-progress task is never invisible.
+                $recent = $this->jobRepo->findAll();
+                $active = array_merge(
+                    $this->jobRepo->findByStatus('running'),
+                    $this->jobRepo->findByStatus('pending')
+                );
+                $byId = [];
+                foreach (array_merge($active, $recent) as $j) {
+                    $byId[$j->id] = $j;
+                }
+                $jobs = array_values($byId);
                 $stats = $this->jobRepo->getStats();
 
                 $jobsData = [
