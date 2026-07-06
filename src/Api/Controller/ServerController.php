@@ -861,6 +861,22 @@ class ServerController extends BaseController
                 return;
             }
 
+            // Defensive guard (Bugs 22/27): don't dispatch a redundant update if the agent
+            // already reports the target version. A redundant restart of an up-to-date
+            // agent is what killed backup #89. The agent also refuses redundant updates
+            // (guard 3); this avoids creating the task at all. `force` overrides.
+            $reqData = json_decode(file_get_contents('php://input'), true) ?? [];
+            $force = !empty($reqData['force']);
+            $currentAgentVersion = $agent['version'] ?? ($agent['agent_version'] ?? null);
+            if (!$force && $currentAgentVersion && version_compare((string)$currentAgentVersion, (string)$latestVersion, '>=')) {
+                $this->success([
+                    'already_up_to_date' => true,
+                    'current_version' => $currentAgentVersion,
+                    'latest_version' => $latestVersion,
+                ], "Agent already up to date ({$currentAgentVersion})");
+                return;
+            }
+
             // Find the correct binary (platform-specific first, then fallback)
             $releasesDir = dirname(__DIR__, 3) . '/releases/agent';
             $binaryPath = null;

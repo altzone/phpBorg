@@ -716,6 +716,21 @@ func (h *Handler) handleAgentUpdate(ctx context.Context, task api.Task) (map[str
 		return nil, 1, fmt.Errorf("checksum required for update (or set force=true)")
 	}
 
+	// Guard 3 (idempotence) — THE fix for the restart loop that killed backup #89:
+	// if the RUNNING binary is already the target version, do NOTHING. No download, no
+	// replace, and above all NO restart. A redundant restart of an already-up-to-date
+	// agent must never happen, even if a previous update's unit/sudoers write failed
+	// (read-only /etc) and the server keeps re-offering the same version.
+	if !forceUpdate && newVersion != "" && newVersion == h.config.Agent.Version {
+		log.Printf("[UPDATE] already running target version %s — no action, no restart", newVersion)
+		return map[string]interface{}{
+			"status":       "up_to_date",
+			"new_version":  newVersion,
+			"prev_version": h.config.Agent.Version,
+			"message":      fmt.Sprintf("Agent already at %s; no update or restart needed.", newVersion),
+		}, 0, nil
+	}
+
 	h.client.UpdateProgress(ctx, task.ID, 10, "Preparing update...")
 
 	// Get current binary path
