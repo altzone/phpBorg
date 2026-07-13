@@ -22,7 +22,17 @@
     <div class="card p-0">
       <!-- Tab Headers -->
       <div class="border-b border-gray-200 dark:border-gray-700">
-        <nav class="-mb-px flex overflow-x-auto" aria-label="Tabs">
+        <!-- Mobile: native select (10 tabs don't fit a phone tab bar — the Update tab
+             was unreachable/undiscoverable behind horizontal scrolling) -->
+        <div class="sm:hidden p-3">
+          <select v-model="activeTab" class="input w-full">
+            <option v-for="tab in tabs" :key="tab.id" :value="tab.id">
+              {{ tab.label }}{{ tab.id === 'update' && updateCommitCount > 0 ? ' (' + updateCommitCount + ')' : '' }}
+            </option>
+          </select>
+        </div>
+        <!-- Desktop / tablet: scrollable tab bar -->
+        <nav class="-mb-px hidden sm:flex overflow-x-auto" aria-label="Tabs">
           <button
             v-for="tab in tabs"
             :key="tab.id"
