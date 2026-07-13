@@ -390,7 +390,23 @@ function handleUpdateFailed(error) {
 
 function formatDate(dateString) {
   if (!dateString) return ''
-  const date = new Date(dateString)
+
+  // The backend sends git `%ai` dates ("2026-07-13 15:58:15 +0200"). Chrome parses
+  // that leniently but SAFARI does not (Invalid Date) — and Intl.DateTimeFormat
+  // .format(Invalid Date) THROWS a RangeError, which crashed the whole Update tab
+  // to a blank panel on iPhone. Normalize to ISO 8601 and never throw.
+  let date = new Date(dateString)
+  if (isNaN(date.getTime()) && typeof dateString === 'string') {
+    // "YYYY-MM-DD HH:MM:SS +HHMM" -> "YYYY-MM-DDTHH:MM:SS+HH:MM"
+    const iso = dateString
+      .replace(' ', 'T')
+      .replace(/ ([+-]\d{2}):?(\d{2})$/, '$1:$2')
+    date = new Date(iso)
+  }
+  if (isNaN(date.getTime())) {
+    return dateString // show the raw value rather than crashing the panel
+  }
+
   return new Intl.DateTimeFormat(undefined, {
     year: 'numeric',
     month: 'short',
