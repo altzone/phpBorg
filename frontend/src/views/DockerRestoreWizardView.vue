@@ -148,7 +148,7 @@
             <h4 class="font-semibold text-gray-900 dark:text-white mb-3">
               📦 {{ store.archive?.name }}
             </h4>
-            <div class="grid grid-cols-3 gap-4 text-sm">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
               <div>
                 <span class="text-gray-600 dark:text-gray-400">🗄️ Volumes:</span>
                 <span class="ml-2 font-semibold text-gray-900 dark:text-white">

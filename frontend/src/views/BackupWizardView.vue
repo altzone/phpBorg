@@ -199,7 +199,7 @@
                   </svg>
                   <div class="flex-1 text-sm">
                     <p class="font-semibold text-green-900 dark:text-green-200 mb-2">{{ $t('backup_wizard.source_config.db_detected_title') }}</p>
-                    <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-green-800 dark:text-green-300">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-green-800 dark:text-green-300">
                       <div>
                         <span class="font-medium">{{ $t('backup_wizard.source_config.db_datadir') }}</span>
                         <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mysql').datadir }}</span>
@@ -240,7 +240,7 @@
                   </button>
                 </label>
 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label class="block text-xs text-gray-600 dark:text-gray-400 dark:text-gray-500 mb-1">{{ $t('backup_wizard.source_config.host') }}</label>
                     <input v-model="wizardData.sourceConfig.host" type="text" class="input w-full" placeholder="localhost" />
@@ -327,7 +327,7 @@
                         {{ $t('backup_wizard.source_config.pg_peer_auth') }}
                       </span>
                     </div>
-                    <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-green-800 dark:text-green-300">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-green-800 dark:text-green-300">
                       <div>
                         <span class="font-medium">{{ $t('backup_wizard.source_config.db_datadir') }}</span>
                         <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('postgresql').datadir }}</span>
@@ -386,7 +386,7 @@
               <!-- Database Credentials (only if peer auth is NOT working) -->
               <div v-if="!getDetectedDatabase('postgresql')?.auth?.peer_auth">
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.source_config.db_credentials') }}</label>
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">{{ $t('backup_wizard.source_config.db_host') }}</label>
                     <input v-model="wizardData.sourceConfig.host" type="text" class="input w-full" placeholder="localhost" />
@@ -419,7 +419,7 @@
                   </svg>
                   <div class="flex-1 text-sm">
                     <p class="font-semibold text-green-900 dark:text-green-200 mb-2">{{ $t('backup_wizard.source_config.db_detected_title') }}</p>
-                    <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-green-800 dark:text-green-300">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-green-800 dark:text-green-300">
                       <div>
                         <span class="font-medium">{{ $t('backup_wizard.source_config.db_datadir') }}</span>
                         <span class="ml-2 font-mono text-xs">{{ getDetectedDatabase('mongodb').datadir }}</span>
@@ -448,7 +448,7 @@
 
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('backup_wizard.source_config.db_credentials') }}</label>
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">{{ $t('backup_wizard.source_config.db_host') }}</label>
                     <input v-model="wizardData.sourceConfig.host" type="text" class="input w-full" placeholder="localhost" />
@@ -481,7 +481,7 @@
                   </svg>
                   <div class="flex-1 text-sm">
                     <p class="font-semibold text-blue-900 dark:text-blue-200 mb-2">{{ $t('backup_wizard.source_config.docker_detected_title') }}</p>
-                    <div class="grid grid-cols-3 gap-x-4 gap-y-2 text-blue-800 dark:text-blue-300">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-2 text-blue-800 dark:text-blue-300">
                       <div>
                         <span class="font-medium">{{ $t('backup_wizard.source_config.docker_containers') }}</span>
                         <span class="ml-2 font-mono text-xs">{{ getDetectedDocker().container_count || 0 }}</span>

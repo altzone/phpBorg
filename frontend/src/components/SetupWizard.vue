@@ -99,7 +99,7 @@
                   <label class="block text-sm font-medium text-white mb-2">
                     {{ $t('setup.step1.language') }} <span class="text-red-400">*</span>
                   </label>
-                  <div class="grid grid-cols-2 gap-3">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button
                       @click="form.language = 'fr'"
                       :class="[
@@ -252,7 +252,7 @@
                   <!-- Provider Selector -->
                   <div>
                     <label class="block text-sm font-medium text-white mb-2">{{ $t('setup.step3.provider') }}</label>
-                    <div class="grid grid-cols-4 gap-2">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <button
                         type="button"
                         @click="selectEmailProvider('gmail')"
@@ -341,7 +341,7 @@
                     </div>
                   </div>
 
-                  <div class="grid grid-cols-2 gap-4">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label class="block text-sm font-medium text-white mb-2">{{ $t('setup.step3.smtp_host') }}</label>
                       <input
@@ -374,7 +374,7 @@
                     </div>
                   </div>
 
-                  <div class="grid grid-cols-2 gap-4">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label class="block text-sm font-medium text-white mb-2">{{ $t('setup.step3.smtp_username') }}</label>
                       <input
@@ -397,7 +397,7 @@
 
                   <div>
                     <label class="block text-sm font-medium text-white mb-2">{{ $t('setup.step3.smtp_encryption') }}</label>
-                    <div class="grid grid-cols-3 gap-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <button
                         v-for="enc in ['tls', 'ssl', 'none']"
                         :key="enc"
@@ -417,7 +417,7 @@
                     </div>
                   </div>
 
-                  <div class="grid grid-cols-2 gap-4">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label class="block text-sm font-medium text-white mb-2">{{ $t('setup.step3.email_from') }}</label>
                       <input

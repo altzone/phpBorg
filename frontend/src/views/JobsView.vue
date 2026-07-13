@@ -454,7 +454,7 @@
                   <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
                   Progression en direct
                 </h3>
-                <div class="grid grid-cols-2 gap-4 text-sm">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div>
                     <span class="text-gray-500">Fichiers:</span>
                     <span class="ml-2 font-mono font-semibold">{{ jobStore.getProgressInfo(selectedJob.id).files_count || 0 }}</span>

@@ -205,7 +205,7 @@
                 />
               </div>
 
-              <div class="grid grid-cols-2 gap-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label class="block text-sm font-medium text-gray-900 dark:text-white mb-2">{{ $t('server_wizard.step2_info.port') }}</label>
                   <input
@@ -311,7 +311,7 @@
                 <!-- Server info when connected -->
                 <div v-if="installStatus === 'completed' && serverInfo" class="bg-slate-800 rounded-lg p-4">
                   <h4 class="text-sm font-semibold text-white mb-3">{{ $t('server_wizard.step3_config.detected_info') }}</h4>
-                  <div class="grid grid-cols-2 gap-4 text-sm">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div>
                       <span class="text-gray-400">{{ $t('server_wizard.step3_config.hostname') }}:</span>
                       <span class="text-white ml-2">{{ serverInfo.hostname }}</span>
@@ -413,7 +413,7 @@
                 <!-- Server info when connected -->
                 <div v-if="windowsInstallStatus === 'completed' && windowsServerInfo" class="bg-slate-800 rounded-lg p-4">
                   <h4 class="text-sm font-semibold text-white mb-3">{{ $t('server_wizard.step3_config.detected_info') }}</h4>
-                  <div class="grid grid-cols-2 gap-4 text-sm">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div>
                       <span class="text-gray-400">{{ $t('server_wizard.step3_config.hostname') }}:</span>
                       <span class="text-white ml-2">{{ windowsServerInfo.hostname }}</span>

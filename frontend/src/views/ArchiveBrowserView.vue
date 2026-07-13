@@ -244,7 +244,7 @@
         </div>
 
         <!-- List View -->
-        <div v-else class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div v-else class="bg-white rounded-lg border border-gray-200 overflow-hidden overflow-x-auto">
           <table class="w-full">
             <thead class="bg-gray-50 border-b border-gray-200">
               <tr>
