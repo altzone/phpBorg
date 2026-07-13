@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- Header -->
-    <div class="flex justify-between items-center mb-8">
+    <div class="flex flex-wrap justify-between items-center gap-4 mb-8">
       <div>
         <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ $t('servers.title') }}</h1>
         <p class="mt-2 text-gray-600 dark:text-gray-400">{{ $t('servers.subtitle') }}</p>

@@ -7,7 +7,7 @@
     <div
       @click="taskBarStore.toggleExpanded"
       :class="[
-        'text-white px-6 py-3 cursor-pointer transition-colors shadow-lg',
+        'text-white px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] cursor-pointer transition-colors shadow-lg',
         taskBarStore.hasActivity
           ? 'bg-gradient-to-r from-blue-600 to-primary-700 dark:from-blue-800 dark:to-primary-900 hover:from-blue-700 hover:to-primary-800 dark:hover:from-blue-700 dark:hover:to-primary-800'
           : 'bg-gradient-to-r from-gray-600 to-gray-700 dark:from-gray-700 dark:to-gray-800 hover:from-gray-700 hover:to-gray-800'
@@ -50,7 +50,7 @@
     <!-- Expanded Content -->
     <div
       v-if="taskBarStore.expanded"
-      class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-2xl max-h-96 overflow-y-auto"
+      class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-2xl max-h-96 overflow-y-auto pb-[env(safe-area-inset-bottom)]"
     >
       <div class="max-w-7xl mx-auto px-6 py-4">
         <!-- Empty State -->

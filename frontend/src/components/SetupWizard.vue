@@ -52,7 +52,7 @@
         </div>
 
         <!-- Main content -->
-        <div class="flex-1 overflow-y-auto px-8 py-4">
+        <div class="flex-1 overflow-y-auto px-4 sm:px-8 py-4">
           <div class="max-w-2xl mx-auto">
             <!-- Step 1: Identity -->
             <div v-if="currentStep === 0" class="space-y-6">

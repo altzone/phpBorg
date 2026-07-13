@@ -1,6 +1,6 @@
 <template>
   <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-    <div class="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
+    <div class="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 max-h-[90dvh] overflow-y-auto">
       <!-- Modal Header -->
       <div class="flex justify-between items-center mb-6">
         <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100">

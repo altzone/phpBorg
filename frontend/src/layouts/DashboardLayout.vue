@@ -8,14 +8,19 @@
     ></div>
 
     <!-- Sidebar -->
+    <!-- Sidebar. flex flex-col is REQUIRED for the nav's flex-1/overflow-y-auto to
+         actually constrain and scroll (it silently did nothing before: the menu
+         overflowed below the screen and could not be scrolled). h-dvh (dynamic
+         viewport) keeps the bottom above iOS Safari's toolbar; h-screen is the
+         fallback for older browsers. -->
     <aside
       :class="[
-        'fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-300 ease-in-out lg:translate-x-0',
+        'fixed top-0 left-0 z-50 h-screen supports-[height:100dvh]:h-dvh w-64 flex flex-col bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-300 ease-in-out lg:translate-x-0',
         mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
       ]"
     >
       <!-- Logo -->
-      <div class="h-16 flex items-center justify-between px-6 border-b border-gray-200 dark:border-gray-700">
+      <div class="h-16 flex-shrink-0 flex items-center justify-between px-6 border-b border-gray-200 dark:border-gray-700">
         <h1 class="text-xl font-bold text-primary-600 dark:text-primary-400">{{ appName }}</h1>
         <button
           @click="mobileMenuOpen = false"
@@ -234,7 +239,7 @@
       </nav>
 
       <!-- Language Switcher & User Profile (bottom of sidebar) -->
-      <div class="border-t border-gray-200 dark:border-gray-700 p-4 space-y-3">
+      <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 p-4 space-y-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <!-- Connection Status Badge -->
         <div class="flex items-center justify-center">
           <div v-if="sseStore.isSSE" class="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">

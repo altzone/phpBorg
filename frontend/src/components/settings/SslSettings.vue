@@ -418,7 +418,7 @@
 
     <!-- Job Progress Modal -->
     <div v-if="currentJob" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+      <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md mx-4 p-6 max-h-[90dvh] overflow-y-auto">
         <div class="text-center">
           <div class="w-16 h-16 mx-auto mb-4 relative">
             <svg class="animate-spin w-16 h-16 text-primary-500" fill="none" viewBox="0 0 24 24">
@@ -447,7 +447,7 @@
 
     <!-- HTTPS Redirect Modal -->
     <div v-if="redirecting" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+      <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md mx-4 p-6 max-h-[90dvh] overflow-y-auto">
         <div class="text-center">
           <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
             <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

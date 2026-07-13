@@ -364,7 +364,7 @@
 
     <!-- Unmount Modal -->
     <div v-if="showUnmountModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" @click.self="showUnmountModal = false">
-      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 max-h-[90dvh] overflow-y-auto">
         <div class="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4">
           <div class="flex items-center justify-between text-white">
             <h3 class="text-lg font-semibold flex items-center gap-2">
