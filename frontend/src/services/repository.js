@@ -54,6 +54,14 @@ export const repositoryService = {
   },
 
   /**
+   * Refresh/backfill archive size stats from borg (async background job).
+   */
+  async refreshStats(id) {
+    const response = await api.post(`/repositories/${id}/refresh-stats`)
+    return response.data.data
+  },
+
+  /**
    * Delete repository (with all safety checks on backend)
    * ⚠️ CRITICAL: This permanently deletes the repository and ALL backups
    *

@@ -327,6 +327,49 @@ final class RepositoryController extends BaseController
     }
 
     /**
+     * Refresh/backfill archive size stats from borg (Bug 29).
+     * POST /api/repositories/{id}/refresh-stats
+     *
+     * Runs asynchronously (a background job) because `borg info` per archive can be slow
+     * on a cold cache. Fast right after a backup (hot cache).
+     */
+    public function refreshStats(): void
+    {
+        try {
+            $currentUser = $_SERVER['USER'] ?? null;
+            if (!$currentUser || !in_array('ROLE_ADMIN', $currentUser->roles)) {
+                $this->error('Admin role required', 403, 'FORBIDDEN');
+                return;
+            }
+
+            $id = (int)($_SERVER['ROUTE_PARAMS']['id'] ?? 0);
+            $repository = $this->repositoryRepo->findById($id);
+            if ($repository === null) {
+                $this->error('Repository not found', 404, 'REPOSITORY_NOT_FOUND');
+                return;
+            }
+
+            $jobId = $this->jobQueue->push(
+                type: 'refresh_archive_stats',
+                payload: [
+                    'server_id' => $repository->serverId,
+                    'type' => $repository->type,
+                    'repository_id' => $id,
+                ],
+                queue: 'default',
+                maxAttempts: 1
+            );
+
+            $this->success([
+                'job_id' => $jobId,
+                'repository_id' => $id,
+            ], 'Archive stats refresh started in the background (fastest right after a backup).');
+        } catch (\Exception $e) {
+            $this->error($e->getMessage(), 500, 'REFRESH_STATS_FAILED');
+        }
+    }
+
+    /**
      * Delete repository with safety checks
      * DELETE /api/repositories/{id}
      *

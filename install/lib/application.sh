@@ -508,6 +508,7 @@ optimize_php_fpm() {
     mkdir -p /var/log/phpborg
     touch /var/log/phpborg/php-fpm.log
     touch /var/log/phpborg/php-fpm-slow.log
+    touch /var/log/phpborg/operations.log   # Bug 30: user operation log (was root-owned /var/log/phpborg_operations.log)
     chown -R phpborg:www-data /var/log/phpborg
     chmod 775 /var/log/phpborg
     chmod 664 /var/log/phpborg/*.log

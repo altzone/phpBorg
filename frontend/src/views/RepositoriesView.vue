@@ -140,6 +140,15 @@
             <!-- Actions -->
             <div class="flex gap-1 ml-2">
               <button
+                @click="refreshStats(repo)"
+                class="p-1.5 text-gray-600 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                :title="$t('repositories.refresh_stats')"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+              <button
                 @click="editBackupConfig(repo)"
                 class="p-1.5 text-gray-600 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
                 :title="$t('repositories.backup_options')"
@@ -704,6 +713,16 @@ async function saveRetention() {
     showToast(t('repositories.retention_updated'), t('repositories.retention_updated_msg'), 'success')
   } catch (err) {
     console.error('Failed to update retention:', err)
+    showToast(t('repositories.update_failed'), err.response?.data?.error?.message || t('repositories.update_failed_msg'), 'error')
+  }
+}
+
+async function refreshStats(repo) {
+  try {
+    await repositoryService.refreshStats(repo.id)
+    showToast(t('repositories.refresh_stats_started'), t('repositories.refresh_stats_hint'), 'success', 6000)
+  } catch (err) {
+    console.error('Failed to start stats refresh:', err)
     showToast(t('repositories.update_failed'), err.response?.data?.error?.message || t('repositories.update_failed_msg'), 'error')
   }
 }

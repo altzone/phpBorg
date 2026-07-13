@@ -767,6 +767,96 @@ final class BackupService
     }
 
     /**
+     * Refresh/backfill the size stats of EXISTING archives (Bug 29). Unlike
+     * syncArchivesFromBorg (which only imports MISSING archives), this re-runs
+     * `borg info` for EVERY archive already in the DB and updates
+     * osize/csize/dsize/nfiles/dur — so imported archives that were stored with 0 sizes
+     * get their real volumetry/dedup. Fast when the borg chunk cache is hot (right after
+     * a backup), slow when cold.
+     *
+     * @return array{refreshed: int, errors: int, details: array}
+     */
+    public function refreshArchiveStats(?int $serverId = null, ?string $type = null): array
+    {
+        $this->logger->info("Refreshing archive stats from Borg", 'STATS');
+
+        $repositories = [];
+        if ($serverId !== null && $type !== null) {
+            $repo = $this->repositoryRepo->findByServerAndType($serverId, $type);
+            if ($repo) {
+                $repositories[] = $repo;
+            }
+        } elseif ($serverId !== null) {
+            $repositories = $this->repositoryRepo->findByServerId($serverId);
+        } else {
+            $repositories = $this->repositoryRepo->findAll();
+        }
+
+        $refreshed = 0;
+        $errors = 0;
+        $details = [];
+
+        foreach ($repositories as $repository) {
+            $runAsUser = str_starts_with($repository->repoPath, '/') ? 'phpborg-borg' : null;
+            $allowUnencrypted = $this->isUnencrypted($repository);
+            $timeout = $this->borgInfoTimeout();
+
+            $dbArchives = $this->archiveRepo->findByRepositoryId($repository->repoId);
+            $this->logger->info(
+                "Refreshing stats for " . count($dbArchives) . " archive(s) in {$repository->repoId}",
+                'STATS'
+            );
+
+            foreach ($dbArchives as $archive) {
+                try {
+                    $info = $this->borgExecutor->getArchiveInfo(
+                        $repository->repoPath . '::' . $archive->name,
+                        $repository->passphrase,
+                        $runAsUser,
+                        $allowUnencrypted,
+                        $timeout
+                    );
+                    $data = $info['archives'][0] ?? ($info['archive'] ?? []);
+                    $stats = $data['stats'] ?? [];
+
+                    $duration = (float)($data['duration'] ?? 0);
+                    $originalSize = (int)($stats['original_size'] ?? 0);
+                    $avgTransferRate = ($duration > 0 && $originalSize > 0)
+                        ? (int)($originalSize / $duration)
+                        : null;
+
+                    $this->archiveRepo->updateStatsByArchiveId(
+                        $archive->archiveId,
+                        (int)($stats['compressed_size'] ?? 0),
+                        (int)($stats['deduplicated_size'] ?? 0),
+                        $originalSize,
+                        (int)($stats['nfiles'] ?? 0),
+                        $duration,
+                        $avgTransferRate
+                    );
+                    $refreshed++;
+                    $details[] = ['repository' => $repository->repoId, 'archive' => $archive->name, 'action' => 'refreshed'];
+                } catch (\Exception $e) {
+                    $errors++;
+                    $details[] = ['repository' => $repository->repoId, 'archive' => $archive->name, 'action' => 'error', 'error' => $e->getMessage()];
+                    $this->logger->error("Failed to refresh stats for {$archive->name}: {$e->getMessage()}", 'STATS');
+                }
+            }
+
+            // Also refresh the repository-level aggregate stats (best effort).
+            try {
+                $this->updateRepositoryStats($repository);
+            } catch (\Exception $e) {
+                $this->logger->warning("Could not refresh repository stats for {$repository->repoId}: {$e->getMessage()}", 'STATS');
+            }
+        }
+
+        $this->logger->info("Stats refresh completed: {$refreshed} refreshed, {$errors} errors", 'STATS');
+
+        return ['refreshed' => $refreshed, 'errors' => $errors, 'details' => $details];
+    }
+
+    /**
      * Synchronize archives from Borg repository to database
      * This recovers archives that exist in Borg but are missing from the database
      *

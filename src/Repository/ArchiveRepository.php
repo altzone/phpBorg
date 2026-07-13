@@ -137,6 +137,29 @@ final class ArchiveRepository
     }
 
     /**
+     * Backfill/refresh an archive's size stats (Bug 29). Used to fill in the 0 sizes of
+     * imported archives from `borg info` without re-creating the row.
+     *
+     * @throws DatabaseException
+     */
+    public function updateStatsByArchiveId(
+        string $archiveId,
+        int $compressedSize,
+        int $deduplicatedSize,
+        int $originalSize,
+        int $filesCount,
+        float $duration,
+        ?int $avgTransferRate = null
+    ): void {
+        $this->connection->executeUpdate(
+            'UPDATE archives
+             SET csize = ?, dsize = ?, osize = ?, nfiles = ?, dur = ?, avg_transfer_rate = ?
+             WHERE archive_id = ?',
+            [$compressedSize, $deduplicatedSize, $originalSize, $filesCount, $duration, $avgTransferRate, $archiveId]
+        );
+    }
+
+    /**
      * Delete archive by ID
      *
      * @throws DatabaseException

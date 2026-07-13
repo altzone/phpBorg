@@ -6,6 +6,7 @@ namespace PhpBorg\Command;
 
 use PhpBorg\Application;
 use PhpBorg\Service\Queue\Handlers\ArchiveDeleteHandler;
+use PhpBorg\Service\Queue\Handlers\RefreshArchiveStatsHandler;
 use PhpBorg\Service\Queue\Handlers\ArchiveMountHandler;
 use PhpBorg\Service\Queue\Handlers\ArchiveRestoreHandler;
 use PhpBorg\Service\Queue\Handlers\BackupCreateHandler;
@@ -129,6 +130,9 @@ final class WorkerStartCommand extends Command
             $this->app->getUserOperationLogger(),
             $this->app->getServerStatsComputer()
         ));
+
+        // Bug 29: refresh/backfill archive size stats from borg info (async)
+        $worker->registerHandler('refresh_archive_stats', new RefreshArchiveStatsHandler($this->app));
 
         $worker->registerHandler('archive_mount', new ArchiveMountHandler(
             $this->app->getBorgExecutor(),
