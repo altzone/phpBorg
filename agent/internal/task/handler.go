@@ -389,6 +389,21 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 		)
 	}
 
+	// === Bug 32a: PROOF OF ARCHIVE — the non-negotiable gate =================
+	// Never conclude "completed" from exit codes alone: on 2.4.7 a sudo failure
+	// (exit 1, borg never launched) was mistaken for borg warnings and produced a
+	// phantom success. Whatever the exit code says, the archive must EXIST.
+	h.client.UpdateProgress(ctx, task.ID, 92, "Verifying the archive was committed...")
+	exists, vres := h.executor.BorgArchiveExists(ctx, repoPath, archiveName, passphrase, allowUnencrypted)
+	if !exists {
+		return nil, 2, fmt.Errorf(
+			"borg exited %d but archive %q is NOT present in the repository — the backup did NOT complete "+
+				"(launcher or borg failed; ran_as_root=%v). borg stderr: %s | verification stderr: %s",
+			result.ExitCode, archiveName, result.RanAsRoot,
+			tailString(result.Stderr, 2000), tailString(vres.Stderr, 1000),
+		)
+	}
+
 	// Check if there were warnings (exit code 1)
 	hasWarnings := result.ExitCode == 1
 
@@ -422,6 +437,7 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 		"has_warnings":               hasWarnings,
 		"exit_code":                  result.ExitCode,
 		"ran_as_root":                result.RanAsRoot,   // Bug 31: false => root-only files were skipped
+		"archive_verified":           true,               // Bug 32: proof-of-archive check passed (borg list)
 		"skipped_permission_denied":  permDenied,         // GRAVE: unreadable => incomplete backup
 		"skipped_benign":             benignSkips,        // benign: changed/vanished on a live system
 	}
@@ -981,8 +997,13 @@ ExecStart=/var/lib/phpborg-agent/bin/phpborg-agent -config /etc/phpborg-agent/co
 Restart=always
 RestartSec=10
 
-# Security hardening
-NoNewPrivileges=yes
+# Security hardening.
+# NoNewPrivileges MUST be "no": the agent runs borg create as root via sudo (Bug 31)
+# and NNP=yes forbids any privilege elevation — with it, sudo fails with
+# 'The "no new privileges" flag is set' and no backup can read root-only files.
+# ProtectSystem=strict stays: borg only READS sources (read-only fs is fine) and
+# writes its cache under /var/lib/phpborg-agent (ReadWritePaths below).
+NoNewPrivileges=no
 ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=yes

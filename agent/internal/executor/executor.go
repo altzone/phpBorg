@@ -212,48 +212,91 @@ func (e *Executor) BorgCreateWithProgress(ctx context.Context, repoPath string, 
 	// the process environment), so they are kept separate from os.Environ().
 	borgVars := e.borgVarList(passphrase, allowUnencrypted)
 
-	// Bug 31: run `borg create` as ROOT via sudo. A non-root borg silently skips every
-	// root-only file with "Permission denied" (shadow, SSL/SSH private keys, parts of
-	// /var...) — 1252 files on the first 14 TB backup — making a bare-metal restore
-	// incomplete. The agent's sudoers already allows /usr/bin/borg. BORG_BASE_DIR pins
-	// the cache/security dirs to the agent home so the existing hot chunk cache
-	// (~25 GB) keeps being reused under root.
-	runCreate := func(command string, cmdArgs []string, env []string) *CommandResult {
-		// P0: no timeout cap (0 = inherit the task context).
-		if progressCallback == nil {
-			return e.runWithEnv(ctx, command, cmdArgs, env, 0)
+	// Bug 31/32: run `borg create` as ROOT via sudo when possible. The launch mode is
+	// decided by DETERMINISTIC PROBES before the real run — never by guessing from the
+	// real run's stderr: on 2.4.7 a sudo failure ("no new privileges") slipped through
+	// the stderr-matching and its exit 1 was mistaken for borg warnings, producing a
+	// phantom "completed" backup with no archive.
+	mode := e.probeBorgMode(ctx)
+	switch mode {
+	case borgModeSudoInline, borgModeSudoShell:
+		log.Printf("[BORG] running borg create as root (%s)", mode)
+	default:
+		log.Printf("[BORG] WARNING: sudo unavailable (probe failed) — running WITHOUT root; root-only files will be skipped (incomplete backup)")
+	}
+
+	// P0: timeout 0 = inherit the task context (no cap).
+	return e.runBorgAs(ctx, mode, borgVars, args, 0, progressCallback)
+}
+
+// Borg launch modes (Bug 31/32).
+const (
+	borgModeSudoInline = "sudo-inline" // sudo -n BORG_X=... /usr/bin/borg ... (needs SETENV in sudoers)
+	borgModeSudoShell  = "sudo-shell"  // sudo -n /usr/bin/bash -c '...' (older sudoers without SETENV)
+	borgModeDirect     = "direct"      // non-root fallback: root-only files will be skipped
+)
+
+// probeBorgMode determines how borg can be launched with root privileges using cheap,
+// deterministic probes (a failing sudo exits in milliseconds, long before borg starts).
+func (e *Executor) probeBorgMode(ctx context.Context) string {
+	// Inline env (requires SETENV: on the borg sudoers rule)
+	if r := e.runWithEnv(ctx, "sudo", []string{"-n", "BORG_PROBE=1", "/usr/bin/borg", "--version"}, os.Environ(), 20*time.Second); r.ExitCode == 0 {
+		return borgModeSudoInline
+	}
+	// Shell variant (older deployed sudoers has `/usr/bin/bash -c *` but no SETENV)
+	if r := e.runWithEnv(ctx, "sudo", []string{"-n", "/usr/bin/bash", "-c", "exec /usr/bin/borg --version"}, os.Environ(), 20*time.Second); r.ExitCode == 0 {
+		return borgModeSudoShell
+	}
+	return borgModeDirect
+}
+
+// runBorgAs executes a borg command according to the probed launch mode. RanAsRoot is
+// set from the mode that actually ran (Bug 32c) — never assumed.
+func (e *Executor) runBorgAs(ctx context.Context, mode string, borgVars []string, args []string, timeout time.Duration, cb ProgressCallback) *CommandResult {
+	run := func(command string, cmdArgs []string, env []string) *CommandResult {
+		if cb == nil {
+			return e.runWithEnv(ctx, command, cmdArgs, env, timeout)
 		}
-		return e.runWithEnvAndProgress(ctx, command, cmdArgs, env, 0, progressCallback)
+		return e.runWithEnvAndProgress(ctx, command, cmdArgs, env, timeout, cb)
 	}
 
-	// Attempt 1 — sudo with inline env (requires SETENV: on the sudoers borg rule,
-	// present on fresh/updated installs).
-	sudoArgs := append([]string{"-n"}, borgVars...)
-	sudoArgs = append(sudoArgs, "/usr/bin/borg")
-	sudoArgs = append(sudoArgs, args...)
-	result := runCreate("sudo", sudoArgs, os.Environ())
-	if !isSudoRejection(result) {
+	var result *CommandResult
+	switch mode {
+	case borgModeSudoInline:
+		sudoArgs := append([]string{"-n"}, borgVars...)
+		sudoArgs = append(sudoArgs, "/usr/bin/borg")
+		sudoArgs = append(sudoArgs, args...)
+		result = run("sudo", sudoArgs, os.Environ())
 		result.RanAsRoot = true
-		return result
-	}
-
-	// Attempt 2 — sudo bash -c (older deployed sudoers has `/usr/bin/bash -c *` but no
-	// SETENV): env assignments happen inside the shell. Every token is shell-quoted.
-	log.Printf("[BORG] sudo inline-env rejected, falling back to sudo bash -c")
-	shellCmd := buildShellCommand(borgVars, append([]string{"/usr/bin/borg"}, args...))
-	result = runCreate("sudo", []string{"-n", "/usr/bin/bash", "-c", shellCmd}, os.Environ())
-	if !isSudoRejection(result) {
+	case borgModeSudoShell:
+		shellCmd := buildShellCommand(borgVars, append([]string{"/usr/bin/borg"}, args...))
+		result = run("sudo", []string{"-n", "/usr/bin/bash", "-c", shellCmd}, os.Environ())
 		result.RanAsRoot = true
-		return result
+	default:
+		result = run("borg", args, append(os.Environ(), borgVars...))
+		result.RanAsRoot = false
 	}
-
-	// Attempt 3 — last resort: direct non-root borg (previous behaviour). The backup
-	// will SKIP root-only files; the handler reports that loudly.
-	log.Printf("[BORG] WARNING: sudo unavailable for borg — running WITHOUT root, root-only files will be skipped (incomplete backup)")
-	env := append(os.Environ(), borgVars...)
-	result = runCreate("borg", args, env)
-	result.RanAsRoot = false
 	return result
+}
+
+// BorgArchiveExists verifies that repo::archive REALLY exists (proof-of-archive,
+// Bug 32a): `borg list` on the repository, then an exact name match. Used after
+// `borg create` — a backup is never reported successful without this proof.
+// Fast right after a backup (hot cache).
+func (e *Executor) BorgArchiveExists(ctx context.Context, repoPath, archiveName, passphrase string, allowUnencrypted bool) (bool, *CommandResult) {
+	borgVars := e.borgVarList(passphrase, allowUnencrypted)
+	mode := e.probeBorgMode(ctx)
+	args := []string{"list", "--format", "{name}{NL}", repoPath}
+	result := e.runBorgAs(ctx, mode, borgVars, args, 15*time.Minute, nil)
+	if result.ExitCode != 0 {
+		return false, result
+	}
+	for _, line := range strings.Split(result.Stdout, "\n") {
+		if strings.TrimSpace(line) == archiveName {
+			return true, result
+		}
+	}
+	return false, result
 }
 
 // borgVarList builds the BORG_* environment variables for a backup run, as KEY=VALUE
@@ -288,31 +331,6 @@ func (e *Executor) borgVarList(passphrase string, allowUnencrypted bool) []strin
 	return vars
 }
 
-// isSudoRejection reports whether the result is sudo itself refusing to run (policy /
-// password / env restrictions) — as opposed to borg running and failing. Sudo rejects
-// fast, before borg starts, so falling back is cheap.
-func isSudoRejection(r *CommandResult) bool {
-	if r.ExitCode == 0 {
-		return false
-	}
-	s := strings.ToLower(r.Stderr)
-	if !strings.Contains(s, "sudo:") {
-		return false
-	}
-	for _, needle := range []string{
-		"a password is required",
-		"not allowed to set the following environment variables",
-		"is not allowed to execute",
-		"sorry",
-		"command not found",
-		"no tty present",
-	} {
-		if strings.Contains(s, needle) {
-			return true
-		}
-	}
-	return false
-}
 
 // buildShellCommand builds `K='v' K2='v2' exec cmd 'a1' 'a2'...` with every value and
 // argument single-quote shell-escaped (safe for excludes/passphrases with any chars).

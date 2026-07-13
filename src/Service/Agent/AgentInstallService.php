@@ -660,7 +660,9 @@ Restart=always
 RestartSec=10
 
 # Security hardening
-NoNewPrivileges=yes
+# NoNewPrivileges must be "no": borg create runs as root via sudo (Bug 31);
+# NNP=yes blocks sudo entirely ('The "no new privileges" flag is set').
+NoNewPrivileges=no
 ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=yes
