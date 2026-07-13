@@ -171,13 +171,21 @@ final class JobQueue
         // Update database
         $this->jobRepository->updateProgress($jobId, $progress, $message);
 
-        // Also update Redis for real-time UI updates
+        // Also update Redis for real-time UI updates.
+        // Bug 33: MERGE into the existing progress info instead of replacing it — a
+        // plain {progress, message} write used to WIPE the rich agent stats
+        // (files_count/original_size/phase) every few seconds, making the live stats
+        // block flicker in the UI.
         if ($message !== null) {
-            $this->setProgressInfo($jobId, [
-                'progress' => $progress,
-                'message' => $message,
-                'updated_at' => time()
-            ]);
+            $existing = $this->getProgressInfo($jobId);
+            $this->setProgressInfo($jobId, array_merge(
+                is_array($existing) ? $existing : [],
+                [
+                    'progress' => $progress,
+                    'message' => $message,
+                    'updated_at' => time()
+                ]
+            ));
 
             // Add to step history for UI to display all steps
             $this->addProgressStep($jobId, $progress, $message);

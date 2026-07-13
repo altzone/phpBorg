@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -232,9 +233,33 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 	h.markTaskRunning(task.ID)
 	defer h.clearTaskRunning(task.ID)
 
+	// Bug 33: the expected total size (osize of the LAST archive of this repo, provided
+	// by the server) lets us compute a REAL percentage from borg's archive_progress
+	// instead of a hardcoded 10%.
+	expectedOsize := int64(0)
+	if v, ok := task.Payload["expected_osize"].(float64); ok {
+		expectedOsize = int64(v)
+	}
+
+	// Shared live-progress state (Bug 33): the phase is EXPLICIT and the keepalive
+	// re-sends the last RICH info instead of a generic message that used to wipe the
+	// stats and reset the percentage.
+	var progressMu sync.Mutex
+	lastPct := 5
+	lastInfo := api.ProgressInfo{
+		Phase:   "init",
+		Message: "Initializing: repository lock & chunk cache sync...",
+	}
+	sendProgress := func() {
+		progressMu.Lock()
+		pct, info := lastPct, lastInfo
+		progressMu.Unlock()
+		_ = h.client.UpdateProgressWithInfo(ctx, task.ID, pct, info)
+	}
+
 	// Bug 26: keepalive. borg's cache sync (~20 min) emits no progress events, so ping
-	// progress every 60s while the backup runs — the server's progress_updated_at stays
-	// fresh as long as the agent is alive, and the watchdog only fires on a dead agent.
+	// every 60s while the backup runs — the server's progress_updated_at stays fresh as
+	// long as the agent is alive, and the watchdog only fires on a dead agent.
 	keepaliveStop := make(chan struct{})
 	defer close(keepaliveStop)
 	go func() {
@@ -247,13 +272,13 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				_ = h.client.UpdateProgress(ctx, task.ID, 10, "Backup in progress...")
+				sendProgress()
 			}
 		}
 	}()
 
-	// Update progress
-	h.client.UpdateProgress(ctx, task.ID, 5, "Starting backup...")
+	// Initial progress: explicit init phase
+	sendProgress()
 
 	// Create cancellable context for the backup operation
 	backupCtx, cancelBackup := context.WithCancel(ctx)
@@ -299,17 +324,30 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 		}
 		lastUpdate = time.Now()
 
-		// Calculate approximate progress (borg doesn't give total, so we estimate)
-		// Progress starts at 10% and goes up to 90% during backup
+		// Bug 33: REAL percentage — processed osize vs the last archive's total osize
+		// (provided by the server), capped at 99 until the archive is committed.
+		// Unknown total (first backup of a repo): stay at a nominal 10.
 		progressPercent := 10
+		if expectedOsize > 0 && progress.OriginalSize > 0 {
+			pct := int(progress.OriginalSize * 100 / expectedOsize)
+			if pct < 1 {
+				pct = 1
+			}
+			if pct > 99 {
+				pct = 99
+			}
+			progressPercent = pct
+		}
 
-		// Send detailed progress info
+		// Send detailed progress info with the EXPLICIT phase (first borg
+		// archive_progress event => data is flowing => transfer)
 		info := api.ProgressInfo{
 			FilesCount:       progress.NFiles,
 			OriginalSize:     progress.OriginalSize,
 			CompressedSize:   progress.CompressedSize,
 			DeduplicatedSize: progress.DeduplicatedSize,
 			CurrentPath:      progress.Path,
+			Phase:            "transfer",
 		}
 
 		// Format a human-readable message
@@ -317,6 +355,11 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 			progress.NFiles,
 			formatBytes(progress.OriginalSize),
 		)
+
+		// Remember as the latest rich state (re-sent by the keepalive)
+		progressMu.Lock()
+		lastPct, lastInfo = progressPercent, info
+		progressMu.Unlock()
 
 		if err := h.client.UpdateProgressWithInfo(ctx, task.ID, progressPercent, info); err != nil {
 			log.Printf("[BACKUP] Failed to send progress update: %v", err)
@@ -393,7 +436,12 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 	// Never conclude "completed" from exit codes alone: on 2.4.7 a sudo failure
 	// (exit 1, borg never launched) was mistaken for borg warnings and produced a
 	// phantom success. Whatever the exit code says, the archive must EXIST.
-	h.client.UpdateProgress(ctx, task.ID, 92, "Verifying the archive was committed...")
+	progressMu.Lock()
+	lastPct = 92
+	lastInfo.Phase = "finalize"
+	lastInfo.Message = "Verifying the archive was committed..."
+	progressMu.Unlock()
+	sendProgress()
 	exists, vres := h.executor.BorgArchiveExists(ctx, repoPath, archiveName, passphrase, allowUnencrypted)
 	if !exists {
 		return nil, 2, fmt.Errorf(

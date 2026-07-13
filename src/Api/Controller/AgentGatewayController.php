@@ -305,6 +305,7 @@ final class AgentGatewayController extends BaseController
                 'deduplicated_size' => (int) ($data['deduplicated_size'] ?? 0),
                 'message' => $message,
                 'current_path' => $data['current_path'] ?? null,
+                'phase' => $data['phase'] ?? null, // Bug 33: explicit phase from the agent
                 'timestamp' => time(),
                 'agent_task_id' => $taskId,
             ];

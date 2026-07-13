@@ -222,6 +222,9 @@ type ProgressInfo struct {
 	DeduplicatedSize int64  `json:"deduplicated_size"`
 	CurrentPath      string `json:"current_path,omitempty"`
 	Message          string `json:"message,omitempty"`
+	// Phase is EXPLICIT (init | transfer | finalize) — the UI must never have to
+	// guess it from percentages (Bug 33: derived phases stayed stuck on "init").
+	Phase string `json:"phase,omitempty"`
 }
 
 // UpdateProgressWithInfo updates task progress with detailed borg statistics
@@ -238,6 +241,9 @@ func (c *Client) UpdateProgressWithInfo(ctx context.Context, taskID int, progres
 	}
 	if info.Message != "" {
 		body["message"] = info.Message
+	}
+	if info.Phase != "" {
+		body["phase"] = info.Phase
 	}
 
 	_, err := c.doRequest(ctx, "POST", fmt.Sprintf("/agent/tasks/%d/progress", taskID), body)

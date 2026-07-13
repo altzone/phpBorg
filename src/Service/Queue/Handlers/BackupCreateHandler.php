@@ -523,6 +523,9 @@ final class BackupCreateHandler implements JobHandlerInterface
             'compression' => $repository->compression ?? 'lz4',
             'one_file_system' => $repository->oneFileSystem, // Bug 17
             'allow_unencrypted' => strtolower(trim($repository->encryption)) === 'none', // Bug 21
+            // Bug 33: osize of the LAST archive lets the agent compute a REAL % from
+            // borg's archive_progress (0 = unknown, e.g. first backup of the repo).
+            'expected_osize' => $this->getExpectedOsize($repository->repoId),
             'passphrase' => $repository->passphrase,
             'server_id' => $server->id,
             'repository_id' => $repository->id,
@@ -585,9 +588,10 @@ final class BackupCreateHandler implements JobHandlerInterface
             sleep($pollInterval);
             $waited += $pollInterval;
 
-            // Check task status
+            // Check task status (+ live progress for mirroring — Bug 33)
             $task = $connection->fetchOne(
-                'SELECT status, result, error FROM agent_tasks WHERE id = ?',
+                'SELECT status, result, error, progress, progress_message, progress_updated_at
+                 FROM agent_tasks WHERE id = ?',
                 [$taskId]
             );
 
@@ -662,12 +666,37 @@ final class BackupCreateHandler implements JobHandlerInterface
                 throw new \Exception("Agent backup failed: {$error}");
             }
 
-            // Update progress periodically
-            $progress = min(30 + ($waited / $maxWait * 60), 90);
-            $queue->updateProgress($job->id, (int)$progress, "Backup in progress via agent ({$waited}s)...");
+            // Bug 33: MIRROR the agent's real progress instead of a fake time-based
+            // percentage (min(30 + waited/maxWait*60, 90) froze at ~30 once maxWait
+            // became 30 days). Single source of truth: the agent. Its rich message
+            // ("Backing up: N files, X TB") is NEVER overwritten by a generic one —
+            // the generic only appears if the agent has been silent for >3 min.
+            $agentPct = max(30, min(94, (int)($task['progress'] ?? 0)));
+            $agentMsg = trim((string)($task['progress_message'] ?? ''));
+            $msgAge = !empty($task['progress_updated_at'])
+                ? (time() - strtotime($task['progress_updated_at']))
+                : PHP_INT_MAX;
+            $message = ($agentMsg !== '' && $msgAge < 180)
+                ? $agentMsg
+                : "Backup in progress via agent ({$waited}s)...";
+            $queue->updateProgress($job->id, $agentPct, $message);
         }
 
         throw new \Exception("Agent backup timed out after {$maxWait} seconds");
+    }
+
+    /**
+     * osize of the most recent archive of a repository (0 if none) — used as the
+     * expected total for real progress computation on the agent (Bug 33).
+     */
+    private function getExpectedOsize(string $repoId): int
+    {
+        try {
+            $archives = $this->archiveRepo->findByRepositoryId($repoId);
+            return !empty($archives) ? (int)$archives[0]->originalSize : 0;
+        } catch (\Exception $e) {
+            return 0;
+        }
     }
 
     /**

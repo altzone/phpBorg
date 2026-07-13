@@ -388,6 +388,11 @@ function getBackupPhase(job) {
   if (!String(job.type || '').includes('backup')) return null
 
   const p = jobStore.getProgressInfo(job.id) || {}
+
+  // Bug 33: the agent emits the phase EXPLICITLY — trust it first (the %-based
+  // guess stayed stuck on "init" because the percentages were frozen).
+  if (BACKUP_PHASES.includes(p.phase)) return p.phase
+
   // Progress payloads may use files_count (server) or nfiles (borg) keys.
   const hasTransferData =
     (p.files_count || p.nfiles || 0) > 0 || (p.original_size || 0) > 0
