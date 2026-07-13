@@ -139,6 +139,30 @@
                 </div>
               </div>
 
+              <!-- Backup phase stepper: init -> transfer -> finalize -->
+              <div v-if="getBackupPhase(job)" class="mt-2 flex items-center gap-1 text-[11px] flex-wrap">
+                <template v-for="(ph, i) in BACKUP_PHASES" :key="ph">
+                  <span
+                    :class="[
+                      'flex items-center gap-1 px-2 py-0.5 rounded-md font-medium transition-colors',
+                      phaseIndex(getBackupPhase(job)) > i
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                        : phaseIndex(getBackupPhase(job)) === i
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 ring-1 ring-amber-400'
+                          : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
+                    ]"
+                  >
+                    <svg v-if="phaseIndex(getBackupPhase(job)) > i" class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span v-else-if="phaseIndex(getBackupPhase(job)) === i" class="w-1 h-1 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span v-else class="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600"></span>
+                    {{ $t('jobs.phase.' + ph) }}
+                  </span>
+                  <span v-if="i < BACKUP_PHASES.length - 1" class="text-gray-300 dark:text-gray-600">→</span>
+                </template>
+              </div>
+
               <!-- Real-time progress info (from Redis via SSE) -->
               <div v-if="getProgressInfo(job.id)" class="mt-2 space-y-2">
                 <!-- Borg Progress Message -->
@@ -353,6 +377,30 @@ function formatJobType(type) {
 
 function getProgressInfo(jobId) {
   return jobStore.getProgressInfo(jobId)
+}
+
+// Backup phase derivation (init -> transfer -> finalize), same logic as JobsView:
+// shows WHAT the backup is doing, not just a percentage.
+const BACKUP_PHASES = ['init', 'transfer', 'finalize']
+
+function getBackupPhase(job) {
+  if (!job || job.status !== 'running') return null
+  if (!String(job.type || '').includes('backup')) return null
+
+  const p = jobStore.getProgressInfo(job.id) || {}
+  // Progress payloads may use files_count (server) or nfiles (borg) keys.
+  const hasTransferData =
+    (p.files_count || p.nfiles || 0) > 0 || (p.original_size || 0) > 0
+  const pct = job.progress || 0
+
+  if (pct >= 90) return 'finalize'      // server marks ~95% while saving archive/stats
+  if (hasTransferData) return 'transfer' // borg is reading/chunking files
+  return 'init'                          // connecting, lock, cache sync — no bytes yet
+}
+
+function phaseIndex(phase) {
+  const i = BACKUP_PHASES.indexOf(phase)
+  return i < 0 ? -1 : i
 }
 
 function formatTransferRate(bytesPerSec) {
