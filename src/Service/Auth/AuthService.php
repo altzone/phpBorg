@@ -130,7 +130,8 @@ final class AuthService
      */
     public function logout(string $refreshToken): void
     {
-        $this->refreshTokenRepository->revoke($refreshToken);
+        // Explicit logout: no rotation reuse-grace — the token dies now.
+        $this->refreshTokenRepository->revokeImmediately($refreshToken);
         $this->logger->info("User logged out", 'AUTH');
     }
 

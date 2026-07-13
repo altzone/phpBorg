@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { authService } from '@/services/auth'
+import { refreshTokensSingleFlight } from '@/services/api'
 
 export const useAuthStore = defineStore('auth', () => {
   // State
@@ -98,20 +99,14 @@ export const useAuthStore = defineStore('auth', () => {
    * @returns {Promise<boolean>} True if refresh succeeded
    */
   async function refreshAccessToken() {
-    const currentRefreshToken = refreshToken.value || localStorage.getItem('refresh_token')
-    if (!currentRefreshToken) {
-      console.warn('[Auth] No refresh token available')
-      return false
-    }
-
     try {
-      const data = await authService.refreshToken(currentRefreshToken)
+      // Single-flight shared with the API interceptor: the backend rotates refresh
+      // tokens, so concurrent refreshes (SSE + API calls) must share ONE request or
+      // the losers get logged out (the "logout on every page reload" bug).
+      const newAccessToken = await refreshTokensSingleFlight()
 
-      // Store new tokens
-      accessToken.value = data.access_token
-      refreshToken.value = data.refresh_token
-      localStorage.setItem('access_token', data.access_token)
-      localStorage.setItem('refresh_token', data.refresh_token)
+      accessToken.value = newAccessToken
+      refreshToken.value = localStorage.getItem('refresh_token')
 
       console.log('[Auth] Token refreshed successfully')
       return true

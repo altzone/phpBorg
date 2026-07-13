@@ -45,8 +45,14 @@ final class RefreshTokenRepository
      */
     public function findByToken(string $token): ?array
     {
+        // Rotation reuse-grace: a token rotated less than 30s ago is still accepted.
+        // Refresh tokens are rotated on use; concurrent refreshes (multiple tabs, or a
+        // burst of 401s on page reload) race on the same old token — without a grace
+        // window the losers failed and the user was logged out on every page refresh.
         return $this->connection->fetchOne(
-            'SELECT * FROM refresh_tokens WHERE token = ? AND revoked = 0 AND expires_at > NOW()',
+            'SELECT * FROM refresh_tokens
+             WHERE token = ? AND expires_at > NOW()
+             AND (revoked = 0 OR (revoked_at IS NOT NULL AND revoked_at > DATE_SUB(NOW(), INTERVAL 30 SECOND)))',
             [$token]
         ) ?: null;
     }
@@ -59,7 +65,21 @@ final class RefreshTokenRepository
     public function revoke(string $token): void
     {
         $this->connection->executeUpdate(
-            'UPDATE refresh_tokens SET revoked = 1 WHERE token = ?',
+            'UPDATE refresh_tokens SET revoked = 1, revoked_at = NOW() WHERE token = ?',
+            [$token]
+        );
+    }
+
+    /**
+     * Revoke a token IMMEDIATELY (explicit logout): backdate revoked_at past the
+     * rotation reuse-grace window so it cannot be reused at all.
+     *
+     * @throws DatabaseException
+     */
+    public function revokeImmediately(string $token): void
+    {
+        $this->connection->executeUpdate(
+            'UPDATE refresh_tokens SET revoked = 1, revoked_at = DATE_SUB(NOW(), INTERVAL 1 HOUR) WHERE token = ?',
             [$token]
         );
     }
@@ -71,8 +91,10 @@ final class RefreshTokenRepository
      */
     public function revokeAllForUser(int $userId): void
     {
+        // Security action ("logout everywhere"): revoked_at is backdated past the
+        // rotation reuse-grace window so these tokens are dead IMMEDIATELY.
         $this->connection->executeUpdate(
-            'UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ?',
+            'UPDATE refresh_tokens SET revoked = 1, revoked_at = DATE_SUB(NOW(), INTERVAL 1 HOUR) WHERE user_id = ?',
             [$userId]
         );
     }
