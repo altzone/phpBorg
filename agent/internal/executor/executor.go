@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,6 +35,9 @@ type CommandResult struct {
 	ExitCode int
 	Duration time.Duration
 	Error    error
+	// RanAsRoot reports whether the command was executed via sudo (Bug 31): a backup
+	// created as non-root silently skips root-only files (shadow, SSL/SSH keys, ...).
+	RanAsRoot bool
 }
 
 // Run executes a command with timeout and returns the result
@@ -204,32 +208,128 @@ func (e *Executor) BorgCreateWithProgress(ctx context.Context, repoPath string, 
 	// Add paths to backup
 	args = append(args, paths...)
 
-	// Set environment for borg SSH connection
-	env := e.getBorgEnv()
+	// Borg-specific variables. They are passed INLINE through sudo (env_reset strips
+	// the process environment), so they are kept separate from os.Environ().
+	borgVars := e.borgVarList(passphrase, allowUnencrypted)
 
-	// Add passphrase if provided
-	if passphrase != "" {
-		env = append(env, "BORG_PASSPHRASE="+passphrase)
+	// Bug 31: run `borg create` as ROOT via sudo. A non-root borg silently skips every
+	// root-only file with "Permission denied" (shadow, SSL/SSH private keys, parts of
+	// /var...) — 1252 files on the first 14 TB backup — making a bare-metal restore
+	// incomplete. The agent's sudoers already allows /usr/bin/borg. BORG_BASE_DIR pins
+	// the cache/security dirs to the agent home so the existing hot chunk cache
+	// (~25 GB) keeps being reused under root.
+	runCreate := func(command string, cmdArgs []string, env []string) *CommandResult {
+		// P0: no timeout cap (0 = inherit the task context).
+		if progressCallback == nil {
+			return e.runWithEnv(ctx, command, cmdArgs, env, 0)
+		}
+		return e.runWithEnvAndProgress(ctx, command, cmdArgs, env, 0, progressCallback)
 	}
 
-	// Bug 21: agent-side counterpart of Bug 9. For an UNENCRYPTED repository, borg
-	// otherwise blocks on the interactive "Attempting to access a previously unknown
-	// unencrypted repository! [yN]" prompt and aborts. Allow it when the caller says
-	// so (allow_unencrypted from the task payload) or when no passphrase is set.
+	// Attempt 1 — sudo with inline env (requires SETENV: on the sudoers borg rule,
+	// present on fresh/updated installs).
+	sudoArgs := append([]string{"-n"}, borgVars...)
+	sudoArgs = append(sudoArgs, "/usr/bin/borg")
+	sudoArgs = append(sudoArgs, args...)
+	result := runCreate("sudo", sudoArgs, os.Environ())
+	if !isSudoRejection(result) {
+		result.RanAsRoot = true
+		return result
+	}
+
+	// Attempt 2 — sudo bash -c (older deployed sudoers has `/usr/bin/bash -c *` but no
+	// SETENV): env assignments happen inside the shell. Every token is shell-quoted.
+	log.Printf("[BORG] sudo inline-env rejected, falling back to sudo bash -c")
+	shellCmd := buildShellCommand(borgVars, append([]string{"/usr/bin/borg"}, args...))
+	result = runCreate("sudo", []string{"-n", "/usr/bin/bash", "-c", shellCmd}, os.Environ())
+	if !isSudoRejection(result) {
+		result.RanAsRoot = true
+		return result
+	}
+
+	// Attempt 3 — last resort: direct non-root borg (previous behaviour). The backup
+	// will SKIP root-only files; the handler reports that loudly.
+	log.Printf("[BORG] WARNING: sudo unavailable for borg — running WITHOUT root, root-only files will be skipped (incomplete backup)")
+	env := append(os.Environ(), borgVars...)
+	result = runCreate("borg", args, env)
+	result.RanAsRoot = false
+	return result
+}
+
+// borgVarList builds the BORG_* environment variables for a backup run, as KEY=VALUE
+// strings suitable both for inline sudo args (SETENV) and for a process environment.
+func (e *Executor) borgVarList(passphrase string, allowUnencrypted bool) []string {
+	sshCmd := fmt.Sprintf(
+		"ssh -p %d -i %s -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o TCPKeepAlive=yes",
+		e.config.BorgSSH.Port,
+		e.config.BorgSSH.PrivateKeyPath,
+	)
+
+	// Pin cache/config/security to the agent home so the hot chunk cache and the
+	// security db (known unencrypted repos) survive the switch to root (Bug 31).
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" || home == "/root" {
+		home = "/var/lib/phpborg-agent"
+	}
+
+	vars := []string{
+		"BORG_RSH=" + sshCmd,
+		"BORG_BASE_DIR=" + home,
+	}
+	if passphrase != "" {
+		vars = append(vars, "BORG_PASSPHRASE="+passphrase)
+	}
 	if allowUnencrypted || passphrase == "" {
-		env = append(env,
+		vars = append(vars,
 			"BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK=yes",
 			"BORG_RELOCATED_REPO_ACCESS_IS_OK=yes",
 		)
 	}
+	return vars
+}
 
-	// P0: do NOT impose a 4h cap on borg create — that child timeout overrode the
-	// task's 30-day/no-cap context and killed borg at exactly 4h on the 14 TB backup.
-	// Pass 0 = inherit the task context (runWithEnv* treat 0 as "no timeout").
-	if progressCallback == nil {
-		return e.runWithEnv(ctx, "borg", args, env, 0)
+// isSudoRejection reports whether the result is sudo itself refusing to run (policy /
+// password / env restrictions) — as opposed to borg running and failing. Sudo rejects
+// fast, before borg starts, so falling back is cheap.
+func isSudoRejection(r *CommandResult) bool {
+	if r.ExitCode == 0 {
+		return false
 	}
-	return e.runWithEnvAndProgress(ctx, "borg", args, env, 0, progressCallback)
+	s := strings.ToLower(r.Stderr)
+	if !strings.Contains(s, "sudo:") {
+		return false
+	}
+	for _, needle := range []string{
+		"a password is required",
+		"not allowed to set the following environment variables",
+		"is not allowed to execute",
+		"sorry",
+		"command not found",
+		"no tty present",
+	} {
+		if strings.Contains(s, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+// buildShellCommand builds `K='v' K2='v2' exec cmd 'a1' 'a2'...` with every value and
+// argument single-quote shell-escaped (safe for excludes/passphrases with any chars).
+func buildShellCommand(envVars []string, cmdAndArgs []string) string {
+	quote := func(s string) string {
+		return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+	}
+	parts := make([]string, 0, len(envVars)+len(cmdAndArgs)+1)
+	for _, kv := range envVars {
+		i := strings.IndexByte(kv, '=')
+		parts = append(parts, kv[:i+1]+quote(kv[i+1:]))
+	}
+	parts = append(parts, "exec")
+	for _, a := range cmdAndArgs {
+		parts = append(parts, quote(a))
+	}
+	return strings.Join(parts, " ")
 }
 
 // runWithEnvAndProgress executes a command with streaming progress updates

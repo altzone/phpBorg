@@ -392,19 +392,46 @@ func (h *Handler) handleBackupCreate(ctx context.Context, task api.Task) (map[st
 	// Check if there were warnings (exit code 1)
 	hasWarnings := result.ExitCode == 1
 
-	if hasWarnings {
-		h.client.UpdateProgress(ctx, task.ID, 95, "Backup completed with warnings (some files skipped)")
-	} else {
+	// Bug 31b: report skips HONESTLY. "Permission denied" skips mean the backup is
+	// INCOMPLETE (root-only files like shadow / SSL keys are missing — a bare-metal
+	// restore would not work); "vanished/changed" skips are benign on a live server.
+	// A bland "some files skipped" hiding 216 unsaved secrets is unacceptable.
+	permDenied := strings.Count(result.Stderr, "Permission denied")
+	benignSkips := strings.Count(result.Stderr, "vanished") +
+		strings.Count(result.Stderr, "changed while we backed it up")
+
+	switch {
+	case permDenied > 0:
+		h.client.UpdateProgress(ctx, task.ID, 95, fmt.Sprintf(
+			"WARNING: backup INCOMPLETE — %d file(s) UNREADABLE (permission denied). Root-only files (secrets, keys) are missing from this archive.",
+			permDenied,
+		))
+	case hasWarnings:
+		h.client.UpdateProgress(ctx, task.ID, 95, fmt.Sprintf(
+			"Backup completed with benign warnings (%d file(s) changed/vanished while reading — normal on a live server)",
+			benignSkips,
+		))
+	default:
 		h.client.UpdateProgress(ctx, task.ID, 95, "Backup completed successfully")
 	}
 
-	return map[string]interface{}{
-		"stdout":       result.Stdout,                  // final borg --json stats (kept in full)
-		"stderr":       tailString(result.Stderr, 16384), // Bug 24: only a tail of the progress stream
-		"duration":     result.Duration.String(),
-		"has_warnings": hasWarnings,
-		"exit_code":    result.ExitCode,
-	}, 0, nil
+	res := map[string]interface{}{
+		"stdout":                     result.Stdout,                    // final borg --json stats (kept in full)
+		"stderr":                     tailString(result.Stderr, 16384), // Bug 24: only a tail of the progress stream
+		"duration":                   result.Duration.String(),
+		"has_warnings":               hasWarnings,
+		"exit_code":                  result.ExitCode,
+		"ran_as_root":                result.RanAsRoot,   // Bug 31: false => root-only files were skipped
+		"skipped_permission_denied":  permDenied,         // GRAVE: unreadable => incomplete backup
+		"skipped_benign":             benignSkips,        // benign: changed/vanished on a live system
+	}
+	if permDenied > 0 {
+		res["message"] = fmt.Sprintf(
+			"INCOMPLETE BACKUP: %d file(s) skipped with 'Permission denied' (ran_as_root=%v). These files are NOT in the archive.",
+			permDenied, result.RanAsRoot,
+		)
+	}
+	return res, 0, nil
 }
 
 // formatBytes formats bytes into human-readable string
@@ -1032,11 +1059,12 @@ phpborg-agent ALL=(postgres) NOPASSWD: /usr/bin/pg_dump *
 phpborg-agent ALL=(postgres) NOPASSWD: /usr/bin/pg_dumpall *
 phpborg-agent ALL=(postgres) NOPASSWD: /usr/bin/psql -t -c *
 
-# Borg Backup
-phpborg-agent ALL=(root) NOPASSWD: /usr/bin/borg --version
-phpborg-agent ALL=(root) NOPASSWD: /usr/bin/borg create *
-phpborg-agent ALL=(root) NOPASSWD: /usr/bin/borg extract *
-phpborg-agent ALL=(root) NOPASSWD: /usr/bin/borg list *
+# Borg Backup (Bug 31: SETENV lets the agent pass BORG_* vars — passphrase, RSH,
+# BASE_DIR — inline through sudo so borg create runs as ROOT and reads every file)
+phpborg-agent ALL=(root) NOPASSWD: SETENV: /usr/bin/borg --version
+phpborg-agent ALL=(root) NOPASSWD: SETENV: /usr/bin/borg create *
+phpborg-agent ALL=(root) NOPASSWD: SETENV: /usr/bin/borg extract *
+phpborg-agent ALL=(root) NOPASSWD: SETENV: /usr/bin/borg list *
 
 # LVM Detection (read-only)
 phpborg-agent ALL=(root) NOPASSWD: /usr/sbin/lvs *

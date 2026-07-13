@@ -391,9 +391,10 @@ phpborg-agent ALL=(root) NOPASSWD: /usr/bin/mysql -e *
 phpborg-agent ALL=(postgres) NOPASSWD: /usr/bin/pg_dump *
 phpborg-agent ALL=(postgres) NOPASSWD: /usr/bin/pg_dumpall *
 
-# Borg Backup
-phpborg-agent ALL=(root) NOPASSWD: /usr/bin/borg *
-phpborg-agent ALL=(root) NOPASSWD: /usr/local/bin/borg *
+# Borg Backup (Bug 31: SETENV lets the agent pass BORG_* vars inline through sudo so
+# borg create runs as ROOT and can read every file — non-root skipped shadow/SSL keys)
+phpborg-agent ALL=(root) NOPASSWD: SETENV: /usr/bin/borg *
+phpborg-agent ALL=(root) NOPASSWD: SETENV: /usr/local/bin/borg *
 
 # Docker
 phpborg-agent ALL=(root) NOPASSWD: /usr/bin/docker ps *
