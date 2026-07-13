@@ -28,7 +28,7 @@
             :key="tab.id"
             @click="activeTab = tab.id"
             :class="[
-              'whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm transition-colors relative',
+              'whitespace-nowrap flex-shrink-0 py-4 px-4 sm:px-6 border-b-2 font-medium text-sm transition-colors relative',
               activeTab === tab.id
                 ? 'border-primary-500 text-primary-600'
                 : 'border-transparent text-gray-500 dark:text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:border-gray-600'
@@ -47,7 +47,7 @@
       </div>
 
       <!-- Tab Content -->
-      <div class="p-6">
+      <div class="p-4 sm:p-6">
         <!-- General Settings -->
         <div v-show="activeTab === 'general'">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ $t('settings.general.title') }}</h3>
@@ -97,7 +97,7 @@
             <!-- Provider Selector -->
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.email.provider') }}</label>
-              <div class="grid grid-cols-4 gap-2">
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <button
                   type="button"
                   @click="selectEmailProvider('gmail')"
@@ -186,7 +186,7 @@
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.email.host') }}</label>
                 <input v-model="emailForm['smtp.host']" type="text" class="input w-full" placeholder="smtp.example.com" :disabled="emailProvider !== 'custom'" />
@@ -204,7 +204,7 @@
                 <option value="none">None</option>
               </select>
             </div>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.email.username') }}</label>
                 <input v-model="emailForm['smtp.username']" type="text" class="input w-full" />
@@ -214,7 +214,7 @@
                 <input v-model="emailForm['smtp.password']" type="password" class="input w-full" />
               </div>
             </div>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.email.from_email') }}</label>
                 <input v-model="emailForm['smtp.from_email']" type="email" class="input w-full" />
@@ -243,7 +243,7 @@
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ $t('settings.backup.title') }}</h3>
           <form @submit.prevent="saveSettings('backup')" class="space-y-4">
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">{{ $t('settings.backup.description') }}</p>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.backup.daily') }}</label>
                 <input v-model.number="backupForm['backup.retention.daily']" type="number" min="0" max="365" class="input w-full" />
@@ -255,7 +255,7 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $t('settings.backup.weekly_help') }}</p>
               </div>
             </div>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.backup.monthly') }}</label>
                 <input v-model.number="backupForm['backup.retention.monthly']" type="number" min="0" max="60" class="input w-full" />
@@ -334,7 +334,7 @@
         <div v-show="activeTab === 'security'">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ $t('settings.security.title') }}</h3>
           <form @submit.prevent="saveSettings('security')" class="space-y-4">
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.security.access_ttl') }}</label>
                 <input v-model.number="securityForm['security.jwt.access_ttl']" type="number" min="300" class="input w-full" />
@@ -369,7 +369,7 @@
         <div v-show="activeTab === 'network'">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ $t('settings.network.title') }}</h3>
           <form @submit.prevent="saveSettings('network')" class="space-y-4">
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.network.external_ip') }}</label>
                 <input v-model="networkForm['network.external_ip']" type="text" class="input w-full" placeholder="192.168.1.100" />
@@ -425,7 +425,7 @@
 
                 <div>
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ $t('settings.system.log_rotation') }}</label>
-                  <div class="grid grid-cols-2 gap-4">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">{{ $t('settings.system.log_max_size') }}</label>
                       <input
@@ -517,8 +517,8 @@
     </div>
 
     <!-- Test Email Modal -->
-    <div v-if="showTestEmailModal" class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="closeTestEmailModal">
-      <div class="relative top-20 mx-auto p-5 border w-[500px] shadow-lg rounded-md bg-white dark:bg-gray-800">
+    <div v-if="showTestEmailModal" class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50 px-4" @click.self="closeTestEmailModal">
+      <div class="relative top-20 mx-auto p-5 border w-full max-w-[500px] shadow-lg rounded-md bg-white dark:bg-gray-800">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ $t('settings.email.test_modal_title') }}</h3>
           <button @click="closeTestEmailModal" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">

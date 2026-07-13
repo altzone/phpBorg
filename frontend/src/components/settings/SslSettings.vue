@@ -68,7 +68,7 @@
           </div>
 
           <!-- Certificate Details -->
-          <div class="grid grid-cols-2 gap-4 text-sm">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
               <span class="text-gray-500 dark:text-gray-400">{{ $t('settings.ssl.valid_from') }}:</span>
               <span class="ml-2 text-gray-900 dark:text-white">{{ status.valid_from }}</span>
