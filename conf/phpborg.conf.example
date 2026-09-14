@@ -18,7 +18,7 @@ pass      = CHANGEME
 from      = backup@net1c.net
 from_name = phpBorg Backup
 ; destinataires separes par des virgules
-to        = noc@net1c.com
+to        = noc@net1c.net
 timeout   = 30
 
 [alert]
