@@ -338,9 +338,12 @@ class Report
         $last     = $this->lastFull();
         $stale    = $this->staleServers();
         $problems = array();
+        // Libelles courts, pour que le sujet du mail nomme le vrai probleme
+        $labels   = array();
 
         if ($last === null) {
             $problems[] = "Aucun run 'full' n'a jamais ete enregistre en base.";
+            $labels[]   = 'aucune sauvegarde enregistree';
         } else {
             $age = $last['age_hours'] === null ? null : (int)$last['age_hours'];
 
@@ -348,11 +351,13 @@ class Report
                 $affiche = $age === null ? '?' : $age;
                 $problems[] = "Le dernier 'full' remonte a {$affiche} h (seuil : {$maxAge} h) - "
                             . "demarre le " . $last['start'] . ". LES SAUVEGARDES NE TOURNENT PLUS.";
+                $labels[]   = 'aucune sauvegarde depuis ' . $affiche . 'h';
             } elseif ($last['end'] === null && $age > 0 && !$this->isRunning()) {
                 // Demarre mais jamais termine et plus aucun processus : run interrompu
                 $problems[] = "Le run 'full' du " . $last['start'] . " n'a jamais ete termine"
                             . ($last['curpos'] ? " (arrete sur " . $last['curpos'] . ")" : '')
                             . " et aucun processus phpborg ne tourne : RUN INTERROMPU.";
+                $labels[]   = 'run interrompu';
             }
 
             // Un full termine mais trop ancien alors qu'un autre a demarre
@@ -360,6 +365,7 @@ class Report
             if ($done !== null && (int)$done['age_hours'] > $maxAge && empty($problems)) {
                 $problems[] = "Le dernier 'full' reellement termine date du " . $done['end']
                             . " (il y a " . (int)$done['age_hours'] . " h).";
+                $labels[]   = 'dernier full complet il y a ' . (int)$done['age_hours'] . 'h';
             }
         }
 
@@ -372,6 +378,7 @@ class Report
                 $disk['path'], $disk['used_percent'],
                 self::bytes($disk['free']), self::bytes($disk['total'])
             );
+            $labels[] = 'volume a ' . $disk['used_percent'] . '%';
         }
 
         if (empty($problems) && empty($stale)) {
@@ -381,8 +388,8 @@ class Report
             return true;
         }
 
-        $subject = $this->subject('ALERTE - ' .
-            (!empty($problems) ? 'aucune sauvegarde recente' : count($stale) . ' serveur(s) en retard'));
+        if (!empty($stale)) $labels[] = count($stale) . ' serveur(s) en retard';
+        $subject = $this->subject('ALERTE - ' . implode(', ', $labels));
 
         $html = $this->renderCheckHtml($problems, $stale, $last, $maxAge);
         $text = $this->renderCheckText($problems, $stale, $last, $maxAge);
