@@ -1,0 +1,8 @@
+# Configuration locale : contient les mots de passe
+conf/phpborg.conf
+conf/.smtp_pass
+
+# Sauvegardes ponctuelles de fichiers source
+*.bak
+*.bak.*
+*.bak-*

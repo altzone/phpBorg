@@ -4,6 +4,8 @@ namespace phpBorg;
 
 use mysqli;
 
+require_once __DIR__ . '/Config.php';
+
 /**
  * Class Db
  * @package phpBorg
@@ -39,7 +41,16 @@ Class Db
      * @param string $dbname
      * @param string $charset
      */
-    public function __construct($dbhost = '127.0.0.1', $dbuser = 'phpborg', $dbpass = 'DwEyqr1c73dLS9Br', $dbname = 'phpborg', $charset = 'utf8') {
+    public function __construct($dbhost = null, $dbuser = null, $dbpass = null, $dbname = null, $charset = null) {
+        // Les identifiants viennent de conf/phpborg.conf ; les arguments restent
+        // acceptes pour compatibilite avec les appels existants.
+        $cfg = Config::get('db');
+        if ($dbhost  === null) $dbhost  = isset($cfg['host'])    ? $cfg['host']    : '127.0.0.1';
+        if ($dbuser  === null) $dbuser  = isset($cfg['user'])    ? $cfg['user']    : 'phpborg';
+        if ($dbpass  === null) $dbpass  = isset($cfg['pass'])    ? $cfg['pass']    : '';
+        if ($dbname  === null) $dbname  = isset($cfg['name'])    ? $cfg['name']    : 'phpborg';
+        if ($charset === null) $charset = isset($cfg['charset']) ? $cfg['charset'] : 'utf8';
+
         $this->connection = new mysqli($dbhost, $dbuser, $dbpass, $dbname);
         if ($this->connection->connect_error) {
                 die('Echec de la connexion - ' . $this->connection->connect_error);
@@ -90,6 +101,7 @@ Class Db
      */
     public function fetchAll() {
             $params = array();
+            $row    = array();
             $meta = $this->query->result_metadata();
             while ($field = $meta->fetch_field()) {
                 $params[] = &$row[$field->name];
@@ -112,6 +124,7 @@ Class Db
      */
     public function fetchArray() {
         $params = array();
+        $row    = array();
         $meta = $this->query->result_metadata();
         while ($field = $meta->fetch_field()) {
             $params[] = &$row[$field->name];

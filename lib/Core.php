@@ -52,6 +52,30 @@ class Core {
     private $parse_err;
 
     /**
+     * Parametres du serveur courant (table servers)
+     * @var \stdClass|null
+     */
+    public $serverParams;
+
+    /**
+     * Parametres du repository courant (table repository)
+     * @var \stdClass|null
+     */
+    public $repoParams;
+
+    /**
+     * Parametres base de donnees du serveur courant (table db_info)
+     * @var \stdClass|null
+     */
+    public $dbParams;
+
+    /**
+     * Dernier retour JSON de "borg info"
+     * @var \stdClass|null
+     */
+    public $logs;
+
+    /**
      * Class constructor
      * @param string $borg_binary_path - path of borg executable binary
      * @param string $borg_backup_path - root path of backup repository
@@ -77,6 +101,9 @@ class Core {
      * @return string
      */
     private function secondsToTime($inputSeconds) {
+        // borg renvoie une duree flottante : l'arrondir evite le
+        // "Deprecated: Implicit conversion from float to int" sur les modulos
+        $inputSeconds = (int) round((float) $inputSeconds);
         $secondsInAMinute = 60;
         $secondsInAnHour  = 60 * $secondsInAMinute;
         $secondsInADay    = 24 * $secondsInAnHour;
@@ -157,6 +184,7 @@ class Core {
      * @return array
      */
     public function getSrv($db) {
+        $srv = array();
         foreach ($db->query("SELECT name,id from servers WHERE active = 1")->fetchAll() as $listsrv) {
             $srv[] = ['name' => $listsrv['name'], 'type' => 'backup', 'id' => $listsrv['id']];
             if (!empty($db->query("SELECT id from db_info WHERE server_id='" . $listsrv['id'] . "'")->fetchArray() ['id'])) $srv[] = ['name' => $listsrv['name'], 'type' => 'mysql', 'id' => $listsrv['id']];
@@ -275,6 +303,71 @@ class Core {
         );
     }
     /**
+     * isTransientError Method (erreur reseau/SSH passagere, qui merite un reessai)
+     *
+     * Le serveur de sauvegarde est expose sur Internet et subit du brute-force
+     * SSH : quand MaxStartups sature, sshd rejette les connexions legitimes de
+     * borg. Ces echecs sont passagers et ne doivent pas perdre une sauvegarde.
+     *
+     * @param array $e Retour de myExec()
+     * @return bool
+     */
+    private function isTransientError($e) {
+        $out = strtolower(($e['stdout'] ?? '') . ' ' . ($e['stderr'] ?? ''));
+
+        $patterns = array(
+            'ssh_exchange_identification',
+            'kex_exchange_identification',
+            'connection closed by remote host',
+            'connection reset by peer',
+            'connection timed out',
+            'connection refused',
+            'broken pipe',
+            'timed out waiting for',
+            'is borg working on the server',
+            'temporary failure in name resolution',
+        );
+        foreach ($patterns as $needle) {
+            if (strpos($out, $needle) !== false) return true;
+        }
+        return false;
+    }
+
+    /**
+     * myExecRetry Method (execute une commande en reessayant sur erreur passagere)
+     *
+     * @param string $cmd
+     * @param string $srv
+     * @param logWriter $log
+     * @param string $label Libelle affiche dans le journal
+     * @param array $okCodes Codes de retour consideres comme un succes
+     * @return array Retour de myExec()
+     */
+    private function myExecRetry($cmd, $srv, $log, $label, $okCodes = array(0)) {
+        $cfgRetry = Config::get('backup', 'retries', 3);
+        $cfgDelay = Config::get('backup', 'retry_delay', 30);
+
+        $tries = max(1, (int)$cfgRetry);
+        $delay = max(1, (int)$cfgDelay);
+
+        for ($i = 1; $i <= $tries; $i++) {
+            $e = $this->myExec($cmd);
+
+            if (in_array((int)$e['return'], $okCodes, true)) return $e;
+            if (!$this->isTransientError($e))                return $e;
+            if ($i >= $tries)                                return $e;
+
+            // Backoff progressif : 30s, 60s, 90s...
+            $wait = $delay * $i;
+            $log->warning("$label : echec passager (tentative $i/$tries), "
+                        . "nouvelle tentative dans {$wait}s", $srv);
+            sleep($wait);
+        }
+
+        return $e;
+    }
+
+    /**
      * borgExec Method (execute borg with arguments)
      * @param string $verb
      * @param string $srv
@@ -291,7 +384,13 @@ class Core {
         }
         $e = $this->myExec("export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "';" . $this->params->borg_binary_path . " $verb " .$arg);
         print $e['stdout'];
-
+        // borg utilise le code 1 pour de simples avertissements
+        if ($e['return'] != 0 && $e['return'] != 1) {
+            $log->error("borg $verb a echoue (code " . $e['return'] . "): " . trim($e['stderr']), $srv);
+            fwrite(STDERR, "Erreur borg $verb : " . trim($e['stderr']) . "\n");
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -363,6 +462,115 @@ class Core {
     }
 
     /**
+     * syncArchives Method - Synchronize borg archives with MySQL database
+     * Lists archives from borg repo and inserts missing ones into the archives table
+     * @param string $srv Server name
+     * @param string $type backup or mysql
+     * @param Db $db Database instance
+     * @param LogWriter $log Logger
+     * @return int Number of archives synced
+     */
+    public function syncArchives($srv, $type, $db, $log) {
+        $log->info("Syncing archives for $srv ($type)", $srv);
+
+        if (!$this->backupParams($srv, $type, $db, $log)) {
+            $log->error("Cannot load repo config for $srv ($type)", $srv);
+            return 0;
+        }
+
+        $repoPath = $this->repoParams->repo_path;
+        $repoId = $this->repoParams->repo_id;
+
+        // List archives from borg
+        $e = $this->myExec("export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "';"
+            . $this->params->borg_binary_path . " list $repoPath --json");
+
+        if ($e['return'] != 0) {
+            $log->error("borg list failed: " . $e['stderr'], $srv);
+            return 0;
+        }
+
+        $data = json_decode($e['stdout']);
+        if (!$data || !isset($data->archives)) {
+            $log->error("Cannot parse borg list output", $srv);
+            return 0;
+        }
+
+        // Get existing archives from MySQL
+        $existing = [];
+        $rows = $db->query("SELECT nom FROM archives WHERE repo_id = ?", $repoId)->fetchAll();
+        foreach ($rows as $row) {
+            $existing[$row['nom']] = true;
+        }
+
+        // Build set of borg archive names
+        $borgArchives = [];
+        foreach ($data->archives as $archive) {
+            $name = $archive->name ?? $archive->archive ?? '';
+            if ($name) $borgArchives[$name] = true;
+        }
+
+        // Delete MySQL archives that no longer exist in borg
+        $deleted = 0;
+        foreach ($existing as $name => $v) {
+            if (!isset($borgArchives[$name])) {
+                $db->query("DELETE FROM archives WHERE repo_id = ? AND nom = ?", $repoId, $name);
+                if (!$db->sql_error()) {
+                    $deleted++;
+                    $log->info("Removed orphan archive: $name", $srv);
+                }
+            }
+        }
+        if ($deleted > 0) {
+            $log->info("$deleted orphan archives removed", $srv);
+        }
+
+        // Insert missing archives into MySQL
+        $synced = 0;
+        foreach ($borgArchives as $name => $v) {
+            if (isset($existing[$name])) continue;
+
+            // Get detailed info for this archive
+            $info = $this->myExec("export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "';"
+                . $this->params->borg_binary_path . " info $repoPath::$name --json");
+
+            if ($info['return'] != 0 && $info['return'] != 1) continue;
+
+            $archiveInfo = json_decode($info['stdout']);
+            if (!$archiveInfo || !isset($archiveInfo->archives[0])) continue;
+
+            $a = $archiveInfo->archives[0];
+            $stats = $a->stats ?? (object)[];
+
+            $db->query("INSERT IGNORE INTO archives
+                (`id`, `repo_id`, `nom`, `archive_id`, `dur`, `start`, `end`, `csize`, `dsize`, `osize`, `nfiles`)
+                VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                $repoId,
+                $name,
+                $a->id ?? '',
+                $a->duration ?? 0,
+                $a->start ?? null,
+                $a->end ?? null,
+                $stats->compressed_size ?? 0,
+                $stats->deduplicated_size ?? 0,
+                $stats->original_size ?? 0,
+                $stats->nfiles ?? 0
+            );
+
+            if (!$db->sql_error()) {
+                $synced++;
+                $log->info("Synced archive: $name", $srv);
+            }
+        }
+
+        // Update repo stats
+        $this->updateRepo((object)['repo' => $repoPath, 'host' => $srv], $db, $log);
+
+        $log->info("Sync complete: $synced new archives imported", $srv);
+        return $synced;
+    }
+
+    /**
      * startReport Method (Create line entry for task backup and return sql logId)
      * @param Db $db
      * @param int $server_id
@@ -382,7 +590,8 @@ class Core {
      */
     public function checkRemote($srv, $log) {
         $log->info("Checking back ssh connexion", $srv);
-        $e = $this->MyExec("ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=5' -o 'StrictHostKeyChecking=no' " . $this->serverParams->host . " \"ssh -q -o 'BatchMode=yes' -o 'ConnectTimeout=3' -o 'StrictHostKeyChecking=no' " . $this->serverParams->host . "@" . $this->serverParams->backuptype . " 'echo 2>&1'\"");
+	$cmd = "ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=10' -o 'StrictHostKeyChecking=no' " . $this->serverParams->host . " \"ssh -q -o 'BatchMode=yes' -o 'ConnectTimeout=10' -o 'StrictHostKeyChecking=no' " . $this->serverParams->host . "@" . $this->serverParams->backuptype . " 'echo 2>&1'\"";
+	$e = $this->myExecRetry($cmd, $srv, $log, 'Verification SSH');
         if ($e['return'] == 0) {
             return 1;
         }
@@ -401,8 +610,22 @@ class Core {
      */
 
     public function updateRepo($config, $db, $log) {
-        $info = $this->parseLog($config->host, $config->repo, $log);
-        $log->info("Updating repository informations", $config->host);
+        $srv  = $config->host;
+        $info = $this->parseLog($srv, $config->repo, $log);
+        if (!is_object($info) || !isset($info->cache->stats)) {
+            $log->error("Impossible de lire les statistiques du repository", $srv);
+            return;
+        }
+        // repo_id absent (appel depuis syncArchives) : le retrouver par chemin
+        if (empty($config->repo_id)) {
+            if (!empty($this->repoParams->repo_id)) {
+                $config->repo_id = $this->repoParams->repo_id;
+            } else {
+                $log->error("repo_id inconnu, mise a jour du repository ignoree", $srv);
+                return;
+            }
+        }
+        $log->info("Updating repository informations", $srv);
         $db->query("UPDATE IGNORE repository
                                 SET
                                    `size`      = '" . $info->cache->stats->total_size . "',
@@ -533,12 +756,16 @@ class Core {
      */
 
     public function backup($srv, $log, $db, $reportId, $type = 'backup') {
+        $backuperror = 0;
+        $tmplog      = '';
+        $info        = null;
         $log->info("Starting backup:  $srv ($type)", $srv);
         if (!$this->backupParams($srv, $type, $db, $log)) {
             $log->error("Error, repository config does not exist", $srv);
             $tmplog = "Error,$srv $type repository config does not exist\n";
-            $db->query("UPDATE IGNORE report  set `error`='1',log='$tmplog' WHERE id=$reportId");
-            return (object)['error' => 1, 'log' => $tmplog];
+            $db->query("UPDATE IGNORE report set `error`='1', `log` = ?, `end` = NOW() WHERE id = ?", $tmplog, (int)$reportId);
+            return (object)['error' => 1, 'log' => $tmplog, 'osize' => 0, 'csize' => 0,
+                            'dsize' => 0, 'dur' => 0, 'nbarchive' => 0, 'nfiles' => 0];
         }
         else {
             if ($this->checkRemote($srv, $log)) {
@@ -553,7 +780,12 @@ class Core {
                 }
                 $_type = $snap_path = null;
                 if ($type == "mysql") {
-                    if (!$this->snapMysql($srv, $log)) return;
+                    if (!$this->snapMysql($srv, $log)) {
+                        $tmplog = "$srv => Echec du snapshot LVM, sauvegarde MySQL abandonnee\n";
+                        $db->query("UPDATE IGNORE report set `error`='1', `log` = ?, `end` = NOW() WHERE id = ?", $tmplog, (int)$reportId);
+                        return (object)['error' => 1, 'log' => $tmplog, 'osize' => 0, 'csize' => 0,
+                                        'dsize' => 0, 'dur' => 0, 'nbarchive' => 0, 'nfiles' => 0];
+                    }
                     $snap_path = "/" . $this->params->borg_lvmsnap_name;
                 }
                 if ($type != "backup") $_type = $type;
@@ -561,9 +793,13 @@ class Core {
 
                 $log->info("Running $_type Backup ...", $srv);
                 $tmplog = $backuperror = '';
-                $e = $this->myExec("ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=5' " . $this->serverParams->host . " \"export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "'
-                                                " . $this->params->borg_binary_path . " create  --compression " . $this->repoParams->compression . " " . $this->repoParams->exclude . " ssh://" . $this->serverParams->host . "@" . $this->serverParams->backuptype . $this->repoParams->repo_path . "::$archivename " . $snap_path . $this->repoParams->backup_path . "\"");
-                if ($e['return'] == '0') {
+                // --lock-wait : si une connexion precedente a laisse un verrou,
+                // attendre sa liberation plutot que d'echouer immediatement.
+                $cmd = "ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=10' " . $this->serverParams->host . " \"export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "'
+			" . $this->params->borg_binary_path . " create --lock-wait 600 --compression " . $this->repoParams->compression . " " . $this->repoParams->exclude . " ssh://" . $this->serverParams->host . "@" . $this->serverParams->backuptype . $this->repoParams->repo_path . "::$archivename " . $snap_path . $this->repoParams->backup_path . "\"";
+                $e = $this->myExecRetry($cmd, $srv, $log, 'Sauvegarde borg', array(0, 1));
+		// NE PAS journaliser la commande : elle contient la passphrase du repository
+                if ($e['return'] == '0' || $e['return'] == '1') {
                     if ($type == "mysql") $this->removeLvmSnap($srv, $log);
                     $info = $this->parseLog($srv, $this->repoParams->repo_path . "::$archivename", $log);
                     if (is_object($info)) {
@@ -586,7 +822,7 @@ class Core {
                                          )
                                     ");
                         if ($db->sql_error()) {
-                            $err = $config['host'] . "=>\nPARSELOG ERROR=>SQL:\n" . $db->sql_error();
+                            $err = $srv . "=>\nPARSELOG ERROR=>SQL:\n" . $db->sql_error();
                             $tmplog .= $err;
                             $log->error($err, $srv);
                         }
@@ -602,7 +838,7 @@ class Core {
                                         `repo_id`   = '" . $this->repoParams->repo_id . "'
                                    ");
                         if ($db->sql_error()) {
-                            $err = $config['host'] . "=>\nPARSELOG ERROR=>SQL:\n" . $db->sql_error();
+                            $err = $srv . "=>\nPARSELOG ERROR=>SQL:\n" . $db->sql_error();
                             $tmplog .= $err;
                             $log->error($err, $srv);
                         }
@@ -619,16 +855,17 @@ class Core {
                                          `id`               = '" . $reportId . "'
                                    ");
                         if ($db->sql_error()) {
-                            $err = $config['host'] . "=>\nSQL UPDATE ERROR:\n" . $db->sql_error();
+                            $err = $srv . "=>\nSQL UPDATE ERROR:\n" . $db->sql_error();
                             $tmplog .= $err;
                             $log->error($err, $srv);
                         }
+                        $db->query("UPDATE IGNORE report set `end` = NOW() WHERE id = ?", (int)$reportId);
                     }
                     else {
                         $log->error("PARSELOG ERROR\n STDERR:$info[stderr]\nSTDOUT:$info[stdout]", $srv);
                         $backuperror = 1;
-                        $tmplog = "$config[host] =>\nBACKUPCONFIG ERROR\n STDERR:" . $info['stderr'] . "STDOUT:" . $info['stdout'] . "\n";
-                        $db->query("UPDATE IGNORE report  set `error`='1', `log` = ? WHERE id= ?", "$tmplog", "$reportId");
+                        $tmplog = "$srv =>\nBACKUPCONFIG ERROR\n STDERR:" . $info['stderr'] . "STDOUT:" . $info['stdout'] . "\n";
+                        $db->query("UPDATE IGNORE report  set `error`='1', `log` = ?, `end` = NOW() WHERE id= ?", "$tmplog", "$reportId");
 
                     }
                 }
@@ -636,19 +873,29 @@ class Core {
                     $log->error("BACKUP ERROR STDOUT:$e[stdout]\nSTDERR:$e[stderr]", $srv);
                     $backuperror = 1;
                     $tmplog = "$srv =>\nSTDOUT:" . $e['stdout'] . "\nSTDERR:" . $e['stderr'];
-                    $db->query("UPDATE IGNORE report  set `error`='1', `log` = ? WHERE id= ?", "$tmplog", "$reportId");
+                    $db->query("UPDATE IGNORE report  set `error`='1', `log` = ?, `end` = NOW() WHERE id= ?", "$tmplog", "$reportId");
 
                 }
             }
             else {
                 $tmplog = "$srv Connexion error SKIP BACKUP !\n";
-                $db->query("UPDATE IGNORE report  set `error`='1',log='$tmplog' WHERE id=$reportId");
+                $db->query("UPDATE IGNORE report set `error`='1', `log` = ?, `end` = NOW() WHERE id = ?", $tmplog, (int)$reportId);
                 $log->error("Connexion error SKIP BACKUP !", $srv);
-                return (object)['error' => $backuperror, 'log' => $tmplog];
+                return (object)['error' => 1, 'log' => $tmplog, 'osize' => 0, 'csize' => 0,
+                                'dsize' => 0, 'dur' => 0, 'nbarchive' => 0, 'nfiles' => 0];
             }
 
         }
-        return (object)['error' => $backuperror, 'log' => $tmplog, 'osize' => $info->archives->stats->original_size, 'csize' => $info->archives->stats->compressed_size, 'dsize' => $info->archives->stats->deduplicated_size, 'dur' => $info->archives->duration, 'nbarchive' => 1, 'nfiles' => $info->archives->stats->nfiles];
+        return (object)[
+            'error' => $backuperror,
+            'log' => $tmplog,
+            'osize' => isset($info) && is_object($info) ? $info->archives->stats->original_size : 0,
+            'csize' => isset($info) && is_object($info) ? $info->archives->stats->compressed_size : 0,
+            'dsize' => isset($info) && is_object($info) ? $info->archives->stats->deduplicated_size : 0,
+            'dur' => isset($info) && is_object($info) ? $info->archives->duration : 0,
+            'nbarchive' => 1,
+            'nfiles' => isset($info) && is_object($info) ? $info->archives->stats->nfiles : 0,
+        ];
     }
 
     /**
@@ -661,27 +908,50 @@ class Core {
         return trim($line);
     }
 
-    /**
-     * mountMenu Method (print menu to mount backup)
-     * @param string $srv
-     * @param string $type
-     * @param Db $db
-     * @param logWriter $log
-     * @return bool
-     */
-    public function mountMenu($srv,$type,$db,$log) {
-	$continue = "Y";
-	while ($continue == "Y" ) {
-		$list= (object)$db->query("SELECT * from archives where repo_id IN (SELECT repository.repo_id from servers LEFT JOIN repository ON servers.id=repository.server_id WHERE servers.name='" . $srv . "' AND type='" . $type . "') ORDER BY end")->fetchAll();
-		
-		echo "[ Backup Choice ]\n";
-			foreach( $list as $key=>$value) {
-			echo " $key - $value[end]\n";
-		}
-		echo "-------------------------\n Enter Backup number to mount : ";
-		$mount_choice=$this->getInput();
-		$continue=$this->mountBackup($list->{$mount_choice}['nom'],$srv,$type,$db,$log);
-	}	
+
+    public function selectServer($db) {
+        $servers = $db->query("SELECT name FROM servers ORDER BY name")->fetchAll();
+        $options = "";
+        foreach ($servers as $key => $server) {
+            $options .= "$key '{$server['name']}' ";
+        }
+
+        $cmd = "export TERM=linux; dialog --clear --title 'Sélectionner un serveur' --menu 'Choisissez un serveur:' 15 50 10 $options 3>&1 1>&2 2>&3";
+        $choice = shell_exec($cmd);
+
+        if ($choice !== null && isset($servers[trim($choice)])) {
+            return $servers[trim($choice)]['name'];
+        } else {
+            exit(0);
+        }
+    }
+
+    public function mountMenu($srv, $type, $db, $log) {
+        while (true) {
+            $list = $db->query("SELECT * FROM archives WHERE repo_id IN (SELECT repository.repo_id FROM servers LEFT JOIN repository ON servers.id = repository.server_id WHERE servers.name = '$srv' AND type = '$type') ORDER BY end")->fetchAll();
+            $options = "";
+            foreach ($list as $key => $backup) {
+                $options .= "$key '{$backup['end']}' ";
+            }
+            $options .= "R 'Retour à la liste des serveurs' ";
+            $options .= "Q 'Quitter' ";
+
+
+            $cmd = "export TERM=linux; dialog --clear --title 'Sélectionner un backup pour $srv' --menu 'Choisissez un backup:' 20 60 15 $options 3>&1 1>&2 2>&3";
+            $choice = trim(shell_exec($cmd));
+
+            if ($choice === 'R') {
+                return $this->selectServer($db);
+            } elseif ($choice === 'Q') {
+                return false;
+            } elseif (isset($list[$choice])) {
+                $selected_backup = $list[$choice]['nom'];
+                echo shell_exec("export TERM=linux; dialog --msgbox 'Montage de $selected_backup pour $srv...' 10 50");
+                $this->mountBackup($selected_backup, $srv, $type, $db, $log);
+            } else {
+                echo shell_exec("export TERM=linux; dialog --msgbox 'Choix invalide. Veuillez réessayer.' 10 50");
+            }
+        }
     }
 
     private function mountBackup($backup,$srv,$type,$db,$log) {
@@ -789,7 +1059,8 @@ class Core {
                 die;
             }
             echo "   - Get SSH key ======================> ";
-            $exec = $this->myExec('ssh -tt -p ' . $sshport . " " . $srv . " \"cat /root/.ssh/id_rsa.pub\"");
+	    $exec = $this->myExec('ssh -tt -p ' . $sshport . " " . $srv . " \"cat /root/.ssh/id_rsa.pub\"");
+	    $this->myExec('ssh -tt -p ' . $sshport . " " . $srv . " \"ssh-keygen -f /root/.ssh/known_hosts -R 10.10.70.70;ssh-keygen -f /root/.ssh/known_hosts -R 91.200.205.105;\"");
             if ($exec['return'] == 0) {
                 $sshkey = $exec['stdout'];
                 echo "[OK]\n";
@@ -799,14 +1070,15 @@ class Core {
                 die;
             }
             echo "   - Installation of BorgBackup =======> ";
-            $exec = $this->myExec('ssh -tt -p ' . $sshport . " " . $srv . " \"if [ `uname -m` == 'i686' ]; then plateforme='32'; else plateforme='64'; fi; if [ ! -f /usr/bin/borg ]; then wget --no-check-certificate -q -O /usr/bin/borg https://github.com/borgbackup/borg/releases/download/1.1.7/borg-linux\\\$plateforme  ; chmod +x /usr/bin/borg && echo '[OK]' || echo '[FAIL] =>  Unable to install BorgBackup' ; else echo '[SKIP] BorgBackup already installed'; fi\"");
+            $exec = $this->myExec('ssh -tt -p ' . $sshport . " " . $srv . " \" if [ `uname -m` == 'i686' ]; then plateforme='32'; else plateforme='64'; fi; if [ ! -f /usr/bin/borg ]; then wget --no-check-certificate -q -O /usr/bin/borg https://github.com/borgbackup/borg/releases/download/1.1.7/borg-linux\\\$plateforme  ; chmod +x /usr/bin/borg && echo '[OK]' || echo '[FAIL] =>  Unable to install BorgBackup' ; else echo '[SKIP] BorgBackup already installed'; fi\"");
             if ($exec['return'] == 0) {
                 echo $exec['stdout'];
             }
             else {
                 echo "Error: " . $exec['stdout'] . "\n" . $exec['stderr'] . "\n";
-                die;
-            }
+                //die;
+	    }
+
             echo "\n\n[ LOCAL CONFIG ]\n";
             echo "   - Creating User ====================> ";
             if (!posix_getpwnam($srv)) {
@@ -852,7 +1124,7 @@ class Core {
                 echo "[SKIP] Restore directory already exist\n";
             }
             echo "   - Add server configuration to DB  ==> ";
-            $check = $db->query("SELECT name from servers where name='" . $srv . "'")->fetchArray();
+	    $check = $db->query("SELECT id,name from servers where name='" . $srv . "'")->fetchArray();
             if (!$check) {
                 $ratelimit = 0;
                 $compression = "lz4";
@@ -877,7 +1149,8 @@ class Core {
             }
             else {
                 echo "[SKIP] Configuration file already exist\n";
-                $repoconfig->id = $check['repo_id'];
+		//$repoconfig->id = $check['repo_id'];
+		$server_id = $check['id'];
             }
             echo "   - Set the rights to repository =====> ";
             $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($this->params->borg_backup_path . '/' . $srv, RecursiveDirectoryIterator::SKIP_DOTS));

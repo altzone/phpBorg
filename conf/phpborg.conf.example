@@ -1,0 +1,45 @@
+; phpBorg - fichier de configuration
+; Copier en conf/phpborg.conf et ajuster (chmod 600).
+
+[db]
+host = 127.0.0.1
+user = phpborg
+pass = CHANGEME
+name = phpborg
+charset = utf8
+
+[smtp]
+host      = mail2.net1c.net
+port      = 587
+; tls (STARTTLS) | ssl (implicite, port 465) | none
+secure    = tls
+user      = backup@net1c.net
+pass      = CHANGEME
+from      = backup@net1c.net
+from_name = phpBorg Backup
+; destinataires separes par des virgules
+to        = noc@net1c.com
+timeout   = 30
+
+[alert]
+; prefixe du sujet des mails
+subject_prefix = [phpBorg]
+; envoyer un rapport meme quand tout est OK (1) ou seulement en cas d'echec (0)
+send_on_success = 1
+; un serveur actif sans archive depuis plus de N jours est signale comme ABANDONNE
+stale_days = 2
+; "phpborg check" alerte si le dernier full remonte a plus de N heures
+max_full_age_hours = 26
+; alerte quand le volume de sauvegarde depasse ce taux d'occupation (%)
+disk_warn_percent = 90
+
+[backup]
+; nombre total de tentatives quand la connexion SSH echoue de facon passagere
+; (saturation MaxStartups, reset reseau) ; 1 = aucun reessai
+retries = 3
+; attente avant le 1er reessai, en secondes (progressif : 30s, 60s, 90s...)
+retry_delay = 30
+
+[general]
+; fuseau horaire ; vide = celui du systeme (/etc/timezone)
+timezone =

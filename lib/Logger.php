@@ -10,7 +10,7 @@ use Exception;
  * Class logWriter
  * @package phpBorg
  */
-class logWriter extends Core
+class logWriter
 {
     /**
     * $log_file - path and log file name
@@ -30,6 +30,12 @@ class logWriter extends Core
         'dateFormat' => 'd-M-Y H:i:s'
     );
 
+    /**
+    * $params - options effectives
+    * @var array
+    */
+    protected $params = array();
+
 
     /**
      * logWriter constructor.
@@ -38,12 +44,14 @@ class logWriter extends Core
      * @throws Exception
      */
     public function __construct($log_file = '/var/log/phpborg.log', $params = array()){
-        parent::__construct($log_file, $params);
         $this->log_file = $log_file;
         $this->params = array_merge($this->options, $params);
         //Create log file if it doesn't exist.
         if(!file_exists($log_file)){
             fopen($log_file, 'w') or exit("Can't create $log_file!");
+            // Le journal contient des noms de serveurs et des messages d'erreur :
+            // ne pas le laisser lisible par tout le monde.
+            @chmod($log_file, 0640);
         }
         //Check permissions of file.
         if(!is_writable($log_file)){
