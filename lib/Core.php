@@ -187,7 +187,9 @@ class Core {
         $srv = array();
         foreach ($db->query("SELECT name,id from servers WHERE active = 1")->fetchAll() as $listsrv) {
             $srv[] = ['name' => $listsrv['name'], 'type' => 'backup', 'id' => $listsrv['id']];
-            if (!empty($db->query("SELECT id from db_info WHERE server_id='" . $listsrv['id'] . "'")->fetchArray() ['id'])) $srv[] = ['name' => $listsrv['name'], 'type' => 'mysql', 'id' => $listsrv['id']];
+            // active = 0 permet de suspendre la sauvegarde base d'un serveur
+            // sans toucher a sa sauvegarde fichiers
+            if (!empty($db->query("SELECT id from db_info WHERE server_id='" . $listsrv['id'] . "' AND active = 1")->fetchArray() ['id'])) $srv[] = ['name' => $listsrv['name'], 'type' => 'mysql', 'id' => $listsrv['id']];
         }
         return $srv;
 

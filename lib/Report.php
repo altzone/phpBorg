@@ -130,6 +130,9 @@ class Report
                 JOIN repository r ON r.server_id = s.id
                 LEFT JOIN archives a ON a.repo_id = r.repo_id
                 WHERE s.active = 1
+                  AND NOT EXISTS (SELECT 1 FROM db_info d
+                                  WHERE d.server_id = s.id AND d.type = r.type
+                                    AND d.active = 0)
                 GROUP BY s.name, r.type
              ) x
              WHERE x.dernier IS NULL OR x.dernier < DATE_SUB(NOW(), INTERVAL ? DAY)
