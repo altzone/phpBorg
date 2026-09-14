@@ -21,6 +21,7 @@ CREATE TABLE `archives` (
 CREATE TABLE `db_info` (
   `id` int(11) NOT NULL,
   `type` varchar(20) NOT NULL,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
   `server_id` int(11) NOT NULL,
   `repo_id` varchar(64) NOT NULL,
   `db_host` varchar(50) NOT NULL,
