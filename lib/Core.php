@@ -674,6 +674,70 @@ class Core {
     }
 
     /**
+     * dumpOptions Method (options mysqldump effectives)
+     *
+     * Par defaut le dump ne pose AUCUN verrou :
+     *   --single-transaction  isole le dump dans une transaction ; les moteurs
+     *                         transactionnels (InnoDB) restent coherents sans
+     *                         bloquer les ecritures
+     *   --skip-lock-tables    supprime le LOCK TABLES que mysqldump poserait
+     *                         sinon sur chaque base
+     *
+     * Limite a connaitre : --single-transaction ne couvre pas les tables non
+     * transactionnelles (MyISAM, Aria). Si de telles tables sont ecrites
+     * pendant le dump, leur contenu peut etre incoherent. C'est le prix d'une
+     * sauvegarde sans verrou ; dump_opts permet de changer ce compromis.
+     *
+     * @return string
+     */
+    private function dumpOptions() {
+        $opts = isset($this->dbParams->dump_opts) ? trim($this->dbParams->dump_opts) : '';
+        if ($opts !== '') return $opts;
+
+        return '--single-transaction --skip-lock-tables --quick --hex-blob '
+             . '--routines --triggers --events --default-character-set=utf8mb4 '
+             . '--all-databases';
+    }
+
+    /**
+     * buildDumpCommand Method (mysqldump redirige dans borg via stdin)
+     *
+     * Le dump ne touche jamais le disque de la machine sauvegardee : il part
+     * directement dans borg par un tube. Cela evite d'avoir besoin d'espace
+     * libre, et c'est la seule option quand la machine n'a pas de LVM.
+     *
+     * @param string $archivename
+     * @param logWriter $log
+     * @param string $srv
+     * @return string
+     */
+    private function buildDumpCommand($archivename, $log, $srv) {
+        $port = $this->serverParams->port;
+        $host = $this->serverParams->host;
+        $dest = "ssh://" . $host . "@" . $this->serverParams->backuptype
+              . $this->repoParams->repo_path . "::" . $archivename;
+
+        // MYSQL_PWD plutot que -p en ligne de commande : le mot de passe
+        // n'apparait pas dans le ps de la machine sauvegardee.
+        $inner = "set -o pipefail; "
+               . "export BORG_PASSPHRASE=" . escapeshellarg($this->repoParams->passphrase) . "; "
+               . "export MYSQL_PWD=" . escapeshellarg($this->dbParams->db_pass) . "; "
+               . "mysqldump -u" . escapeshellarg($this->dbParams->db_user)
+               . " -h " . escapeshellarg($this->dbParams->db_host) . " "
+               . $this->dumpOptions() . " | "
+               . $this->params->borg_binary_path . " create --lock-wait 600 "
+               . "--compression " . $this->repoParams->compression . " "
+               . "--stdin-name dump.sql " . escapeshellarg($dest) . " -";
+
+        $log->info("Dump sans verrou : " . $this->dumpOptions(), $srv);
+
+        // Pas de -tt : un TTY altererait le flux transmis a borg.
+        // bash -c pour disposer de pipefail, que sh ne garantit pas.
+        return "ssh -p " . $port . " -o 'BatchMode=yes' -o 'ConnectTimeout=10' "
+             . escapeshellarg($host) . " " . escapeshellarg("bash -c " . escapeshellarg($inner));
+    }
+
+    /**
      * removeLvmSnap Method (Remove LVM snapshot)
      * @param string $srv
      * @param logWriter $log
@@ -781,7 +845,17 @@ class Core {
                     chown($item, $this->serverParams->host);
                 }
                 $_type = $snap_path = null;
-                if ($type == "mysql") {
+
+                // Deux facons de sauvegarder une base :
+                //   lvm  : snapshot LVM puis sauvegarde des fichiers (defaut)
+                //   dump : mysqldump envoye directement dans borg via stdin
+                // Le mode dump est le seul possible quand la machine n'a pas de
+                // LVM, ou quand le VG n'a plus la place d'accueillir un snapshot.
+                $dumpMode = ($type == "mysql")
+                          && isset($this->dbParams->method)
+                          && $this->dbParams->method === 'dump';
+
+                if ($type == "mysql" && !$dumpMode) {
                     if (!$this->snapMysql($srv, $log)) {
                         $tmplog = "$srv => Echec du snapshot LVM, sauvegarde MySQL abandonnee\n";
                         $db->query("UPDATE IGNORE report set `error`='1', `log` = ?, `end` = NOW() WHERE id = ?", $tmplog, (int)$reportId);
@@ -793,16 +867,21 @@ class Core {
                 if ($type != "backup") $_type = $type;
                 else $_type = "data";
 
-                $log->info("Running $_type Backup ...", $srv);
+                $log->info("Running $_type Backup" . ($dumpMode ? " (mysqldump)" : "") . " ...", $srv);
                 $tmplog = $backuperror = '';
-                // --lock-wait : si une connexion precedente a laisse un verrou,
-                // attendre sa liberation plutot que d'echouer immediatement.
-                $cmd = "ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=10' " . $this->serverParams->host . " \"export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "'
+
+                if ($dumpMode) {
+                    $cmd = $this->buildDumpCommand($archivename, $log, $srv);
+                } else {
+                    // --lock-wait : si une connexion precedente a laisse un verrou,
+                    // attendre sa liberation plutot que d'echouer immediatement.
+                    $cmd = "ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=10' " . $this->serverParams->host . " \"export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "'
 			" . $this->params->borg_binary_path . " create --lock-wait 600 --compression " . $this->repoParams->compression . " " . $this->repoParams->exclude . " ssh://" . $this->serverParams->host . "@" . $this->serverParams->backuptype . $this->repoParams->repo_path . "::$archivename " . $snap_path . $this->repoParams->backup_path . "\"";
+                }
                 $e = $this->myExecRetry($cmd, $srv, $log, 'Sauvegarde borg', array(0, 1));
 		// NE PAS journaliser la commande : elle contient la passphrase du repository
                 if ($e['return'] == '0' || $e['return'] == '1') {
-                    if ($type == "mysql") $this->removeLvmSnap($srv, $log);
+                    if ($type == "mysql" && !$dumpMode) $this->removeLvmSnap($srv, $log);
                     $info = $this->parseLog($srv, $this->repoParams->repo_path . "::$archivename", $log);
                     if (is_object($info)) {
                         $durx = $this->secondsToTime($info->archives->duration);
