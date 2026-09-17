@@ -6,3 +6,4 @@ conf/.smtp_pass
 *.bak
 *.bak.*
 *.bak-*
+conf/nginx-status.conf

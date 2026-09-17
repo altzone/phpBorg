@@ -50,6 +50,10 @@ class Config
             'parallel'    => 1,
             'repo_path'   => '/data/backups',
         ),
+        'status' => array(
+            'servers' => '',
+            'dir'     => '/var/www/phpborg-status',
+        ),
         'alert' => array(
             'subject_prefix'     => '[phpBorg]',
             'send_on_success'    => 1,

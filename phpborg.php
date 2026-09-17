@@ -9,6 +9,7 @@ use phpBorg\Db;
 use phpBorg\LogWriter;
 use phpBorg\Config;
 use phpBorg\Report;
+use phpBorg\Status;
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -22,6 +23,7 @@ require $base . '/lib/Db.php';
 require $base . '/lib/Logger.php';
 require $base . '/lib/Mailer.php';
 require $base . '/lib/Report.php';
+require $base . '/lib/Status.php';
 
 Config::load();
 
@@ -37,6 +39,7 @@ $run    = new Core();
 $db     = new Db();
 $log    = new LogWriter();
 $report = new Report($db, $log);
+$status = new Status($db, $log);
 
 /**
  * Pose un verrou exclusif pour empecher deux executions simultanees.
@@ -199,6 +202,7 @@ Usage: $bin <commande> [arguments]
                               (--no-mail pour ne pas envoyer de rapport)
   check                       Controle de sante : alerte si aucune sauvegarde recente
   report [id]                 Renvoie le rapport du run 'full' indique (dernier par defaut)
+  json [serveur]              Publie l'etat des sauvegardes au format JSON
   testmail                    Envoie un mail de test pour valider la configuration SMTP
   prune <serveur|all> [mysql] Applique la retention et met a jour les statistiques
   sync <serveur|all> [mysql]  Resynchronise les archives borg avec la base
@@ -292,8 +296,11 @@ elseif ($param == "backup") {
     $start    = microtime(true);
     $reportId = $run->startReport($db, $serverId, $type);
     phpborg_trap_signals($report, $reportId, $log, 'backup', $noMail);
+
+    $status->publish($srv);                      // backup_in_progress = true
     $result   = $run->backup($srv, $log, $db, $reportId, $type);
     $duration = microtime(true) - $start;
+    $status->publish($srv);                      // etat final
 
     if (!$noMail) $report->sendSingle($reportId, $srv, $type, $duration);
 
@@ -530,6 +537,21 @@ elseif ($param == "report") {
     }
     echo "Renvoi du rapport du run full #$reportId\n";
     exit($report->sendFull($reportId, 0) ? 0 : 1);
+}
+
+/* ---------------------------------------------------------------- json --- */
+elseif ($param == "json") {
+    if (!empty($argv[2])) {
+        if ($status->publish($argv[2])) {
+            echo "Etat publie pour " . $argv[2] . "\n";
+            exit(0);
+        }
+        echo "Publication impossible pour " . $argv[2] . "\n";
+        exit(1);
+    }
+    $n = $status->publishAll();
+    echo "$n fichier(s) d'etat publie(s)\n";
+    exit($n > 0 ? 0 : 1);
 }
 
 /* ------------------------------------------------------------ testmail --- */

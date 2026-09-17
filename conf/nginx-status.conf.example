@@ -1,0 +1,22 @@
+# Publication de l'etat des sauvegardes pour une supervision tierce.
+# A inserer dans le bloc "server { listen 443 ssl ... }" de
+# /etc/nginx/sites-enabled/backup.net1c.net.conf
+#
+# Le jeton dans le chemin tient lieu d'authentification : ces donnees
+# decrivent l'infrastructure (volumetrie, dates, noms de serveurs).
+# Le regenerer revient a changer l'URL communiquee au client.
+
+location ^~ /status/VOTRE-JETON-ICI/ {
+    alias /var/www/phpborg-status/VOTRE-JETON-ICI/;
+
+    # Fichiers JSON uniquement, pas de listing
+    autoindex off;
+    location ~ ^/status/VOTRE-JETON-ICI/[A-Za-z0-9._-]+\.json$ {
+        default_type application/json;
+        add_header Cache-Control "no-store" always;
+        add_header Access-Control-Allow-Origin "*" always;
+    }
+    location ~ / {
+        return 404;
+    }
+}

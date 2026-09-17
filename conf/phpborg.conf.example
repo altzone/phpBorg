@@ -46,3 +46,12 @@ parallel = 4
 [general]
 ; fuseau horaire ; vide = celui du systeme (/etc/timezone)
 timezone =
+
+[status]
+; Publication de l'etat des sauvegardes en JSON, pour une supervision tierce.
+; Le fichier est reecrit au debut et a la fin de chaque sauvegarde.
+; Vide = rien n'est publie. Liste de serveurs separes par des virgules, ou *.
+servers = cezame-fle
+; Repertoire servi par nginx. Le jeton dans le chemin tient lieu
+; d'authentification : ces donnees decrivent votre infrastructure.
+dir = /var/www/phpborg-status/CHANGEME-jeton-long-et-aleatoire
