@@ -215,6 +215,24 @@ class Report
      * @param string|null $curpos
      * @return void
      */
+    public function markInterrupted($reportId, $signal, $curpos = null) {
+        $note = "Run interrompu par $signal"
+              . ($curpos ? " pendant le traitement de $curpos" : '') . "\n";
+        $this->db->query(
+            "UPDATE IGNORE report SET `end` = NOW(), `error` = GREATEST(COALESCE(`error`,0),1),
+                    `log` = CONCAT(COALESCE(`log`,''), ?) WHERE id = ?",
+            $note, (int)$reportId
+        );
+    }
+
+    /**
+     * Marque un run comme interrompu et alerte immediatement.
+     * @param int $reportId
+     * @param string $signal
+     * @param string $kind
+     * @param string|null $curpos
+     * @return void
+     */
     public function sendInterrupted($reportId, $signal, $kind = 'full', $curpos = null) {
         $note = "Run interrompu par $signal"
               . ($curpos ? " pendant le traitement de $curpos" : '') . "\n";
@@ -234,7 +252,7 @@ class Report
             else $ok[] = $r;
         }
 
-        $titre   = ($kind === 'full') ? 'Sauvegarde complete INTERROMPUE' : 'Sauvegarde INTERROMPUE';
+        $titre   = ($kind === 'full') ? 'Sauvegarde complète INTERROMPUE' : 'Sauvegarde INTERROMPUE';
         $subject = $this->subject('INTERROMPU - ' . $kind . ' arrete par ' . $signal);
 
         $extra = '<div style="padding:12px;background:#fff4e5;border-left:3px solid #d69200;'
@@ -265,6 +283,16 @@ class Report
      * @return bool
      */
     public function sendFull($fullReportId, $durationSeconds = 0) {
+        // Rejouer un rapport ("phpborg report") ne fournit pas la duree :
+        // la relire en base plutot que de l'omettre du bandeau.
+        if ($durationSeconds <= 0) {
+            $r = $this->db->query(
+                "SELECT TIMESTAMPDIFF(SECOND, start, COALESCE(end, NOW())) AS sec
+                 FROM report WHERE id = ?", (int)$fullReportId
+            )->fetchArray();
+            if (!empty($r['sec'])) $durationSeconds = (int)$r['sec'];
+        }
+
         $rows   = $this->fullRows($fullReportId);
         $stale  = $this->staleServers();
         $failed = array();
@@ -289,8 +317,8 @@ class Report
                          : 'FULL - ' . $nbOk . ' OK')
         );
 
-        $html = $this->renderHtml('Sauvegarde complete', $status, $failed, $ok, $stale, $durationSeconds);
-        $text = $this->renderText('Sauvegarde complete', $status, $failed, $ok, $stale, $durationSeconds);
+        $html = $this->renderHtml('Sauvegarde complète', $status, $failed, $ok, $stale, $durationSeconds);
+        $text = $this->renderText('Sauvegarde complète', $status, $failed, $ok, $stale, $durationSeconds);
 
         return $this->deliver($subject, $html, $text);
     }
@@ -304,6 +332,14 @@ class Report
      * @return bool
      */
     public function sendSingle($reportId, $srv, $type, $durationSeconds = 0) {
+        if ($durationSeconds <= 0) {
+            $r = $this->db->query(
+                "SELECT TIMESTAMPDIFF(SECOND, start, COALESCE(end, NOW())) AS sec
+                 FROM report WHERE id = ?", (int)$reportId
+            )->fetchArray();
+            if (!empty($r['sec'])) $durationSeconds = (int)$r['sec'];
+        }
+
         $rows   = $this->singleRow($reportId);
         $failed = array();
         $ok     = array();
@@ -461,7 +497,25 @@ class Report
         $units = array('o', 'Ko', 'Mo', 'Go', 'To', 'Po');
         $i = (int)floor(log($bytes, 1024));
         if ($i >= count($units)) $i = count($units) - 1;
-        return round($bytes / pow(1024, $i), $i > 1 ? 2 : 0) . ' ' . $units[$i];
+        // Peu de decimales : sur telephone chaque caractere compte, et
+        // "185 Mo" se lit aussi bien que "185.48 Mo"
+        $dec = ($i <= 2) ? 0 : (($i === 3) ? 1 : 2);
+        return round($bytes / pow(1024, $i), $dec) . ' ' . $units[$i];
+    }
+
+    /**
+     * Formate un nombre de fichiers de facon compacte.
+     * "16 464 819 fichiers" passe a la ligne sur telephone et iOS le prend
+     * pour un numero de telephone (il le souligne en bleu) : on abrege.
+     * @param int|float|null $n
+     * @return string
+     */
+    public static function files($n) {
+        $n = (float)$n;
+        if ($n <= 0) return '-';
+        if ($n < 10000)    return number_format($n, 0, ',', ' ');
+        if ($n < 1000000)  return round($n / 1000) . ' k';
+        return str_replace('.', ',', (string)round($n / 1000000, 1)) . ' M';
     }
 
     /**
@@ -498,6 +552,11 @@ class Report
 
     /* ------------------------------------------------------------------ */
     /* Rendu HTML                                                          */
+    /*                                                                     */
+    /* Concu pour etre lisible sur telephone : pas de tableau large qui     */
+    /* deborde, pas de media query (Gmail ne les applique pas toujours).    */
+    /* Chaque ligne de serveur tient sur deux lignes de texte, et les       */
+    /* compteurs se placent en 2x2 plutot qu'en 4 colonnes serrees.         */
     /* ------------------------------------------------------------------ */
 
     /**
@@ -510,121 +569,80 @@ class Report
      * @return string
      */
     private function renderHtml($title, $status, $failed, $ok, $stale, $dur) {
-        $isFail  = ($status !== 'OK');
-        $banner  = $isFail ? '#b3261e' : '#1e7a34';
-        $label   = $isFail ? count($failed) . ' SAUVEGARDE(S) EN ECHEC' : 'TOUTES LES SAUVEGARDES SONT OK';
-        $host    = htmlspecialchars(gethostname(), ENT_QUOTES, 'UTF-8');
+        $isFail = ($status !== 'OK');
+        $banner = $isFail ? '#b3261e' : '#1e7a34';
+        $label  = $isFail
+                ? count($failed) . ' sauvegarde' . (count($failed) > 1 ? 's' : '') . ' en échec'
+                : 'Toutes les sauvegardes sont OK';
+        $host   = $this->esc(gethostname());
+
+        $totO = $totD = 0;
+        foreach ($ok as $r) { $totO += (float)$r['osize']; $totD += (float)$r['dsize']; }
+
+        $sous = $this->esc($title) . ' &middot; ' . date('d/m/Y H:i')
+              . ($dur > 0 ? ' &middot; ' . self::duration($dur) : '')
+              . ' &middot; ' . $host;
 
         $h  = $this->htmlHead();
-        $h .= '<div style="background:' . $banner . ';color:#fff;padding:16px 20px;border-radius:6px 6px 0 0">';
-        $h .= '<div style="font-size:20px;font-weight:700">' . $label . '</div>';
-        $h .= '<div style="font-size:13px;opacity:.9;margin-top:4px">'
-            . htmlspecialchars($title, ENT_QUOTES, 'UTF-8')
-            . ' &middot; ' . date('d/m/Y H:i')
-            . ($dur > 0 ? ' &middot; duree ' . self::duration($dur) : '')
-            . ' &middot; ' . $host . '</div>';
-        $h .= '</div>';
-        $h .= '<div style="border:1px solid #ddd;border-top:none;border-radius:0 0 6px 6px;padding:20px">';
+        $h .= $this->banner($banner, $label, $sous);
+        $h .= '<div style="border:1px solid #e0e0e0;border-top:none;'
+            . 'border-radius:0 0 6px 6px;padding:11px 10px">';
 
-        // Totaux
-        $totO = $totC = $totD = $totF = 0;
-        foreach ($ok as $r) {
-            $totO += (float)$r['osize']; $totC += (float)$r['csize'];
-            $totD += (float)$r['dsize']; $totF += (float)$r['nfiles'];
-        }
+        $h .= $this->statGrid(array(
+            array('Réussites', count($ok),            $isFail ? '#1e7a34' : '#1e7a34'),
+            array('Échecs',    count($failed),        count($failed) > 0 ? '#b3261e' : '#888'),
+            array('Données',   self::bytes($totO),    '#333'),
+            array('Stocké',    self::bytes($totD),    '#333'),
+        ));
 
-        $h .= '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px">';
-        $h .= '<tr>';
-        $h .= $this->statCell('Reussites', count($ok), '#1e7a34');
-        $h .= $this->statCell('Echecs', count($failed), count($failed) > 0 ? '#b3261e' : '#666');
-        $h .= $this->statCell('Donnees', self::bytes($totO), '#333');
-        $h .= $this->statCell('Stockees (dedup.)', self::bytes($totD), '#333');
-        $h .= '</tr></table>';
+        $h .= $this->diskBanner();
 
-        $disk = $this->diskStatus();
-        if ($disk !== null) {
-            $crit  = $this->diskCritical($disk);
-            $coul  = $crit ? '#b3261e' : ($disk['used_percent'] >= 80 ? '#8a5a00' : '#1e7a34');
-            $fond  = $crit ? '#fdf1f0' : ($disk['used_percent'] >= 80 ? '#fff4e5' : '#f2f8f3');
-            $h .= '<div style="padding:10px 12px;background:' . $fond . ';border-left:3px solid '
-                . $coul . ';border-radius:3px;margin-bottom:20px;font-size:13px">'
-                . '<strong>Volume de sauvegarde</strong> ' . htmlspecialchars($disk['path'], ENT_QUOTES, 'UTF-8')
-                . ' : <strong style="color:' . $coul . '">' . $disk['used_percent'] . '%</strong> occupe, '
-                . self::bytes($disk['free']) . ' libres sur ' . self::bytes($disk['total'])
-                . ($crit ? '<br><strong style="color:#b3261e">Seuil critique atteint : '
-                         . 'risque d\'echec massif par manque d\'espace.</strong>' : '')
-                . '</div>';
-        }
-
-        // Echecs
         if (!empty($failed)) {
-            $h .= '<h2 style="font-size:15px;color:#b3261e;margin:24px 0 8px;'
-                . 'border-bottom:2px solid #b3261e;padding-bottom:6px">ECHECS (' . count($failed) . ')</h2>';
+            $h .= $this->sectionTitle('Échecs (' . count($failed) . ')', '#b3261e');
             foreach ($failed as $r) {
-                $h .= '<div style="margin-bottom:14px;padding:10px;background:#fdf1f0;'
-                    . 'border-left:3px solid #b3261e;border-radius:3px">';
-                $h .= '<div style="font-weight:700;font-size:14px">'
-                    . htmlspecialchars($r['name'], ENT_QUOTES, 'UTF-8')
-                    . ' <span style="font-weight:400;color:#666">(' . htmlspecialchars($r['type'], ENT_QUOTES, 'UTF-8') . ')</span></div>';
-                $h .= '<pre style="margin:6px 0 0;white-space:pre-wrap;word-break:break-word;'
-                    . 'font-family:monospace;font-size:12px;color:#5f1a15">'
-                    . htmlspecialchars(self::failureReason($r), ENT_QUOTES, 'UTF-8') . '</pre>';
-                $h .= '</div>';
+                $h .= '<div style="margin-bottom:12px;padding:10px;background:#fdf1f0;'
+                    . 'border-left:3px solid #b3261e;border-radius:3px">'
+                    . '<div style="font-weight:700;font-size:14px;color:#5f1a15">'
+                    . $this->esc($r['name']) . ' ' . $this->badge($r['type'], '#b3261e')
+                    . '</div>'
+                    . '<div style="margin:6px 0 0;white-space:pre-wrap;word-break:break-word;'
+                    . 'font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;'
+                    . 'line-height:1.5;color:#5f1a15">'
+                    . $this->esc(self::failureReason($r)) . '</div></div>';
             }
         }
 
-        // Abandonnes
         if (!empty($stale)) {
-            $h .= '<h2 style="font-size:15px;color:#8a5a00;margin:24px 0 8px;'
-                . 'border-bottom:2px solid #d69200;padding-bottom:6px">SERVEURS SANS SAUVEGARDE RECENTE ('
-                . count($stale) . ')</h2>';
-            $h .= '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-            $h .= '<tr style="background:#f5f5f5"><th style="' . $this->th() . '">Serveur</th>'
-                . '<th style="' . $this->th() . '">Type</th>'
-                . '<th style="' . $this->th() . '">Derniere archive</th>'
-                . '<th style="' . $this->th() . '">Retard</th></tr>';
-            foreach ($stale as $s) {
-                $jamais = ($s['dernier'] === null);
-                $h .= '<tr>';
-                $h .= '<td style="' . $this->td() . '">' . htmlspecialchars($s['name'], ENT_QUOTES, 'UTF-8') . '</td>';
-                $h .= '<td style="' . $this->td() . '">' . htmlspecialchars((string)$s['type'], ENT_QUOTES, 'UTF-8') . '</td>';
-                $h .= '<td style="' . $this->td() . '">' . ($jamais ? '<em>jamais</em>' : htmlspecialchars($s['dernier'], ENT_QUOTES, 'UTF-8')) . '</td>';
-                $h .= '<td style="' . $this->td() . ';color:#b3261e;font-weight:700">'
-                    . ($jamais ? 'aucune archive' : (int)$s['jours'] . ' j') . '</td>';
-                $h .= '</tr>';
-            }
-            $h .= '</table>';
+            $h .= $this->sectionTitle('Sans sauvegarde récente (' . count($stale) . ')', '#d69200');
+            $h .= $this->staleList($stale);
         }
 
-        // Reussites
         if (!empty($ok)) {
-            $h .= '<h2 style="font-size:15px;color:#1e7a34;margin:24px 0 8px;'
-                . 'border-bottom:2px solid #1e7a34;padding-bottom:6px">REUSSITES (' . count($ok) . ')</h2>';
-            $h .= '<table style="width:100%;border-collapse:collapse;font-size:12px">';
-            $h .= '<tr style="background:#f5f5f5">'
-                . '<th style="' . $this->th() . '">Serveur</th>'
-                . '<th style="' . $this->th() . '">Type</th>'
-                . '<th style="' . $this->th() . '">Duree</th>'
-                . '<th style="' . $this->th() . '">Donnees</th>'
-                . '<th style="' . $this->th() . '">Compressees</th>'
-                . '<th style="' . $this->th() . '">Dedupliquees</th>'
-                . '<th style="' . $this->th() . '">Fichiers</th></tr>';
+            $h .= $this->sectionTitle('Réussites (' . count($ok) . ')', '#1e7a34');
+            $h .= '<table role="presentation" cellpadding="0" cellspacing="0" '
+                . 'style="width:100%;border-collapse:collapse">';
             foreach ($ok as $r) {
-                $h .= '<tr>';
-                $h .= '<td style="' . $this->td() . '">' . htmlspecialchars($r['name'], ENT_QUOTES, 'UTF-8') . '</td>';
-                $h .= '<td style="' . $this->td() . '">' . htmlspecialchars($r['type'], ENT_QUOTES, 'UTF-8') . '</td>';
-                $h .= '<td style="' . $this->td() . '">' . self::duration($r['dur']) . '</td>';
-                $h .= '<td style="' . $this->td() . '">' . self::bytes($r['osize']) . '</td>';
-                $h .= '<td style="' . $this->td() . '">' . self::bytes($r['csize']) . '</td>';
-                $h .= '<td style="' . $this->td() . '">' . self::bytes($r['dsize']) . '</td>';
-                $h .= '<td style="' . $this->td() . '">' . ($r['nfiles'] !== null ? number_format((float)$r['nfiles'], 0, ',', ' ') : '-') . '</td>';
-                $h .= '</tr>';
+                $detail = self::bytes($r['osize']) . ' &rarr; ' . self::bytes($r['csize'])
+                        . ' &rarr; ' . self::bytes($r['dsize']);
+                if ($r['nfiles'] !== null && (float)$r['nfiles'] > 0) {
+                    $detail .= ' &middot; ' . self::files($r['nfiles']) . ' fich.';
+                }
+                $h .= '<tr>'
+                    . '<td style="padding:8px 5px 8px 0;border-bottom:1px solid #eee;vertical-align:top">'
+                    . '<div style="font-size:14px;font-weight:600;color:#1a1a1a">'
+                    . $this->esc($r['name']) . ' ' . $this->badge($r['type'], '#6b7280') . '</div>'
+                    . '<div style="font-size:12px;color:#666;margin-top:3px;line-height:1.5">'
+                    . $detail . '</div>'
+                    . '</td>'
+                    . '<td style="padding:9px 0;border-bottom:1px solid #eee;vertical-align:top;'
+                    . 'text-align:right;white-space:nowrap;font-size:13px;color:#555">'
+                    . self::duration($r['dur']) . '</td>'
+                    . '</tr>';
             }
             $h .= '</table>';
         }
 
-        $h .= $this->htmlFoot();
-        return $h;
+        return $h . $this->htmlFoot();
     }
 
     /**
@@ -635,100 +653,178 @@ class Report
      * @return string
      */
     private function renderCheckHtml($problems, $stale, $last, $maxAge) {
-        $host = htmlspecialchars(gethostname(), ENT_QUOTES, 'UTF-8');
-
         $h  = $this->htmlHead();
-        $h .= '<div style="background:#b3261e;color:#fff;padding:16px 20px;border-radius:6px 6px 0 0">';
-        $h .= '<div style="font-size:20px;font-weight:700">ALERTE SAUVEGARDES</div>';
-        $h .= '<div style="font-size:13px;opacity:.9;margin-top:4px">Controle du '
-            . date('d/m/Y H:i') . ' &middot; ' . $host . '</div>';
-        $h .= '</div>';
-        $h .= '<div style="border:1px solid #ddd;border-top:none;border-radius:0 0 6px 6px;padding:20px">';
+        $h .= $this->banner('#b3261e', 'Alerte sauvegardes',
+                            'Contrôle du ' . date('d/m/Y H:i') . ' &middot; ' . $this->esc(gethostname()));
+        $h .= '<div style="border:1px solid #e0e0e0;border-top:none;'
+            . 'border-radius:0 0 6px 6px;padding:11px 10px">';
 
         if (!empty($problems)) {
             foreach ($problems as $p) {
-                $h .= '<div style="padding:12px;background:#fdf1f0;border-left:3px solid #b3261e;'
-                    . 'border-radius:3px;margin-bottom:12px;font-size:14px;font-weight:700;color:#5f1a15">'
-                    . htmlspecialchars($p, ENT_QUOTES, 'UTF-8') . '</div>';
+                $h .= '<div style="padding:11px;background:#fdf1f0;border-left:3px solid #b3261e;'
+                    . 'border-radius:3px;margin-bottom:10px;font-size:14px;line-height:1.5;'
+                    . 'font-weight:600;color:#5f1a15">' . $this->esc($p) . '</div>';
             }
-            $h .= '<p style="font-size:13px;color:#444">A verifier : la tache cron de 22h '
-                . '(<code>crontab -l</code>), le verrou <code>/run/lock/phpborg.lock</code>, '
-                . 'et <code>/var/log/phpborg.log</code>.</p>';
-        } else {
-            $h .= '<p style="font-size:13px">Dernier run complet : <strong>'
-                . htmlspecialchars($last['start'], ENT_QUOTES, 'UTF-8') . '</strong> (il y a '
-                . (int)$last['age_hours'] . ' h, seuil ' . $maxAge . ' h).</p>';
+            $h .= '<p style="font-size:13px;color:#444;line-height:1.6;margin:12px 0">'
+                . 'À vérifier : la tâche cron de 22h (<code>crontab -l</code>), le verrou '
+                . '<code>/run/lock/phpborg-full.lock</code>, et <code>/var/log/phpborg.log</code>.</p>';
+        } elseif ($last !== null) {
+            $h .= '<p style="font-size:13px;line-height:1.6;margin:0 0 12px">Dernier run complet : <strong>'
+                . $this->esc($last['start']) . '</strong> (il y a ' . (int)$last['age_hours']
+                . ' h, seuil ' . $maxAge . ' h).</p>';
         }
+
+        $h .= $this->diskBanner();
 
         if (!empty($stale)) {
-            $h .= '<h2 style="font-size:15px;color:#8a5a00;margin:24px 0 8px;'
-                . 'border-bottom:2px solid #d69200;padding-bottom:6px">SERVEURS SANS SAUVEGARDE RECENTE ('
-                . count($stale) . ')</h2>';
-            $h .= '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-            $h .= '<tr style="background:#f5f5f5"><th style="' . $this->th() . '">Serveur</th>'
-                . '<th style="' . $this->th() . '">Type</th>'
-                . '<th style="' . $this->th() . '">Derniere archive</th>'
-                . '<th style="' . $this->th() . '">Retard</th></tr>';
-            foreach ($stale as $s) {
-                $jamais = ($s['dernier'] === null);
-                $h .= '<tr>';
-                $h .= '<td style="' . $this->td() . '">' . htmlspecialchars($s['name'], ENT_QUOTES, 'UTF-8') . '</td>';
-                $h .= '<td style="' . $this->td() . '">' . htmlspecialchars((string)$s['type'], ENT_QUOTES, 'UTF-8') . '</td>';
-                $h .= '<td style="' . $this->td() . '">' . ($jamais ? '<em>jamais</em>' : htmlspecialchars($s['dernier'], ENT_QUOTES, 'UTF-8')) . '</td>';
-                $h .= '<td style="' . $this->td() . ';color:#b3261e;font-weight:700">'
-                    . ($jamais ? 'aucune archive' : (int)$s['jours'] . ' j') . '</td>';
-                $h .= '</tr>';
-            }
-            $h .= '</table>';
+            $h .= $this->sectionTitle('Sans sauvegarde récente (' . count($stale) . ')', '#d69200');
+            $h .= $this->staleList($stale);
         }
 
-        $h .= $this->htmlFoot();
-        return $h;
+        return $h . $this->htmlFoot();
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Briques de rendu                                                    */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Echappement HTML
+     * @param mixed $v
+     * @return string
+     */
+    private function esc($v) {
+        return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+    }
+
+    /**
+     * Bandeau de tete
+     * @param string $color
+     * @param string $titre
+     * @param string $sousTitre deja echappe
+     * @return string
+     */
+    private function banner($color, $titre, $sousTitre) {
+        return '<div style="background:' . $color . ';color:#ffffff;padding:15px 16px;'
+             . 'border-radius:6px 6px 0 0">'
+             . '<div style="font-size:19px;font-weight:700;line-height:1.3">'
+             . $this->esc($titre) . '</div>'
+             . '<div style="font-size:13px;opacity:.92;margin-top:5px;line-height:1.5">'
+             . $sousTitre . '</div></div>';
+    }
+
+    /**
+     * Compteurs en 2x2 : quatre colonnes deviennent illisibles sur telephone
+     * @param array $cells [[label, valeur, couleur], ...]
+     * @return string
+     */
+    private function statGrid($cells) {
+        $h = '<table role="presentation" cellpadding="0" cellspacing="0" '
+           . 'style="width:100%;border-collapse:separate;border-spacing:5px;margin:0 -5px 14px">';
+        $i = 0;
+        foreach ($cells as $c) {
+            if ($i % 2 === 0) $h .= '<tr>';
+            $h .= '<td width="50%" style="width:50%;padding:11px 8px;background:#f5f6f7;'
+                . 'border-radius:5px;text-align:center">'
+                . '<div style="font-size:21px;font-weight:700;line-height:1.2;color:' . $c[2] . '">'
+                . $this->esc($c[1]) . '</div>'
+                . '<div style="font-size:11px;color:#666;text-transform:uppercase;'
+                . 'letter-spacing:.4px;margin-top:3px">' . $this->esc($c[0]) . '</div></td>';
+            if ($i % 2 === 1) $h .= '</tr>';
+            $i++;
+        }
+        if ($i % 2 === 1) $h .= '<td width="50%"></td></tr>';
+        return $h . '</table>';
+    }
+
+    /**
+     * Pastille de type (backup / mysql)
+     * @param string $texte
+     * @param string $color
+     * @return string
+     */
+    private function badge($texte, $color) {
+        return '<span style="display:inline-block;font-size:11px;font-weight:600;color:#ffffff;'
+             . 'background:' . $color . ';padding:1px 6px;border-radius:3px;'
+             . 'vertical-align:middle">' . $this->esc($texte) . '</span>';
+    }
+
+    /**
+     * Titre de section
+     * @param string $texte
+     * @param string $color
+     * @return string
+     */
+    private function sectionTitle($texte, $color) {
+        return '<div style="font-size:15px;font-weight:700;color:' . $color . ';'
+             . 'margin:22px 0 9px;padding-bottom:5px;border-bottom:2px solid ' . $color . '">'
+             . $this->esc($texte) . '</div>';
+    }
+
+    /**
+     * Liste des serveurs en retard, empilee plutot qu'en tableau
+     * @param array $stale
+     * @return string
+     */
+    private function staleList($stale) {
+        $h = '<table role="presentation" cellpadding="0" cellspacing="0" '
+           . 'style="width:100%;border-collapse:collapse">';
+        foreach ($stale as $s) {
+            $jamais = ($s['dernier'] === null);
+            $h .= '<tr>'
+                . '<td style="padding:8px 5px 8px 0;border-bottom:1px solid #eee;vertical-align:top">'
+                . '<div style="font-size:14px;font-weight:600">' . $this->esc($s['name']) . ' '
+                . $this->badge((string)$s['type'], '#6b7280') . '</div>'
+                . '<div style="font-size:12px;color:#666;margin-top:3px">'
+                . ($jamais ? '<em>aucune archive</em>' : 'dernière : ' . $this->esc($s['dernier']))
+                . '</div></td>'
+                . '<td style="padding:8px 0;border-bottom:1px solid #eee;vertical-align:top;'
+                . 'text-align:right;white-space:nowrap;font-size:14px;font-weight:700;color:#b3261e">'
+                . ($jamais ? '&mdash;' : (int)$s['jours'] . ' j') . '</td>'
+                . '</tr>';
+        }
+        return $h . '</table>';
+    }
+
+    /**
+     * Bandeau d'occupation du volume
+     * @return string
+     */
+    private function diskBanner() {
+        $disk = $this->diskStatus();
+        if ($disk === null) return '';
+
+        $crit = $this->diskCritical($disk);
+        $coul = $crit ? '#b3261e' : ($disk['used_percent'] >= 80 ? '#8a5a00' : '#1e7a34');
+        $fond = $crit ? '#fdf1f0' : ($disk['used_percent'] >= 80 ? '#fff8ec' : '#f2f8f3');
+
+        return '<div style="padding:10px 11px;background:' . $fond . ';border-left:3px solid '
+             . $coul . ';border-radius:3px;margin-bottom:14px;font-size:13px;line-height:1.6">'
+             . '<strong>Volume</strong> ' . $this->esc($disk['path']) . '<br>'
+             . '<strong style="color:' . $coul . ';font-size:15px">' . $disk['used_percent'] . '%</strong>'
+             . ' occupé &middot; ' . self::bytes($disk['free']) . ' libres sur '
+             . self::bytes($disk['total'])
+             . ($crit ? '<br><strong style="color:#b3261e">Seuil critique : risque d\'échec '
+                      . 'massif par manque d\'espace.</strong>' : '')
+             . '</div>';
     }
 
     /**
      * @return string
      */
     private function htmlHead() {
-        return '<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;'
-             . 'max-width:900px;margin:0 auto;color:#222">';
+        return '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,'
+             . 'Helvetica,Arial,sans-serif;max-width:680px;margin:0 auto;padding:6px;'
+             . 'color:#222;-webkit-text-size-adjust:100%">';
     }
 
     /**
      * @return string
      */
     private function htmlFoot() {
-        return '<p style="margin-top:24px;padding-top:12px;border-top:1px solid #eee;'
-             . 'font-size:11px;color:#888">phpBorg &middot; journal complet dans '
-             . '<code>/var/log/phpborg.log</code></p></div></div>';
-    }
-
-    /**
-     * @return string
-     */
-    private function th() {
-        return 'text-align:left;padding:6px 8px;border-bottom:2px solid #ddd;font-weight:600';
-    }
-
-    /**
-     * @return string
-     */
-    private function td() {
-        return 'padding:5px 8px;border-bottom:1px solid #eee';
-    }
-
-    /**
-     * @param string $label
-     * @param mixed $value
-     * @param string $color
-     * @return string
-     */
-    private function statCell($label, $value, $color) {
-        return '<td style="padding:10px;background:#f7f7f7;border-radius:4px;text-align:center">'
-             . '<div style="font-size:22px;font-weight:700;color:' . $color . '">'
-             . htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8') . '</div>'
-             . '<div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.5px">'
-             . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</div></td>';
+        return '<div style="margin-top:20px;padding-top:11px;border-top:1px solid #eee;'
+             . 'font-size:11px;color:#888;line-height:1.6">phpBorg &middot; journal complet dans '
+             . '<code>/var/log/phpborg.log</code></div></div></div>';
     }
 
     /* ------------------------------------------------------------------ */
