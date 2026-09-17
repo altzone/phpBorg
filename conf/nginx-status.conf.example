@@ -1,22 +1,23 @@
 # Publication de l'etat des sauvegardes pour une supervision tierce.
-# A inserer dans le bloc "server { listen 443 ssl ... }" de
-# /etc/nginx/sites-enabled/backup.net1c.net.conf
+#
+# A inserer dans le bloc "server { listen 443 ssl ... }" du vhost choisi,
+# avant le "location / {". Puis : nginx -t && systemctl reload nginx
 #
 # Le jeton dans le chemin tient lieu d'authentification : ces donnees
 # decrivent l'infrastructure (volumetrie, dates, noms de serveurs).
-# Le regenerer revient a changer l'URL communiquee au client.
+# Il doit correspondre au dernier segment de status.dir dans phpborg.conf.
+#
+# try_files interdit tout ce qui n'est pas un fichier existant : ni listing,
+# ni traversee de chemin, et les serveurs non publies renvoient 404.
+#
+# Ne pas laisser de copie de sauvegarde du vhost dans sites-enabled/ :
+# nginx la chargerait aussi et dupliquerait le server_name.
 
 location ^~ /status/VOTRE-JETON-ICI/ {
     alias /var/www/phpborg-status/VOTRE-JETON-ICI/;
-
-    # Fichiers JSON uniquement, pas de listing
     autoindex off;
-    location ~ ^/status/VOTRE-JETON-ICI/[A-Za-z0-9._-]+\.json$ {
-        default_type application/json;
-        add_header Cache-Control "no-store" always;
-        add_header Access-Control-Allow-Origin "*" always;
-    }
-    location ~ / {
-        return 404;
-    }
+    default_type application/json;
+    add_header Cache-Control "no-store" always;
+    add_header Access-Control-Allow-Origin "*" always;
+    try_files $uri =404;
 }
