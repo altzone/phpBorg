@@ -58,10 +58,35 @@ function phpborg_lock($name, $log) {
         return;
     }
     if (!flock($phpborg_lock_handle, LOCK_EX | LOCK_NB)) {
-        $msg = "Une execution '$name' est deja en cours ($file), abandon.";
-        $log->warning($msg);
-        fwrite(STDERR, $msg . "\n");
-        exit(0);
+        // Le descripteur du verrou est herite par les sous-processus (ssh,
+        // borg...). Si le run meurt en laissant un descendant derriere lui, le
+        // verrou reste tenu alors que plus rien ne le justifie, et le run
+        // suivant serait bloque indefiniment. On le detecte en relisant le pid
+        // inscrit au depart : s'il n'existe plus, le verrou est perime.
+        $ancien = (int) trim((string) @file_get_contents($file));
+        $vivant = ($ancien > 0 && function_exists('posix_kill'))
+                ? @posix_kill($ancien, 0) : ($ancien > 0);
+
+        if ($vivant) {
+            $msg = "Une execution '$name' est deja en cours (pid $ancien), abandon.";
+            $log->warning($msg);
+            fwrite(STDERR, $msg . "\n");
+            exit(0);
+        }
+
+        $log->warning("Verrou perime sur $file (processus $ancien disparu), reprise");
+        fclose($phpborg_lock_handle);
+        // Remplacer l'inode : les descendants qui tiennent encore l'ancien
+        // descripteur ne genent plus le nouveau fichier.
+        @unlink($file);
+        $phpborg_lock_handle = @fopen($file, 'c');
+        if ($phpborg_lock_handle === false
+            || !flock($phpborg_lock_handle, LOCK_EX | LOCK_NB)) {
+            $msg = "Une execution '$name' est deja en cours ($file), abandon.";
+            $log->warning($msg);
+            fwrite(STDERR, $msg . "\n");
+            exit(0);
+        }
     }
     ftruncate($phpborg_lock_handle, 0);
     fwrite($phpborg_lock_handle, (string)getmypid());
@@ -79,26 +104,85 @@ function phpborg_lock($name, $log) {
  * @param string $kind 'full' ou 'backup'
  * @return void
  */
-function phpborg_trap_signals($report, $reportId, $log, $kind) {
+function phpborg_trap_signals($report, $reportId, $log, $kind, $noMail = false) {
     if (!function_exists('pcntl_async_signals')) {
         $log->warning("Extension pcntl absente : une interruption ne sera pas signalee");
         return;
     }
     pcntl_async_signals(true);
 
-    $handler = function ($signo) use ($report, $reportId, $log, $kind) {
+    $handler = function ($signo) use ($report, $reportId, $log, $kind, $noMail) {
+        global $phpborg_enfants;
+
         $names  = array(SIGINT => 'SIGINT (Ctrl+C)', SIGTERM => 'SIGTERM', SIGHUP => 'SIGHUP');
         $signal = isset($names[$signo]) ? $names[$signo] : ('signal ' . $signo);
 
         $log->error("Run '$kind' interrompu par $signal", 'CORE');
 
-        $report->sendInterrupted($reportId, $signal, $kind);
+        // Terminer les sauvegardes lancees par ce run : sans cela elles
+        // continueraient en orphelines, hors de tout suivi.
+        if (!empty($phpborg_enfants)) {
+            $groupes = array();
+            foreach ($phpborg_enfants as $w) {
+                if (!is_resource($w['proc'])) continue;
+                $st = @proc_get_status($w['proc']);
+                if (!$st || !$st['running']) continue;
+                $log->warning("Arret de la sauvegarde en cours : " . $w['tache']['name']
+                            . " (" . $w['tache']['type'] . ")");
+                if (!empty($w['pid'])) {
+                    phpborg_kill_tree($w['pid'], SIGTERM);
+                    $groupes[] = $w['pid'];
+                }
+                @proc_terminate($w['proc'], SIGTERM);
+            }
+            // Laisser aux processus le temps de se fermer proprement
+            sleep(5);
+            foreach ($groupes as $pid) phpborg_kill_tree($pid, SIGKILL);
+            foreach ($phpborg_enfants as $w) {
+                if (is_resource($w['proc'])) @proc_terminate($w['proc'], SIGKILL);
+            }
+        }
+
+        // Un worker lance par le full ne doit pas alerter de son cote :
+        // le run complet emet une seule alerte pour l'ensemble.
+        if ($noMail) {
+            $report->markInterrupted($reportId, $signal);
+        } else {
+            $report->sendInterrupted($reportId, $signal, $kind);
+        }
         exit(130);
     };
 
     pcntl_signal(SIGINT,  $handler);
     pcntl_signal(SIGTERM, $handler);
     pcntl_signal(SIGHUP,  $handler);
+}
+
+/**
+ * Termine un processus et toute sa descendance.
+ *
+ * Un worker de sauvegarde lance ssh, et localement borg prune / borg info.
+ * Tuer le seul worker laisserait ces descendants tourner, reparentes a init,
+ * en gardant ouvert le descripteur du verrou du run.
+ *
+ * @param int $pid
+ * @param int $signal
+ * @return void
+ */
+function phpborg_kill_tree($pid, $signal) {
+    if ($pid <= 1) return;
+
+    $enfants = array();
+    $out = @shell_exec('pgrep -P ' . (int)$pid . ' 2>/dev/null');
+    if (is_string($out)) {
+        foreach (preg_split('/\s+/', trim($out)) as $c) {
+            if ($c !== '' && ctype_digit($c)) $enfants[] = (int)$c;
+        }
+    }
+    // Les descendants d'abord : le pere ne peut plus en creer de nouveaux
+    foreach ($enfants as $c) phpborg_kill_tree($c, $signal);
+
+    if (function_exists('posix_kill')) @posix_kill($pid, $signal);
 }
 
 /**
@@ -112,6 +196,7 @@ Usage: $bin <commande> [arguments]
 
   full                        Sauvegarde tous les serveurs actifs, puis envoie le rapport
   backup <serveur> [mysql]    Sauvegarde un serveur, puis envoie le rapport
+                              (--no-mail pour ne pas envoyer de rapport)
   check                       Controle de sante : alerte si aucune sauvegarde recente
   report [id]                 Renvoie le rapport du run 'full' indique (dernier par defaut)
   testmail                    Envoie un mail de test pour valider la configuration SMTP
@@ -134,6 +219,11 @@ if (empty($argv[1])) {
 }
 
 $param = $argv[1];
+
+// --no-mail : utilise par le "full" pour ses sous-processus, qui ne doivent
+// pas envoyer un rapport chacun ; seul le run complet en emet un.
+$noMail = in_array('--no-mail', $argv, true);
+
 $log->info("Starting phpBorg ($param)");
 
 /* ---------------------------------------------------------------- info --- */
@@ -201,11 +291,11 @@ elseif ($param == "backup") {
 
     $start    = microtime(true);
     $reportId = $run->startReport($db, $serverId, $type);
-    phpborg_trap_signals($report, $reportId, $log, 'backup');
+    phpborg_trap_signals($report, $reportId, $log, 'backup', $noMail);
     $result   = $run->backup($srv, $log, $db, $reportId, $type);
     $duration = microtime(true) - $start;
 
-    $report->sendSingle($reportId, $srv, $type, $duration);
+    if (!$noMail) $report->sendSingle($reportId, $srv, $type, $duration);
 
     exit(!empty($result->error) ? 1 : 0);
 }
@@ -284,51 +374,131 @@ elseif ($param == "full") {
     $reportId = $run->startReport($db, "0", 'full');
     phpborg_trap_signals($report, $reportId, $log, 'full');
 
-    $osize = $csize = $dsize = $nfiles = $nbarchive = 0;
-    $logs  = '';
-    $errors = 0;
+    $parallel = max(1, (int)Config::get('backup', 'parallel', 1));
 
-    foreach ($run->getSrv($db) as $srv) {
-        $db->query("UPDATE IGNORE report set `curpos` = ? WHERE id = ?", $srv['name'], (int)$reportId);
+    // Les taches les plus longues d'abord : lancer cezame-fle (pres de 2 h) en
+    // dernier repousserait la fin du run d'autant. La duree vient de
+    // l'historique ; une tache inconnue passe en tete par prudence.
+    $taches = $run->getSrv($db);
+    $durees = array();
+    foreach ($db->query(
+        "SELECT r.server_id, r.type, AVG(r.dur) AS moy
+         FROM report r
+         WHERE r.type <> 'full' AND r.dur IS NOT NULL AND r.dur > 0
+           AND r.start > DATE_SUB(NOW(), INTERVAL 14 DAY)
+         GROUP BY r.server_id, r.type")->fetchAll() as $d) {
+        $durees[$d['server_id'] . '/' . $d['type']] = (float)$d['moy'];
+    }
+    usort($taches, function ($a, $b) use ($durees) {
+        $da = isset($durees[$a['id'] . '/' . $a['type']]) ? $durees[$a['id'] . '/' . $a['type']] : PHP_INT_MAX;
+        $dbb = isset($durees[$b['id'] . '/' . $b['type']]) ? $durees[$b['id'] . '/' . $b['type']] : PHP_INT_MAX;
+        if ($da === $dbb) return 0;
+        return ($da < $dbb) ? 1 : -1;
+    });
 
-        $full = $run->backup(
-            $srv['name'], $log, $db,
-            $run->startReport($db, $srv['id'], $srv['type']),
-            $srv['type']
-        );
+    $total = count($taches);
+    $log->info("Full : $total taches, $parallel en parallele");
 
-        // backup() renvoie toujours un objet, mais on reste defensif
-        if (is_object($full)) {
-            $osize     += (float)(isset($full->osize)     ? $full->osize     : 0);
-            $csize     += (float)(isset($full->csize)     ? $full->csize     : 0);
-            $dsize     += (float)(isset($full->dsize)     ? $full->dsize     : 0);
-            $nfiles    += (float)(isset($full->nfiles)    ? $full->nfiles    : 0);
-            $nbarchive += (int)  (isset($full->nbarchive) ? $full->nbarchive : 0);
-            $logs      .=        (isset($full->log)       ? $full->log       : '');
-            if (!empty($full->error)) $errors++;
-        } else {
-            $errors++;
-            $logs .= $srv['name'] . " => retour inattendu de backup()\n";
+    /**
+     * Lance une sauvegarde dans un processus separe.
+     * On reutilise la commande "backup", deja eprouvee et protegee par son
+     * propre verrou, plutot que de rendre Core::backup() concurrent.
+     * @param array $t
+     * @return array|null
+     */
+    $lancer = function ($t) use ($base, $log) {
+        $cmd = 'exec ' . escapeshellarg(PHP_BINARY) . ' '
+             . escapeshellarg($base . '/phpborg.php')
+             . ' backup ' . escapeshellarg($t['name'])
+             . ($t['type'] === 'mysql' ? ' mysql' : '')
+             . ' --no-mail';
+        $desc = array(1 => array('file', '/dev/null', 'a'), 2 => array('file', '/dev/null', 'a'));
+        $proc = @proc_open($cmd, $desc, $pipes, $base);
+        if (!is_resource($proc)) {
+            $log->error("Impossible de lancer la sauvegarde de " . $t['name'] . " (" . $t['type'] . ")");
+            return null;
+        }
+        $st = proc_get_status($proc);
+        $log->info("Demarrage " . $t['name'] . " (" . $t['type'] . ")");
+        return array('proc' => $proc, 'tache' => $t, 'debut' => microtime(true),
+                     'pid' => ($st && !empty($st['pid'])) ? (int)$st['pid'] : 0);
+    };
+
+    // Globale : le gestionnaire de signaux doit pouvoir les terminer
+    global $phpborg_enfants;
+    $phpborg_enfants = array();
+    $encours = &$phpborg_enfants;
+    $faits   = 0;
+
+    while (!empty($taches) || !empty($encours)) {
+        // Remplir les emplacements libres
+        while (count($encours) < $parallel && !empty($taches)) {
+            $t = array_shift($taches);
+            $w = $lancer($t);
+            if ($w === null) { $faits++; continue; }
+            $encours[] = $w;
         }
 
-        $dur = round(microtime(true) - $startAll);
-        $db->query(
-            "UPDATE IGNORE report SET `osize` = ?, `csize` = ?, `dsize` = ?, `dur` = ?,
-                    `nb_archive` = ?, `nfiles` = ?, `error` = ?
-             WHERE id = ?",
-            (int)$osize, (int)$csize, (int)$dsize, (int)$dur,
-            (int)$nbarchive, (int)$nfiles, (int)$errors, (int)$reportId
-        );
+        if (empty($encours)) break;
+
+        // curpos : ce qui tourne reellement, visible depuis viewstatus
+        $noms = array();
+        foreach ($encours as $w) $noms[] = $w['tache']['name'];
+        $db->query("UPDATE IGNORE report set `curpos` = ? WHERE id = ?",
+                   substr(implode(', ', $noms), 0, 50), (int)$reportId);
+
+        // Attendre qu'au moins un processus se termine
+        $fini = false;
+        while (!$fini) {
+            foreach ($encours as $k => $w) {
+                $st = proc_get_status($w['proc']);
+                if ($st === false || !$st['running']) {
+                    proc_close($w['proc']);
+                    $faits++;
+                    $log->info(sprintf("Termine %s (%s) en %s [%d/%d]",
+                        $w['tache']['name'], $w['tache']['type'],
+                        Report::duration(microtime(true) - $w['debut']), $faits, $total));
+                    unset($encours[$k]);
+                    $encours = array_values($encours);
+                    $fini = true;
+                    break;
+                }
+            }
+            if (!$fini) {
+                if (function_exists('pcntl_signal_dispatch')) pcntl_signal_dispatch();
+                usleep(500000);
+            }
+        }
     }
 
+    // Totaux recalcules depuis les sous-rapports : source unique de verite,
+    // qu'ils aient ete produits en serie ou en parallele.
     $duration = microtime(true) - $startAll;
+    $agg = $db->query(
+        "SELECT COUNT(*) AS nb,
+                SUM(COALESCE(nb_archive,0)) AS archives,
+                SUM(COALESCE(osize,0))  AS osize,
+                SUM(COALESCE(csize,0))  AS csize,
+                SUM(COALESCE(dsize,0))  AS dsize,
+                SUM(COALESCE(nfiles,0)) AS nfiles,
+                SUM(CASE WHEN COALESCE(error,0) <> 0 OR COALESCE(nb_archive,0) < 1
+                         THEN 1 ELSE 0 END) AS erreurs
+         FROM report WHERE id > ? AND type <> 'full'", (int)$reportId
+    )->fetchArray();
+
+    $errors = (int)(isset($agg['erreurs']) ? $agg['erreurs'] : 0);
+
     $db->query(
-        "UPDATE IGNORE report SET `end` = NOW(), `log` = ?, `curpos` = NULL WHERE id = ?",
-        $logs, (int)$reportId
+        "UPDATE IGNORE report SET `osize` = ?, `csize` = ?, `dsize` = ?, `dur` = ?,
+                `nb_archive` = ?, `nfiles` = ?, `error` = ?, `end` = NOW(), `curpos` = NULL
+         WHERE id = ?",
+        (int)$agg['osize'], (int)$agg['csize'], (int)$agg['dsize'], (int)round($duration),
+        (int)$agg['archives'], (int)$agg['nfiles'], $errors, (int)$reportId
     );
 
     $log->info("Full backup termine en " . Report::duration($duration)
-             . " : $errors erreur(s) sur $nbarchive archive(s)");
+             . " : $errors erreur(s) sur " . (int)$agg['archives'] . " archive(s)"
+             . " ($parallel en parallele)");
 
     $report->sendFull($reportId, $duration);
 

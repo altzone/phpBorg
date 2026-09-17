@@ -47,6 +47,7 @@ class Config
         'backup' => array(
             'retries'     => 3,
             'retry_delay' => 30,
+            'parallel'    => 1,
             'repo_path'   => '/data/backups',
         ),
         'alert' => array(

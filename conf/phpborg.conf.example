@@ -39,6 +39,9 @@ disk_warn_percent = 90
 retries = 3
 ; attente avant le 1er reessai, en secondes (progressif : 30s, 60s, 90s...)
 retry_delay = 30
+; nombre de sauvegardes menees de front par "phpborg full" (1 = sequentiel)
+; les taches les plus longues sont lancees en premier
+parallel = 4
 
 [general]
 ; fuseau horaire ; vide = celui du systeme (/etc/timezone)
