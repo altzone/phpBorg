@@ -345,7 +345,7 @@ class Core {
      * @param array $okCodes Codes de retour consideres comme un succes
      * @return array Retour de myExec()
      */
-    private function myExecRetry($cmd, $srv, $log, $label, $okCodes = array(0)) {
+    private function myExecRetry($cmd, $srv, $log, $label, $okCodes = array(0), $input = '') {
         $cfgRetry = Config::get('backup', 'retries', 3);
         $cfgDelay = Config::get('backup', 'retry_delay', 30);
 
@@ -353,7 +353,7 @@ class Core {
         $delay = max(1, (int)$cfgDelay);
 
         for ($i = 1; $i <= $tries; $i++) {
-            $e = $this->myExec($cmd);
+            $e = $this->myExec($cmd, $input);
 
             if (in_array((int)$e['return'], $okCodes, true)) return $e;
             if (!$this->isTransientError($e))                return $e;
@@ -367,6 +367,60 @@ class Core {
         }
 
         return $e;
+    }
+
+    /**
+     * secretCmd Method (commande shell recevant ses secrets sur stdin)
+     *
+     * Jusqu'ici les commandes etaient construites avec
+     *     export BORG_PASSPHRASE='<passphrase>'; borg ...
+     * ce qui inscrivait la passphrase dans la ligne de commande : n'importe
+     * quel utilisateur de la machine pouvait la lire dans un simple "ps", sur
+     * le serveur de sauvegarde comme sur chaque machine sauvegardee.
+     *
+     * Les secrets sont desormais ecrits sur l'entree standard du shell, qui
+     * les lit avec "read". Ils n'apparaissent plus dans argv ; ils restent
+     * dans l'environnement du processus, donc dans /proc/<pid>/environ, mais
+     * celui-ci n'est lisible que par root et le proprietaire, alors que "ps"
+     * l'est par tout le monde.
+     *
+     * @param array $vars Noms des variables, dans l'ordre d'envoi sur stdin
+     * @param string $suite Commande a executer une fois les variables posees
+     * @return string
+     */
+    private function secretCmd($vars, $suite) {
+        $lect = '';
+        foreach ($vars as $v) {
+            // IFS vide et -r : ni troncature d'espaces, ni interpretation des \
+            $lect .= 'IFS= read -r ' . $v . '; export ' . $v . '; ';
+        }
+        return $lect . $suite;
+    }
+
+    /**
+     * secretInput Method (valeurs a envoyer sur stdin, une par ligne)
+     *
+     * @param array $valeurs
+     * @return string
+     */
+    private function secretInput($valeurs) {
+        return implode("\n", $valeurs) . "\n";
+    }
+
+    /**
+     * localBorg Method (commande borg locale, passphrase hors ligne de commande)
+     *
+     * @param string $args Arguments passes a borg
+     * @return array [commande, entree standard]
+     */
+    private function localBorg($args) {
+        return array(
+            'sh -c ' . escapeshellarg($this->secretCmd(
+                array('BORG_PASSPHRASE'),
+                'exec ' . $this->params->borg_binary_path . ' ' . $args
+            )),
+            $this->secretInput(array($this->repoParams->passphrase)),
+        );
     }
 
     /**
@@ -384,7 +438,8 @@ class Core {
             $log->error("Error, repository config does not exist", $srv);
             return;
         }
-        $e = $this->myExec("export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "';" . $this->params->borg_binary_path . " $verb " .$arg);
+        list($cmd, $in) = $this->localBorg("$verb " . $arg);
+        $e = $this->myExec($cmd, $in);
         print $e['stdout'];
         // borg utilise le code 1 pour de simples avertissements
         if ($e['return'] != 0 && $e['return'] != 1) {
@@ -409,7 +464,8 @@ class Core {
         $deleted = NULL;
         $keepday = $keepday - 1;
         $log->info("Retention policy : keep $keepday  per days, ", $srv);
-        $e = $this->myExec("export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "';" . $this->params->borg_binary_path . " prune --save-space --force --list --keep-daily=$keepday --keep-weekly=4 --keep-monthly=6 " . $this->repoParams->repo_path);
+        list($cmd, $in) = $this->localBorg("prune --save-space --force --list --keep-daily=$keepday --keep-weekly=4 --keep-monthly=6 " . $this->repoParams->repo_path);
+        $e = $this->myExec($cmd, $in);
         if ($e['return'] == 0) {
             $separator = "\r\n";
             $line = strtok($e['stderr'], $separator);
@@ -440,7 +496,8 @@ class Core {
      */
     public function parseLog($srv, $file, $log) {
         $log->info("Parsing log to extract info", $srv);
-        $e = $this->myExec("export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "';" . $this->params->borg_binary_path . " info $file --json");
+        list($cmd, $in) = $this->localBorg("info $file --json");
+        $e = $this->myExec($cmd, $in);
         $json = $e['stdout'];
         if ($e['return'] == 0) {
             $this->logs = new \stdClass;
@@ -484,8 +541,8 @@ class Core {
         $repoId = $this->repoParams->repo_id;
 
         // List archives from borg
-        $e = $this->myExec("export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "';"
-            . $this->params->borg_binary_path . " list $repoPath --json");
+        list($cmd, $in) = $this->localBorg("list $repoPath --json");
+        $e = $this->myExec($cmd, $in);
 
         if ($e['return'] != 0) {
             $log->error("borg list failed: " . $e['stderr'], $srv);
@@ -533,8 +590,8 @@ class Core {
             if (isset($existing[$name])) continue;
 
             // Get detailed info for this archive
-            $info = $this->myExec("export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "';"
-                . $this->params->borg_binary_path . " info $repoPath::$name --json");
+            list($cmd, $in) = $this->localBorg("info $repoPath::$name --json");
+            $info = $this->myExec($cmd, $in);
 
             if ($info['return'] != 0 && $info['return'] != 1) continue;
 
@@ -720,8 +777,7 @@ class Core {
         // MYSQL_PWD plutot que -p en ligne de commande : le mot de passe
         // n'apparait pas dans le ps de la machine sauvegardee.
         $inner = "set -o pipefail; "
-               . "export BORG_PASSPHRASE=" . escapeshellarg($this->repoParams->passphrase) . "; "
-               . "export MYSQL_PWD=" . escapeshellarg($this->dbParams->db_pass) . "; "
+               . $this->secretCmd(array('BORG_PASSPHRASE', 'MYSQL_PWD'), '')
                . "mysqldump -u" . escapeshellarg($this->dbParams->db_user)
                . " -h " . escapeshellarg($this->dbParams->db_host) . " "
                . $this->dumpOptions() . " | "
@@ -731,10 +787,16 @@ class Core {
 
         $log->info("Dump sans verrou : " . $this->dumpOptions(), $srv);
 
-        // Pas de -tt : un TTY altererait le flux transmis a borg.
+        // Pas de -tt : un TTY altererait le flux transmis a borg, et empecherait
+        // la lecture propre des secrets sur l'entree standard.
         // bash -c pour disposer de pipefail, que sh ne garantit pas.
-        return "ssh -p " . $port . " -o 'BatchMode=yes' -o 'ConnectTimeout=10' "
+        $cmd = "ssh -p " . $port . " -o 'BatchMode=yes' -o 'ConnectTimeout=10' "
              . escapeshellarg($host) . " " . escapeshellarg("bash -c " . escapeshellarg($inner));
+
+        return array($cmd, $this->secretInput(array(
+            $this->repoParams->passphrase,
+            $this->dbParams->db_pass,
+        )));
     }
 
     /**
@@ -773,7 +835,12 @@ class Core {
             echo "Creating $cfg->type repository\n";
             mkdir($this->params->borg_backup_path . '/' . $srv . '/' . $cfg->type);
             $passphrase = $this->generateRandomString();
-            $exec = $this->myExec('cd ' . $this->params->borg_backup_path . '/' . $srv . ';export BORG_PASSPHRASE="' . $passphrase . '";' . $this->params->borg_binary_path . ' init ' . $cfg->type . ' -e ' . $cfg->encryption);
+            $exec = $this->myExec(
+                'sh -c ' . escapeshellarg($this->secretCmd(array('BORG_PASSPHRASE'),
+                    'cd ' . escapeshellarg($this->params->borg_backup_path . '/' . $srv) . '; exec '
+                  . $this->params->borg_binary_path . ' init ' . escapeshellarg($cfg->type)
+                  . ' -e ' . escapeshellarg($cfg->encryption))),
+                $this->secretInput(array($passphrase)));
             if ($exec['return'] == 0) {
                 $repoconfig = new \StdClass;
                 $repoconfig = (object)parse_ini_file($this->params->borg_backup_path . "/$srv/$cfg->type/config");
@@ -870,15 +937,29 @@ class Core {
                 $log->info("Running $_type Backup" . ($dumpMode ? " (mysqldump)" : "") . " ...", $srv);
                 $tmplog = $backuperror = '';
 
+                $stdin = '';
                 if ($dumpMode) {
-                    $cmd = $this->buildDumpCommand($archivename, $log, $srv);
+                    list($cmd, $stdin) = $this->buildDumpCommand($archivename, $log, $srv);
                 } else {
                     // --lock-wait : si une connexion precedente a laisse un verrou,
                     // attendre sa liberation plutot que d'echouer immediatement.
-                    $cmd = "ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=10' " . $this->serverParams->host . " \"export BORG_PASSPHRASE='" . $this->repoParams->passphrase . "'
-			" . $this->params->borg_binary_path . " create --lock-wait 600 --compression " . $this->repoParams->compression . " " . $this->repoParams->exclude . " ssh://" . $this->serverParams->host . "@" . $this->serverParams->backuptype . $this->repoParams->repo_path . "::$archivename " . $snap_path . $this->repoParams->backup_path . "\"";
+                    // Pas de -tt : le TTY empecherait le shell distant de lire la
+                    // passphrase sur l'entree standard.
+                    $distant = $this->secretCmd(array('BORG_PASSPHRASE'),
+                        'exec ' . $this->params->borg_binary_path . ' create --lock-wait 600'
+                      . ' --compression ' . $this->repoParams->compression . ' '
+                      . $this->repoParams->exclude
+                      . ' ssh://' . $this->serverParams->host . '@' . $this->serverParams->backuptype
+                      . $this->repoParams->repo_path . '::' . $archivename . ' '
+                      . $snap_path . $this->repoParams->backup_path);
+
+                    $cmd = "ssh -p " . $this->serverParams->port
+                         . " -o 'BatchMode=yes' -o 'ConnectTimeout=10' "
+                         . escapeshellarg($this->serverParams->host) . ' '
+                         . escapeshellarg('sh -c ' . escapeshellarg($distant));
+                    $stdin = $this->secretInput(array($this->repoParams->passphrase));
                 }
-                $e = $this->myExecRetry($cmd, $srv, $log, 'Sauvegarde borg', array(0, 1));
+                $e = $this->myExecRetry($cmd, $srv, $log, 'Sauvegarde borg', array(0, 1), $stdin);
 		// NE PAS journaliser la commande : elle contient la passphrase du repository
                 if ($e['return'] == '0' || $e['return'] == '1') {
                     if ($type == "mysql" && !$dumpMode) $this->removeLvmSnap($srv, $log);
@@ -1183,7 +1264,12 @@ class Core {
             if (!file_exists($this->params->borg_backup_path . '/' . $srv . '/backup')) {
                 $passphrase = $this->generateRandomString();
                 $encryption = "repokey";
-                $exec = $this->myExec('cd ' . $this->params->borg_backup_path . '/' . $srv . ';export BORG_PASSPHRASE="' . $passphrase . '";' . $this->params->borg_binary_path . ' init backup -e ' . $encryption . ' && echo "[OK]" || echo "[FAIL]"');
+                $exec = $this->myExec(
+                    'sh -c ' . escapeshellarg($this->secretCmd(array('BORG_PASSPHRASE'),
+                        'cd ' . escapeshellarg($this->params->borg_backup_path . '/' . $srv) . '; '
+                      . $this->params->borg_binary_path . ' init backup -e ' . escapeshellarg($encryption)
+                      . ' && echo "[OK]" || echo "[FAIL]"')),
+                    $this->secretInput(array($passphrase)));
                 if ($exec['return'] == 0) {
                     echo $exec['stdout'];
                 }
