@@ -1,0 +1,22 @@
+[Unit]
+Description=Protection SSH du serveur de sauvegarde (phpBorg)
+Documentation=file:/opt/phpBorg/conf/firewall-ssh.sh
+# Les regles vivent dans la chaine INPUT, que Docker ne touche pas. On
+# demarre malgre tout apres lui et apres le reseau, pour que netfilter soit
+# pleinement initialise au moment ou l'on ecrit.
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/phpBorg/conf/firewall-ssh.sh boot
+ExecStop=/opt/phpBorg/conf/firewall-ssh.sh revert
+# Un echec laisse simplement le port 22 ouvert comme avant : il ne peut pas
+# couper l'acces a la machine. On reessaie donc sans risque.
+Restart=on-failure
+RestartSec=10s
+StartLimitBurst=3
+
+[Install]
+WantedBy=multi-user.target

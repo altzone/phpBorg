@@ -18,6 +18,7 @@
 #   ./firewall-ssh.sh confirm   annule le rollback : les regles deviennent definitives
 #   ./firewall-ssh.sh revert    retire immediatement les regles
 #   ./firewall-ssh.sh status    etat courant
+#   ./firewall-ssh.sh boot      applique sans rollback (service systemd)
 #
 set -u
 
@@ -149,6 +150,21 @@ check)
     echo "  chaine $CHAIN existante : $(iptables -S "$CHAIN" >/dev/null 2>&1 && echo oui || echo non)"
     ;;
 
+boot)
+    # Applique les regles sans filet de rollback : au demarrage il n'y a
+    # personne pour confirmer. En cas d'echec, on sort en erreur pour que
+    # systemctl status le signale, mais le port 22 reste simplement ouvert
+    # comme avant : un echec ne peut pas couper l'acces a la machine.
+    apply_rules || { echo "Application des regles echouee" >&2; exit 1; }
+    if iptables -C INPUT -p tcp --dport "$PORT" -m conntrack --ctstate NEW -j "$CHAIN" 2>/dev/null; then
+        echo "Regles SSH appliquees"
+        logger -t phpborg-fw "regles SSH appliquees au demarrage"
+    else
+        echo "Regles absentes de INPUT apres application" >&2
+        exit 1
+    fi
+    ;;
+
 apply)
     mkdir -p "$STATE_DIR"
     iptables-save > "$BACKUP"
@@ -199,7 +215,7 @@ status)
     ;;
 
 *)
-    echo "Usage: $0 {check|apply|confirm|revert|status}"
+    echo "Usage: $0 {check|apply|confirm|revert|status|boot}"
     exit 1
     ;;
 esac
