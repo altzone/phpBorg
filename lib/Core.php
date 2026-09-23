@@ -156,6 +156,28 @@ class Core {
     }
 
     /**
+     * borgRsh Method (commande ssh utilisee par borg pour le rappel)
+     *
+     * Pour deposer son archive, borg ouvre lui-meme une session ssh vers le
+     * serveur de sauvegarde. Elle n'herite pas des options que phpBorg passe
+     * a ses propres appels ssh : un hote encore inconnu du client provoque
+     * une question interactive, et la sauvegarde meurt en BatchMode.
+     *
+     * accept-new accepte un hote inconnu mais refuse toujours une cle d'hote
+     * QUI A CHANGE : la protection contre un detournement reste entiere,
+     * seule disparait la question lors d'une premiere connexion par une
+     * nouvelle adresse -- le cas d'une bascule de mode.
+     *
+     * Un changement legitime de cle du serveur de sauvegarde reste traite par
+     * le nettoyage des known_hosts distants, qui purge les trois adresses.
+     *
+     * @return string
+     */
+    private function borgRsh() {
+        return 'ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10';
+    }
+
+    /**
      * sshTarget Method (adresse utilisee pour JOINDRE la machine sauvegardee)
      *
      * servers.host porte deux roles : l'adresse a joindre, mais aussi le nom
@@ -912,6 +934,7 @@ class Core {
         // adresses viennent de notre propre base et l'authenticite du serveur
         // reste garantie par la cle d'hote SSH.
         $inner = "set -o pipefail; export BORG_RELOCATED_REPO_ACCESS_IS_OK=yes; "
+               . "export BORG_RSH=" . escapeshellarg($this->borgRsh()) . "; "
                . $this->secretCmd(array('BORG_PASSPHRASE', 'MYSQL_PWD'), '')
                . "mysqldump -u" . escapeshellarg($this->dbParams->db_user)
                . " -h " . escapeshellarg($this->dbParams->db_host) . " "
@@ -1083,6 +1106,7 @@ class Core {
                     // Voir buildDumpCommand() : un changement de mode de rappel
                     // change l'URL du depot, que borg refuse sans confirmation.
                     $distant = 'export BORG_RELOCATED_REPO_ACCESS_IS_OK=yes; '
+                             . 'export BORG_RSH=' . escapeshellarg($this->borgRsh()) . '; '
                              . $this->secretCmd(array('BORG_PASSPHRASE'),
                         'exec ' . $this->params->borg_binary_path . ' create --lock-wait 600'
                       . ' --compression ' . $this->repoParams->compression . ' '
