@@ -906,7 +906,12 @@ class Core {
 
         // MYSQL_PWD plutot que -p en ligne de commande : le mot de passe
         // n'apparait pas dans le ps de la machine sauvegardee.
-        $inner = "set -o pipefail; "
+        // borg memorise l'emplacement du depot et refuse un changement d'URL
+        // sans confirmation interactive. Or changer de mode de rappel change
+        // l'URL : en BatchMode la sauvegarde echouerait des la bascule. Les
+        // adresses viennent de notre propre base et l'authenticite du serveur
+        // reste garantie par la cle d'hote SSH.
+        $inner = "set -o pipefail; export BORG_RELOCATED_REPO_ACCESS_IS_OK=yes; "
                . $this->secretCmd(array('BORG_PASSPHRASE', 'MYSQL_PWD'), '')
                . "mysqldump -u" . escapeshellarg($this->dbParams->db_user)
                . " -h " . escapeshellarg($this->dbParams->db_host) . " "
@@ -1075,7 +1080,10 @@ class Core {
                     // attendre sa liberation plutot que d'echouer immediatement.
                     // Pas de -tt : le TTY empecherait le shell distant de lire la
                     // passphrase sur l'entree standard.
-                    $distant = $this->secretCmd(array('BORG_PASSPHRASE'),
+                    // Voir buildDumpCommand() : un changement de mode de rappel
+                    // change l'URL du depot, que borg refuse sans confirmation.
+                    $distant = 'export BORG_RELOCATED_REPO_ACCESS_IS_OK=yes; '
+                             . $this->secretCmd(array('BORG_PASSPHRASE'),
                         'exec ' . $this->params->borg_binary_path . ' create --lock-wait 600'
                       . ' --compression ' . $this->repoParams->compression . ' '
                       . $this->repoParams->exclude
