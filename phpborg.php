@@ -37,6 +37,8 @@ if (!@date_default_timezone_set($tz)) date_default_timezone_set('UTC');
 
 $run    = new Core();
 $db     = new Db();
+// Adresses du serveur de sauvegarde : la base prime sur les valeurs du code
+$run->loadSettings($db);
 $log    = new LogWriter();
 $report = new Report($db, $log);
 $status = new Status($db, $log);

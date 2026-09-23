@@ -75,11 +75,25 @@ CREATE TABLE `repository` (
   `modified` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
+CREATE TABLE `settings` (
+  `key` varchar(64) NOT NULL,
+  `value` varchar(255) NOT NULL DEFAULT '',
+  `descr` varchar(255) NOT NULL DEFAULT '',
+  PRIMARY KEY (`key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+INSERT IGNORE INTO `settings` (`key`,`value`,`descr`) VALUES
+ ('borg_srv_ip_priv',  '10.10.70.70',    'Adresse du serveur de sauvegarde sur le reseau prive (mode internal)'),
+ ('borg_srv_ip_pub',   '91.200.205.105', 'Adresse publique du serveur de sauvegarde (mode external)'),
+ ('borg_srv_ip_tunnel','10.90.0.16',     'Adresse du serveur de sauvegarde dans le maillage WireGuard (mode tunnel)');
+
 CREATE TABLE `servers` (
   `id` int(11) NOT NULL,
   `name` varchar(50) COLLATE utf8_unicode_ci NOT NULL,
-  `host` varchar(150) COLLATE utf8_unicode_ci NOT NULL,
-  `backuptype` varchar(30) COLLATE utf8_unicode_ci NOT NULL DEFAULT 'internal',
+  `host` varchar(150) COLLATE utf8_unicode_ci NOT NULL COMMENT 'Compte Unix du depot ET nom logique',
+  `ssh_host` varchar(255) DEFAULT NULL COMMENT 'Adresse pour joindre la machine ; si vide, on utilise host',
+  `backuptype` varchar(30) COLLATE utf8_unicode_ci NOT NULL DEFAULT 'internal' COMMENT 'internal | external | tunnel',
+  `callback_ip` varchar(45) DEFAULT NULL COMMENT 'Adresse de rappel specifique ; prime sur backuptype',
   `port` int(11) NOT NULL,
   `ssh_pub_key` text COLLATE utf8_unicode_ci NOT NULL,
   `active` int(11) NOT NULL

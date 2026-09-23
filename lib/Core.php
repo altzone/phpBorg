@@ -83,16 +83,109 @@ class Core {
      * @param string $borg_archive_dir - name of backup repository archive
      * @param string $borg_srv_ip_pub  - Public IP of Backup server
      * @param string $borg_srv_ip_priv - Private IP of backup server
+     * @param string $borg_srv_ip_tunnel - Adresse du serveur dans le maillage WireGuard
      */
-    public function __construct($borg_binary_path = '/usr/bin/borg', $borg_config_path = 'conf/borg.conf', $borg_srv_ip_pub = '91.200.205.105', $borg_srv_ip_priv = '10.10.70.70', $borg_backup_path = '/data/backups', $borg_archive_dir = 'backup', $borg_lvmsnap_name = 'phpborg') {
+    public function __construct($borg_binary_path = '/usr/bin/borg', $borg_config_path = 'conf/borg.conf', $borg_srv_ip_pub = '91.200.205.105', $borg_srv_ip_priv = '10.10.70.70', $borg_backup_path = '/data/backups', $borg_archive_dir = 'backup', $borg_lvmsnap_name = 'phpborg', $borg_srv_ip_tunnel = '10.90.0.16') {
         $this->params = new \stdClass;
         $this->params->borg_binary_path  = $borg_binary_path;
         $this->params->borg_config_path  = $borg_config_path;
         $this->params->borg_srv_ip_pub   = $borg_srv_ip_pub;
         $this->params->borg_srv_ip_priv  = $borg_srv_ip_priv;
+        $this->params->borg_srv_ip_tunnel = $borg_srv_ip_tunnel;
         $this->params->borg_backup_path  = $borg_backup_path;
         $this->params->borg_archive_dir  = $borg_archive_dir;
         $this->params->borg_lvmsnap_name = $borg_lvmsnap_name;
+    }
+
+    /**
+     * loadSettings Method (adresses du serveur de sauvegarde, depuis la base)
+     *
+     * Les adresses etaient ecrites en dur dans le constructeur. Elles vivent
+     * desormais dans la table settings, ce qui permet d'en ajouter ou d'en
+     * changer sans toucher au code. Les valeurs du constructeur restent en
+     * repli : si la table est absente ou vide, le comportement est inchange.
+     *
+     * @param Db $db
+     * @param logWriter|null $log
+     * @return void
+     */
+    public function loadSettings($db, $log = null) {
+        $connues = array('borg_srv_ip_priv', 'borg_srv_ip_pub', 'borg_srv_ip_tunnel');
+
+        // sql_err(0) : une table settings absente ne doit pas arreter phpBorg
+        $strict = $db->sql_err;
+        $db->sql_err = 0;
+        $rows = @$db->query("SELECT `key`, `value` FROM settings")->fetchAll();
+        $db->sql_err = $strict;
+
+        if (empty($rows)) {
+            if ($log) $log->warning("Table settings vide ou absente : adresses par defaut du code");
+            return;
+        }
+        foreach ($rows as $r) {
+            $k = isset($r['key']) ? $r['key'] : null;
+            $v = isset($r['value']) ? trim($r['value']) : '';
+            if ($k !== null && $v !== '' && in_array($k, $connues, true)) {
+                $this->params->$k = $v;
+            }
+        }
+    }
+
+    /**
+     * callbackAddress Method (adresse que la machine sauvegardee utilise pour
+     * rappeler le serveur de sauvegarde)
+     *
+     * Ordre de priorite :
+     *   1. servers.callback_ip, si renseignee : elle prime sur tout
+     *   2. le mode declare dans servers.backuptype
+     *   3. le reseau prive, comme avant
+     *
+     * @param object $srvRow Ligne de la table servers
+     * @return string
+     */
+    public function callbackAddress($srvRow) {
+        if (!empty($srvRow->callback_ip)) return trim($srvRow->callback_ip);
+
+        $mode = isset($srvRow->backuptype) ? $srvRow->backuptype : '';
+        switch ($mode) {
+            case 'external': return $this->params->borg_srv_ip_pub;
+            case 'tunnel':   return $this->params->borg_srv_ip_tunnel;
+            case 'internal': return $this->params->borg_srv_ip_priv;
+        }
+        return $this->params->borg_srv_ip_priv;
+    }
+
+    /**
+     * sshTarget Method (adresse utilisee pour JOINDRE la machine sauvegardee)
+     *
+     * servers.host porte deux roles : l'adresse a joindre, mais aussi le nom
+     * du compte Unix proprietaire du depot sur le serveur de sauvegarde
+     * (chown, et le "user@" du rappel). On ne peut donc pas y ecrire une IP
+     * sans casser le second role.
+     *
+     * servers.ssh_host, quand elle est renseignee, ne porte que le premier :
+     * c'est ce qui permet de joindre une machine par son adresse de maillage
+     * sans toucher a /etc/hosts ni au compte.
+     *
+     * @return string
+     */
+    public function sshTarget() {
+        if (!empty($this->serverParams->ssh_host)) return trim($this->serverParams->ssh_host);
+        return $this->serverParams->host;
+    }
+
+    /**
+     * serverAddresses Method (toutes les adresses connues du serveur de
+     * sauvegarde, pour le nettoyage des known_hosts distants)
+     *
+     * @return array
+     */
+    public function serverAddresses() {
+        $l = array();
+        foreach (array('borg_srv_ip_priv', 'borg_srv_ip_pub', 'borg_srv_ip_tunnel') as $k) {
+            if (!empty($this->params->$k)) $l[] = $this->params->$k;
+        }
+        return array_values(array_unique($l));
     }
 
     /**
@@ -247,19 +340,14 @@ class Core {
                 }
                 else $this->repoParams->exclude = null;
 
-                if (isset($this->serverParams->backuptype)) {
-                    switch ($this->serverParams->backuptype) {
-                        case "internal":
-                            $this->serverParams->backuptype = $this->params->borg_srv_ip_priv;
-                        break;
-                        case "external":
-                            $this->serverParams->backuptype = $this->params->borg_srv_ip_pub;
-                        break;
-                    }
-                }
-                else {
-                    $this->serverParams->backuptype = $this->params->borg_srv_ip_priv;
-                }
+                // Le mode est memorise avant d'etre remplace par une adresse :
+                // le repli du mode tunnel doit savoir d'ou il part, et le
+                // journal doit pouvoir nommer le mode plutot qu'une IP.
+                $this->serverParams->backupmode = !empty($this->serverParams->backuptype)
+                                                ? $this->serverParams->backuptype : 'internal';
+                $this->serverParams->backuptype = $this->callbackAddress($this->serverParams);
+                // Trace du repli eventuel, relue par backup() pour le rapport
+                $this->serverParams->fallback_note = '';
                 return $this->serverParams;
             }
             else {
@@ -649,15 +737,56 @@ class Core {
      */
     public function checkRemote($srv, $log) {
         $log->info("Checking back ssh connexion", $srv);
-	$cmd = "ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=10' -o 'StrictHostKeyChecking=no' " . $this->serverParams->host . " \"ssh -q -o 'BatchMode=yes' -o 'ConnectTimeout=10' -o 'StrictHostKeyChecking=no' " . $this->serverParams->host . "@" . $this->serverParams->backuptype . " 'echo 2>&1'\"";
-	$e = $this->myExecRetry($cmd, $srv, $log, 'Verification SSH');
-        if ($e['return'] == 0) {
-            return 1;
+
+        $mode = isset($this->serverParams->backupmode) ? $this->serverParams->backupmode : '';
+
+        $e = $this->testCallback($srv, $log, $this->serverParams->backuptype);
+        if ($e['return'] == 0) return 1;
+
+        // Repli : le maillage WireGuard est recent, on ne lui confie pas les
+        // sauvegardes sans filet. Uniquement depuis le tunnel vers l'adresse
+        // publique : jamais l'inverse, le repli va du plus fragile vers le
+        // plus sur. Une adresse de rappel explicite (callback_ip) est un choix
+        // delibere de l'administrateur et n'est pas contournee.
+        $repli = $this->params->borg_srv_ip_pub;
+        if ($mode === 'tunnel' && empty($this->serverParams->callback_ip)
+            && !empty($repli) && $repli !== $this->serverParams->backuptype) {
+
+            $log->warning("Rappel par le tunnel (" . $this->serverParams->backuptype
+                        . ") indisponible, tentative sur l'adresse publique ($repli)", $srv);
+
+            $e2 = $this->testCallback($srv, $log, $repli);
+            if ($e2['return'] == 0) {
+                $note = "Tunnel indisponible : sauvegarde repliee sur $repli\n";
+                $log->warning(trim($note), $srv);
+                $this->serverParams->backuptype    = $repli;
+                $this->serverParams->fallback_note = $note;
+                return 1;
+            }
+            $log->error("Repli sur l'adresse publique egalement indisponible", $srv);
         }
-        else {
-            $log->error("Back ssh connexion error Return code ($e[return])\n $e[stderr]\n $e[stdout]", $srv);
-            return;
-        }
+
+        $log->error("Back ssh connexion error Return code ($e[return])\n $e[stderr]\n $e[stdout]", $srv);
+        return;
+    }
+
+    /**
+     * testCallback Method (la machine sauvegardee peut-elle rappeler le
+     * serveur de sauvegarde a cette adresse ?)
+     *
+     * @param string $srv
+     * @param logWriter $log
+     * @param string $adresse
+     * @return array Retour de myExec()
+     */
+    private function testCallback($srv, $log, $adresse) {
+        $cmd = "ssh -p " . $this->serverParams->port
+             . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=10' -o 'StrictHostKeyChecking=no' "
+             . $this->sshTarget()
+             . " \"ssh -q -o 'BatchMode=yes' -o 'ConnectTimeout=10' -o 'StrictHostKeyChecking=no' "
+             . $this->serverParams->host . "@" . $adresse . " 'echo 2>&1'\"";
+
+        return $this->myExecRetry($cmd, $srv, $log, 'Verification SSH (' . $adresse . ')');
     }
 
     /**
@@ -711,7 +840,7 @@ class Core {
     public function snapMysql($srv, $log) {
         $log->info("Starting DB Backup", $srv);
         $log->info("Sync MySQL database and create LVM snapshot", $srv);
-        $e = $this->myExec("ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=5' " . $this->serverParams->host . " \"
+        $e = $this->myExec("ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=5' " . $this->sshTarget() . " \"
                         a=( \`mount\` );[[ \\\${a[*]} =~ " . $this->params->borg_lvmsnap_name . " ]] && umount -fl /" . $this->params->borg_lvmsnap_name . " 1>&2
                         b=( \`lvs\` )  ;[[ \\\${b[*]} =~ " . $this->params->borg_lvmsnap_name . " ]] && lvremove -f /dev/" . $this->dbParams->vg_name . "/" . $this->params->borg_lvmsnap_name . " 1>&2
                         mysql -u" . $this->dbParams->db_user . " -p" . $this->dbParams->db_pass . " -h " . $this->dbParams->db_host . " -e 'flush tables with read lock;
@@ -770,7 +899,8 @@ class Core {
      */
     private function buildDumpCommand($archivename, $log, $srv) {
         $port = $this->serverParams->port;
-        $host = $this->serverParams->host;
+        $host = $this->serverParams->host;   // compte Unix sur le serveur de sauvegarde
+        $cible = $this->sshTarget();         // adresse a joindre
         $dest = "ssh://" . $host . "@" . $this->serverParams->backuptype
               . $this->repoParams->repo_path . "::" . $archivename;
 
@@ -791,7 +921,7 @@ class Core {
         // la lecture propre des secrets sur l'entree standard.
         // bash -c pour disposer de pipefail, que sh ne garantit pas.
         $cmd = "ssh -p " . $port . " -o 'BatchMode=yes' -o 'ConnectTimeout=10' "
-             . escapeshellarg($host) . " " . escapeshellarg("bash -c " . escapeshellarg($inner));
+             . escapeshellarg($cible) . " " . escapeshellarg("bash -c " . escapeshellarg($inner));
 
         return array($cmd, $this->secretInput(array(
             $this->repoParams->passphrase,
@@ -807,7 +937,7 @@ class Core {
      */
     public function removeLvmSnap($srv, $log) {
         $log->info("Removing LVM snapshot", $srv);
-        $e = $this->myExec("ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=5' " . $this->serverParams->host . " \"
+        $e = $this->myExec("ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=5' " . $this->sshTarget() . " \"
                         a=( \`mount\` );[[ \\\${a[*]} =~ " . $this->params->borg_lvmsnap_name . " ]] && umount -fl /" . $this->params->borg_lvmsnap_name . " 1>&2
                         b=( \`lvs\` )  ;[[ \\\${b[*]} =~ " . $this->params->borg_lvmsnap_name . " ]] && lvremove -f /dev/" . $this->dbParams->vg_name . "/" . $this->params->borg_lvmsnap_name . " 1>&2\"");
 
@@ -955,7 +1085,7 @@ class Core {
 
                     $cmd = "ssh -p " . $this->serverParams->port
                          . " -o 'BatchMode=yes' -o 'ConnectTimeout=10' "
-                         . escapeshellarg($this->serverParams->host) . ' '
+                         . escapeshellarg($this->sshTarget()) . ' '
                          . escapeshellarg('sh -c ' . escapeshellarg($distant));
                     $stdin = $this->secretInput(array($this->repoParams->passphrase));
                 }
@@ -1020,6 +1150,13 @@ class Core {
                             $err = $srv . "=>\nSQL UPDATE ERROR:\n" . $db->sql_error();
                             $tmplog .= $err;
                             $log->error($err, $srv);
+                        }
+                        // Un repli reussi ne doit pas passer inapercu : la
+                        // sauvegarde a fonctionne, mais par un autre chemin.
+                        if (!empty($this->serverParams->fallback_note)) {
+                            $tmplog .= $this->serverParams->fallback_note;
+                            $db->query("UPDATE IGNORE report set `log` = CONCAT(COALESCE(`log`,''), ?) WHERE id = ?",
+                                       $this->serverParams->fallback_note, (int)$reportId);
                         }
                         $db->query("UPDATE IGNORE report set `end` = NOW() WHERE id = ?", (int)$reportId);
                     }
@@ -1222,7 +1359,14 @@ class Core {
             }
             echo "   - Get SSH key ======================> ";
 	    $exec = $this->myExec('ssh -tt -p ' . $sshport . " " . $srv . " \"cat /root/.ssh/id_rsa.pub\"");
-	    $this->myExec('ssh -tt -p ' . $sshport . " " . $srv . " \"ssh-keygen -f /root/.ssh/known_hosts -R 10.10.70.70;ssh-keygen -f /root/.ssh/known_hosts -R 91.200.205.105;\"");
+	    // Toutes les adresses connues du serveur de sauvegarde, et non plus
+	    // deux valeurs ecrites en dur : un mode ajoute ne doit pas laisser
+	    // une entree known_hosts perimee derriere lui.
+	    $purge = '';
+	    foreach ($this->serverAddresses() as $adr) {
+	        $purge .= 'ssh-keygen -f /root/.ssh/known_hosts -R ' . escapeshellarg($adr) . ';';
+	    }
+	    $this->myExec('ssh -tt -p ' . $sshport . " " . escapeshellarg($srv) . ' ' . escapeshellarg($purge));
             if ($exec['return'] == 0) {
                 $sshkey = $exec['stdout'];
                 echo "[OK]\n";
