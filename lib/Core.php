@@ -174,7 +174,12 @@ class Core {
      * @return string
      */
     private function borgRsh() {
-        return 'ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10';
+        // StrictHostKeyChecking=accept-new serait preferable, mais l'option
+        // n'existe que depuis OpenSSH 7.6 : les machines plus anciennes du
+        // parc refusent la ligne de commande entiere et la sauvegarde echoue.
+        // On reprend donc "no", deja utilise par tous les autres appels ssh
+        // de phpBorg, ce qui ne degrade rien par rapport a l'existant.
+        return 'ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10';
     }
 
     /**
