@@ -1222,6 +1222,19 @@ class Core {
             }
 
         }
+
+        // Nettoyage post-sauvegarde. Volontairement ici, et pas avant :
+        // si le nettoyage se passe mal, l'archive de la nuit existe deja.
+        // Une erreur de nettoyage n'echoue jamais la sauvegarde.
+        if ($backuperror == 0 && $type !== 'mysql') {
+            $note = $this->cleanupApresBackup($srv, $log, $db, $reportId);
+            if ($note !== '') {
+                $tmplog .= $note;
+                $db->query("UPDATE IGNORE report set `log` = CONCAT(COALESCE(`log`,''), ?) WHERE id = ?",
+                           $note, (int)$reportId);
+            }
+        }
+
         return (object)[
             'error' => $backuperror,
             'log' => $tmplog,
@@ -1232,6 +1245,55 @@ class Core {
             'nbarchive' => 1,
             'nfiles' => isset($info) && is_object($info) ? $info->archives->stats->nfiles : 0,
         ];
+    }
+
+    /**
+     * cleanupApresBackup Method (nettoyage des fichiers regenerables)
+     *
+     * N'agit que si servers.cleanup est renseigne : par defaut la colonne est
+     * NULL et rien ne se passe. Voir lib/Cleanup.php pour la liste blanche des
+     * operations autorisees.
+     *
+     * @param string $srv
+     * @param logWriter $log
+     * @param Db $db
+     * @return string ligne a joindre au rapport, vide si rien n'a ete fait
+     */
+    private function cleanupApresBackup($srv, $log, $db, $reportId = 0) {
+        if (!class_exists('phpBorg\\Cleanup')) return '';
+
+        $spec = isset($this->serverParams->cleanup) ? trim((string)$this->serverParams->cleanup) : '';
+        if ($spec === '') return '';
+
+        $clean = new Cleanup($log, $db);
+        $cles  = $clean->resoudre($spec);
+        if (empty($cles)) return '';
+
+        $log->info("Nettoyage post-sauvegarde : " . implode(', ', $cles), $srv);
+        $r = $clean->executer($srv, $this->sshTarget(), (int)$this->serverParams->port, $cles, false);
+
+        if (!empty($r['injoignable'])) {
+            $log->warning("Nettoyage non effectue : " . $r['erreur'], $srv);
+            return "Nettoyage non effectue : " . $r['erreur'] . "\n";
+        }
+
+        $echecs = array();
+        foreach ($r['cles'] as $cle => $c) {
+            if ($c['rc'] !== null && $c['rc'] !== 0) $echecs[] = $cle . ' (code ' . $c['rc'] . ')';
+        }
+
+        if ($reportId) {
+            $db->query("UPDATE IGNORE report set `cleanup_freed` = ? WHERE id = ?",
+                       (int)$r['total'], (int)$reportId);
+        }
+
+        $note = "Nettoyage : " . Cleanup::octets($r['total']) . " liberes ("
+              . implode(', ', $cles) . ")";
+        if (!empty($echecs)) $note .= " - echecs : " . implode(', ', $echecs);
+        $note .= "\n";
+
+        $log->info(trim($note), $srv);
+        return $note;
     }
 
     /**

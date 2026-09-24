@@ -18,6 +18,7 @@ ini_set('display_startup_errors', 1);
 $base = __DIR__;
 
 require $base . '/lib/Config.php';
+require $base . '/lib/Cleanup.php';
 require $base . '/lib/Core.php';
 require $base . '/lib/Db.php';
 require $base . '/lib/Logger.php';
@@ -195,6 +196,142 @@ function phpborg_kill_tree($pid, $signal) {
  * @param string $bin
  * @return void
  */
+/**
+ * Detail du nettoyage d'une machine, pour la sortie terminal.
+ *
+ * @param array $r resultat de Cleanup::executer()
+ * @param phpBorg\Cleanup $clean
+ * @return string
+ */
+function phpborg_cleanup_detail($r, $clean) {
+    $o = "\n== " . $r['srv'] . " ==\n";
+    if (!empty($r['injoignable'])) {
+        return $o . "  INJOIGNABLE : " . $r['erreur'] . "\n";
+    }
+
+    $cfg = trim((string)$r['config']);
+    $o .= "  Configuration : " . ($cfg === '' ? "(aucune, opt-in non fait)" : $cfg) . "\n";
+    if (!empty($r['actives'])) $o .= "  Cles actives  : " . implode(', ', $r['actives']) . "\n";
+    $o .= "\n";
+
+    $o .= sprintf("  %-2s %-19s %12s %12s  %s\n", '', 'cle', 'estime', 'apres', 'etat');
+    $o .= "  " . str_repeat('-', 62) . "\n";
+
+    foreach ($r['cles'] as $cle => $c) {
+        $actif = in_array($cle, $r['actives'], true) ? '*' : ' ';
+        if (!empty($c['skip'])) {
+            $o .= sprintf("  %s%s %-19s %12s %12s  %s\n", $actif,
+                          phpBorg\Cleanup::niveau($cle), $cle, '-', '-', $c['skip']);
+            continue;
+        }
+        $etat = '';
+        if ($c['rc'] !== null) $etat = ($c['rc'] === 0) ? 'ok' : 'code ' . $c['rc'];
+        $o .= sprintf("  %s%s %-19s %12s %12s  %s\n", $actif,
+                      phpBorg\Cleanup::niveau($cle), $cle,
+                      phpBorg\Cleanup::octets($c['avant']),
+                      $c['apres'] === null ? '-' : phpBorg\Cleanup::octets($c['apres']),
+                      $etat);
+        foreach ($c['msg'] as $m) $o .= "       | " . $m . "\n";
+    }
+
+    $o .= "  " . str_repeat('-', 62) . "\n";
+    if (!empty($r['simulation'])) {
+        $o .= "  Estimation cumulee : " . phpBorg\Cleanup::octets($r['total']) . "\n";
+        $o .= "  (les postes Docker se recouvrent partiellement : c'est un ordre de grandeur)\n";
+    } else {
+        $o .= sprintf("  Espace libre : %s -> %s   gain reel %s\n",
+                      phpBorg\Cleanup::octets($r['df_avant']),
+                      phpBorg\Cleanup::octets($r['df_apres']),
+                      phpBorg\Cleanup::octets($r['total']));
+    }
+    $o .= "\n  * = cle activee en base    A = sans risque    B = cout sans perte\n";
+    return $o;
+}
+
+/**
+ * Synthese parc, triee par gain decroissant.
+ *
+ * @param array $res
+ * @param phpBorg\Cleanup $clean
+ * @param bool $dryRun
+ * @return string
+ */
+function phpborg_cleanup_synthese($res, $clean, $dryRun) {
+    $cat    = phpBorg\Cleanup::catalogue();
+    $cles   = array_keys($cat);
+    $totaux = array_fill_keys($cles, 0);
+    $grand  = 0;
+    $ko     = array();
+
+    // Largeur des colonnes : abreviation de chaque cle
+    $abbr = array();
+    foreach ($cles as $k) {
+        $p = explode('-', $k);
+        $abbr[$k] = strtoupper(count($p) > 1 ? substr($p[0],0,2) . substr($p[1],0,2) : substr($k,0,4));
+    }
+
+    $o  = "\n";
+    $o .= ($dryRun ? "SIMULATION" : "EXECUTION") . " du nettoyage - " . count($res) . " machines\n";
+    $o .= str_repeat('=', 118) . "\n";
+    $o .= sprintf("%-18s", 'machine');
+    foreach ($cles as $k) $o .= sprintf("%9s", $abbr[$k]);
+    $o .= sprintf("%11s  %s\n", 'TOTAL', 'config');
+    $o .= str_repeat('-', 118) . "\n";
+
+    foreach ($res as $r) {
+        if (!empty($r['injoignable'])) { $ko[] = $r['srv'] . ' (' . $r['erreur'] . ')'; continue; }
+        if ($r['total'] <= 0 && empty($r['config'])) {
+            // machine sans rien a nettoyer : on la compte mais sans ligne
+            $grand += 0;
+        }
+        $o .= sprintf("%-18s", substr($r['srv'], 0, 18));
+        foreach ($cles as $k) {
+            $v = isset($r['cles'][$k]['avant']) ? $r['cles'][$k]['avant'] : 0;
+            if (isset($r['cles'][$k]['skip']) && $r['cles'][$k]['skip'] !== '') $txt = '.';
+            elseif ($v <= 0) $txt = '-';
+            else $txt = phpborg_cleanup_court($v);
+            $totaux[$k] += $v;
+            $o .= sprintf("%9s", $txt);
+        }
+        $grand += $r['total'];
+        $o .= sprintf("%11s  %s\n", phpborg_cleanup_court($r['total']),
+                      trim((string)$r['config']) === '' ? '' : $r['config']);
+    }
+
+    $o .= str_repeat('-', 118) . "\n";
+    $o .= sprintf("%-18s", 'TOTAL PARC');
+    foreach ($cles as $k) $o .= sprintf("%9s", phpborg_cleanup_court($totaux[$k]));
+    $o .= sprintf("%11s\n", phpborg_cleanup_court($grand));
+    $o .= str_repeat('=', 118) . "\n\n";
+
+    $o .= "Legende des colonnes :\n";
+    foreach ($cles as $k) {
+        $o .= sprintf("  %-6s [%s] %-18s %s\n", $abbr[$k], $cat[$k]['niveau'], $k, $clean->descr($k));
+    }
+    $o .= "\n  '.' = docker absent    '-' = rien a nettoyer\n";
+
+    if (!empty($ko)) {
+        $o .= "\nMachines injoignables (" . count($ko) . ") :\n";
+        foreach ($ko as $m) $o .= "  - $m\n";
+    }
+
+    if ($dryRun) {
+        $o .= "\nRien n'a ete modifie. Les postes Docker se recouvrent partiellement :\n";
+        $o .= "le gain reel se mesure au df avant/apres lors de la premiere execution.\n";
+    }
+    return $o;
+}
+
+/** Format compact pour les tableaux (colonnes etroites). */
+function phpborg_cleanup_court($n) {
+    $n = (float)$n;
+    if ($n <= 0)          return '-';
+    if ($n >= 1073741824) return number_format($n / 1073741824, 1, ',', '') . 'G';
+    if ($n >= 1048576)    return number_format($n / 1048576, 0, ',', '') . 'M';
+    if ($n >= 1024)       return number_format($n / 1024, 0, ',', '') . 'k';
+    return ((int)$n) . 'o';
+}
+
 function phpborg_usage($bin) {
     echo <<<TXT
 Usage: $bin <commande> [arguments]
@@ -211,6 +348,10 @@ Usage: $bin <commande> [arguments]
   info <serveur> [mysql]      Affiche les informations du repository
   list <serveur> [mysql]      Liste les archives du repository
   mount [serveur] [mysql]     Monte une archive de facon interactive
+  cleanup <serveur|all>       Nettoie les fichiers regenerables des machines
+                              --dry-run   simule et chiffre, ne touche a rien
+                              --keys=<..> force des cles (defaut : config du serveur)
+                              -pN         N machines en parallele pour 'all'
   add                         Ajoute un serveur
   dbadd                       Ajoute une configuration base de donnees a un serveur
 
@@ -523,6 +664,127 @@ elseif ($param == "check") {
     }
     echo "ALERTE : voir le rapport envoye par mail et /var/log/phpborg.log\n";
     exit(1);
+}
+
+/* ------------------------------------------------------------- cleanup --- */
+elseif ($param == "cleanup") {
+    if (empty($argv[2])) {
+        echo "Usage: $bin cleanup <serveur|all> [--dry-run] [--keys=<cles>] [-pN]\n\n";
+        echo "Cles disponibles :\n";
+        foreach (phpBorg\Cleanup::catalogue() as $k => $c) {
+            printf("  [%s] %-18s %s\n", $c['niveau'], $k, $c['descr']);
+        }
+        echo "\nNiveaux : A = aucun risque, B = aucune perte de donnee mais un cout\n";
+        echo "Raccourcis : 'A', 'B', ou '@profil' defini dans la table settings.\n";
+        exit(1);
+    }
+
+    $cible    = $argv[2];
+    $dryRun   = in_array('--dry-run', $argv, true);
+    $jsonOut  = in_array('--json', $argv, true);
+    $forceCles = null;
+    $parallel  = 6;
+    foreach ($argv as $a) {
+        if (strpos($a, '--keys=') === 0) $forceCles = substr($a, 7);
+        elseif (preg_match('/^-p(\d+)$/', $a, $m)) $parallel = max(1, (int)$m[1]);
+    }
+
+    $clean = new phpBorg\Cleanup($log, $db);
+
+    /**
+     * Nettoie une machine et retourne le resultat structure.
+     * En simulation on evalue tout le catalogue, pour pouvoir decider ;
+     * en execution reelle on n'execute que ce qui est configure.
+     */
+    $faireUn = function ($row) use ($clean, $log, $dryRun, $forceCles) {
+        $spec = $forceCles !== null ? $forceCles : $row['cleanup'];
+
+        if ($dryRun && $forceCles === null) {
+            $cles = array_keys(phpBorg\Cleanup::catalogue());   // tout evaluer
+        } else {
+            $cles = $clean->resoudre($spec);
+        }
+
+        $r = $clean->executer($row['name'],
+                              !empty($row['ssh_host']) ? $row['ssh_host'] : $row['host'],
+                              (int)$row['port'], $cles, $dryRun);
+        $r['config']  = trim((string)$row['cleanup']);
+        $r['actives'] = $clean->resoudre($row['cleanup']);
+        return $r;
+    };
+
+    /* ----- une seule machine ----- */
+    if ($cible !== 'all') {
+        $row = $db->query("SELECT name, host, ssh_host, port, cleanup FROM servers
+                           WHERE name = ? AND active = 1", $cible)->fetchArray();
+        if (empty($row)) {
+            echo "Serveur '$cible' inconnu ou inactif.\n";
+            exit(1);
+        }
+        if (!$dryRun) phpborg_lock('cleanup-' . $cible, $log);
+
+        $r = $faireUn($row);
+        if ($jsonOut) { echo json_encode($r) . "\n"; exit(0); }
+        echo phpborg_cleanup_detail($r, $clean);
+        exit($r['injoignable'] ? 1 : 0);
+    }
+
+    /* ----- tout le parc, en parallele ----- */
+    if (!$dryRun) phpborg_lock('cleanup-all', $log);
+
+    $rows = $db->query("SELECT name, host, ssh_host, port, cleanup FROM servers
+                        WHERE active = 1 ORDER BY name")->fetchAll();
+    $file = $rows;
+    $encours = array();
+    $res     = array();
+    $tmp     = sys_get_temp_dir();
+
+    $log->info("Nettoyage " . ($dryRun ? "(simulation)" : "") . " : " . count($rows) . " machines, $parallel en parallele");
+    fwrite(STDERR, "Sondage de " . count($rows) . " machines ($parallel en parallele)...\n");
+
+    while (!empty($file) || !empty($encours)) {
+        while (count($encours) < $parallel && !empty($file)) {
+            $row = array_shift($file);
+            $out = tempnam($tmp, 'phpborg-clean-');
+            $cmd = 'exec ' . escapeshellarg(PHP_BINARY) . ' '
+                 . escapeshellarg($base . '/phpborg.php')
+                 . ' cleanup ' . escapeshellarg($row['name']) . ' --json'
+                 . ($dryRun ? ' --dry-run' : '')
+                 . ($forceCles !== null ? ' --keys=' . escapeshellarg($forceCles) : '');
+            $desc = array(1 => array('file', $out, 'w'), 2 => array('file', '/dev/null', 'a'));
+            $proc = @proc_open($cmd, $desc, $pipes, $base);
+            if (!is_resource($proc)) { @unlink($out); continue; }
+            $encours[] = array('proc' => $proc, 'out' => $out, 'name' => $row['name']);
+        }
+        if (empty($encours)) break;
+
+        $fini = false;
+        while (!$fini) {
+            foreach ($encours as $k => $w) {
+                $st = proc_get_status($w['proc']);
+                if ($st === false || !$st['running']) {
+                    proc_close($w['proc']);
+                    $j = @json_decode(@file_get_contents($w['out']), true);
+                    @unlink($w['out']);
+                    if (is_array($j)) $res[] = $j;
+                    else $res[] = array('srv' => $w['name'], 'injoignable' => true,
+                                        'erreur' => 'pas de reponse', 'cles' => array(),
+                                        'total' => 0, 'config' => '', 'actives' => array(),
+                                        'df_avant' => 0, 'df_apres' => 0, 'simulation' => $dryRun);
+                    fwrite(STDERR, '.');
+                    unset($encours[$k]);
+                    $fini = true;
+                }
+            }
+            if (!$fini) usleep(300000);
+        }
+        $encours = array_values($encours);
+    }
+    fwrite(STDERR, "\n\n");
+
+    usort($res, function ($a, $b) { return ($b['total'] == $a['total']) ? 0 : (($b['total'] < $a['total']) ? -1 : 1); });
+    echo phpborg_cleanup_synthese($res, $clean, $dryRun);
+    exit(0);
 }
 
 /* -------------------------------------------------------------- report --- */

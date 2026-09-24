@@ -44,6 +44,7 @@ CREATE TABLE `report` (
   `end` datetime DEFAULT NULL,
   `dur` int(11) DEFAULT NULL,
   `nfiles` bigint(20) DEFAULT NULL,
+  `cleanup_freed` bigint(20) DEFAULT NULL COMMENT 'Octets liberes par le nettoyage post-sauvegarde',
   `osize` bigint(20) DEFAULT NULL,
   `csize` bigint(20) DEFAULT NULL,
   `dsize` bigint(20) DEFAULT NULL,
@@ -87,6 +88,22 @@ INSERT IGNORE INTO `settings` (`key`,`value`,`descr`) VALUES
  ('borg_srv_ip_pub',   '91.200.205.105', 'Adresse publique du serveur de sauvegarde (mode external)'),
  ('borg_srv_ip_tunnel','10.90.0.16',     'Adresse du serveur de sauvegarde dans le maillage WireGuard (mode tunnel)');
 
+-- Nettoyage post-sauvegarde : profils reutilisables et reglages.
+-- Un profil se reference par @nom dans servers.cleanup et peut en inclure
+-- d'autres. Voir lib/Cleanup.php pour la liste blanche des operations.
+INSERT IGNORE INTO `settings` (`key`,`value`,`descr`) VALUES
+ ('cleanup_profile_base',    'journald,journal-orphelins,apt-cache,logs-anciens,coredump,lvm-orphan',
+  'Profil sans risque : logs, cache apt, coredumps, snapshot LVM orphelin'),
+ ('cleanup_profile_docker',  '@base,docker-dangling,docker-buildcache,docker-images',
+  'Profil machines Docker sans compilation : purge cache de build et images inutilisees'),
+ ('cleanup_profile_builder', '@base,docker-dangling,docker-images',
+  'Profil machine de compilation : conserve le cache de build'),
+ ('cleanup_timeout',      '600',  'Delai maximal par operation de nettoyage, en secondes'),
+ ('cleanup_journal_keep', '30d',  'Retention des journaux systemd (journalctl --vacuum-time)'),
+ ('cleanup_logs_age',     '90',   'Age minimal des logs tournes supprimes, en jours'),
+ ('cleanup_images_until', '720h', 'Age minimal des images Docker purgees (vide = aucun filtre)'),
+ ('cleanup_cache_until',  '168h', 'Age minimal du cache de build purge (vide = aucun filtre)');
+
 CREATE TABLE `servers` (
   `id` int(11) NOT NULL,
   `name` varchar(50) COLLATE utf8_unicode_ci NOT NULL,
@@ -94,6 +111,7 @@ CREATE TABLE `servers` (
   `ssh_host` varchar(255) DEFAULT NULL COMMENT 'Adresse pour joindre la machine ; si vide, on utilise host',
   `backuptype` varchar(30) COLLATE utf8_unicode_ci NOT NULL DEFAULT 'internal' COMMENT 'internal | external | tunnel',
   `callback_ip` varchar(45) DEFAULT NULL COMMENT 'Adresse de rappel specifique ; prime sur backuptype',
+  `cleanup` varchar(255) DEFAULT NULL COMMENT 'Cles de nettoyage post-backup (liste, @profil ou niveau A/B) ; NULL = aucun',
   `port` int(11) NOT NULL,
   `ssh_pub_key` text COLLATE utf8_unicode_ci NOT NULL,
   `active` int(11) NOT NULL

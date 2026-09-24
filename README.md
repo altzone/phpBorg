@@ -146,3 +146,95 @@ For the moment, DB config is store on PHP class:
 public function __construct($dbhost = '10.10.30.60', $dbuser = 'backup', $dbpass = 'QSDJSQDKJSQDJK34434', $dbname = 'backup', $charset = 'utf8')
 ```
 
+
+## :broom: Nettoyage post-sauvegarde
+
+phpBorg peut supprimer, sur les machines sauvegardées, les fichiers qui se
+régénèrent seuls : journaux, caches de paquets, cache de construction Docker.
+Le nettoyage tourne **après** la sauvegarde et **seulement si elle a réussi** :
+si le nettoyage se passe mal, l'archive de la nuit existe déjà.
+
+### Principe de sûreté
+
+La base ne contient jamais de commande, seulement des mots-clés. La
+correspondance mot-clé → commande vit dans `lib/Cleanup.php`, versionnée et
+relue. Une commande libre en base, ce serait un `rm -rf` à une faute de frappe
+près.
+
+La colonne `servers.cleanup` vaut `NULL` par défaut : sans configuration
+explicite, rien ne se passe sur aucune machine.
+
+### Clés disponibles
+
+Niveau **A** — aucun risque, ne détruit que du log ou du régénérable local :
+
+| clé | effet |
+|---|---|
+| `journald` | purge les journaux systemd au-delà de la rétention, **tous namespaces compris** (netdata en crée un, invisible d'un `vacuum` ordinaire) |
+| `journal-orphelins` | supprime les journaux d'une ancienne identité de la machine, que `journalctl` ne purge jamais |
+| `apt-cache` | `apt-get clean` |
+| `logs-anciens` | logs tournés (`*.gz`, `*.1`…) au-delà de l'âge configuré |
+| `coredump` | `/var/crash` et `/var/lib/systemd/coredump` |
+| `docker-dangling` | images Docker sans tag (`<none>`) |
+| `lvm-orphan` | snapshot LVM `phpborg` resté en place après un arrêt brutal |
+
+Niveau **B** — aucune perte de données, mais un coût (rebuild, re-pull) :
+
+| clé | effet |
+|---|---|
+| `docker-buildcache` | cache de construction Docker, avec filtre d'âge |
+| `docker-images` | images Docker inutilisées, avec filtre d'âge |
+| `cache-langages` | caches npm, yarn, pip, composer |
+
+Volontairement **absents** : `docker volume prune` (un volume dit orphelin est
+souvent un volume de base dont le conteneur a été recréé — perte définitive),
+`docker system prune -a` (trop large) et `apt-get autoremove` (peut retirer un
+noyau).
+
+### Configuration
+
+Une machine peut cumuler autant de clés que voulu. `servers.cleanup` accepte :
+
+```
+journald,apt-cache            des clés explicites
+@docker                       un profil nommé, défini dans settings
+@base,docker-images           un mélange des deux
+A                             tout le niveau A
+```
+
+Les profils vivent dans `settings`, sous la forme `cleanup_profile_<nom>`, et
+peuvent se référencer entre eux :
+
+```sql
+cleanup_profile_base    = journald,journal-orphelins,apt-cache,logs-anciens,coredump,lvm-orphan
+cleanup_profile_docker  = @base,docker-dangling,docker-buildcache,docker-images
+cleanup_profile_builder = @base,docker-dangling,docker-images
+```
+
+Réglages globaux, également dans `settings` :
+
+| clé | défaut | rôle |
+|---|---|---|
+| `cleanup_timeout` | `600` | délai maximal par opération, en secondes |
+| `cleanup_journal_keep` | `30d` | rétention des journaux systemd |
+| `cleanup_logs_age` | `90` | âge minimal des logs tournés supprimés, en jours |
+| `cleanup_images_until` | `720h` | âge minimal des images Docker purgées (vide = aucun filtre) |
+| `cleanup_cache_until` | `168h` | âge minimal du cache de build purgé (vide = aucun filtre) |
+
+### Utilisation
+
+```bash
+phpborg cleanup <serveur> --dry-run     # simule et chiffre, ne touche à rien
+phpborg cleanup all --dry-run -p8       # tout le parc, 8 machines en parallèle
+phpborg cleanup <serveur>               # exécute la configuration du serveur
+phpborg cleanup <serveur> --keys=journald,apt-cache
+```
+
+En simulation, **tout le catalogue est évalué** pour permettre de décider, et
+les clés réellement activées en base sont marquées d'une étoile. En exécution
+réelle, seules les clés configurées sont appliquées.
+
+Le gain retenu est l'espace effectivement rendu au système de fichiers (`df`
+avant / après), pas la somme des estimations : les postes Docker se recouvrent
+partiellement. Il est enregistré dans `report.cleanup_freed` et apparaît dans
+le rapport de sauvegarde.

@@ -83,7 +83,7 @@ class Report
     public function fullRows($fullReportId) {
         return $this->db->query(
             "SELECT r.id, r.server_id, r.type, r.start, r.end, r.dur, r.nfiles,
-                    r.osize, r.csize, r.dsize, r.nb_archive, r.error, r.log,
+                    r.osize, r.csize, r.dsize, r.nb_archive, r.error, r.log, r.cleanup_freed,
                     COALESCE(s.name, CONCAT('id:', r.server_id)) AS name
              FROM report r
              LEFT JOIN servers s ON s.id = r.server_id
@@ -101,7 +101,7 @@ class Report
     public function singleRow($reportId) {
         $rows = $this->db->query(
             "SELECT r.id, r.server_id, r.type, r.start, r.end, r.dur, r.nfiles,
-                    r.osize, r.csize, r.dsize, r.nb_archive, r.error, r.log,
+                    r.osize, r.csize, r.dsize, r.nb_archive, r.error, r.log, r.cleanup_freed,
                     COALESCE(s.name, CONCAT('id:', r.server_id)) AS name
              FROM report r
              LEFT JOIN servers s ON s.id = r.server_id
@@ -576,8 +576,12 @@ class Report
                 : 'Toutes les sauvegardes sont OK';
         $host   = $this->esc(gethostname());
 
-        $totO = $totD = 0;
-        foreach ($ok as $r) { $totO += (float)$r['osize']; $totD += (float)$r['dsize']; }
+        $totO = $totD = $totC = 0;
+        foreach ($ok as $r) {
+            $totO += (float)$r['osize'];
+            $totD += (float)$r['dsize'];
+            if (isset($r['cleanup_freed'])) $totC += (float)$r['cleanup_freed'];
+        }
 
         $sous = $this->esc($title) . ' &middot; ' . date('d/m/Y H:i')
               . ($dur > 0 ? ' &middot; ' . self::duration($dur) : '')
@@ -588,12 +592,16 @@ class Report
         $h .= '<div style="border:1px solid #e0e0e0;border-top:none;'
             . 'border-radius:0 0 6px 6px;padding:11px 10px">';
 
-        $h .= $this->statGrid(array(
-            array('Réussites', count($ok),            $isFail ? '#1e7a34' : '#1e7a34'),
+        $cases = array(
+            array('Réussites', count($ok),            '#1e7a34'),
             array('Échecs',    count($failed),        count($failed) > 0 ? '#b3261e' : '#888'),
             array('Données',   self::bytes($totO),    '#333'),
             array('Stocké',    self::bytes($totD),    '#333'),
-        ));
+        );
+        // La tuile n'apparait que si un nettoyage a reellement libere quelque
+        // chose : inutile d'afficher un zero permanent sur un parc non configure.
+        if ($totC > 0) $cases[] = array('Libéré', self::bytes($totC), '#1e7a34');
+        $h .= $this->statGrid($cases);
 
         $h .= $this->diskBanner();
 
@@ -626,6 +634,9 @@ class Report
                         . ' &rarr; ' . self::bytes($r['dsize']);
                 if ($r['nfiles'] !== null && (float)$r['nfiles'] > 0) {
                     $detail .= ' &middot; ' . self::files($r['nfiles']) . ' fich.';
+                }
+                if (!empty($r['cleanup_freed'])) {
+                    $detail .= ' &middot; nettoyé ' . self::bytes($r['cleanup_freed']);
                 }
                 $h .= '<tr>'
                     . '<td style="padding:8px 5px 8px 0;border-bottom:1px solid #eee;vertical-align:top">'
@@ -847,6 +858,9 @@ class Report
         $t .= 'Date     : ' . date('d/m/Y H:i') . "\n";
         if ($dur > 0) $t .= 'Duree    : ' . self::duration($dur) . "\n";
         $t .= 'Resultat : ' . count($ok) . ' OK, ' . count($failed) . " en echec\n";
+        $libere = 0;
+        foreach ($ok as $r) if (!empty($r['cleanup_freed'])) $libere += (float)$r['cleanup_freed'];
+        if ($libere > 0) $t .= 'Libere   : ' . self::bytes($libere) . " par le nettoyage\n";
         $disk = $this->diskStatus();
         if ($disk !== null) {
             $t .= 'Volume   : ' . $disk['path'] . ' ' . $disk['used_percent'] . '% occupe, '
@@ -878,8 +892,9 @@ class Report
         if (!empty($ok)) {
             $t .= 'REUSSITES (' . count($ok) . ")\n" . str_repeat('-', 70) . "\n";
             foreach ($ok as $r) {
-                $t .= sprintf("* %-24s %-8s %-10s %10s\n", $r['name'], $r['type'],
-                    self::duration($r['dur']), self::bytes($r['osize']));
+                $t .= sprintf("* %-24s %-8s %-10s %10s%s\n", $r['name'], $r['type'],
+                    self::duration($r['dur']), self::bytes($r['osize']),
+                    empty($r['cleanup_freed']) ? '' : '  nettoye ' . self::bytes($r['cleanup_freed']));
             }
             $t .= "\n";
         }
