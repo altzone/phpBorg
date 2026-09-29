@@ -32,6 +32,12 @@ stale_days = 2
 max_full_age_hours = 26
 ; alerte quand le volume de sauvegarde depasse ce taux d'occupation (%)
 disk_warn_percent = 90
+; "phpborg check" alerte si un full tourne encore depuis plus de N heures,
+; en nommant la ou les taches bloquees
+max_full_run_hours = 6
+; ... et si un verrou est tenu depuis plus de N heures : c'est lui qui ferait
+; sauter la nuit suivante, le cron utilisant "flock -n"
+max_lock_hours = 6
 
 [backup]
 ; nombre total de tentatives quand la connexion SSH echoue de facon passagere
@@ -42,6 +48,12 @@ retry_delay = 30
 ; nombre de sauvegardes menees de front par "phpborg full" (1 = sequentiel)
 ; les taches les plus longues sont lancees en premier
 parallel = 4
+; delai maximal d'une tache, en secondes (0 = aucune limite)
+; au-dela, la tache est tuee, marquee en echec, et le full continue. Sans cela
+; une machine qui ne repond plus retient tout le run, et le verrou qu'il tient
+; fait echouer le cron de la nuit suivante en silence.
+task_timeout_backup = 14400
+task_timeout_mysql  = 3600
 
 [general]
 ; fuseau horaire ; vide = celui du systeme (/etc/timezone)

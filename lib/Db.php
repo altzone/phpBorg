@@ -19,6 +19,12 @@ Class Db
     protected $connection;
 
     /**
+     * Identifiants memorises, pour pouvoir se reconnecter.
+     * @var array
+     */
+    protected $dsn = array();
+
+    /**
      * @var \mysqli_stmt::result_metadata
      */
     protected $query;
@@ -51,11 +57,47 @@ Class Db
         if ($dbname  === null) $dbname  = isset($cfg['name'])    ? $cfg['name']    : 'phpborg';
         if ($charset === null) $charset = isset($cfg['charset']) ? $cfg['charset'] : 'utf8';
 
-        $this->connection = new mysqli($dbhost, $dbuser, $dbpass, $dbname);
+        $this->dsn = array($dbhost, $dbuser, $dbpass, $dbname, $charset);
+        $this->connect();
+    }
+
+    /**
+     * Ouvre la connexion a partir des identifiants memorises.
+     * @return void
+     */
+    private function connect() {
+        list($h, $u, $p, $n, $c) = $this->dsn;
+        $this->connection = new mysqli($h, $u, $p, $n);
         if ($this->connection->connect_error) {
                 die('Echec de la connexion - ' . $this->connection->connect_error);
         }
-        $this->connection->set_charset($charset);
+        $this->connection->set_charset($c);
+    }
+
+    /**
+     * Retablit la connexion si le serveur l'a fermee.
+     *
+     * Un "full" ouvre sa connexion a 22h et l'utilise encore a la fin du run.
+     * Le 28/09/2026, une tache bloquee a porte ce run a 12h33 : au-dela de
+     * wait_timeout, MySQL avait ferme la connexion et l'agregation finale a
+     * leve "MySQL server has gone away". Le run est mort apres avoir termine
+     * ses 70 taches, sans clore son rapport ni envoyer de mail.
+     *
+     * @return void
+     */
+    private function ensureConnected() {
+        // mysqli est en mode exception : une connexion fermee par le serveur
+        // leve mysqli_sql_exception au lieu de renvoyer false. Le try/catch
+        // est donc indispensable, l'operateur @ ne suffirait pas.
+        try {
+            if ($this->connection instanceof mysqli
+                && $this->connection->query('SELECT 1') !== false) return;
+        } catch (\Throwable $e) {
+            // connexion perdue : on la refait ci-dessous
+        }
+        try { if ($this->connection instanceof mysqli) $this->connection->close(); }
+        catch (\Throwable $e) { /* deja fermee */ }
+        $this->connect();
     }
 
     /**
@@ -63,6 +105,7 @@ Class Db
      * @return $this
      */
     public function query($query) {
+        $this->ensureConnected();
         if ($this->query = $this->connection->prepare($query)) {
                 if (func_num_args() > 1) {
                         $x = func_get_args();

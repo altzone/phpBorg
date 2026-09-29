@@ -53,10 +53,74 @@ $status = new Status($db, $log);
  * @param logWriter $log
  * @return void
  */
+/**
+ * Supprime les fichiers de verrou dont le processus proprietaire est mort.
+ *
+ * Un fichier de verrou porte le pid qui l'a pris. Si ce pid n'existe plus et
+ * que le verrou n'est tenu par personne, le fichier ne sert plus a rien.
+ *
+ * @param string $dir
+ * @param logWriter $log
+ * @return int nombre de fichiers retires
+ */
+function phpborg_purge_locks($dir, $log) {
+    $n = 0;
+    // Uniquement les verrous que phpBorg pose lui-meme (prefixe "phpborg-").
+    // /run/lock/phpborg.lock est tenu par le flock(1) du cron : supprimer ce
+    // fichier alors qu'il est tenu ferait que le flock suivant en creerait un
+    // autre et reussirait, donc deux "full" en parallele. On n'y touche pas.
+    foreach ((array) @glob($dir . '/phpborg-*.lock') as $f) {
+        if (basename($f) === 'phpborg.lock') continue;
+        $pid = (int) trim((string) @file_get_contents($f));
+        if ($pid > 0) {
+            $vivant = function_exists('posix_kill') ? @posix_kill($pid, 0) : true;
+            if ($vivant) continue;
+        }
+        // Le pid est mort (ou le fichier est vide) : on ne supprime que si
+        // personne ne tient le verrou, pour ne jamais retirer un verrou actif.
+        $h = @fopen($f, 'r');
+        if ($h === false) continue;
+        if (flock($h, LOCK_EX | LOCK_NB)) {
+            flock($h, LOCK_UN);
+            fclose($h);
+            if (@unlink($f)) {
+                $n++;
+                $log->info("Verrou perime retire : " . basename($f) . " (pid $pid absent)");
+            }
+        } else {
+            fclose($h);
+        }
+    }
+    return $n;
+}
+
+/**
+ * Delai maximal accorde a une tache, en secondes.
+ *
+ * Une machine qui ne repond plus ne doit pas pouvoir retenir la chaine :
+ * le 28/09/2026 une seule tache bloquee a coute la nuit entiere, puis aurait
+ * coute les suivantes car le verrou du full restait tenu.
+ *
+ * @param string $type backup | mysql
+ * @return int 0 = aucune limite
+ */
+function phpborg_task_timeout($type) {
+    $cle = ($type === 'mysql') ? 'task_timeout_mysql' : 'task_timeout_backup';
+    $def = ($type === 'mysql') ? 3600 : 14400;          // 1 h / 4 h
+    $v = Config::get('backup', $cle, null);
+    return ($v === null || $v === '') ? $def : max(0, (int) $v);
+}
+
 function phpborg_lock($name, $log) {
     global $phpborg_lock_handle;
     $dir = is_dir('/run/lock') ? '/run/lock' : sys_get_temp_dir();
     $file = $dir . '/phpborg-' . $name . '.lock';
+
+    // Les verrous des runs precedents restent sur le disque : 71 fichiers
+    // trainaient le 29/09/2026, dont un du 23/09. Ils ne genent pas le flock
+    // lui-meme, mais ils masquent ceux qui sont reellement tenus et faussent
+    // le diagnostic. On retire ceux dont le pid n'existe plus.
+    phpborg_purge_locks($dir, $log);
 
     $phpborg_lock_handle = @fopen($file, 'c');
     if ($phpborg_lock_handle === false) {
@@ -118,12 +182,35 @@ function phpborg_trap_signals($report, $reportId, $log, $kind, $noMail = false) 
     pcntl_async_signals(true);
 
     $handler = function ($signo) use ($report, $reportId, $log, $kind, $noMail) {
-        global $phpborg_enfants;
+        global $phpborg_enfants, $phpborg_timeout;
 
         $names  = array(SIGINT => 'SIGINT (Ctrl+C)', SIGTERM => 'SIGTERM', SIGHUP => 'SIGHUP');
-        $signal = isset($names[$signo]) ? $names[$signo] : ('signal ' . $signo);
+        if ($signo === SIGALRM) {
+            $signal = 'delai maximal depasse (' . (int)$phpborg_timeout . 's)';
+        } else {
+            $signal = isset($names[$signo]) ? $names[$signo] : ('signal ' . $signo);
+        }
 
         $log->error("Run '$kind' interrompu par $signal", 'CORE');
+
+        // Un backup unitaire n'a pas d'enfants enregistres dans
+        // $phpborg_enfants : ses ssh sont des descendants directs. Sans cela,
+        // le ssh bloque survivrait a la tache qu'il a fait echouer.
+        if ($signo === SIGALRM && function_exists('posix_getpid')) {
+            $moi = posix_getpid();
+            $out = @shell_exec('pgrep -P ' . (int)$moi . ' 2>/dev/null');
+            foreach (preg_split('/\s+/', trim((string)$out)) as $c) {
+                if ($c !== '' && ctype_digit($c)) {
+                    $log->warning("Arret du sous-processus $c (delai depasse)");
+                    phpborg_kill_tree((int)$c, SIGTERM);
+                }
+            }
+            sleep(3);
+            $out = @shell_exec('pgrep -P ' . (int)$moi . ' 2>/dev/null');
+            foreach (preg_split('/\s+/', trim((string)$out)) as $c) {
+                if ($c !== '' && ctype_digit($c)) phpborg_kill_tree((int)$c, SIGKILL);
+            }
+        }
 
         // Terminer les sauvegardes lancees par ce run : sans cela elles
         // continueraient en orphelines, hors de tout suivi.
@@ -149,6 +236,11 @@ function phpborg_trap_signals($report, $reportId, $log, $kind, $noMail = false) 
             }
         }
 
+        // ssh ne propage pas les signaux : le borg de la machine distante
+        // survit au ssh qu'on vient de tuer, et garde le verrou du depot.
+        $cr = Core::arreterTacheDistante();
+        if ($cr !== '') $log->warning($cr, 'CORE');
+
         // Un worker lance par le full ne doit pas alerter de son cote :
         // le run complet emet une seule alerte pour l'ensemble.
         if ($noMail) {
@@ -156,12 +248,13 @@ function phpborg_trap_signals($report, $reportId, $log, $kind, $noMail = false) 
         } else {
             $report->sendInterrupted($reportId, $signal, $kind);
         }
-        exit(130);
+        exit($signo === SIGALRM ? 124 : 130);
     };
 
     pcntl_signal(SIGINT,  $handler);
     pcntl_signal(SIGTERM, $handler);
     pcntl_signal(SIGHUP,  $handler);
+    pcntl_signal(SIGALRM, $handler);
 }
 
 /**
@@ -340,6 +433,7 @@ Usage: $bin <commande> [arguments]
   backup <serveur> [mysql]    Sauvegarde un serveur, puis envoie le rapport
                               (--no-mail pour ne pas envoyer de rapport)
   check                       Controle de sante : alerte si aucune sauvegarde recente
+  alert <message>             Envoie une alerte par mail (utilise par le cron)
   report [id]                 Renvoie le rapport du run 'full' indique (dernier par defaut)
   json [serveur]              Publie l'etat des sauvegardes au format JSON
   testmail                    Envoie un mail de test pour valider la configuration SMTP
@@ -440,8 +534,18 @@ elseif ($param == "backup") {
     $reportId = $run->startReport($db, $serverId, $type);
     phpborg_trap_signals($report, $reportId, $log, 'backup', $noMail);
 
+    // Delai maximal : au-dela, la tache est tuee et marquee en echec. Sans
+    // cela, une machine qui ne repond plus retient le run indefiniment.
+    global $phpborg_timeout;
+    $phpborg_timeout = phpborg_task_timeout($type);
+    if ($phpborg_timeout > 0 && function_exists('pcntl_alarm')) {
+        pcntl_alarm($phpborg_timeout);
+        $log->info("Delai maximal de la tache : " . $phpborg_timeout . "s", $srv);
+    }
+
     $status->publish($srv);                      // backup_in_progress = true
     $result   = $run->backup($srv, $log, $db, $reportId, $type);
+    if (function_exists('pcntl_alarm')) pcntl_alarm(0);   // tache finie
     $duration = microtime(true) - $start;
     $status->publish($srv);                      // etat final
 
@@ -616,6 +720,33 @@ elseif ($param == "full") {
             }
             if (!$fini) {
                 if (function_exists('pcntl_signal_dispatch')) pcntl_signal_dispatch();
+
+                // Filet de securite de l'ordonnanceur. Le sous-processus a
+                // deja sa propre alarme ; si elle n'a pas fonctionne (pcntl
+                // absent, processus en D non interruptible), le full ne doit
+                // pas attendre pour autant. On lui laisse une marge, puis on
+                // tue l'arbre : la tache sera comptee en echec et le run
+                // continue. C'est ce qui manquait le 28/09/2026.
+                foreach ($encours as $k => $w) {
+                    $lim = phpborg_task_timeout($w['tache']['type']);
+                    if ($lim <= 0) continue;
+                    $age = microtime(true) - $w['debut'];
+                    if ($age < $lim + 120) continue;
+
+                    $log->error(sprintf("Tache %s (%s) depasse %ds (%s) : arret force",
+                        $w['tache']['name'], $w['tache']['type'], $lim,
+                        Report::duration($age)), 'CORE');
+
+                    if (!empty($w['pid'])) phpborg_kill_tree($w['pid'], SIGTERM);
+                    @proc_terminate($w['proc'], SIGTERM);
+                    sleep(5);
+                    $st2 = @proc_get_status($w['proc']);
+                    if ($st2 && $st2['running']) {
+                        if (!empty($w['pid'])) phpborg_kill_tree($w['pid'], SIGKILL);
+                        @proc_terminate($w['proc'], SIGKILL);
+                    }
+                }
+
                 usleep(500000);
             }
         }
@@ -624,6 +755,21 @@ elseif ($param == "full") {
     // Totaux recalcules depuis les sous-rapports : source unique de verite,
     // qu'ils aient ete produits en serie ou en parallele.
     $duration = microtime(true) - $startAll;
+
+    // Filet : si l'agregation ou la mise a jour echouent, le rapport doit
+    // quand meme etre clos. Le 28/09/2026 une exception a cet endroit a laisse
+    // le rapport ouvert et le verrou tenu apres 70 taches sur 70 terminees.
+    register_shutdown_function(function () use ($reportId) {
+        try {
+            $d = new Db();
+            $r = $d->query("SELECT end FROM report WHERE id = ?", (int)$reportId)->fetchArray();
+            if ($r !== null && $r !== false && empty($r['end'])) {
+                $d->query("UPDATE IGNORE report SET `end` = NOW(), `error` = 1, `curpos` = NULL
+                           WHERE id = ? AND `end` IS NULL", (int)$reportId);
+            }
+        } catch (\Throwable $e) { /* rien de mieux a faire a ce stade */ }
+    });
+
     $agg = $db->query(
         "SELECT COUNT(*) AS nb,
                 SUM(COALESCE(nb_archive,0)) AS archives,
@@ -650,7 +796,14 @@ elseif ($param == "full") {
              . " : $errors erreur(s) sur " . (int)$agg['archives'] . " archive(s)"
              . " ($parallel en parallele)");
 
-    $report->sendFull($reportId, $duration);
+    // L'envoi du rapport ne doit jamais empecher le run de se terminer : un
+    // serveur SMTP indisponible laisserait sinon le rapport ouvert et le
+    // verrou tenu, et la nuit suivante sauterait en silence.
+    try {
+        $report->sendFull($reportId, $duration);
+    } catch (\Throwable $e) {
+        $log->error("Envoi du rapport impossible : " . $e->getMessage(), 'CORE');
+    }
 
     exit($errors > 0 ? 1 : 0);
 }
@@ -801,6 +954,44 @@ elseif ($param == "report") {
     }
     echo "Renvoi du rapport du run full #$reportId\n";
     exit($report->sendFull($reportId, 0) ? 0 : 1);
+}
+
+/* --------------------------------------------------------------- alert --- */
+elseif ($param == "alert") {
+    // Permet au cron de signaler ce qu'il ne peut pas faire lui-meme : un
+    // "flock -n" qui echoue ne produit aucun message, et la nuit saute.
+    $msg = '';
+    for ($i = 2; $i < count($argv); $i++) {
+        if (substr($argv[$i], 0, 2) === '--') continue;
+        $msg .= ($msg === '' ? '' : ' ') . $argv[$i];
+    }
+    if ($msg === '') {
+        echo "Usage: $bin alert <message>\n";
+        exit(1);
+    }
+
+    $log->error($msg, 'CRON');
+
+    $mailer = new phpBorg\Mailer($log);
+    $html = '<h2 style="font:600 17px system-ui;color:#b3261e;margin:0 0 10px">'
+          . 'phpBorg - sauvegarde non lancee</h2>'
+          . '<p style="font:14px/1.6 system-ui;color:#333;margin:0 0 12px">'
+          . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . '</p>'
+          . '<p style="font:13px/1.6 system-ui;color:#666;margin:0">Machine : <code>'
+          . htmlspecialchars(gethostname(), ENT_QUOTES, 'UTF-8') . '</code><br>'
+          . 'Date : ' . date('d/m/Y H:i:s') . '<br>'
+          . 'Journal : <code>/var/log/phpborg.log</code></p>';
+    $texte = "phpBorg - sauvegarde non lancee\n\n" . $msg . "\n\n"
+           . 'Machine : ' . gethostname() . "\n" . 'Date : ' . date('d/m/Y H:i:s') . "\n";
+
+    $sujet = trim(Config::get('alert', 'subject_prefix', '[phpBorg]'))
+           . ' ALERTE - sauvegarde non lancee';
+    if ($mailer->send($sujet, $html, $texte)) {
+        echo "Alerte envoyee.\n";
+        exit(0);
+    }
+    echo "Echec de l'envoi : " . $mailer->error . "\n";
+    exit(1);
 }
 
 /* ---------------------------------------------------------------- json --- */

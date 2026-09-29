@@ -156,6 +156,81 @@ class Core {
     }
 
     /**
+     * Tache borg en cours sur la machine distante.
+     *
+     * ssh ne transmet aucun signal a la commande qu'il execute a l'autre bout :
+     * tuer le ssh local laisse le borg distant tourner. Il continue alors
+     * d'ecrire dans le depot et en garde le verrou, si bien que la sauvegarde
+     * suivante attend --lock-wait 600 puis echoue. Constate le 29/09/2026 en
+     * testant l'arret d'une tache sur cartobio.
+     *
+     * @var array|null {target, port, archive}
+     */
+    public static $tacheDistante = null;
+
+    /**
+     * Enregistre la tache distante en cours, pour pouvoir l'arreter.
+     *
+     * @param string $target
+     * @param int $port
+     * @param string $archive
+     * @return void
+     */
+    public static function suivreTacheDistante($target, $port, $archive) {
+        self::$tacheDistante = array('target' => $target, 'port' => (int) $port,
+                                     'archive' => $archive);
+    }
+
+    /** Oublie la tache distante : elle s'est terminee normalement. */
+    public static function oublierTacheDistante() {
+        self::$tacheDistante = null;
+    }
+
+    /**
+     * Arrete le borg reste sur la machine distante.
+     *
+     * Cible le nom de l'archive, qui porte l'horodatage a la seconde : aucune
+     * autre sauvegarde ne peut correspondre. SIGTERM et non SIGKILL, pour que
+     * borg libere le verrou du depot en partant -- verifie le 29/09/2026.
+     *
+     * @return string compte rendu pour le journal, vide si rien a faire
+     */
+    public static function arreterTacheDistante() {
+        $t = self::$tacheDistante;
+        if (empty($t) || empty($t['archive'])) return '';
+
+        $motif = 'borg create .*' . preg_quote($t['archive'], '/');
+        $cmd = 'timeout 30 ssh -p ' . (int) $t['port'] . ' ' . self::sshOpts() . ' '
+             . escapeshellarg($t['target']) . ' '
+             . escapeshellarg('pkill -TERM -f ' . escapeshellarg($motif));
+        @exec($cmd, $o, $rc);
+
+        // pkill sort 1 quand il n'a rien trouve : ce n'est pas une erreur.
+        return ($rc === 0)
+             ? 'borg distant arrete sur ' . $t['target'] . ' (' . $t['archive'] . ')'
+             : 'aucun borg distant a arreter sur ' . $t['target'] . ' (code ' . $rc . ')';
+    }
+
+    /**
+     * sshOpts Method (options ssh communes a tous les appels)
+     *
+     * ServerAliveInterval/CountMax : sans eux, une session dont l'autre bout
+     * ne repond plus reste ouverte indefiniment. Le 28/09/2026, une session
+     * vers sql-buzz est restee 10h20 sur un sshd distant qui ne fermait pas
+     * son canal, bloquant la fin du full et donc la nuit suivante.
+     *
+     * Ces deux options existent depuis OpenSSH 3.8 : verifie sur les 48
+     * machines du parc, dont deux en OpenSSH 6.0. C'est la difference avec
+     * StrictHostKeyChecking=accept-new, qui exige 7.6 et avait casse le parc.
+     *
+     * @return string
+     */
+    public static function sshOpts() {
+        return '-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10'
+             . ' -o ServerAliveInterval=30 -o ServerAliveCountMax=4';
+    }
+
+    /**
      * borgRsh Method (commande ssh utilisee par borg pour le rappel)
      *
      * Pour deposer son archive, borg ouvre lui-meme une session ssh vers le
@@ -179,7 +254,7 @@ class Core {
         // parc refusent la ligne de commande entiere et la sauvegarde echoue.
         // On reprend donc "no", deja utilise par tous les autres appels ssh
         // de phpBorg, ce qui ne degrade rien par rapport a l'existant.
-        return 'ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10';
+        return 'ssh ' . self::sshOpts();
     }
 
     /**
@@ -808,9 +883,9 @@ class Core {
      */
     private function testCallback($srv, $log, $adresse) {
         $cmd = "ssh -p " . $this->serverParams->port
-             . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=10' -o 'StrictHostKeyChecking=no' "
+             . " -tt " . self::sshOpts() . " "
              . $this->sshTarget()
-             . " \"ssh -q -o 'BatchMode=yes' -o 'ConnectTimeout=10' -o 'StrictHostKeyChecking=no' "
+             . " \"ssh -q " . self::sshOpts() . " "
              . $this->serverParams->host . "@" . $adresse . " 'echo 2>&1'\"";
 
         return $this->myExecRetry($cmd, $srv, $log, 'Verification SSH (' . $adresse . ')');
@@ -867,7 +942,7 @@ class Core {
     public function snapMysql($srv, $log) {
         $log->info("Starting DB Backup", $srv);
         $log->info("Sync MySQL database and create LVM snapshot", $srv);
-        $e = $this->myExec("ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=5' " . $this->sshTarget() . " \"
+        $e = $this->myExec("ssh -p " . $this->serverParams->port . " -tt " . self::sshOpts() . " " . $this->sshTarget() . " \"
                         a=( \`mount\` );[[ \\\${a[*]} =~ " . $this->params->borg_lvmsnap_name . " ]] && umount -fl /" . $this->params->borg_lvmsnap_name . " 1>&2
                         b=( \`lvs\` )  ;[[ \\\${b[*]} =~ " . $this->params->borg_lvmsnap_name . " ]] && lvremove -f /dev/" . $this->dbParams->vg_name . "/" . $this->params->borg_lvmsnap_name . " 1>&2
                         mysql -u" . $this->dbParams->db_user . " -p" . $this->dbParams->db_pass . " -h " . $this->dbParams->db_host . " -e 'flush tables with read lock;
@@ -953,7 +1028,7 @@ class Core {
         // Pas de -tt : un TTY altererait le flux transmis a borg, et empecherait
         // la lecture propre des secrets sur l'entree standard.
         // bash -c pour disposer de pipefail, que sh ne garantit pas.
-        $cmd = "ssh -p " . $port . " -o 'BatchMode=yes' -o 'ConnectTimeout=10' "
+        $cmd = "ssh -p " . $port . " " . self::sshOpts() . " "
              . escapeshellarg($cible) . " " . escapeshellarg("bash -c " . escapeshellarg($inner));
 
         return array($cmd, $this->secretInput(array(
@@ -970,7 +1045,7 @@ class Core {
      */
     public function removeLvmSnap($srv, $log) {
         $log->info("Removing LVM snapshot", $srv);
-        $e = $this->myExec("ssh -p " . $this->serverParams->port . " -tt -o 'BatchMode=yes' -o 'ConnectTimeout=5' " . $this->sshTarget() . " \"
+        $e = $this->myExec("ssh -p " . $this->serverParams->port . " -tt " . self::sshOpts() . " " . $this->sshTarget() . " \"
                         a=( \`mount\` );[[ \\\${a[*]} =~ " . $this->params->borg_lvmsnap_name . " ]] && umount -fl /" . $this->params->borg_lvmsnap_name . " 1>&2
                         b=( \`lvs\` )  ;[[ \\\${b[*]} =~ " . $this->params->borg_lvmsnap_name . " ]] && lvremove -f /dev/" . $this->dbParams->vg_name . "/" . $this->params->borg_lvmsnap_name . " 1>&2\"");
 
@@ -1121,12 +1196,16 @@ class Core {
                       . $snap_path . $this->repoParams->backup_path);
 
                     $cmd = "ssh -p " . $this->serverParams->port
-                         . " -o 'BatchMode=yes' -o 'ConnectTimeout=10' "
+                         . " " . self::sshOpts() . " "
                          . escapeshellarg($this->sshTarget()) . ' '
                          . escapeshellarg('sh -c ' . escapeshellarg($distant));
                     $stdin = $this->secretInput(array($this->repoParams->passphrase));
                 }
+
+                self::suivreTacheDistante($this->sshTarget(),
+                                          $this->serverParams->port, $archivename);
                 $e = $this->myExecRetry($cmd, $srv, $log, 'Sauvegarde borg', array(0, 1), $stdin);
+                self::oublierTacheDistante();
 		// NE PAS journaliser la commande : elle contient la passphrase du repository
                 if ($e['return'] == '0' || $e['return'] == '1') {
                     if ($type == "mysql" && !$dumpMode) $this->removeLvmSnap($srv, $log);
@@ -1448,7 +1527,7 @@ class Core {
             echo "\n\n[ REMOTE CONFIG ]\n";
             echo "   - Connecting to $srv\n";
             echo "   - Making SSH key ===================> ";
-            $exec = $this->myExec('ssh -tt  -o "StrictHostKeyChecking=no" -p ' . $sshport . " " . $srv . " \"if [ ! -f /root/.ssh/id_rsa ]; then ssh-keygen -t rsa -b 2048 -f /root/.ssh/id_rsa -N '' &> /dev/null && echo '[OK]' || echo 'Failed to create key'; else  echo '[SKIP] key already exist'; fi\"");
+            $exec = $this->myExec('ssh -tt -o "StrictHostKeyChecking=no" -o ServerAliveInterval=30 -o ServerAliveCountMax=4 -p ' . $sshport . " " . $srv . " \"if [ ! -f /root/.ssh/id_rsa ]; then ssh-keygen -t rsa -b 2048 -f /root/.ssh/id_rsa -N '' &> /dev/null && echo '[OK]' || echo 'Failed to create key'; else  echo '[SKIP] key already exist'; fi\"");
             if ($exec['return'] == 0) {
                 echo $exec['stdout'];
             }
@@ -1457,7 +1536,7 @@ class Core {
                 die;
             }
             echo "   - Get SSH key ======================> ";
-	    $exec = $this->myExec('ssh -tt -p ' . $sshport . " " . $srv . " \"cat /root/.ssh/id_rsa.pub\"");
+	    $exec = $this->myExec('ssh -tt -o ServerAliveInterval=30 -o ServerAliveCountMax=4 -p ' . $sshport . " " . $srv . " \"cat /root/.ssh/id_rsa.pub\"");
 	    // Toutes les adresses connues du serveur de sauvegarde, et non plus
 	    // deux valeurs ecrites en dur : un mode ajoute ne doit pas laisser
 	    // une entree known_hosts perimee derriere lui.
@@ -1465,7 +1544,7 @@ class Core {
 	    foreach ($this->serverAddresses() as $adr) {
 	        $purge .= 'ssh-keygen -f /root/.ssh/known_hosts -R ' . escapeshellarg($adr) . ';';
 	    }
-	    $this->myExec('ssh -tt -p ' . $sshport . " " . escapeshellarg($srv) . ' ' . escapeshellarg($purge));
+	    $this->myExec('ssh -tt -o ServerAliveInterval=30 -o ServerAliveCountMax=4 -p ' . $sshport . " " . escapeshellarg($srv) . ' ' . escapeshellarg($purge));
             if ($exec['return'] == 0) {
                 $sshkey = $exec['stdout'];
                 echo "[OK]\n";
@@ -1475,7 +1554,7 @@ class Core {
                 die;
             }
             echo "   - Installation of BorgBackup =======> ";
-            $exec = $this->myExec('ssh -tt -p ' . $sshport . " " . $srv . " \" if [ `uname -m` == 'i686' ]; then plateforme='32'; else plateforme='64'; fi; if [ ! -f /usr/bin/borg ]; then wget --no-check-certificate -q -O /usr/bin/borg https://github.com/borgbackup/borg/releases/download/1.1.7/borg-linux\\\$plateforme  ; chmod +x /usr/bin/borg && echo '[OK]' || echo '[FAIL] =>  Unable to install BorgBackup' ; else echo '[SKIP] BorgBackup already installed'; fi\"");
+            $exec = $this->myExec('ssh -tt -o ServerAliveInterval=30 -o ServerAliveCountMax=4 -p ' . $sshport . " " . $srv . " \" if [ `uname -m` == 'i686' ]; then plateforme='32'; else plateforme='64'; fi; if [ ! -f /usr/bin/borg ]; then wget --no-check-certificate -q -O /usr/bin/borg https://github.com/borgbackup/borg/releases/download/1.1.7/borg-linux\\\$plateforme  ; chmod +x /usr/bin/borg && echo '[OK]' || echo '[FAIL] =>  Unable to install BorgBackup' ; else echo '[SKIP] BorgBackup already installed'; fi\"");
             if ($exec['return'] == 0) {
                 echo $exec['stdout'];
             }

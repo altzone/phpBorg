@@ -399,12 +399,49 @@ class Report
                 $labels[]   = 'run interrompu';
             }
 
+            // Un run encore en cours bien au-dela du normal : c'est le cas
+            // qui a coute la nuit du 28/09/2026. On nomme les taches en cause,
+            // sinon l'alerte n'indique pas ou chercher.
+            $maxRun = (float)$this->cfg('max_full_run_hours', 6);
+            if ($last['end'] === null && $this->isRunning() && $age !== null && $age > $maxRun) {
+                $taches = $this->runningTasks((int)$last['id']);
+                $detail = array();
+                foreach ($taches as $t) {
+                    $detail[] = $t['name'] . ' (' . $t['type'] . ') depuis '
+                              . self::duration((int)$t['minutes'] * 60);
+                }
+                $problems[] = "Le run 'full' du " . $last['start'] . " tourne encore depuis "
+                            . $age . " h (seuil : " . $maxRun . " h). "
+                            . (empty($detail)
+                               ? "Aucune tache ouverte : le run est bloque apres ses taches."
+                               : "Tache(s) bloquee(s) : " . implode(' ; ', $detail) . ".")
+                            . " TANT QUE CE RUN TIENT SON VERROU, LE CRON DE 22H NE PARTIRA PAS.";
+                $labels[]   = 'full en cours depuis ' . $age . 'h'
+                            . (count($taches) === 1 ? ' sur ' . $taches[0]['name'] : '');
+            }
+
             // Un full termine mais trop ancien alors qu'un autre a demarre
             $done = $this->lastCompletedFull();
             if ($done !== null && (int)$done['age_hours'] > $maxAge && empty($problems)) {
                 $problems[] = "Le dernier 'full' reellement termine date du " . $done['end']
                             . " (il y a " . (int)$done['age_hours'] . " h).";
                 $labels[]   = 'dernier full complet il y a ' . (int)$done['age_hours'] . 'h';
+            }
+        }
+
+        // Verrou tenu trop longtemps : c'est lui qui fait sauter la nuit
+        // suivante, et il peut l'etre sans qu'aucun rapport ne soit ouvert.
+        $maxLock = (float)$this->cfg('max_lock_hours', 6);
+        foreach (array('phpborg.lock' => 'verrou du cron',
+                       'phpborg-full.lock' => "verrou du run 'full'") as $f => $quoi) {
+            $h = $this->lockHeldHours($f);
+            if ($h !== null && $h > $maxLock) {
+                $problems[] = sprintf(
+                    "Le %s (/run/lock/%s) est tenu depuis %s (seuil : %s h). "
+                    . "Le cron utilise 'flock -n' : tant que ce verrou tient, "
+                    . "le full de 22h echouera SANS AUCUN MESSAGE.",
+                    $quoi, $f, self::duration($h * 3600), $maxLock);
+                $labels[] = $quoi . ' tenu ' . round($h) . 'h';
             }
         }
 
@@ -435,6 +472,55 @@ class Report
 
         $this->deliver($subject, $html, $text);
         return false;
+    }
+
+    /**
+     * Taches d'un run encore ouvertes, avec leur duree.
+     *
+     * Permet de nommer la machine qui retient le run, au lieu de signaler
+     * seulement que le run est trop long. Le 28/09/2026 une seule tache
+     * (sql-buzz) a bloque 10h20 sans que l'alerte la designe.
+     *
+     * @param int $fullReportId
+     * @return array
+     */
+    public function runningTasks($fullReportId) {
+        return $this->db->query(
+            "SELECT COALESCE(s.name, CONCAT('id:', r.server_id)) AS name, r.type, r.start,
+                    TIMESTAMPDIFF(MINUTE, r.start, NOW()) AS minutes
+             FROM report r
+             LEFT JOIN servers s ON s.id = r.server_id
+             WHERE r.id > ? AND r.type <> 'full' AND r.end IS NULL
+             ORDER BY r.start ASC",
+            (int)$fullReportId
+        )->fetchAll();
+    }
+
+    /**
+     * Age d'un verrou effectivement tenu, en heures ; null s'il est libre.
+     *
+     * C'est le point aveugle qui a failli couter une deuxieme nuit : le cron
+     * utilise "flock -n", donc un verrou encore tenu le fait echouer en
+     * silence. Un verrou tenu depuis trop longtemps doit alerter de lui-meme.
+     *
+     * @param string $name nom du fichier de verrou, sans chemin
+     * @return float|null
+     */
+    public function lockHeldHours($name) {
+        $dir  = is_dir('/run/lock') ? '/run/lock' : sys_get_temp_dir();
+        $file = $dir . '/' . $name;
+        if (!file_exists($file)) return null;
+
+        $fh = @fopen($file, 'c');
+        if ($fh === false) return null;
+        $libre = flock($fh, LOCK_EX | LOCK_NB);
+        if ($libre) flock($fh, LOCK_UN);
+        fclose($fh);
+        if ($libre) return null;
+
+        $mtime = @filemtime($file);
+        if ($mtime === false) return 0.0;
+        return (time() - $mtime) / 3600;
     }
 
     /**
