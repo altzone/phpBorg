@@ -1,5 +1,7 @@
 # phpBorg - Enterprise Backup System
 
+Developed by [ALTZONE](https://altzone.net) — infrastructure, network, VoIP and datacenter engineering (Paris, France).
+
 Modern enterprise backup solution based on BorgBackup with web interface, comparable to Veeam, Acronis, and Nakivo.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
